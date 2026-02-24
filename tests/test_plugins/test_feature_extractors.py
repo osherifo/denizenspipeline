@@ -1,0 +1,113 @@
+"""Tests for basic feature extractors."""
+
+import numpy as np
+import pytest
+
+from denizenspipeline.core.types import FeatureSet
+from denizenspipeline.plugins.feature_extractors.basic import (
+    NumLettersExtractor,
+    NumPhonemesExtractor,
+    NumWordsExtractor,
+    WordLengthStdExtractor,
+)
+from denizenspipeline.tests.conftest import RUN_NAMES
+
+
+class TestNumWordsExtractor:
+    def test_output_is_feature_set(self, mock_stimuli):
+        ext = NumWordsExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert isinstance(result, FeatureSet)
+
+    def test_correct_name(self, mock_stimuli):
+        ext = NumWordsExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert result.name == "numwords"
+
+    def test_correct_n_dims(self, mock_stimuli):
+        ext = NumWordsExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert result.n_dims == 1
+
+    def test_has_all_runs(self, mock_stimuli):
+        ext = NumWordsExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        for name in RUN_NAMES:
+            assert name in result.data
+
+    def test_values_non_negative(self, mock_stimuli):
+        ext = NumWordsExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        for arr in result.data.values():
+            assert (arr >= 0).all()
+
+    def test_output_shape(self, mock_stimuli):
+        ext = NumWordsExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        for arr in result.data.values():
+            assert arr.ndim == 2
+            assert arr.shape[1] == 1
+
+    def test_validate_config(self):
+        ext = NumWordsExtractor()
+        assert ext.validate_config({}) == []
+
+
+class TestNumLettersExtractor:
+    def test_output_is_feature_set(self, mock_stimuli):
+        ext = NumLettersExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert isinstance(result, FeatureSet)
+
+    def test_correct_name(self, mock_stimuli):
+        ext = NumLettersExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert result.name == "numletters"
+
+    def test_values_non_negative(self, mock_stimuli):
+        ext = NumLettersExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        for arr in result.data.values():
+            assert (arr >= 0).all()
+
+
+class TestNumPhonemesExtractor:
+    def test_output_is_feature_set(self, mock_stimuli):
+        ext = NumPhonemesExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert isinstance(result, FeatureSet)
+
+    def test_correct_name(self, mock_stimuli):
+        ext = NumPhonemesExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert result.name == "numphonemes"
+
+    def test_values_non_negative(self, mock_stimuli):
+        ext = NumPhonemesExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        for arr in result.data.values():
+            assert (arr >= 0).all()
+
+
+class TestWordLengthStdExtractor:
+    def test_output_is_feature_set(self, mock_stimuli):
+        ext = WordLengthStdExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert isinstance(result, FeatureSet)
+
+    def test_correct_name(self, mock_stimuli):
+        ext = WordLengthStdExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        assert result.name == "word_length_std"
+
+    def test_values_non_negative(self, mock_stimuli):
+        ext = WordLengthStdExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        for arr in result.data.values():
+            assert (arr >= 0).all()
+
+    def test_output_shape(self, mock_stimuli):
+        ext = WordLengthStdExtractor()
+        result = ext.extract(mock_stimuli, RUN_NAMES, {})
+        for arr in result.data.values():
+            assert arr.shape[1] == 1

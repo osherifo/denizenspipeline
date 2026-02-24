@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "denizenspipeline"
+version = "2.0.0a1"
+description = "Denizens Pipeline — Plugin-based neuroscience encoding model pipeline"
+requires-python = ">=3.10"
+license = "MIT"
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+    "tqdm>=4.65",
+]
+
+[project.optional-dependencies]
+cloud = ["cottoncandy>=0.2", "boto3>=1.26"]
+viz = ["pycortex>=1.2", "matplotlib>=3.7"]
+ml = ["scikit-learn>=1.2"]
+nlp = ["transformers>=4.28", "gensim>=4.3"]
+all = ["denizenspipeline[cloud,viz,ml,nlp]"]
+dev = ["denizenspipeline[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
+
+[project.scripts]
+denizens = "denizenspipeline.cli:main"
+
+# Built-in plugins registered via entry points
+[project.entry-points."denizenspipeline.stimulus_loaders"]
+textgrid = "denizenspipeline.plugins.stimulus_loaders.textgrid:TextGridStimulusLoader"
+
+[project.entry-points."denizenspipeline.response_loaders"]
+cloud = "denizenspipeline.plugins.response_loaders.cloud:CloudResponseLoader"
+local = "denizenspipeline.plugins.response_loaders.local:LocalResponseLoader"
+
+[project.entry-points."denizenspipeline.feature_extractors"]
+numwords = "denizenspipeline.plugins.feature_extractors.basic:NumWordsExtractor"
+numletters = "denizenspipeline.plugins.feature_extractors.basic:NumLettersExtractor"
+numphonemes = "denizenspipeline.plugins.feature_extractors.basic:NumPhonemesExtractor"
+word_length_std = "denizenspipeline.plugins.feature_extractors.basic:WordLengthStdExtractor"
+english1000 = "denizenspipeline.plugins.feature_extractors.histograms:English1000Extractor"
+letters = "denizenspipeline.plugins.feature_extractors.histograms:LetterHistogramExtractor"
+phonemes = "denizenspipeline.plugins.feature_extractors.histograms:PhonemeHistogramExtractor"
+word2vec = "denizenspipeline.plugins.feature_extractors.embeddings:Word2VecExtractor"
+bert = "denizenspipeline.plugins.feature_extractors.embeddings:BERTExtractor"
+fasttext = "denizenspipeline.plugins.feature_extractors.embeddings:FastTextExtractor"
+
+[project.entry-points."denizenspipeline.feature_sources"]
+compute = "denizenspipeline.plugins.feature_sources.compute:ComputeSource"
+filesystem = "denizenspipeline.plugins.feature_sources.filesystem:FilesystemSource"
+cloud = "denizenspipeline.plugins.feature_sources.cloud:CloudSource"
+
+[project.entry-points."denizenspipeline.preprocessors"]
+default = "denizenspipeline.plugins.preprocessors.default:DefaultPreprocessor"
+pre_prepared = "denizenspipeline.plugins.preprocessors.pre_prepared:PreparedDataLoader"
+
+[project.entry-points."denizenspipeline.models"]
+bootstrap_ridge = "denizenspipeline.plugins.models.ridge:BootstrapRidgeModel"
+
+[project.entry-points."denizenspipeline.reporters"]
+metrics = "denizenspipeline.plugins.reporters.metrics:MetricsReporter"
+flatmap = "denizenspipeline.plugins.reporters.flatmap:FlatmapReporter"
+weights = "denizenspipeline.plugins.reporters.weights:WeightsReporter"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
