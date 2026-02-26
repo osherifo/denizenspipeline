@@ -180,3 +180,139 @@ class FastTextExtractor:
         if 'model_path' not in config:
             errors.append("fasttext requires 'model_path'")
         return errors
+
+
+class GPT2Extractor:
+    """GPT-2 contextual embeddings.
+
+    Produces word-level embeddings by running GPT-2 on the run's text and
+    mapping subword tokens back to word-level embeddings by averaging.
+    """
+
+    name = "gpt2"
+    n_dims = 768  # gpt2 / distilgpt2 hidden size
+
+    def extract(self, stimuli: StimulusData, run_names: list[str],
+                config: dict) -> FeatureSet:
+        from transformers import AutoModel, AutoTokenizer
+        import torch
+
+        model_name = config.get("model", "gpt2")  # or "distilgpt2"
+        layer = config.get("layer", 8)
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+        model = AutoModel.from_pretrained(model_name, output_hidden_states=True)
+        model.eval()
+
+        # GPT-2 has no pad token; set to eos for safety (esp. batching/truncation).
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        # Update n_dims in case user chooses another GPT-2 variant (e.g. medium/large)
+        self.n_dims = int(getattr(model.config, "n_embd", self.n_dims))
+
+        data = {}
+        for run_name in run_names:
+            stim_run = stimuli.runs[run_name]
+            wordseq = make_word_ds(stim_run.textgrid, stim_run.trfile)
+
+            embeddings = self._extract_layer(
+                model=model,
+                tokenizer=tokenizer,
+                words=wordseq.data,
+                layer=layer,
+            )
+
+            ds = DataSequence(embeddings, wordseq.split_inds,
+                              wordseq.data_times, wordseq.tr_times)
+            data[run_name] = ds.chunksums(interp="lanczos", window=3)
+
+        return FeatureSet(name=self.name, data=data, n_dims=self.n_dims)
+
+    def validate_config(self, config: dict) -> list[str]:
+        errors = []
+        layer = config.get("layer", 8)
+        if not isinstance(layer, int) or layer < 0:
+            errors.append(f"GPT-2 layer must be >= 0, got {layer}")
+
+        # Optional, but helpful: validate that chosen model is GPT-2 family-ish
+        model_name = config.get("model", "gpt2")
+        if not isinstance(model_name, str) or not model_name:
+            errors.append("gpt2 requires 'model' to be a non-empty string (default 'gpt2')")
+
+        return errors
+
+    def _extract_layer(self, model, tokenizer, words, layer: int) -> np.ndarray:
+        """Run GPT-2 and extract a specific layer's hidden states.
+
+        Tokenizes the concatenated text, runs the model, then maps subword tokens
+        back to word-level embeddings by averaging token vectors that overlap each
+        word span (via offset_mapping).
+        """
+        import torch
+
+        max_len = 1024  # GPT-2 context window (for base); tokenizer will truncate.
+        text = " ".join(str(w) for w in words)
+
+        # Get word character spans in the concatenated text.
+        # These are used to align token offset spans back to each word.
+        word_spans = []
+        pos = 0
+        for w in words:
+            s = text.find(str(w), pos)
+            if s < 0:
+                # Fallback: approximate span at current pos
+                s = pos
+            e = s + len(str(w))
+            word_spans.append((s, e))
+            pos = e + 1  # skip the space
+
+        inputs = tokenizer(
+            text,
+            return_tensors="pt",
+            return_offsets_mapping=True,
+            truncation=True,
+            max_length=max_len,
+            padding=False,
+        )
+        offset_mapping = inputs.pop("offset_mapping")[0].tolist()  # [(s,e), ...]
+        # Some fast tokenizers may include (0,0) for special cases; GPT-2 typically doesn't have CLS/SEP.
+
+        with torch.no_grad():
+            outputs = model(**inputs)
+
+        # hidden_states: tuple(len = n_layers+1), each: (batch, n_tokens, hidden)
+        hidden = outputs.hidden_states[layer][0].cpu().numpy()  # (n_tokens, n_dims)
+
+        # Map tokens -> words by span overlap.
+        # For each word span, average all token vectors whose offsets overlap the word.
+        result = np.zeros((len(words), self.n_dims), dtype=np.float32)
+
+        token_spans = offset_mapping
+        token_idx = 0
+        n_tokens = len(token_spans)
+
+        for wi, (ws, we) in enumerate(word_spans):
+            vecs = []
+
+            # Advance token index until tokens might overlap this word
+            while token_idx < n_tokens and token_spans[token_idx][1] <= ws:
+                token_idx += 1
+
+            ti = token_idx
+            while ti < n_tokens:
+                ts, te = token_spans[ti]
+                if te <= ws:
+                    ti += 1
+                    continue
+                if ts >= we:
+                    break
+                # Overlap
+                if te > ts and we > ws:
+                    vecs.append(hidden[ti])
+                ti += 1
+
+            if vecs:
+                result[wi] = np.mean(np.stack(vecs, axis=0), axis=0)
+
+        return result
