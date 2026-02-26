@@ -59,96 +59,133 @@ class Word2VecExtractor:
 
 
 class BERTExtractor:
-    """BERT contextual embeddings. Wraps Features.contextual_embeddings()."""
+    """BERT contextual embeddings (base or large).
+
+    Automatically adapts to model size:
+    - hidden_size (768 for base, 1024 for large)
+    - num_hidden_layers (12 for base, 24 for large)
+    """
 
     name = "bert"
-    n_dims = 768
+    n_dims = None  # determined dynamically
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
         from transformers import AutoModel, AutoTokenizer
         import torch
 
-        model_name = config.get('model', 'bert-base-uncased')
-        layer = config.get('layer', 8)
+        model_name = config.get("model", "bert-base-uncased")
+        layer = config.get("layer", None)
 
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModel.from_pretrained(model_name, output_hidden_states=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+        model = AutoModel.from_pretrained(
+            model_name,
+            output_hidden_states=True
+        )
         model.eval()
+
+        # Dynamically read model properties
+        hidden_size = model.config.hidden_size
+        num_layers = model.config.num_hidden_layers
+
+        self.n_dims = hidden_size
+
+        # If no layer specified, use middle layer (common best practice)
+        if layer is None:
+            layer = num_layers // 2
+
+        if layer < 0 or layer > num_layers:
+            raise ValueError(
+                f"Layer must be between 0 and {num_layers}, got {layer}"
+            )
 
         data = {}
         for run_name in run_names:
             stim_run = stimuli.runs[run_name]
             wordseq = make_word_ds(stim_run.textgrid, stim_run.trfile)
+
             embeddings = self._extract_layer(
-                model, tokenizer, wordseq.data, layer)
-            ds = DataSequence(embeddings, wordseq.split_inds,
-                              wordseq.data_times, wordseq.tr_times)
+                model=model,
+                tokenizer=tokenizer,
+                words=wordseq.data,
+                layer=layer,
+                max_len=model.config.max_position_embeddings
+            )
+
+            ds = DataSequence(
+                embeddings,
+                wordseq.split_inds,
+                wordseq.data_times,
+                wordseq.tr_times
+            )
+
             data[run_name] = ds.chunksums(interp="lanczos", window=3)
 
         return FeatureSet(name=self.name, data=data, n_dims=self.n_dims)
 
     def validate_config(self, config: dict) -> list[str]:
         errors = []
-        layer = config.get('layer', 8)
-        if not isinstance(layer, int) or layer < 0 or layer > 12:
-            errors.append(f"BERT layer must be 0-12, got {layer}")
+        layer = config.get("layer", None)
+
+        if layer is not None and (not isinstance(layer, int) or layer < 0):
+            errors.append(f"BERT layer must be >= 0, got {layer}")
+
         return errors
 
-    def _extract_layer(self, model, tokenizer, words, layer):
-        """Run BERT and extract a specific layer's hidden states.
-
-        Tokenizes all words, runs the model, then maps subword tokens
-        back to word-level embeddings by averaging.
-        """
+    def _extract_layer(self, model, tokenizer, words, layer: int,
+                       max_len: int = 512):
+        """Run BERT and extract specific layer word-level embeddings."""
         import torch
 
-        # Process in chunks to handle long sequences
-        max_len = 512
+        max_len = min(max_len, 512)
         all_embeddings = []
 
         for chunk_start in range(0, len(words), max_len - 2):
             chunk_words = words[chunk_start:chunk_start + max_len - 2]
             text = " ".join(str(w) for w in chunk_words)
 
-            inputs = tokenizer(text, return_tensors="pt",
-                               return_offsets_mapping=True,
-                               truncation=True, max_length=max_len)
+            inputs = tokenizer(
+                text,
+                return_tensors="pt",
+                return_offsets_mapping=True,
+                truncation=True,
+                max_length=max_len
+            )
+
             offset_mapping = inputs.pop("offset_mapping")[0]
 
             with torch.no_grad():
                 outputs = model(**inputs)
 
-            hidden = outputs.hidden_states[layer][0].numpy()  # (n_tokens, 768)
+            hidden = outputs.hidden_states[layer][0].cpu().numpy()
 
-            # Map subword tokens back to words
-            # Simple approach: average subword embeddings per word
             word_embeddings = []
-            word_idx = 0
             token_embeddings = []
 
-            for ti in range(1, len(hidden) - 1):  # skip [CLS] and [SEP]
+            # Skip [CLS] and [SEP]
+            for ti in range(1, len(hidden) - 1):
                 token_embeddings.append(hidden[ti])
-                # Check if this is the last subword of a word
+
                 if (ti + 1 >= len(offset_mapping) - 1 or
-                        offset_mapping[ti + 1][0] == 0):
-                    if token_embeddings:
-                        word_embeddings.append(np.mean(token_embeddings, axis=0))
-                        token_embeddings = []
+                        offset_mapping[ti + 1][0].item() == 0):
+                    word_embeddings.append(
+                        np.mean(token_embeddings, axis=0)
+                    )
+                    token_embeddings = []
 
             if token_embeddings:
-                word_embeddings.append(np.mean(token_embeddings, axis=0))
+                word_embeddings.append(
+                    np.mean(token_embeddings, axis=0)
+                )
 
             all_embeddings.extend(word_embeddings)
 
-        # Pad or truncate to match number of words
-        result = np.zeros((len(words), self.n_dims))
+        result = np.zeros((len(words), self.n_dims), dtype=np.float32)
         n = min(len(all_embeddings), len(words))
-        for i in range(n):
-            result[i] = all_embeddings[i]
+        if n > 0:
+            result[:n] = np.asarray(all_embeddings[:n], dtype=np.float32)
 
         return result
-
 
 class FastTextExtractor:
     """FastText embeddings — supports en, zh, es."""
