@@ -35,6 +35,7 @@ CONFIG_SCHEMA = {
         "trim_end": {"type": "int", "default": 5, "min": 0},
         "delays": {"type": "list[int]", "default": [1, 2, 3, 4]},
         "zscore": {"type": "bool", "default": True},
+        "apply_delays": {"type": "bool", "default": True},
     },
     "model": {
         "type": {"type": "string", "default": "bootstrap_ridge"},
@@ -80,15 +81,17 @@ def validate_config(config: dict) -> list[str]:
             if "name" not in feat:
                 errors.append(f"features[{i}] missing 'name'")
             source = feat.get("source", "compute")
-            if source not in ("compute", "filesystem", "cloud", "database"):
+            if source not in ("compute", "filesystem", "cloud", "database", "grouped_hdf"):
                 errors.append(
                     f"features[{i}] invalid source '{source}', "
-                    f"must be one of: compute, filesystem, cloud, database"
+                    f"must be one of: compute, filesystem, cloud, database, grouped_hdf"
                 )
             if source == "filesystem" and "path" not in feat:
                 errors.append(f"features[{i}] filesystem source requires 'path'")
             if source == "cloud" and "bucket" not in feat:
                 errors.append(f"features[{i}] cloud source requires 'bucket'")
+            if source == "grouped_hdf" and "paths" not in feat:
+                errors.append(f"features[{i}] grouped_hdf source requires 'paths'")
 
     # Split validation
     split = config.get("split", {})

@@ -1,0 +1,376 @@
+"""Himalaya-based ridge regression models with cross-validated regularization."""
+
+from __future__ import annotations
+
+import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
+
+from denizenspipeline.core.array_utils import make_delayed
+from denizenspipeline.core.types import ModelResult, PreparedData
+
+
+# ─── Shared helpers ──────────────────────────────────────────
+
+_VALID_BACKENDS = ("numpy", "cupy", "torch", "torch_cuda")
+
+
+def _set_backend(backend):
+    """Set the himalaya compute backend.
+
+    Parameters
+    ----------
+    backend : str or None
+        One of 'numpy', 'cupy', 'torch', 'torch_cuda'.
+        If None, does nothing (himalaya uses its default).
+    """
+    if backend is None:
+        return
+    from himalaya.backend import set_backend
+    set_backend(backend)
+
+
+def _resolve_alphas(spec):
+    """Resolve alpha specification.
+
+    'logspace(-2,5,20)' -> np.logspace(-2, 5, 20)
+    [100, 200, 300]     -> np.array([100, 200, 300])
+    """
+    if isinstance(spec, str) and spec.startswith('logspace'):
+        args = spec[len('logspace('):-1].split(',')
+        parsed = [float(a.strip()) for a in args]
+        if len(parsed) >= 3:
+            parsed[2] = int(parsed[2])
+        return np.logspace(*parsed)
+    return np.array(spec, dtype=float)
+
+
+def _compute_group_labels(feature_dims, delays, delays_applied):
+    """Compute per-column group labels for BandedRidgeCV.
+
+    Parameters
+    ----------
+    feature_dims : list[int]
+        Number of dimensions per feature group (before delay).
+    delays : list[int]
+        Delay values used.
+    delays_applied : bool
+        Whether delays have already been applied to the data.
+
+    Returns
+    -------
+    labels : list[int]
+        Group label for each column of the (delayed) feature matrix.
+    """
+    if delays_applied:
+        n_delays = len(delays)
+        labels = []
+        for group_idx, dim in enumerate(feature_dims):
+            labels.extend([group_idx] * (dim * n_delays))
+        return labels
+    else:
+        labels = []
+        for group_idx, dim in enumerate(feature_dims):
+            labels.extend([group_idx] * dim)
+        return labels
+
+
+def _compute_group_slices(feature_dims, delays_applied, delays=None):
+    """Compute per-group column slices for ColumnKernelizer.
+
+    Parameters
+    ----------
+    feature_dims : list[int]
+        Number of dimensions per feature group (before delay).
+    delays_applied : bool
+        Whether delays have already been applied.
+    delays : list[int], optional
+        Delay values (needed if delays_applied=True).
+
+    Returns
+    -------
+    slices : list[slice]
+        One slice per feature group.
+    """
+    slices = []
+    offset = 0
+    for dim in feature_dims:
+        if delays_applied:
+            width = dim * len(delays)
+        else:
+            width = dim
+        slices.append(slice(offset, offset + width))
+        offset += width
+    return slices
+
+
+def _score_predictions(Y_pred, Y_true, metric='r2'):
+    """Score predictions per target (voxel).
+
+    Parameters
+    ----------
+    Y_pred : ndarray, shape (n_samples, n_targets)
+    Y_true : ndarray, shape (n_samples, n_targets)
+    metric : str
+        'r2' or 'pearson_r'.
+
+    Returns
+    -------
+    scores : ndarray, shape (n_targets,)
+    """
+    if metric == 'pearson_r':
+        # Correlation per column
+        Y_pred_c = Y_pred - Y_pred.mean(axis=0)
+        Y_true_c = Y_true - Y_true.mean(axis=0)
+        num = (Y_pred_c * Y_true_c).sum(axis=0)
+        denom = np.sqrt((Y_pred_c ** 2).sum(axis=0) * (Y_true_c ** 2).sum(axis=0))
+        return num / np.maximum(denom, 1e-12)
+    elif metric == 'r2':
+        ss_res = ((Y_true - Y_pred) ** 2).sum(axis=0)
+        ss_tot = ((Y_true - Y_true.mean(axis=0)) ** 2).sum(axis=0)
+        return 1 - ss_res / np.maximum(ss_tot, 1e-12)
+    else:
+        raise ValueError(f"Unknown metric '{metric}', expected 'r2' or 'pearson_r'")
+
+
+class _Delayer(BaseEstimator, TransformerMixin):
+    """Sklearn-compatible transformer that applies temporal delays.
+
+    Wraps ``core.array_utils.make_delayed`` so it can be used in sklearn
+    pipelines (e.g. inside ``ColumnKernelizer``).
+    """
+
+    def __init__(self, delays=None):
+        self.delays = delays if delays is not None else [0]
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return make_delayed(X, self.delays)
+
+    def get_feature_names_out(self, input_features=None):
+        n_in = len(input_features) if input_features is not None else 1
+        names = []
+        for d in self.delays:
+            for i in range(n_in):
+                feat = input_features[i] if input_features is not None else f"x{i}"
+                names.append(f"{feat}_delay{d}")
+        return np.array(names)
+
+
+# ─── HimalayaRidgeModel ─────────────────────────────────────
+
+
+class HimalayaRidgeModel:
+    """Cross-validated ridge regression via himalaya.
+
+    Uses pre-delayed data from the default preprocessor.
+    Wraps ``himalaya.ridge.RidgeCV``.
+    """
+
+    name = "himalaya_ridge"
+
+    def fit(self, data: PreparedData, config: dict) -> ModelResult:
+        from himalaya.ridge import RidgeCV
+
+        model_cfg = config.get('model', {}).get('params', {})
+
+        alphas = _resolve_alphas(model_cfg.get('alphas', 'logspace(-2,5,20)'))
+        cv = model_cfg.get('cv', 5)
+        score_metric = model_cfg.get('score_metric', 'r2')
+        backend = model_cfg.get('backend', None)
+
+        _set_backend(backend)
+
+        ridge = RidgeCV(alphas=alphas, cv=cv)
+        ridge.fit(data.X_train, data.Y_train)
+
+        Y_pred = ridge.predict(data.X_test)
+        scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
+
+        return ModelResult(
+            weights=ridge.coef_,
+            scores=scores,
+            alphas=ridge.best_alphas_,
+            feature_names=data.feature_names,
+            feature_dims=data.feature_dims,
+            delays=data.delays,
+        )
+
+    def validate_config(self, config: dict) -> list[str]:
+        errors = []
+        model_cfg = config.get('model', {}).get('params', {})
+        cv = model_cfg.get('cv', 5)
+        if not isinstance(cv, int) or cv < 2:
+            errors.append(f"cv must be an integer >= 2, got {cv}")
+        return errors
+
+
+# ─── BandedRidgeModel ───────────────────────────────────────
+
+
+class BandedRidgeModel:
+    """Banded ridge regression with per-feature-group regularization.
+
+    Uses pre-delayed data. Computes group labels from ``feature_dims``
+    and ``delays`` so each feature group x delay combination gets its
+    own regularization strength.
+
+    Wraps ``himalaya.ridge.BandedRidgeCV``.
+    """
+
+    name = "banded_ridge"
+
+    def fit(self, data: PreparedData, config: dict) -> ModelResult:
+        from himalaya.ridge import BandedRidgeCV
+
+        model_cfg = config.get('model', {}).get('params', {})
+
+        alphas = _resolve_alphas(model_cfg.get('alphas', 'logspace(-2,5,20)'))
+        cv = model_cfg.get('cv', 5)
+        score_metric = model_cfg.get('score_metric', 'r2')
+        backend = model_cfg.get('backend', None)
+        solver_params = dict(model_cfg.get('solver_params', {}))
+
+        _set_backend(backend)
+
+        delays_applied = data.metadata.get('delays_applied', True)
+        groups = _compute_group_labels(
+            data.feature_dims, data.delays, delays_applied,
+        )
+
+        # Inject alphas into solver_params if not already set
+        if 'alphas' not in solver_params:
+            solver_params['alphas'] = alphas
+
+        ridge = BandedRidgeCV(
+            groups=groups, solver_params=solver_params,
+            cv=cv,
+        )
+        ridge.fit(data.X_train, data.Y_train)
+
+        Y_pred = ridge.predict(data.X_test)
+        scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
+
+        metadata = {
+            'deltas': ridge.deltas_,
+            'groups': groups,
+        }
+
+        return ModelResult(
+            weights=ridge.coef_,
+            scores=scores,
+            alphas=ridge.best_alphas_,
+            feature_names=data.feature_names,
+            feature_dims=data.feature_dims,
+            delays=data.delays,
+            metadata=metadata,
+        )
+
+    def validate_config(self, config: dict) -> list[str]:
+        errors = []
+        model_cfg = config.get('model', {}).get('params', {})
+        cv = model_cfg.get('cv', 5)
+        if not isinstance(cv, int) or cv < 2:
+            errors.append(f"cv must be an integer >= 2, got {cv}")
+        return errors
+
+
+# ─── MultipleKernelRidgeModel ───────────────────────────────
+
+
+class MultipleKernelRidgeModel:
+    """Multiple kernel ridge regression via himalaya.
+
+    Requires un-delayed data (``preprocessing.apply_delays: false``).
+    Builds a pipeline with ``ColumnKernelizer`` that applies delays and
+    kernelization per feature group, then fits ``MultipleKernelRidgeCV``
+    with precomputed kernels.
+    """
+
+    name = "multiple_kernel_ridge"
+
+    def fit(self, data: PreparedData, config: dict) -> ModelResult:
+        from himalaya.kernel_ridge import (
+            ColumnKernelizer, Kernelizer, MultipleKernelRidgeCV,
+        )
+        from sklearn.pipeline import make_pipeline
+
+        model_cfg = config.get('model', {}).get('params', {})
+
+        alphas = _resolve_alphas(model_cfg.get('alphas', 'logspace(-2,5,20)'))
+        cv = model_cfg.get('cv', 5)
+        solver = model_cfg.get('solver', 'random_search')
+        n_iter = model_cfg.get('n_iter', 200)
+        score_metric = model_cfg.get('score_metric', 'r2')
+        backend = model_cfg.get('backend', None)
+        solver_params = dict(model_cfg.get('solver_params', {}))
+
+        _set_backend(backend)
+
+        delays = data.delays
+        delays_applied = data.metadata.get('delays_applied', True)
+        group_slices = _compute_group_slices(
+            data.feature_dims, delays_applied, delays,
+        )
+
+        # Build per-group transformers: Delayer -> Kernelizer
+        transformers = []
+        for i, sl in enumerate(group_slices):
+            name = data.feature_names[i] if i < len(data.feature_names) else f"group_{i}"
+            if delays_applied:
+                pipe = Kernelizer()
+            else:
+                pipe = make_pipeline(_Delayer(delays=delays), Kernelizer())
+            transformers.append((name, pipe, sl))
+
+        column_kernelizer = ColumnKernelizer(transformers=transformers)
+
+        # Build solver params
+        solver_params.setdefault('n_iter', n_iter)
+        solver_params.setdefault('alphas', alphas)
+
+        mkr = MultipleKernelRidgeCV(
+            kernels='precomputed',
+            solver=solver,
+            solver_params=solver_params,
+            cv=cv,
+        )
+
+        # Transform and fit
+        K_train = column_kernelizer.fit_transform(data.X_train)
+        mkr.fit(K_train, data.Y_train)
+
+        K_test = column_kernelizer.transform(data.X_test)
+        Y_pred = mkr.predict(K_test)
+        scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
+
+        metadata = {
+            'deltas': mkr.deltas_,
+            'is_dual': True,
+        }
+
+        return ModelResult(
+            weights=mkr.dual_coef_,
+            scores=scores,
+            alphas=mkr.best_alphas_,
+            feature_names=data.feature_names,
+            feature_dims=data.feature_dims,
+            delays=data.delays,
+            metadata=metadata,
+        )
+
+    def validate_config(self, config: dict) -> list[str]:
+        errors = []
+        model_cfg = config.get('model', {}).get('params', {})
+        cv = model_cfg.get('cv', 5)
+        if not isinstance(cv, int) or cv < 2:
+            errors.append(f"cv must be an integer >= 2, got {cv}")
+
+        prep_cfg = config.get('preprocessing', {})
+        apply_delays = prep_cfg.get('apply_delays', True)
+        if apply_delays:
+            errors.append(
+                "multiple_kernel_ridge requires preprocessing.apply_delays: false"
+            )
+        return errors

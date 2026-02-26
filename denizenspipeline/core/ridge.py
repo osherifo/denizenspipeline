@@ -7,6 +7,8 @@ import logging
 
 import numpy as np
 
+from denizenspipeline import ui
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +55,7 @@ def bootstrap_ridge(Rstim, Rresp, Pstim, Presp, alphas,
     nalphas = len(alphas)
 
     # SVD of training stimuli for efficient ridge computation
-    logger.info("Computing SVD of training stimulus...")
+    ui.console.print("       [dim]Computing SVD of training stimulus...[/]", highlight=False)
     U, S, Vt = np.linalg.svd(Rstim, full_matrices=False)
 
     # Remove near-zero singular values
@@ -70,47 +72,50 @@ def bootstrap_ridge(Rstim, Rresp, Pstim, Presp, alphas,
     bootstrap_corrs = np.zeros((nalphas, nvox, nboots))
     valinds_list = []
 
-    logger.info(f"Running {nboots} bootstrap iterations...")
-    for bi in range(nboots):
-        # Select random chunks for validation
-        allinds = range(ntr)
-        indchunks = list(zip(*[iter(allinds)] * chunklen))
-        if not indchunks:
-            indchunks = [list(allinds)]
-        n_available = len(indchunks)
-        use_nchunks = min(nchunks, n_available)
-        heldinds = list(range(n_available))
-        np.random.shuffle(heldinds)
-        heldinds = heldinds[:use_nchunks]
+    with ui.bootstrap_progress(nboots) as progress:
+        task = progress.add_task("Bootstrap", total=nboots)
+        for bi in range(nboots):
+            # Select random chunks for validation
+            allinds = range(ntr)
+            indchunks = list(zip(*[iter(allinds)] * chunklen))
+            if not indchunks:
+                indchunks = [list(allinds)]
+            n_available = len(indchunks)
+            use_nchunks = min(nchunks, n_available)
+            heldinds = list(range(n_available))
+            np.random.shuffle(heldinds)
+            heldinds = heldinds[:use_nchunks]
 
-        valinds = []
-        for hi in heldinds:
-            valinds.extend(indchunks[hi])
-        valinds = sorted(valinds)
-        valinds_list.append(valinds)
+            valinds = []
+            for hi in heldinds:
+                valinds.extend(indchunks[hi])
+            valinds = sorted(valinds)
+            valinds_list.append(valinds)
 
-        # Train/val split for this bootstrap
-        traininds = sorted(set(range(ntr)) - set(valinds))
-        U_train = U[traininds, :]
-        Rresp_train = Rresp[traininds, :].astype(dtype)
-        U_val = U[valinds, :]
-        Rresp_val = Rresp[valinds, :].astype(dtype)
+            # Train/val split for this bootstrap
+            traininds = sorted(set(range(ntr)) - set(valinds))
+            U_train = U[traininds, :]
+            Rresp_train = Rresp[traininds, :].astype(dtype)
+            U_val = U[valinds, :]
+            Rresp_val = Rresp[valinds, :].astype(dtype)
 
-        # Precompute for this bootstrap
-        UR_boot = U_train.T @ Rresp_train
-        val_actual = Rresp_val
+            # Precompute for this bootstrap
+            UR_boot = U_train.T @ Rresp_train
+            val_actual = Rresp_val
 
-        for ai, alpha in enumerate(alphas):
-            # Ridge solution via SVD: w = V diag(s/(s^2+alpha)) U^T y
-            D = S / (S ** 2 + alpha)
-            pred_val = U_val @ np.diag(D) @ UR_boot
+            for ai, alpha in enumerate(alphas):
+                # Ridge solution via SVD: w = V diag(s/(s^2+alpha)) U^T y
+                D = S / (S ** 2 + alpha)
+                pred_val = U_val @ np.diag(D) @ UR_boot
 
-            if use_corr:
-                bootstrap_corrs[ai, :, bi] = _columnwise_corr(pred_val, val_actual)
-            else:
-                ss_res = np.sum((pred_val - val_actual) ** 2, axis=0)
-                ss_tot = np.sum((val_actual - val_actual.mean(0)) ** 2, axis=0)
-                bootstrap_corrs[ai, :, bi] = 1 - ss_res / (ss_tot + 1e-10)
+                if use_corr:
+                    bootstrap_corrs[ai, :, bi] = _columnwise_corr(pred_val, val_actual)
+                else:
+                    ss_res = np.sum((pred_val - val_actual) ** 2, axis=0)
+                    ss_tot = np.sum((val_actual - val_actual.mean(0)) ** 2, axis=0)
+                    bootstrap_corrs[ai, :, bi] = 1 - ss_res / (ss_tot + 1e-10)
+
+            progress.update(task, advance=1)
 
     # Select best alpha per voxel (mean across bootstraps)
     mean_corrs = bootstrap_corrs.mean(axis=2)  # (n_alphas, n_voxels)
@@ -123,7 +128,7 @@ def bootstrap_ridge(Rstim, Rresp, Pstim, Presp, alphas,
         best_alphas = alphas[best_alpha_idx]
 
     # Fit final weights using best alphas on full training data
-    logger.info("Fitting final model with selected alphas...")
+    ui.console.print("       [dim]Fitting final model with selected alphas...[/]", highlight=False)
     if single_alpha:
         D = S / (S ** 2 + best_alphas[0])
         weights = Vt.T @ np.diag(D) @ UR

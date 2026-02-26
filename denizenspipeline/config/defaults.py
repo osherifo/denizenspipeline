@@ -20,6 +20,7 @@ DEFAULT_CONFIG = {
         "trim_end": 5,
         "delays": [1, 2, 3, 4],
         "zscore": True,
+        "apply_delays": True,
     },
 
     "model": {

@@ -27,6 +27,8 @@ class DefaultPreprocessor:
         trim_end = prep_cfg.get('trim_end', 5)
         delays = prep_cfg.get('delays', [1, 2, 3, 4])
         do_zscore = prep_cfg.get('zscore', True)
+        trim_features = prep_cfg.get('trim_features', True)
+        apply_delays = prep_cfg.get('apply_delays', True)
 
         test_runs = split_cfg['test_runs']
         all_runs = sorted(
@@ -53,7 +55,8 @@ class DefaultPreprocessor:
             run_feats = []
             for fn in feature_names:
                 f = features.features[fn].data[run]
-                f = self._trim(f, trim_start, trim_end)
+                if trim_features:
+                    f = self._trim(f, trim_start, trim_end)
                 if do_zscore:
                     f = zscore(f)
                 run_feats.append(f)
@@ -66,8 +69,9 @@ class DefaultPreprocessor:
         X_test = np.vstack([trimmed_feat[r] for r in test_runs])
 
         # Apply temporal delays
-        X_train = make_delayed(X_train, delays)
-        X_test = make_delayed(X_test, delays)
+        if apply_delays:
+            X_train = make_delayed(X_train, delays)
+            X_test = make_delayed(X_test, delays)
 
         return PreparedData(
             X_train=X_train, Y_train=Y_train,
@@ -77,6 +81,7 @@ class DefaultPreprocessor:
             delays=delays,
             train_runs=train_runs,
             test_runs=test_runs,
+            metadata={'delays_applied': apply_delays},
         )
 
     def validate_config(self, config: dict) -> list[str]:
