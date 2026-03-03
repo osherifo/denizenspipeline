@@ -13,8 +13,36 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
+
+from denizenspipeline import ui
 
 logger = logging.getLogger(__name__)
+
+
+def _setup_file_logging(output_dir: str) -> Path:
+    """Configure a file handler that logs everything to {output_dir}/pipeline.log.
+
+    Returns the log file path.
+    """
+    log_dir = Path(output_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "pipeline.log"
+
+    file_handler = logging.FileHandler(log_path, mode='w')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    ))
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    # Ensure root logger level allows DEBUG through to the file handler
+    if root_logger.level > logging.DEBUG:
+        root_logger.setLevel(logging.DEBUG)
+
+    return log_path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,12 +88,13 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    # Set up logging
+    # Set up logging — suppress standard log format, let rich handle output
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
         datefmt='%H:%M:%S',
+        handlers=[logging.NullHandler()] if not args.verbose else None,
     )
 
     if args.command == 'run':
@@ -86,12 +115,18 @@ def _cmd_run(args) -> int:
     try:
         pipeline = Pipeline.from_yaml(args.config)
     except Exception as e:
-        print(f"Error loading config: {e}", file=sys.stderr)
+        ui.error_panel(str(e))
         return 1
 
     # Override subject if specified
     if args.subject:
         pipeline.config['subject'] = args.subject
+
+    # Set up file logging to {output_dir}/pipeline.log
+    output_dir = pipeline.config.get('reporting', {}).get(
+        'output_dir', './results')
+    log_path = _setup_file_logging(output_dir)
+    logger.info("Pipeline started — config: %s", args.config)
 
     # Parse stages
     stages = None
@@ -99,46 +134,43 @@ def _cmd_run(args) -> int:
         stages = [s.strip() for s in args.stages.split(',')]
 
     if args.dry_run:
-        print("Config resolved successfully.")
-        print(f"  Experiment: {pipeline.config.get('experiment')}")
-        print(f"  Subject: {pipeline.config.get('subject')}")
-        features = pipeline.config.get('features', [])
-        print(f"  Features ({len(features)}):")
-        for f in features:
-            print(f"    - {f['name']} (source: {f.get('source', 'compute')})")
-        print(f"  Model: {pipeline.config.get('model', {}).get('type')}")
-        print(f"  Reporters: {pipeline.config.get('reporting', {}).get('formats')}")
-        if stages:
-            print(f"  Stages to run: {stages}")
-        else:
-            print("  Stages to run: all")
+        ui.dry_run_panel(pipeline.config, stages)
         return 0
+
+    # Print header
+    ui.header(
+        pipeline.config.get('experiment', '?'),
+        pipeline.config.get('subject', '?'),
+        pipeline.config,
+    )
+    ui.console.print()
 
     try:
         ctx = pipeline.run(stages=stages, resume_from=args.resume_from)
-        print("\nPipeline completed successfully.")
+        ui.success("Pipeline completed successfully.")
 
-        # Print summary
+        # Print results
         if ctx.has('result'):
             from denizenspipeline.core.types import ModelResult
             result = ctx.get('result', ModelResult)
-            print(f"  Mean score: {result.scores.mean():.4f}")
-            print(f"  Max score: {result.scores.max():.4f}")
-            print(f"  N voxels: {result.n_voxels}")
+            ui.results_panel(
+                mean_score=result.scores.mean(),
+                max_score=result.scores.max(),
+                n_voxels=result.n_voxels,
+            )
 
         if ctx.artifacts:
-            print("  Artifacts:")
-            for reporter, files in ctx.artifacts.items():
-                for name, path in files.items():
-                    print(f"    [{reporter}] {name}: {path}")
+            ui.artifacts_panel(ctx.artifacts)
 
         return 0
 
     except Exception as e:
-        print(f"Pipeline failed: {e}", file=sys.stderr)
+        stage = getattr(e, 'stage', None)
+        logger.error("Pipeline failed: %s", e, exc_info=True)
+        ui.error_panel(str(e), stage=stage)
+        ui.log_hint(str(log_path))
         if logger.isEnabledFor(logging.DEBUG):
-            import traceback
-            traceback.print_exc()
+            ui.console.print_exception()
         return 1
 
 
@@ -149,10 +181,11 @@ def _cmd_validate(args) -> int:
 
     try:
         config = load_config(args.config)
-        print("Validating experiment config...")
-        print(f"  [OK] Config loaded: {args.config}")
-        print(f"  [OK] Experiment: {config.get('experiment')}")
-        print(f"  [OK] Subject: {config.get('subject')}")
+        ui.console.print(f"\n[bold]Validating[/] {args.config}\n")
+
+        ui.validate_line(True, f"Config loaded")
+        ui.validate_line(True, f"Experiment: {config.get('experiment')}")
+        ui.validate_line(True, f"Subject: {config.get('subject')}")
 
         # Check plugins
         registry = PluginRegistry()
@@ -161,16 +194,16 @@ def _cmd_validate(args) -> int:
         stim_loader = config.get('stimulus', {}).get('loader', 'textgrid')
         try:
             registry.get_stimulus_loader(stim_loader)
-            print(f"  [OK] Stimulus loader '{stim_loader}' registered")
+            ui.validate_line(True, f"Stimulus loader: [cyan]{stim_loader}[/]")
         except Exception as e:
-            print(f"  [FAIL] Stimulus loader: {e}")
+            ui.validate_line(False, f"Stimulus loader: {e}")
 
         resp_loader = config.get('response', {}).get('loader', 'cloud')
         try:
             registry.get_response_loader(resp_loader)
-            print(f"  [OK] Response loader '{resp_loader}' registered")
+            ui.validate_line(True, f"Response loader: [cyan]{resp_loader}[/]")
         except Exception as e:
-            print(f"  [FAIL] Response loader: {e}")
+            ui.validate_line(False, f"Response loader: {e}")
 
         for feat in config.get('features', []):
             source = feat.get('source', 'compute')
@@ -180,25 +213,28 @@ def _cmd_validate(args) -> int:
                 if source == 'compute':
                     ext_name = feat.get('extractor', name)
                     ext = registry.get_feature_extractor(ext_name)
-                    print(f"  [OK] Feature '{name}' source=compute, "
-                          f"extractor '{ext_name}' (dims={ext.n_dims})")
+                    ui.validate_line(
+                        True,
+                        f"Feature [yellow]{name}[/]: source={source}, "
+                        f"extractor={ext_name} (dims={ext.n_dims})"
+                    )
                 else:
-                    print(f"  [OK] Feature '{name}' source={source}")
+                    ui.validate_line(True, f"Feature [yellow]{name}[/]: source={source}")
             except Exception as e:
-                print(f"  [FAIL] Feature '{name}': {e}")
+                ui.validate_line(False, f"Feature [yellow]{name}[/]: {e}")
 
         model_type = config.get('model', {}).get('type', 'bootstrap_ridge')
         try:
             registry.get_model(model_type)
-            print(f"  [OK] Model '{model_type}' registered")
+            ui.validate_line(True, f"Model: [cyan]{model_type}[/]")
         except Exception as e:
-            print(f"  [FAIL] Model: {e}")
+            ui.validate_line(False, f"Model: {e}")
 
-        print("\nAll checks passed. Ready to run.")
+        ui.success("All checks passed. Ready to run.")
         return 0
 
     except Exception as e:
-        print(f"Validation failed: {e}", file=sys.stderr)
+        ui.error_panel(str(e))
         return 1
 
 
@@ -210,24 +246,8 @@ def _cmd_plugins(args) -> int:
     registry.discover()
     plugins = registry.list_plugins()
 
-    labels = {
-        'stimulus_loaders': 'Stimulus Loaders',
-        'response_loaders': 'Response Loaders',
-        'feature_extractors': 'Feature Extractors',
-        'feature_sources': 'Feature Sources',
-        'preprocessors': 'Preprocessors',
-        'models': 'Models',
-        'reporters': 'Reporters',
-    }
-
-    for key, names in plugins.items():
-        print(f"\n{labels.get(key, key)}:")
-        if names:
-            for name in names:
-                print(f"  {name}")
-        else:
-            print("  (none)")
-
+    ui.console.print()
+    ui.plugins_table(plugins)
     return 0
 
 

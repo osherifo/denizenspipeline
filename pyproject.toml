@@ -13,15 +13,16 @@ dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
     "pyyaml>=6.0",
-    "tqdm>=4.65",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
 cloud = ["cottoncandy>=0.2", "boto3>=1.26"]
 viz = ["pycortex>=1.2", "matplotlib>=3.7"]
 ml = ["scikit-learn>=1.2"]
+himalaya = ["himalaya>=0.4", "scikit-learn>=1.2"]
 nlp = ["transformers>=4.28", "gensim>=4.3"]
-all = ["denizenspipeline[cloud,viz,ml,nlp]"]
+all = ["denizenspipeline[cloud,viz,ml,nlp,himalaya]"]
 dev = ["denizenspipeline[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
 
 [project.scripts]
@@ -58,11 +59,16 @@ pre_prepared = "denizenspipeline.plugins.preprocessors.pre_prepared:PreparedData
 
 [project.entry-points."denizenspipeline.models"]
 bootstrap_ridge = "denizenspipeline.plugins.models.ridge:BootstrapRidgeModel"
+himalaya_ridge = "denizenspipeline.plugins.models.himalaya:HimalayaRidgeModel"
+banded_ridge = "denizenspipeline.plugins.models.himalaya:BandedRidgeModel"
+multiple_kernel_ridge = "denizenspipeline.plugins.models.himalaya:MultipleKernelRidgeModel"
 
 [project.entry-points."denizenspipeline.reporters"]
 metrics = "denizenspipeline.plugins.reporters.metrics:MetricsReporter"
 flatmap = "denizenspipeline.plugins.reporters.flatmap:FlatmapReporter"
 weights = "denizenspipeline.plugins.reporters.weights:WeightsReporter"
+histogram = "denizenspipeline.plugins.reporters.histogram:HistogramReporter"
+webgl = "denizenspipeline.plugins.reporters.webgl:WebGLReporter"
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["denizenspipeline"]

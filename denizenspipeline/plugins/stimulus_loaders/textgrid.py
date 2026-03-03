@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from denizenspipeline.core.stimulus_utils import (
+    TRFile,
     load_generic_trfiles,
     load_grids_for_stories,
     load_grids_for_stories_from_cloud,
@@ -11,8 +14,39 @@ from denizenspipeline.core.stimulus_utils import (
 from denizenspipeline.core.types import StimulusData, StimRun
 
 
+class _SyntheticTRFile:
+    """Stand-in TRFile with evenly spaced trigger times.
+
+    Used when no .report files exist (e.g. reading experiments where
+    TRs are uniform).  Requires ``n_trs`` and ``tr`` in the stimulus
+    config.
+    """
+
+    def __init__(self, n_trs: int, tr: float = 2.0):
+        self._times = np.arange(n_trs) * tr
+
+    def get_reltriggertimes(self):
+        return self._times
+
+
 class TextGridStimulusLoader:
-    """Loads TextGrid + TRFile pairs from local disk or cloud."""
+    """Loads TextGrid + TRFile pairs from local disk or cloud.
+
+    Config keys
+    -----------
+    textgrid_dir : str, optional
+        Explicit path to directory of .TextGrid files. Overrides the
+        default ``$DENIZENS_DATA_DIR/stimuli/{experiment}/{session}/TextGrids``
+        convention.
+    trfile_dir : str, optional
+        Explicit path to directory of .report files.  Overrides the
+        default convention.
+    n_trs : dict[str, int], optional
+        If no TRFiles are found, synthesize evenly-spaced triggers using
+        this per-run TR count.  Keys are run names, values are ints.
+    tr : float, optional
+        TR duration in seconds for synthetic triggers (default 2.0).
+    """
 
     name = "textgrid"
 
@@ -25,6 +59,9 @@ class TextGridStimulusLoader:
         grids = {}
         trfiles = {}
 
+        textgrid_dir = stim_cfg.get('textgrid_dir')
+        trfile_dir = stim_cfg.get('trfile_dir')
+
         for session in sessions:
             if source == 'cloud':
                 grids.update(load_grids_for_stories_from_cloud(
@@ -33,9 +70,16 @@ class TextGridStimulusLoader:
                     experiment, session))
             else:
                 grids.update(load_grids_for_stories(
-                    experiment, session))
+                    experiment, session, grid_dir=textgrid_dir))
                 trfiles.update(load_generic_trfiles(
-                    experiment, session))
+                    experiment, session, tr_dir=trfile_dir))
+
+        # Synthesize TRFiles for any grid that has no matching .report
+        n_trs_map = stim_cfg.get('n_trs', {})
+        tr = stim_cfg.get('tr', 2.0)
+        for run_name in grids:
+            if run_name not in trfiles and run_name in n_trs_map:
+                trfiles[run_name] = _SyntheticTRFile(n_trs_map[run_name], tr)
 
         runs = {}
         for run_name in grids:
