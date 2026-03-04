@@ -6,6 +6,7 @@ import pytest
 from denizenspipeline.core.types import (
     FeatureData,
     FeatureSet,
+    LanguageStim,
     ModelResult,
     PreparedData,
     ResponseData,
@@ -93,8 +94,10 @@ def mock_textgrid():
 def mock_stim_run(mock_textgrid, mock_trfile):
     return StimRun(
         name="story1",
-        textgrid=mock_textgrid,
-        trfile=mock_trfile,
+        stimulus=LanguageStim(
+            textgrid=mock_textgrid,
+            trfile=mock_trfile,
+        ),
     )
 
 
@@ -104,8 +107,10 @@ def mock_stimuli(mock_textgrid, mock_trfile):
     for name in RUN_NAMES:
         runs[name] = StimRun(
             name=name,
-            textgrid=MockTextGrid(),
-            trfile=MockTRFile(),
+            stimulus=LanguageStim(
+                textgrid=MockTextGrid(),
+                trfile=MockTRFile(),
+            ),
         )
     return StimulusData(runs=runs)
 
