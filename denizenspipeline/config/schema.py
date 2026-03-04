@@ -13,7 +13,7 @@ CONFIG_SCHEMA = {
         },
         "modality": {
             "type": "string", "default": "reading",
-            "enum": ["reading", "listening"],
+            "enum": ["reading", "listening", "visual"],
         },
     },
     "features": {
@@ -160,5 +160,9 @@ def validate_config(config: dict) -> list[str]:
     lang = stim.get("language", "en")
     if lang not in ("en", "zh", "es"):
         errors.append(f"stimulus.language must be one of: en, zh, es — got '{lang}'")
+
+    loader = stim.get("loader", "textgrid")
+    if loader in ("audio", "video") and "path" not in stim:
+        errors.append(f"stimulus loader '{loader}' requires 'stimulus.path'")
 
     return errors

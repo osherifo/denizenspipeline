@@ -11,7 +11,7 @@ from denizenspipeline.core.stimulus_utils import (
     load_grids_for_stories_from_cloud,
     load_trfiles_from_cloud,
 )
-from denizenspipeline.core.types import StimulusData, StimRun
+from denizenspipeline.core.types import LanguageStim, StimulusData, StimRun
 from denizenspipeline.plugins._decorators import stimulus_loader
 
 
@@ -88,8 +88,10 @@ class TextGridStimulusLoader:
             if run_name in trfiles:
                 runs[run_name] = StimRun(
                     name=run_name,
-                    textgrid=grids[run_name],
-                    trfile=trfiles[run_name],
+                    stimulus=LanguageStim(
+                        textgrid=grids[run_name],
+                        trfile=trfiles[run_name],
+                    ),
                     language=stim_cfg.get('language', 'en'),
                     modality=stim_cfg.get('modality', 'reading'),
                 )
