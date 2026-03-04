@@ -13,7 +13,10 @@ def register_builtins(registry):
 
     import denizenspipeline.plugins.stimulus_loaders.textgrid  # noqa: F401
     import denizenspipeline.plugins.stimulus_loaders.skip  # noqa: F401
+    import denizenspipeline.plugins.stimulus_loaders.audio  # noqa: F401
+    import denizenspipeline.plugins.stimulus_loaders.video  # noqa: F401
 
+    import denizenspipeline.plugins.response_loaders.bids  # noqa: F401
     import denizenspipeline.plugins.response_loaders.cloud  # noqa: F401
     import denizenspipeline.plugins.response_loaders.local  # noqa: F401
     import denizenspipeline.plugins.response_loaders.readers  # noqa: F401
@@ -22,6 +25,8 @@ def register_builtins(registry):
     import denizenspipeline.plugins.feature_extractors.basic  # noqa: F401
     import denizenspipeline.plugins.feature_extractors.histograms  # noqa: F401
     import denizenspipeline.plugins.feature_extractors.embeddings  # noqa: F401
+    import denizenspipeline.plugins.feature_extractors.audio  # noqa: F401
+    import denizenspipeline.plugins.feature_extractors.visual  # noqa: F401
 
     import denizenspipeline.plugins.feature_sources.compute  # noqa: F401
     import denizenspipeline.plugins.feature_sources.filesystem  # noqa: F401

@@ -6,6 +6,68 @@ All notable changes to DenizensPipeline are documented in this file.
 
 ## [Unreleased]
 
+### 2026-03-04 — BIDS Response Loader
+**Author:** Omar Sherif
+**Plan:** [docs/plans/bids-response-loader.md](docs/plans/bids-response-loader.md)
+
+**Added:**
+- `BidsResponseLoader` (`@response_loader("bids")`) in `plugins/response_loaders/bids.py` — loads fMRI responses directly from BIDS-formatted datasets
+- Auto-discovers sessions (`ses-*` dirs) or accepts explicit `sessions` list; supports sessionless layouts
+- Parses BIDS filename entities to build run names (`ses-X_run-Y` or `run-Y`)
+- Loads NIfTI data via nibabel with singleton-dim squeezing
+- Reuses pycortex cortical masking from `LocalResponseLoader._apply_mask`
+- Optional `run_map` remaps BIDS run labels to pipeline-friendly story names
+- Optional dependency group: `bids = [nibabel>=5.0]`
+- Example config: `experiments/experiment_bids.yaml`
+
+**Config keys** (under `response:`):
+- `path` — BIDS dataset root (required)
+- `task` — BIDS task label (required)
+- `sessions` — list of session labels (optional, auto-discovered)
+- `suffix` — file suffix, default `bold`
+- `extension` — file extension, default `.nii.gz`
+- `run_map` — dict remapping run names
+- `mask_type` — pycortex mask type, default `thick`
+
+**Plugin inventory update:**
+
+| Type             | Count | New   |
+|------------------|-------|-------|
+| Response Loaders | 3     | +bids |
+
+---
+
+### 2026-03-04 — Multi-Modal Stimulus Support
+**Author:** Omar Sherif
+**Plan:** [docs/plans/multi-modal-stimulus-support.md](docs/plans/multi-modal-stimulus-support.md)
+
+**Added:**
+- `LanguageStim`, `AudioStim`, `VisualStim` frozen dataclasses in `core/types.py` — typed stimulus containers
+- `StimRun.stimulus` field replacing bare `textgrid`/`trfile`; backward-compatible `@property` accessors keep all 11 existing extractors working unchanged
+- `core/alignment.py` — `align_to_trs()` utility for binning high-rate features into TR windows via `np.searchsorted`
+- 2 new stimulus loaders: `audio` (librosa, loads .wav files) and `video` (cv2, stores metadata only — frames decoded on demand)
+- 4 new feature extractors: `mel_spectrogram`, `rms_energy` (audio), `luminance`, `motion_energy` (visual)
+- Optional dependency groups: `audio = [librosa, soundfile]`, `video = [opencv-python]`
+- Schema validation: `"visual"` modality, `stimulus.path` required for audio/video loaders
+
+**Changed:**
+- `textgrid.py` loader wraps textgrid/trfile in `LanguageStim` before constructing `StimRun`
+- Test fixtures updated to use `stimulus=LanguageStim(...)` constructor
+
+**Unchanged:**
+- All existing language feature extractors work via backward-compat properties — zero code changes
+- `type: default` and `type: pipeline` preprocessors unaffected
+- No orchestrator changes
+
+**Plugin inventory update:**
+
+| Type               | Count | New |
+|--------------------|-------|-----|
+| Stimulus Loaders   | 4     | +audio, +video |
+| Feature Extractors | 15    | +mel_spectrogram, +rms_energy, +luminance, +motion_energy |
+
+---
+
 ### 2026-03-04 — Postprocessing Analyze Stage
 **Author:** Omar Sherif
 **Proposal:** [docs/proposals/postprocessing-analyze-stage.md](docs/proposals/postprocessing-analyze-stage.md)
