@@ -20,6 +20,7 @@ STAGE_COLORS = {
     'features': 'bright_yellow',
     'preprocess': 'bright_green',
     'model': 'bright_blue',
+    'analyze': 'bright_red',
     'report': 'bright_white',
 }
 
@@ -213,6 +214,7 @@ def plugins_table(plugins: dict, title: str = "Available Plugins"):
         'feature_sources': 'Feature Sources',
         'preprocessors': 'Preprocessors',
         'preprocessing_steps': 'Preprocessing Steps',
+        'analyzers': 'Analyzers',
         'models': 'Models',
         'reporters': 'Reporters',
     }
@@ -236,6 +238,7 @@ def stages_table(stages: list[str]):
         'features': 'Extract or load features from stimuli',
         'preprocess': 'Trim, normalize, concatenate, delay',
         'model': 'Fit voxelwise encoding model',
+        'analyze': 'Postprocessing analysis (variance partition, weights, etc.)',
         'report': 'Generate output artifacts (flatmaps, metrics, etc.)',
     }
     table = Table(title="[bold]Pipeline Stages[/]", border_style="bright_cyan")

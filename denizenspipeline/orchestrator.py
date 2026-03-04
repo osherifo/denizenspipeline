@@ -14,7 +14,7 @@ from denizenspipeline.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
-ALL_STAGES = ['stimuli', 'responses', 'features', 'preprocess', 'model', 'report']
+ALL_STAGES = ['stimuli', 'responses', 'features', 'preprocess', 'model', 'analyze', 'report']
 
 
 class PipelineOrchestrator:
@@ -91,6 +91,7 @@ class PipelineOrchestrator:
             'feature_sources': self._resolve_feature_sources(),
             'preprocessor': self.registry.get_preprocessor(
                 cfg.get('preprocessing', {}).get('type', 'default')),
+            'analyzers': self._resolve_analyzers(),
             'model': self.registry.get_model(
                 cfg.get('model', {}).get('type', 'bootstrap_ridge')),
             'reporters': [
@@ -119,6 +120,14 @@ class PipelineOrchestrator:
             sources.append((feat_cfg, source))
         return sources
 
+    def _resolve_analyzers(self) -> dict[str, object]:
+        """Resolve analyzer plugins from config."""
+        analyzers = {}
+        for acfg in self.config.get('analysis', []):
+            name = acfg['name']
+            analyzers[name] = self.registry.get_analyzer(name)
+        return analyzers
+
     def _validate_all(self, plugins: dict) -> list[str]:
         """Run validate_config on all resolved plugins."""
         errors = []
@@ -133,6 +142,11 @@ class PipelineOrchestrator:
             source_errors = source.validate_config(feat_cfg)
             for e in source_errors:
                 errors.append(f"feature '{feat_cfg.get('name', '?')}': {e}")
+
+        for aname, analyzer in plugins['analyzers'].items():
+            analyzer_errors = analyzer.validate_config(self.config)
+            for e in analyzer_errors:
+                errors.append(f"analyzer '{aname}': {e}")
 
         for reporter in plugins['reporters']:
             reporter_errors = reporter.validate_config(self.config)
@@ -205,6 +219,16 @@ class PipelineOrchestrator:
             self.ctx.put('result', result)
             return (f"mean={result.scores.mean():.4f} "
                     f"max={result.scores.max():.4f}")
+
+        elif stage_name == 'analyze':
+            analysis_cfg = self.config.get('analysis', [])
+            if not analysis_cfg:
+                return "skipped (none configured)"
+            for acfg in analysis_cfg:
+                aname = acfg['name']
+                analyzer = plugins['analyzers'][aname]
+                analyzer.analyze(self.ctx, self.config)
+            return f"{len(analysis_cfg)} analyzer(s)"
 
         elif stage_name == 'report':
             result = self.ctx.get('result', ModelResult)

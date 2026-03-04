@@ -124,6 +124,18 @@ def validate_config(config: dict) -> list[str]:
         if not isinstance(trim_end, int) or trim_end < 0:
             errors.append(f"preprocessing.trim_end must be non-negative int, got {trim_end}")
 
+    # Analysis validation (optional)
+    analysis = config.get("analysis")
+    if analysis is not None:
+        if not isinstance(analysis, list):
+            errors.append("'analysis' must be a list")
+        else:
+            for i, acfg in enumerate(analysis):
+                if not isinstance(acfg, dict):
+                    errors.append(f"analysis[{i}] must be a dict")
+                elif "name" not in acfg:
+                    errors.append(f"analysis[{i}] missing 'name'")
+
     # Model validation
     model = config.get("model", {})
     if "type" in model:

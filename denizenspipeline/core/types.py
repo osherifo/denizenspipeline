@@ -240,9 +240,40 @@ class Reporter(Protocol):
 
 
 @runtime_checkable
+class Analyzer(Protocol):
+    """Computes derived results from model outputs."""
+    name: str
+
+    def analyze(self, context: Any, config: dict) -> None: ...
+    def validate_config(self, config: dict) -> list[str]: ...
+
+
+@runtime_checkable
 class PreprocessingStep(Protocol):
     """A single composable preprocessing step for the pipeline preprocessor."""
     name: str
 
     def apply(self, state: PreprocessingState, params: dict) -> None: ...
     def validate_params(self, params: dict) -> list[str]: ...
+
+
+# ─── Analysis Results ────────────────────────────────────────
+
+@dataclass(frozen=True)
+class VariancePartition:
+    """Per-voxel variance explained by each feature or feature group."""
+    unique_variance: np.ndarray          # (n_groups, n_voxels)
+    shared_variance: np.ndarray          # (n_voxels,)
+    total_variance: np.ndarray           # (n_voxels,)
+    group_names: list[str]
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class WeightAnalysis:
+    """Decomposed and summarized model weights."""
+    per_feature_importance: np.ndarray   # (n_features, n_voxels)
+    temporal_profiles: np.ndarray        # (n_delays, n_features, n_voxels)
+    feature_names: list[str]
+    delays: list[int]
+    metadata: dict[str, Any] = field(default_factory=dict)
