@@ -7,8 +7,10 @@ from pathlib import Path
 import numpy as np
 
 from denizenspipeline.core.types import ModelResult
+from denizenspipeline.plugins._decorators import reporter
 
 
+@reporter("histogram")
 class HistogramReporter:
     """Generates a histogram of per-voxel prediction scores.
 

@@ -8,8 +8,10 @@ from pathlib import Path
 import numpy as np
 
 from denizenspipeline.core.types import ModelResult
+from denizenspipeline.plugins._decorators import reporter
 
 
+@reporter("metrics")
 class MetricsReporter:
     """Saves prediction accuracy metrics as JSON."""
 

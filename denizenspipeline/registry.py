@@ -6,6 +6,16 @@ import logging
 from importlib.metadata import entry_points
 
 from denizenspipeline.exceptions import PluginNotFoundError
+from denizenspipeline.plugins._decorators import (
+    _stimulus_loaders,
+    _response_loaders,
+    _response_readers,
+    _feature_extractors,
+    _feature_sources,
+    _preprocessors,
+    _models,
+    _reporters,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,18 +23,21 @@ logger = logging.getLogger(__name__)
 class PluginRegistry:
     """Discovers and manages plugins by type.
 
-    Plugins are registered as classes (not instances). Instances are
-    created on demand via the get_* methods.
+    Plugins are registered as classes (not instances).  The backing dicts
+    live in :mod:`denizenspipeline.plugins._decorators` so that the
+    ``@decorator`` on each class and the registry share a single source
+    of truth.  Instances are created on demand via the ``get_*`` methods.
     """
 
     def __init__(self):
-        self._stimulus_loaders: dict[str, type] = {}
-        self._response_loaders: dict[str, type] = {}
-        self._feature_extractors: dict[str, type] = {}
-        self._feature_sources: dict[str, type] = {}
-        self._preprocessors: dict[str, type] = {}
-        self._models: dict[str, type] = {}
-        self._reporters: dict[str, type] = {}
+        self._stimulus_loaders = _stimulus_loaders
+        self._response_loaders = _response_loaders
+        self._response_readers = _response_readers
+        self._feature_extractors = _feature_extractors
+        self._feature_sources = _feature_sources
+        self._preprocessors = _preprocessors
+        self._models = _models
+        self._reporters = _reporters
 
     def discover(self) -> None:
         """Discover plugins from builtins and entry_points."""
@@ -41,6 +54,7 @@ class PluginRegistry:
         groups = {
             'denizenspipeline.stimulus_loaders': self._stimulus_loaders,
             'denizenspipeline.response_loaders': self._response_loaders,
+            'denizenspipeline.response_readers': self._response_readers,
             'denizenspipeline.feature_extractors': self._feature_extractors,
             'denizenspipeline.feature_sources': self._feature_sources,
             'denizenspipeline.preprocessors': self._preprocessors,
@@ -78,6 +92,13 @@ class PluginRegistry:
         """Decorator to register a response loader."""
         def wrapper(cls):
             self._response_loaders[name] = cls
+            return cls
+        return wrapper
+
+    def response_reader(self, name: str):
+        """Decorator to register a response reader."""
+        def wrapper(cls):
+            self._response_readers[name] = cls
             return cls
         return wrapper
 
@@ -132,6 +153,13 @@ class PluginRegistry:
                 f"Available: {list(self._response_loaders.keys())}")
         return self._response_loaders[name]()
 
+    def get_response_reader(self, name: str):
+        if name not in self._response_readers:
+            raise PluginNotFoundError(
+                f"Response reader '{name}' not found. "
+                f"Available: {list(self._response_readers.keys())}")
+        return self._response_readers[name]()
+
     def get_feature_extractor(self, name: str):
         if name not in self._feature_extractors:
             raise PluginNotFoundError(
@@ -174,6 +202,7 @@ class PluginRegistry:
         return {
             'stimulus_loaders': sorted(self._stimulus_loaders.keys()),
             'response_loaders': sorted(self._response_loaders.keys()),
+            'response_readers': sorted(self._response_readers.keys()),
             'feature_extractors': sorted(self._feature_extractors.keys()),
             'feature_sources': sorted(self._feature_sources.keys()),
             'preprocessors': sorted(self._preprocessors.keys()),
