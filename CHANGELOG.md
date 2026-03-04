@@ -7,7 +7,7 @@ All notable changes to DenizensPipeline are documented in this file.
 ## [Unreleased]
 
 ### 2026-03-04 — Postprocessing Analyze Stage
-**Author:** Omar Shmait
+**Author:** Omar Sherif
 **Proposal:** [docs/proposals/postprocessing-analyze-stage.md](docs/proposals/postprocessing-analyze-stage.md)
 
 **Added:**
@@ -36,7 +36,7 @@ All notable changes to DenizensPipeline are documented in this file.
 ---
 
 ### 2026-03-04 — `denizens list` CLI command
-**Author:** Omar Shmait
+**Author:** Omar Sherif
 
 **Added:**
 - `denizens list` — lists all pipeline stages with descriptions
@@ -50,7 +50,7 @@ All notable changes to DenizensPipeline are documented in this file.
 ---
 
 ### 2026-03-04 — Stackable Preprocessing Pipeline
-**Author:** Omar Shmait
+**Author:** Omar Sherif
 **Plan:** [docs/plans/stackable-preprocessing-pipeline.md](docs/plans/stackable-preprocessing-pipeline.md)
 
 **Added:**
@@ -79,7 +79,7 @@ All notable changes to DenizensPipeline are documented in this file.
 ---
 
 ### 2026-03-04 11:28 CET — Plugin Registry Decorator Standardization
-**Author:** Omar Shmait
+**Author:** Omar Sherif
 
 **Added:**
 - Central decorator module `plugins/_decorators.py` with decorator factories for all 8 plugin types (`@stimulus_loader`, `@response_loader`, `@response_reader`, `@feature_extractor`, `@feature_source`, `@preprocessor`, `@model`, `@reporter`)
