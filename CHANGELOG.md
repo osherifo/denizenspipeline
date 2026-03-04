@@ -6,6 +6,20 @@ All notable changes to DenizensPipeline are documented in this file.
 
 ## [Unreleased]
 
+### 2026-03-04 — `denizens list` CLI command
+**Author:** Omar Shmait
+
+**Added:**
+- `denizens list` — lists all pipeline stages with descriptions
+- `denizens list plugins` — lists all registered plugins across every category
+- `denizens list <stage>` — lists plugins available for a specific stage (e.g. `denizens list preprocess`, `denizens list features`)
+- `stages_table()` UI helper in `ui.py`
+- `plugins_table()` now accepts a custom title and includes response_readers and preprocessing_steps categories
+
+**Files modified:** `cli.py`, `ui.py`
+
+---
+
 ### 2026-03-04 — Stackable Preprocessing Pipeline
 **Author:** Omar Shmait
 **Plan:** [docs/plans/stackable-preprocessing-pipeline.md](docs/plans/stackable-preprocessing-pipeline.md)

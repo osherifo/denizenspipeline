@@ -109,6 +109,17 @@ denizens validate experiment.yaml
 
 # List available plugins
 denizens plugins
+
+# List pipeline stages
+denizens list
+
+# List all plugins (by category)
+denizens list plugins
+
+# List plugins for a specific stage
+denizens list preprocess
+denizens list features
+denizens list model
 ```
 
 ## Python API
@@ -288,19 +299,23 @@ gpt2_surprisal = "my_plugin:MySurprisalExtractor"
 
 ## Built-in plugins
 
-**Feature Extractors:** `numwords`, `numletters`, `numphonemes`, `word_length_std`, `english1000`, `letters`, `phonemes`, `word2vec`, `bert`, `fasttext`
+Run `denizens list plugins` for the full list. Summary:
 
-**Feature Sources:** `compute`, `filesystem`, `cloud`
+**Feature Extractors:** `numwords`, `numletters`, `numphonemes`, `word_length_std`, `english1000`, `letters`, `phonemes`, `word2vec`, `bert`, `fasttext`, `gpt2`
 
-**Stimulus Loaders:** `textgrid`
+**Feature Sources:** `compute`, `filesystem`, `cloud`, `grouped_hdf`
+
+**Stimulus Loaders:** `textgrid`, `skip`
 
 **Response Loaders:** `cloud`, `local`
 
-**Preprocessors:** `default`, `pre_prepared`
+**Preprocessors:** `default`, `pre_prepared`, `pipeline`
 
-**Models:** `bootstrap_ridge`
+**Preprocessing Steps** (for `type: pipeline`): `split`, `trim`, `zscore`, `concatenate`, `delay`, `mean_center`
 
-**Reporters:** `metrics`, `flatmap`, `weights`
+**Models:** `bootstrap_ridge`, `himalaya_ridge`, `banded_ridge`, `multiple_kernel_ridge`
+
+**Reporters:** `metrics`, `flatmap`, `weights`, `histogram`, `webgl`
 
 ## Defaults
 
