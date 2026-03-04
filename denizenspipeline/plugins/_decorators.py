@@ -22,6 +22,7 @@ _response_readers: dict[str, type] = {}
 _feature_extractors: dict[str, type] = {}
 _feature_sources: dict[str, type] = {}
 _preprocessors: dict[str, type] = {}
+_preprocessing_steps: dict[str, type] = {}
 _models: dict[str, type] = {}
 _reporters: dict[str, type] = {}
 
@@ -44,5 +45,6 @@ response_reader = _make_decorator(_response_readers)
 feature_extractor = _make_decorator(_feature_extractors)
 feature_source = _make_decorator(_feature_sources)
 preprocessor = _make_decorator(_preprocessors)
+preprocessing_step = _make_decorator(_preprocessing_steps)
 model = _make_decorator(_models)
 reporter = _make_decorator(_reporters)
