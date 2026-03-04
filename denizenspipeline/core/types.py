@@ -107,15 +107,37 @@ class StimRun:
 
     @property
     def textgrid(self):
-        """Backward-compatible access to TextGrid (language stimuli only)."""
-        return self.stimulus.textgrid if isinstance(self.stimulus, LanguageStim) else None
+        """Backward-compatible access to TextGrid (language stimuli only).
+
+        Raises
+        ------
+        TypeError
+            If the underlying stimulus is not a LanguageStim.
+        """
+        if isinstance(self.stimulus, LanguageStim):
+            # Allow LanguageStim(textgrid=None) for tests or missing data.
+            return self.stimulus.textgrid
+        raise TypeError(
+            f"StimRun.textgrid is only available for language stimuli; "
+            f"got {type(self.stimulus).__name__}."
+        )
 
     @property
     def trfile(self):
-        """Backward-compatible access to TRFile (language stimuli only)."""
-        return self.stimulus.trfile if isinstance(self.stimulus, LanguageStim) else None
+        """Backward-compatible access to TRFile (language stimuli only).
 
-
+        Raises
+        ------
+        TypeError
+            If the underlying stimulus is not a LanguageStim.
+        """
+        if isinstance(self.stimulus, LanguageStim):
+            # Allow LanguageStim(trfile=None) for tests or missing data.
+            return self.stimulus.trfile
+        raise TypeError(
+            f"StimRun.trfile is only available for language stimuli; "
+            f"got {type(self.stimulus).__name__}."
+        )
 @dataclass(frozen=True)
 class StimulusData:
     """All stimulus data for an experiment."""
