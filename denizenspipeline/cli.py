@@ -291,6 +291,7 @@ def _cmd_list(args) -> int:
         'features': ['feature_extractors', 'feature_sources'],
         'preprocess': ['preprocessors', 'preprocessing_steps'],
         'model': ['models'],
+        'analyze': ['analyzers'],
         'report': ['reporters'],
     }
 
