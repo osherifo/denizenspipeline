@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from denizenspipeline.core.types import ResponseData
+from denizenspipeline.plugins._decorators import response_loader
 from denizenspipeline.plugins.response_loaders.readers import get_reader
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 _NO_MASK = np.array([True])
 
 
+@response_loader("local")
 class LocalResponseLoader:
     """Loads fMRI responses from local HDF5 or numpy files.
 
@@ -44,7 +46,7 @@ class LocalResponseLoader:
 
         reader_name = resp_cfg.get('reader', 'auto')
         reader = get_reader(reader_name)
-        raw_responses = reader(resp_dir, None, resp_cfg) if resp_dir.exists() else {}
+        raw_responses = reader.read(resp_dir, None, resp_cfg) if resp_dir.exists() else {}
 
         # Rename runs if run_map is provided
         run_map = resp_cfg.get('run_map', {})

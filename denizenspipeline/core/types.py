@@ -3,11 +3,70 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 import numpy as np
 
 T = TypeVar("T")
+
+
+# ─── Preprocessing State (mutable, internal to preprocessing) ────
+
+@dataclass
+class PreprocessingState:
+    """Mutable state passed between preprocessing steps.
+
+    Holds per-run dicts (before concatenation) AND/OR concatenated
+    matrices (after).  Steps mutate this in place.  Only lives inside
+    the preprocessing stage — not part of the public inter-stage protocol.
+    """
+
+    # Per-run data (before concatenation)
+    responses: dict[str, np.ndarray] = field(default_factory=dict)
+    features: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
+
+    # Concatenated matrices (after concatenation step)
+    X_train: np.ndarray | None = None
+    Y_train: np.ndarray | None = None
+    X_test: np.ndarray | None = None
+    Y_test: np.ndarray | None = None
+
+    # Run info
+    all_runs: list[str] = field(default_factory=list)
+    train_runs: list[str] = field(default_factory=list)
+    test_runs: list[str] = field(default_factory=list)
+
+    # Feature metadata
+    feature_names: list[str] = field(default_factory=list)
+    feature_dims: list[int] = field(default_factory=list)
+
+    # Extra metadata
+    delays: list[int] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_concatenated(self) -> bool:
+        """Whether data has been concatenated into matrices."""
+        return self.X_train is not None
+
+    def to_prepared_data(self) -> PreparedData:
+        """Convert final state to immutable PreparedData."""
+        if not self.is_concatenated:
+            raise ValueError(
+                "Cannot convert to PreparedData before concatenation step")
+        return PreparedData(
+            X_train=self.X_train,
+            Y_train=self.Y_train,
+            X_test=self.X_test,
+            Y_test=self.Y_test,
+            feature_names=self.feature_names,
+            feature_dims=self.feature_dims,
+            delays=self.delays,
+            train_runs=self.train_runs,
+            test_runs=self.test_runs,
+            metadata=self.metadata,
+        )
 
 
 # ─── Stimulus Data ────────────────────────────────────────────
@@ -122,6 +181,16 @@ class ResponseLoader(Protocol):
 
 
 @runtime_checkable
+class ResponseReader(Protocol):
+    """Reads fMRI response data from a specific file format."""
+    name: str
+
+    def read(self, resp_dir: Path, run_names: list[str] | None,
+             config: dict) -> dict[str, np.ndarray]: ...
+    def validate_config(self, config: dict) -> list[str]: ...
+
+
+@runtime_checkable
 class FeatureSource(Protocol):
     """Loads feature data from a backend (compute, filesystem, cloud)."""
     name: str
@@ -168,3 +237,12 @@ class Reporter(Protocol):
     def report(self, result: ModelResult, context: Any,
                config: dict) -> dict[str, str]: ...
     def validate_config(self, config: dict) -> list[str]: ...
+
+
+@runtime_checkable
+class PreprocessingStep(Protocol):
+    """A single composable preprocessing step for the pipeline preprocessor."""
+    name: str
+
+    def apply(self, state: PreprocessingState, params: dict) -> None: ...
+    def validate_params(self, params: dict) -> list[str]: ...

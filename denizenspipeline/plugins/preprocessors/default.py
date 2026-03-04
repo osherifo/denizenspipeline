@@ -8,8 +8,10 @@ from denizenspipeline.core.array_utils import make_delayed, zscore
 from denizenspipeline.core.types import (
     FeatureData, PreparedData, ResponseData,
 )
+from denizenspipeline.plugins._decorators import preprocessor
 
 
+@preprocessor("default")
 class DefaultPreprocessor:
     """Standard preprocessing: trim -> z-score -> concatenate -> delay.
 

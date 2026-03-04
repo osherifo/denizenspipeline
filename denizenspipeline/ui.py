@@ -203,18 +203,20 @@ def validate_line(ok: bool, message: str):
         console.print(f"  [bold red]!![/]  {message}", highlight=False)
 
 
-def plugins_table(plugins: dict):
+def plugins_table(plugins: dict, title: str = "Available Plugins"):
     """Print plugin listing as a styled table."""
     labels = {
         'stimulus_loaders': 'Stimulus Loaders',
         'response_loaders': 'Response Loaders',
+        'response_readers': 'Response Readers',
         'feature_extractors': 'Feature Extractors',
         'feature_sources': 'Feature Sources',
         'preprocessors': 'Preprocessors',
+        'preprocessing_steps': 'Preprocessing Steps',
         'models': 'Models',
         'reporters': 'Reporters',
     }
-    table = Table(title="[bold]Available Plugins[/]", border_style="bright_cyan")
+    table = Table(title=f"[bold]{title}[/]", border_style="bright_cyan")
     table.add_column("Category", style="bold cyan")
     table.add_column("Plugins")
 
@@ -223,6 +225,29 @@ def plugins_table(plugins: dict):
         plugin_str = ", ".join(names) if names else "[dim](none)[/]"
         table.add_row(label, plugin_str)
 
+    console.print(table)
+
+
+def stages_table(stages: list[str]):
+    """Print pipeline stages as a styled table."""
+    descriptions = {
+        'stimuli': 'Load stimulus timing data (TextGrids, TRFiles)',
+        'responses': 'Load fMRI response data',
+        'features': 'Extract or load features from stimuli',
+        'preprocess': 'Trim, normalize, concatenate, delay',
+        'model': 'Fit voxelwise encoding model',
+        'report': 'Generate output artifacts (flatmaps, metrics, etc.)',
+    }
+    table = Table(title="[bold]Pipeline Stages[/]", border_style="bright_cyan")
+    table.add_column("#", style="dim", justify="right")
+    table.add_column("Stage", style="bold cyan")
+    table.add_column("Description")
+
+    for i, stage in enumerate(stages, 1):
+        color = STAGE_COLORS.get(stage, 'white')
+        table.add_row(str(i), f"[{color}]{stage}[/]", descriptions.get(stage, ''))
+
+    console.print()
     console.print(table)
 
 
