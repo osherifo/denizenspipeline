@@ -16,6 +16,7 @@ def register_builtins(registry):
     import denizenspipeline.plugins.stimulus_loaders.audio  # noqa: F401
     import denizenspipeline.plugins.stimulus_loaders.video  # noqa: F401
 
+    import denizenspipeline.plugins.response_loaders.bids  # noqa: F401
     import denizenspipeline.plugins.response_loaders.cloud  # noqa: F401
     import denizenspipeline.plugins.response_loaders.local  # noqa: F401
     import denizenspipeline.plugins.response_loaders.readers  # noqa: F401

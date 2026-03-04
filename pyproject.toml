@@ -24,7 +24,8 @@ himalaya = ["himalaya>=0.4", "scikit-learn>=1.2"]
 nlp = ["transformers>=4.28", "gensim>=4.3"]
 audio = ["librosa>=0.10", "soundfile>=0.12"]
 video = ["opencv-python>=4.7"]
-all = ["denizenspipeline[cloud,viz,ml,nlp,himalaya,audio,video]"]
+bids = ["nibabel>=5.0"]
+all = ["denizenspipeline[cloud,viz,ml,nlp,himalaya,audio,video,bids]"]
 dev = ["denizenspipeline[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
 
 [project.scripts]
@@ -37,6 +38,7 @@ audio = "denizenspipeline.plugins.stimulus_loaders.audio:AudioStimulusLoader"
 video = "denizenspipeline.plugins.stimulus_loaders.video:VideoStimulusLoader"
 
 [project.entry-points."denizenspipeline.response_loaders"]
+bids = "denizenspipeline.plugins.response_loaders.bids:BidsResponseLoader"
 cloud = "denizenspipeline.plugins.response_loaders.cloud:CloudResponseLoader"
 local = "denizenspipeline.plugins.response_loaders.local:LocalResponseLoader"
 
