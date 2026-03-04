@@ -133,9 +133,21 @@ def validate_config(config: dict) -> list[str]:
             for i, acfg in enumerate(analysis):
                 if not isinstance(acfg, dict):
                     errors.append(f"analysis[{i}] must be a dict")
-                elif "name" not in acfg:
-                    errors.append(f"analysis[{i}] missing 'name'")
+                    continue
 
+                name = acfg.get("name")
+                if name is None:
+                    errors.append(f"analysis[{i}] missing 'name'")
+                elif not isinstance(name, str):
+                    errors.append(
+                        f"analysis[{i}].name must be a string, got {type(name).__name__}"
+                    )
+
+                params = acfg.get("params")
+                if params is not None and not isinstance(params, dict):
+                    errors.append(
+                        f"analysis[{i}].params must be a dict, got {type(params).__name__}"
+                    )
     # Model validation
     model = config.get("model", {})
     if "type" in model:
