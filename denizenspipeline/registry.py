@@ -14,6 +14,7 @@ from denizenspipeline.plugins._decorators import (
     _feature_sources,
     _preprocessors,
     _preprocessing_steps,
+    _analyzers,
     _models,
     _reporters,
 )
@@ -38,6 +39,7 @@ class PluginRegistry:
         self._feature_sources = _feature_sources
         self._preprocessors = _preprocessors
         self._preprocessing_steps = _preprocessing_steps
+        self._analyzers = _analyzers
         self._models = _models
         self._reporters = _reporters
 
@@ -61,6 +63,7 @@ class PluginRegistry:
             'denizenspipeline.feature_sources': self._feature_sources,
             'denizenspipeline.preprocessors': self._preprocessors,
             'denizenspipeline.preprocessing_steps': self._preprocessing_steps,
+            'denizenspipeline.analyzers': self._analyzers,
             'denizenspipeline.models': self._models,
             'denizenspipeline.reporters': self._reporters,
         }
@@ -133,6 +136,13 @@ class PluginRegistry:
             return cls
         return wrapper
 
+    def analyzer(self, name: str):
+        """Decorator to register an analyzer."""
+        def wrapper(cls):
+            self._analyzers[name] = cls
+            return cls
+        return wrapper
+
     def model(self, name: str):
         """Decorator to register a model."""
         def wrapper(cls):
@@ -198,6 +208,13 @@ class PluginRegistry:
                 f"Available: {list(self._preprocessing_steps.keys())}")
         return self._preprocessing_steps[name]()
 
+    def get_analyzer(self, name: str):
+        if name not in self._analyzers:
+            raise PluginNotFoundError(
+                f"Analyzer '{name}' not found. "
+                f"Available: {list(self._analyzers.keys())}")
+        return self._analyzers[name]()
+
     def get_model(self, name: str):
         if name not in self._models:
             raise PluginNotFoundError(
@@ -224,6 +241,7 @@ class PluginRegistry:
             'feature_sources': sorted(self._feature_sources.keys()),
             'preprocessors': sorted(self._preprocessors.keys()),
             'preprocessing_steps': sorted(self._preprocessing_steps.keys()),
+            'analyzers': sorted(self._analyzers.keys()),
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
         }
