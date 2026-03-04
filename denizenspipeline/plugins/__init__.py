@@ -40,6 +40,10 @@ def register_builtins(registry):
     import denizenspipeline.plugins.preprocessing_steps.delay  # noqa: F401
     import denizenspipeline.plugins.preprocessing_steps.mean_center  # noqa: F401
 
+    # Analyzers
+    import denizenspipeline.plugins.analyzers.weight_analysis  # noqa: F401
+    import denizenspipeline.plugins.analyzers.variance_partition  # noqa: F401
+
     import denizenspipeline.plugins.models.ridge  # noqa: F401
     import denizenspipeline.plugins.models.himalaya  # noqa: F401
 

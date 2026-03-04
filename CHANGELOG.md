@@ -6,6 +6,35 @@ All notable changes to DenizensPipeline are documented in this file.
 
 ## [Unreleased]
 
+### 2026-03-04 — Postprocessing Analyze Stage
+**Author:** Omar Shmait
+**Proposal:** [docs/proposals/postprocessing-analyze-stage.md](docs/proposals/postprocessing-analyze-stage.md)
+
+**Added:**
+- New `analyze` pipeline stage between `model` and `report` (stage 6 of 7)
+- `Analyzer` Protocol in `core/types.py` — `name`, `analyze(context, config)`, `validate_config(config)`
+- `VariancePartition` and `WeightAnalysis` frozen dataclasses in `core/types.py`
+- `analyzer` decorator in `plugins/_decorators.py` and full registry support
+- 2 built-in analyzers in `plugins/analyzers/`:
+  - `variance_partition` — unique variance per feature via leave-one-out weight ablation
+  - `weight_analysis` — decomposes delayed weights into per-feature importance and temporal profiles
+- Analyzer resolution, validation, and execution in `orchestrator.py`
+- Schema validation for optional `analysis` config section
+- `denizens list analyze` shows available analyzers
+- 3 example configs: `analysis_weights.yaml`, `analysis_variance.yaml`, `analysis_full.yaml`
+
+**Design:**
+- Analyzers read from context and write results back under `analysis.*` keys
+- Each analyzer defines its own output type — no forced single container
+- Stage is optional: no `analysis:` in config means the stage is skipped
+- Reporter protocol unchanged — reporters can optionally check for analysis keys via `context.has()`
+
+**Unchanged:**
+- All existing configs work without modification — analyze stage is a no-op when unconfigured
+- Reporter protocol and existing reporters untouched
+
+---
+
 ### 2026-03-04 — `denizens list` CLI command
 **Author:** Omar Shmait
 
