@@ -122,9 +122,14 @@ class PipelineOrchestrator:
 
     def _resolve_analyzers(self) -> dict[str, object]:
         """Resolve analyzer plugins from config."""
-        analyzers = {}
+        analyzers: dict[str, object] = {}
         for acfg in self.config.get('analysis', []):
             name = acfg['name']
+            if name in analyzers:
+                raise ConfigError(
+                    f"Duplicate analyzer name '{name}' in 'analysis' configuration; "
+                    "analyzer names must be unique."
+                )
             analyzers[name] = self.registry.get_analyzer(name)
         return analyzers
 
