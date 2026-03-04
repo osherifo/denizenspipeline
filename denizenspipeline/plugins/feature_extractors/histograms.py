@@ -10,6 +10,7 @@ from denizenspipeline.core.datasequence import (
     DataSequence, make_phoneme_ds, make_word_ds,
 )
 from denizenspipeline.core.types import FeatureSet, StimulusData
+from denizenspipeline.plugins._decorators import feature_extractor
 
 # ARPAbet phoneme set (39 phonemes)
 ARPABET_PHONEMES = [
@@ -20,6 +21,7 @@ ARPABET_PHONEMES = [
 ]
 
 
+@feature_extractor("english1000")
 class English1000Extractor:
     """Top-1000 English word indicator features.
 
@@ -83,6 +85,7 @@ class English1000Extractor:
         return common
 
 
+@feature_extractor("letters")
 class LetterHistogramExtractor:
     """Letter frequency histogram per TR. Wraps Features.letters()."""
 
@@ -115,6 +118,7 @@ class LetterHistogramExtractor:
         return []
 
 
+@feature_extractor("phonemes")
 class PhonemeHistogramExtractor:
     """Phoneme histogram per TR. Wraps Features.phonemes()."""
 

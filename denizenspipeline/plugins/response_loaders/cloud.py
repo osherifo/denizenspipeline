@@ -5,8 +5,10 @@ from __future__ import annotations
 import numpy as np
 
 from denizenspipeline.core.types import ResponseData
+from denizenspipeline.plugins._decorators import response_loader
 
 
+@response_loader("cloud")
 class CloudResponseLoader:
     """Loads fMRI responses from S3 cloud storage via cottoncandy."""
 

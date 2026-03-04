@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from denizenspipeline.core.types import StimulusData
+from denizenspipeline.plugins._decorators import stimulus_loader
 
 
+@stimulus_loader("skip")
 class SkipStimulusLoader:
     """Returns empty stimuli. Use when all features are precomputed.
 

@@ -5,8 +5,10 @@ from __future__ import annotations
 import numpy as np
 
 from denizenspipeline.core.types import FeatureSet
+from denizenspipeline.plugins._decorators import feature_source
 
 
+@feature_source("cloud")
 class CloudSource:
     """Load features from S3 via cottoncandy.
 

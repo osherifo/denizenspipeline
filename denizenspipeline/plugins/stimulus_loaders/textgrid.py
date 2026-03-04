@@ -12,6 +12,7 @@ from denizenspipeline.core.stimulus_utils import (
     load_trfiles_from_cloud,
 )
 from denizenspipeline.core.types import StimulusData, StimRun
+from denizenspipeline.plugins._decorators import stimulus_loader
 
 
 class _SyntheticTRFile:
@@ -29,6 +30,7 @@ class _SyntheticTRFile:
         return self._times
 
 
+@stimulus_loader("textgrid")
 class TextGridStimulusLoader:
     """Loads TextGrid + TRFile pairs from local disk or cloud.
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 import numpy as np
@@ -118,6 +119,16 @@ class ResponseLoader(Protocol):
     name: str
 
     def load(self, config: dict) -> ResponseData: ...
+    def validate_config(self, config: dict) -> list[str]: ...
+
+
+@runtime_checkable
+class ResponseReader(Protocol):
+    """Reads fMRI response data from a specific file format."""
+    name: str
+
+    def read(self, resp_dir: Path, run_names: list[str] | None,
+             config: dict) -> dict[str, np.ndarray]: ...
     def validate_config(self, config: dict) -> list[str]: ...
 
 

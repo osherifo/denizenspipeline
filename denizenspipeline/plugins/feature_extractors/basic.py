@@ -6,8 +6,10 @@ import numpy as np
 
 from denizenspipeline.core.datasequence import make_phoneme_ds, make_word_ds
 from denizenspipeline.core.types import FeatureSet, StimulusData
+from denizenspipeline.plugins._decorators import feature_extractor
 
 
+@feature_extractor("numwords")
 class NumWordsExtractor:
     """Count of words per TR. Wraps Features.numwords()."""
 
@@ -30,6 +32,7 @@ class NumWordsExtractor:
         return []
 
 
+@feature_extractor("numletters")
 class NumLettersExtractor:
     """Total letter count per TR. Wraps Features.numletters()."""
 
@@ -52,6 +55,7 @@ class NumLettersExtractor:
         return []
 
 
+@feature_extractor("numphonemes")
 class NumPhonemesExtractor:
     """Count of phonemes per TR. Wraps Features.numphonemes()."""
 
@@ -74,6 +78,7 @@ class NumPhonemesExtractor:
         return []
 
 
+@feature_extractor("word_length_std")
 class WordLengthStdExtractor:
     """Standard deviation of word lengths per TR."""
 

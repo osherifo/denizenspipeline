@@ -6,8 +6,10 @@ import numpy as np
 
 from denizenspipeline.core.ridge import bootstrap_ridge
 from denizenspipeline.core.types import ModelResult, PreparedData
+from denizenspipeline.plugins._decorators import model
 
 
+@model("bootstrap_ridge")
 class BootstrapRidgeModel:
     """Bootstrap ridge regression with per-voxel alpha selection.
 

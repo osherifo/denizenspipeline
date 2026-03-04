@@ -8,8 +8,10 @@ from pathlib import Path
 import numpy as np
 
 from denizenspipeline.core.types import FeatureSet
+from denizenspipeline.plugins._decorators import feature_source
 
 
+@feature_source("filesystem")
 class FilesystemSource:
     """Load pre-extracted features from local filesystem.
 

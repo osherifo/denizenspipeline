@@ -8,8 +8,10 @@ import numpy as np
 
 from denizenspipeline.core.datasequence import DataSequence, make_word_ds
 from denizenspipeline.core.types import FeatureSet, StimulusData
+from denizenspipeline.plugins._decorators import feature_extractor
 
 
+@feature_extractor("word2vec")
 class Word2VecExtractor:
     """Word2Vec embeddings. Wraps Features.word2vec()."""
 
@@ -58,6 +60,7 @@ class Word2VecExtractor:
         return self._model_cache[path]
 
 
+@feature_extractor("bert")
 class BERTExtractor:
     """BERT contextual embeddings (base or large).
 
@@ -187,6 +190,7 @@ class BERTExtractor:
 
         return result
 
+@feature_extractor("fasttext")
 class FastTextExtractor:
     """FastText embeddings — supports en, zh, es."""
 
@@ -219,6 +223,7 @@ class FastTextExtractor:
         return errors
 
 
+@feature_extractor("gpt2")
 class GPT2Extractor:
     """GPT-2 contextual embeddings.
 
