@@ -10,8 +10,10 @@ from denizenspipeline.core.array_utils import zscore
 from denizenspipeline.core.types import (
     FeatureData, PreparedData, ResponseData,
 )
+from denizenspipeline.plugins._decorators import preprocessor
 
 
+@preprocessor("pre_prepared")
 class PreparedDataLoader:
     """Load pre-saved train/test matrices directly, skipping stages 1-4.
 

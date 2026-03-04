@@ -7,6 +7,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 
 from denizenspipeline.core.array_utils import make_delayed
 from denizenspipeline.core.types import ModelResult, PreparedData
+from denizenspipeline.plugins._decorators import model
 
 
 # ─── Shared helpers ──────────────────────────────────────────
@@ -161,6 +162,7 @@ class _Delayer(BaseEstimator, TransformerMixin):
 # ─── HimalayaRidgeModel ─────────────────────────────────────
 
 
+@model("himalaya_ridge")
 class HimalayaRidgeModel:
     """Cross-validated ridge regression via himalaya.
 
@@ -209,6 +211,7 @@ class HimalayaRidgeModel:
 # ─── BandedRidgeModel ───────────────────────────────────────
 
 
+@model("banded_ridge")
 class BandedRidgeModel:
     """Banded ridge regression with per-feature-group regularization.
 
@@ -279,6 +282,7 @@ class BandedRidgeModel:
 # ─── MultipleKernelRidgeModel ───────────────────────────────
 
 
+@model("multiple_kernel_ridge")
 class MultipleKernelRidgeModel:
     """Multiple kernel ridge regression via himalaya.
 

@@ -100,12 +100,29 @@ def validate_config(config: dict) -> list[str]:
 
     # Preprocessing validation
     prep = config.get("preprocessing", {})
-    trim_start = prep.get("trim_start", 5)
-    trim_end = prep.get("trim_end", 5)
-    if not isinstance(trim_start, int) or trim_start < 0:
-        errors.append(f"preprocessing.trim_start must be non-negative int, got {trim_start}")
-    if not isinstance(trim_end, int) or trim_end < 0:
-        errors.append(f"preprocessing.trim_end must be non-negative int, got {trim_end}")
+    prep_type = prep.get("type", "default")
+
+    if prep_type == "pipeline":
+        # Pipeline preprocessor: validate steps list
+        steps = prep.get("steps")
+        if steps is None:
+            errors.append("pipeline preprocessor requires 'preprocessing.steps'")
+        elif not isinstance(steps, list):
+            errors.append("'preprocessing.steps' must be a list")
+        else:
+            for i, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    errors.append(f"preprocessing.steps[{i}] must be a dict")
+                elif "name" not in step:
+                    errors.append(f"preprocessing.steps[{i}] missing 'name'")
+    else:
+        # Default / other preprocessor types: validate trim params
+        trim_start = prep.get("trim_start", 5)
+        trim_end = prep.get("trim_end", 5)
+        if not isinstance(trim_start, int) or trim_start < 0:
+            errors.append(f"preprocessing.trim_start must be non-negative int, got {trim_start}")
+        if not isinstance(trim_end, int) or trim_end < 0:
+            errors.append(f"preprocessing.trim_end must be non-negative int, got {trim_end}")
 
     # Model validation
     model = config.get("model", {})

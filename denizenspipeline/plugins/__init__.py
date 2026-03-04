@@ -1,75 +1,50 @@
-"""Built-in plugin registration."""
+"""Built-in plugin registration.
+
+Every plugin class is decorated with a registration decorator from
+``_decorators``, which collects it into the shared module-level dicts at
+import time.  ``register_builtins()`` simply imports each plugin module
+so that the decorators fire.  The :class:`PluginRegistry` points at the
+same dicts, so no copying is needed.
+"""
 
 
 def register_builtins(registry):
-    """Register all built-in plugins with the given registry."""
+    """Import all built-in plugin modules so their decorators fire."""
 
-    # Stimulus Loaders
-    from denizenspipeline.plugins.stimulus_loaders.textgrid import TextGridStimulusLoader
-    from denizenspipeline.plugins.stimulus_loaders.skip import SkipStimulusLoader
-    registry._stimulus_loaders['textgrid'] = TextGridStimulusLoader
-    registry._stimulus_loaders['skip'] = SkipStimulusLoader
+    import denizenspipeline.plugins.stimulus_loaders.textgrid  # noqa: F401
+    import denizenspipeline.plugins.stimulus_loaders.skip  # noqa: F401
 
-    # Response Loaders
-    from denizenspipeline.plugins.response_loaders.cloud import CloudResponseLoader
-    from denizenspipeline.plugins.response_loaders.local import LocalResponseLoader
-    registry._response_loaders['cloud'] = CloudResponseLoader
-    registry._response_loaders['local'] = LocalResponseLoader
+    import denizenspipeline.plugins.response_loaders.cloud  # noqa: F401
+    import denizenspipeline.plugins.response_loaders.local  # noqa: F401
+    import denizenspipeline.plugins.response_loaders.readers  # noqa: F401
+    import denizenspipeline.plugins.response_loaders.multiphase_hdf  # noqa: F401
 
-    # Feature Sources
-    from denizenspipeline.plugins.feature_sources.compute import ComputeSource
-    from denizenspipeline.plugins.feature_sources.filesystem import FilesystemSource
-    from denizenspipeline.plugins.feature_sources.cloud import CloudSource
-    from denizenspipeline.plugins.feature_sources.grouped_hdf import GroupedHDFSource
-    registry._feature_sources['compute'] = ComputeSource
-    registry._feature_sources['filesystem'] = FilesystemSource
-    registry._feature_sources['cloud'] = CloudSource
-    registry._feature_sources['grouped_hdf'] = GroupedHDFSource
+    import denizenspipeline.plugins.feature_extractors.basic  # noqa: F401
+    import denizenspipeline.plugins.feature_extractors.histograms  # noqa: F401
+    import denizenspipeline.plugins.feature_extractors.embeddings  # noqa: F401
 
-    # Feature Extractors
-    from denizenspipeline.plugins.feature_extractors.basic import (
-        NumWordsExtractor, NumLettersExtractor,
-        NumPhonemesExtractor, WordLengthStdExtractor,
-    )
-    from denizenspipeline.plugins.feature_extractors.histograms import (
-        English1000Extractor, LetterHistogramExtractor,
-        PhonemeHistogramExtractor,
-    )
-    from denizenspipeline.plugins.feature_extractors.embeddings import (
-        Word2VecExtractor, BERTExtractor, FastTextExtractor,
-    )
-    for cls in [NumWordsExtractor, NumLettersExtractor,
-                NumPhonemesExtractor, WordLengthStdExtractor,
-                English1000Extractor, LetterHistogramExtractor,
-                PhonemeHistogramExtractor,
-                Word2VecExtractor, BERTExtractor, FastTextExtractor]:
-        registry._feature_extractors[cls.name] = cls
+    import denizenspipeline.plugins.feature_sources.compute  # noqa: F401
+    import denizenspipeline.plugins.feature_sources.filesystem  # noqa: F401
+    import denizenspipeline.plugins.feature_sources.cloud  # noqa: F401
+    import denizenspipeline.plugins.feature_sources.grouped_hdf  # noqa: F401
 
-    # Preprocessors
-    from denizenspipeline.plugins.preprocessors.default import DefaultPreprocessor
-    from denizenspipeline.plugins.preprocessors.pre_prepared import PreparedDataLoader
-    registry._preprocessors['default'] = DefaultPreprocessor
-    registry._preprocessors['pre_prepared'] = PreparedDataLoader
+    import denizenspipeline.plugins.preprocessors.default  # noqa: F401
+    import denizenspipeline.plugins.preprocessors.pre_prepared  # noqa: F401
+    import denizenspipeline.plugins.preprocessors.pipeline  # noqa: F401
 
-    # Models
-    from denizenspipeline.plugins.models.ridge import BootstrapRidgeModel
-    registry._models['bootstrap_ridge'] = BootstrapRidgeModel
+    # Preprocessing steps (for pipeline preprocessor)
+    import denizenspipeline.plugins.preprocessing_steps.split  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.trim  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.zscore  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.concatenate  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.delay  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.mean_center  # noqa: F401
 
-    from denizenspipeline.plugins.models.himalaya import (
-        HimalayaRidgeModel, BandedRidgeModel, MultipleKernelRidgeModel,
-    )
-    registry._models['himalaya_ridge'] = HimalayaRidgeModel
-    registry._models['banded_ridge'] = BandedRidgeModel
-    registry._models['multiple_kernel_ridge'] = MultipleKernelRidgeModel
+    import denizenspipeline.plugins.models.ridge  # noqa: F401
+    import denizenspipeline.plugins.models.himalaya  # noqa: F401
 
-    # Reporters
-    from denizenspipeline.plugins.reporters.metrics import MetricsReporter
-    from denizenspipeline.plugins.reporters.flatmap import FlatmapReporter
-    from denizenspipeline.plugins.reporters.weights import WeightsReporter
-    from denizenspipeline.plugins.reporters.histogram import HistogramReporter
-    from denizenspipeline.plugins.reporters.webgl import WebGLReporter
-    registry._reporters['metrics'] = MetricsReporter
-    registry._reporters['flatmap'] = FlatmapReporter
-    registry._reporters['weights'] = WeightsReporter
-    registry._reporters['histogram'] = HistogramReporter
-    registry._reporters['webgl'] = WebGLReporter
+    import denizenspipeline.plugins.reporters.metrics  # noqa: F401
+    import denizenspipeline.plugins.reporters.flatmap  # noqa: F401
+    import denizenspipeline.plugins.reporters.weights  # noqa: F401
+    import denizenspipeline.plugins.reporters.histogram  # noqa: F401
+    import denizenspipeline.plugins.reporters.webgl  # noqa: F401

@@ -9,10 +9,12 @@ import numpy as np
 
 from denizenspipeline.core.mask_utils import has_real_mask, unmask_scores
 from denizenspipeline.core.types import ModelResult, ResponseData
+from denizenspipeline.plugins._decorators import reporter
 
 logger = logging.getLogger(__name__)
 
 
+@reporter("flatmap")
 class FlatmapReporter:
     """Generates pycortex flatmap visualizations.
 

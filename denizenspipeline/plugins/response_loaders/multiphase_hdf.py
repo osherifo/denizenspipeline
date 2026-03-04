@@ -3,7 +3,7 @@
 File layout:
     {resp_dir}/subject{subject}_{modality}_fmri_data_{phase}.hdf
 
-Each HDF file contains datasets named by story (e.g. story_01 … story_10).
+Each HDF file contains datasets named by story (e.g. story_01 ... story_10).
 Training data is (n_trs, n_voxels); validation data may be
 (n_reps, n_trs, n_voxels), in which case repetitions are averaged.
 
@@ -26,43 +26,54 @@ from pathlib import Path
 
 import numpy as np
 
-from denizenspipeline.plugins.response_loaders.readers import response_reader
+from denizenspipeline.plugins._decorators import response_reader
 
 
 @response_reader("multiphase_hdf")
-def _read_multiphase_hdf(
-    resp_dir: Path, run_names: list[str] | None, config: dict,
-) -> dict[str, np.ndarray]:
-    import h5py
+class MultiphaseHdfReader:
+    """Reads multiphase HDF response files."""
 
-    subject = config["subject"]
-    modality = config.get("modality", "reading")
-    phases = config.get("phases", ["trn", "val"])
-    multirep = config.get("multirep", "mean")
+    name = "multiphase_hdf"
 
-    responses: dict[str, np.ndarray] = {}
+    def read(
+        self, resp_dir: Path, run_names: list[str] | None, config: dict,
+    ) -> dict[str, np.ndarray]:
+        import h5py
 
-    for phase in phases:
-        hdf_path = resp_dir / f"subject{subject}_{modality}_fmri_data_{phase}.hdf"
-        if not hdf_path.exists():
-            continue
+        subject = config["subject"]
+        modality = config.get("modality", "reading")
+        phases = config.get("phases", ["trn", "val"])
+        multirep = config.get("multirep", "mean")
 
-        with h5py.File(hdf_path, "r") as h:
-            names_to_load = run_names if run_names is not None else list(h.keys())
-            for ds_name in names_to_load:
-                if ds_name not in h:
-                    continue
-                arr = h[ds_name][:]
+        responses: dict[str, np.ndarray] = {}
 
-                # Collapse repetitions for 3-D arrays (n_reps, n_trs, n_voxels)
-                if arr.ndim == 3:
-                    if multirep == "mean":
-                        arr = arr.mean(axis=0)
-                    elif multirep == "first":
-                        arr = arr[0]
-                    else:
-                        arr = arr.mean(axis=0)
+        for phase in phases:
+            hdf_path = resp_dir / f"subject{subject}_{modality}_fmri_data_{phase}.hdf"
+            if not hdf_path.exists():
+                continue
 
-                responses[ds_name] = arr
+            with h5py.File(hdf_path, "r") as h:
+                names_to_load = run_names if run_names is not None else list(h.keys())
+                for ds_name in names_to_load:
+                    if ds_name not in h:
+                        continue
+                    arr = h[ds_name][:]
 
-    return responses
+                    # Collapse repetitions for 3-D arrays (n_reps, n_trs, n_voxels)
+                    if arr.ndim == 3:
+                        if multirep == "mean":
+                            arr = arr.mean(axis=0)
+                        elif multirep == "first":
+                            arr = arr[0]
+                        else:
+                            arr = arr.mean(axis=0)
+
+                    responses[ds_name] = arr
+
+        return responses
+
+    def validate_config(self, config: dict) -> list[str]:
+        errors = []
+        if "subject" not in config:
+            errors.append("multiphase_hdf reader requires 'subject' in config")
+        return errors

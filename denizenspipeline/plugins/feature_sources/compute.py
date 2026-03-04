@@ -7,8 +7,10 @@ from pathlib import Path
 import numpy as np
 
 from denizenspipeline.core.types import FeatureSet, StimulusData
+from denizenspipeline.plugins._decorators import feature_source
 
 
+@feature_source("compute")
 class ComputeSource:
     """Compute features using a FeatureExtractor.
 

@@ -62,8 +62,10 @@ from pathlib import Path
 import numpy as np
 
 from denizenspipeline.core.types import FeatureSet
+from denizenspipeline.plugins._decorators import feature_source
 
 
+@feature_source("grouped_hdf")
 class GroupedHDFSource:
     """Load a single feature from phase-split HDF files."""
 

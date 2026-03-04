@@ -5,8 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from denizenspipeline.core.types import ModelResult
+from denizenspipeline.plugins._decorators import reporter
 
 
+@reporter("weights")
 class WeightsReporter:
     """Saves model weights to HDF5."""
 
