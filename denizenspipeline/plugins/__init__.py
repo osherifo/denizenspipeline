@@ -30,6 +30,15 @@ def register_builtins(registry):
 
     import denizenspipeline.plugins.preprocessors.default  # noqa: F401
     import denizenspipeline.plugins.preprocessors.pre_prepared  # noqa: F401
+    import denizenspipeline.plugins.preprocessors.pipeline  # noqa: F401
+
+    # Preprocessing steps (for pipeline preprocessor)
+    import denizenspipeline.plugins.preprocessing_steps.split  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.trim  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.zscore  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.concatenate  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.delay  # noqa: F401
+    import denizenspipeline.plugins.preprocessing_steps.mean_center  # noqa: F401
 
     import denizenspipeline.plugins.models.ridge  # noqa: F401
     import denizenspipeline.plugins.models.himalaya  # noqa: F401

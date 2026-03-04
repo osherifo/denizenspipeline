@@ -13,6 +13,7 @@ from denizenspipeline.plugins._decorators import (
     _feature_extractors,
     _feature_sources,
     _preprocessors,
+    _preprocessing_steps,
     _models,
     _reporters,
 )
@@ -36,6 +37,7 @@ class PluginRegistry:
         self._feature_extractors = _feature_extractors
         self._feature_sources = _feature_sources
         self._preprocessors = _preprocessors
+        self._preprocessing_steps = _preprocessing_steps
         self._models = _models
         self._reporters = _reporters
 
@@ -58,6 +60,7 @@ class PluginRegistry:
             'denizenspipeline.feature_extractors': self._feature_extractors,
             'denizenspipeline.feature_sources': self._feature_sources,
             'denizenspipeline.preprocessors': self._preprocessors,
+            'denizenspipeline.preprocessing_steps': self._preprocessing_steps,
             'denizenspipeline.models': self._models,
             'denizenspipeline.reporters': self._reporters,
         }
@@ -123,6 +126,13 @@ class PluginRegistry:
             return cls
         return wrapper
 
+    def preprocessing_step(self, name: str):
+        """Decorator to register a preprocessing step."""
+        def wrapper(cls):
+            self._preprocessing_steps[name] = cls
+            return cls
+        return wrapper
+
     def model(self, name: str):
         """Decorator to register a model."""
         def wrapper(cls):
@@ -181,6 +191,13 @@ class PluginRegistry:
                 f"Available: {list(self._preprocessors.keys())}")
         return self._preprocessors[name]()
 
+    def get_preprocessing_step(self, name: str):
+        if name not in self._preprocessing_steps:
+            raise PluginNotFoundError(
+                f"Preprocessing step '{name}' not found. "
+                f"Available: {list(self._preprocessing_steps.keys())}")
+        return self._preprocessing_steps[name]()
+
     def get_model(self, name: str):
         if name not in self._models:
             raise PluginNotFoundError(
@@ -206,6 +223,7 @@ class PluginRegistry:
             'feature_extractors': sorted(self._feature_extractors.keys()),
             'feature_sources': sorted(self._feature_sources.keys()),
             'preprocessors': sorted(self._preprocessors.keys()),
+            'preprocessing_steps': sorted(self._preprocessing_steps.keys()),
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
         }
