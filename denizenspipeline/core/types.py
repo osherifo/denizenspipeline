@@ -69,16 +69,51 @@ class PreprocessingState:
         )
 
 
+# ─── Stimulus Containers ──────────────────────────────────────
+
+@dataclass(frozen=True)
+class LanguageStim:
+    """Language stimulus data (TextGrid + TRFile pair)."""
+    textgrid: Any           # Parsed TextGrid object
+    trfile: Any             # Parsed TRFile object
+
+
+@dataclass(frozen=True)
+class AudioStim:
+    """Audio stimulus data (waveform loaded in memory)."""
+    waveform: np.ndarray    # (n_samples,)
+    sample_rate: int
+    tr_times: np.ndarray    # TR onset times in seconds
+
+
+@dataclass(frozen=True)
+class VisualStim:
+    """Visual stimulus data (video metadata, frames loaded on demand)."""
+    video_path: Path        # path to video file
+    fps: float
+    n_frames: int
+    tr_times: np.ndarray    # TR onset times in seconds
+
+
 # ─── Stimulus Data ────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class StimRun:
     """Stimulus data for a single run/story."""
     name: str
-    textgrid: Any           # Parsed TextGrid object
-    trfile: Any             # Parsed TRFile object
+    stimulus: LanguageStim | AudioStim | VisualStim
     language: str = "en"
-    modality: str = "reading"  # "reading" | "listening"
+    modality: str = "reading"  # "reading" | "listening" | "visual"
+
+    @property
+    def textgrid(self):
+        """Backward-compatible access to TextGrid (language stimuli only)."""
+        return self.stimulus.textgrid if isinstance(self.stimulus, LanguageStim) else None
+
+    @property
+    def trfile(self):
+        """Backward-compatible access to TRFile (language stimuli only)."""
+        return self.stimulus.trfile if isinstance(self.stimulus, LanguageStim) else None
 
 
 @dataclass(frozen=True)
