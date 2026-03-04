@@ -86,6 +86,17 @@ def main(argv: list[str] | None = None) -> int:
     # ── plugins ──
     subparsers.add_parser('plugins', help='List available plugins')
 
+    # ── list ──
+    list_parser = subparsers.add_parser(
+        'list', help='List stages, plugins, or plugins for a stage')
+    list_parser.add_argument(
+        'what', nargs='?', default='stages',
+        help=(
+            'What to list: "stages" (default), "plugins" (all), '
+            'or a stage name to list its plugins'
+        ),
+    )
+
     args = parser.parse_args(argv)
 
     # Set up logging — suppress standard log format, let rich handle output
@@ -103,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_validate(args)
     elif args.command == 'plugins':
         return _cmd_plugins(args)
+    elif args.command == 'list':
+        return _cmd_list(args)
     else:
         parser.print_help()
         return 1
@@ -248,6 +261,49 @@ def _cmd_plugins(args) -> int:
 
     ui.console.print()
     ui.plugins_table(plugins)
+    return 0
+
+
+def _cmd_list(args) -> int:
+    """List stages, all plugins, or plugins for a specific stage."""
+    from denizenspipeline.orchestrator import ALL_STAGES
+    from denizenspipeline.registry import PluginRegistry
+
+    what = args.what
+
+    if what == 'stages':
+        ui.stages_table(ALL_STAGES)
+        return 0
+
+    registry = PluginRegistry()
+    registry.discover()
+    plugins = registry.list_plugins()
+
+    if what == 'plugins':
+        ui.console.print()
+        ui.plugins_table(plugins)
+        return 0
+
+    # Treat as a stage name — show plugins for that stage
+    stage_plugin_map = {
+        'stimuli': ['stimulus_loaders'],
+        'responses': ['response_loaders', 'response_readers'],
+        'features': ['feature_extractors', 'feature_sources'],
+        'preprocess': ['preprocessors', 'preprocessing_steps'],
+        'model': ['models'],
+        'report': ['reporters'],
+    }
+
+    if what not in stage_plugin_map:
+        ui.error_panel(
+            f"Unknown stage '{what}'. "
+            f"Available stages: {', '.join(ALL_STAGES)}")
+        return 1
+
+    categories = stage_plugin_map[what]
+    filtered = {k: plugins[k] for k in categories if k in plugins}
+    ui.console.print()
+    ui.plugins_table(filtered, title=f"Plugins for stage: {what}")
     return 0
 
 
