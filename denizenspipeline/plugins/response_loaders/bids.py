@@ -118,7 +118,15 @@ class BidsResponseLoader:
                     run_parts.append(ses_label)
                 if "run" in entities:
                     run_parts.append(f"run-{entities['run']}")
-                run_name = "_".join(run_parts) if run_parts else nii_path.stem
+                if run_parts:
+                    run_name = "_".join(run_parts)
+                else:
+                    # Fallback: use filename without NIfTI extension (.nii or .nii.gz)
+                    if nii_path.suffixes[-2:] == [".nii", ".gz"]:
+                        # Strip full .nii.gz
+                        run_name = nii_path.name[:-7]
+                    else:
+                        run_name = nii_path.stem
 
                 # Load NIfTI
                 img = nib.load(nii_path)
