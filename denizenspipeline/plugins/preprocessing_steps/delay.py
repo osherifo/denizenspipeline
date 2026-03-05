@@ -18,6 +18,7 @@ class DelayStep:
         state.delays = delays
         state.X_train = make_delayed(state.X_train, delays)
         state.X_test = make_delayed(state.X_test, delays)
+        state.metadata['delays_applied'] = True
 
     def validate_params(self, params: dict) -> list[str]:
         errors = []
