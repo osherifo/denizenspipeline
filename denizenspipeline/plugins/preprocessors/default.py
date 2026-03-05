@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from denizenspipeline.core.array_utils import make_delayed, zscore
 from denizenspipeline.core.types import (
@@ -30,6 +34,7 @@ class DefaultPreprocessor:
         delays = prep_cfg.get('delays', [1, 2, 3, 4])
         do_zscore = prep_cfg.get('zscore', True)
         trim_features = prep_cfg.get('trim_features', True)
+        trim_responses = prep_cfg.get('trim_responses', True)
         apply_delays = prep_cfg.get('apply_delays', True)
 
         test_runs = split_cfg['test_runs']
@@ -43,7 +48,8 @@ class DefaultPreprocessor:
         trimmed_resp = {}
         for run in all_runs:
             r = responses.responses[run]
-            r = self._trim(r, trim_start, trim_end)
+            if trim_responses:
+                r = self._trim(r, trim_start, trim_end)
             if do_zscore:
                 r = zscore(r)
             trimmed_resp[run] = r
@@ -64,11 +70,24 @@ class DefaultPreprocessor:
                 run_feats.append(f)
             trimmed_feat[run] = np.hstack(run_feats)
 
+        # Log per-run shapes for debugging
+        for run in all_runs:
+            nr = trimmed_resp[run].shape[0]
+            nf = trimmed_feat[run].shape[0]
+            if nr != nf:
+                logger.warning("Run '%s' shape mismatch: response=%d features=%d",
+                               run, nr, nf)
+            else:
+                logger.info("Run '%s': %d TRs", run, nr)
+
         # Concatenate runs, split train/test
         Y_train = np.vstack([trimmed_resp[r] for r in train_runs])
         Y_test = np.vstack([trimmed_resp[r] for r in test_runs])
         X_train = np.vstack([trimmed_feat[r] for r in train_runs])
         X_test = np.vstack([trimmed_feat[r] for r in test_runs])
+
+        logger.info("X_train=%s Y_train=%s X_test=%s Y_test=%s",
+                     X_train.shape, Y_train.shape, X_test.shape, Y_test.shape)
 
         # Apply temporal delays
         if apply_delays:
