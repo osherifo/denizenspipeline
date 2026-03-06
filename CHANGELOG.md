@@ -6,6 +6,30 @@ All notable changes to DenizensPipeline are documented in this file.
 
 ## [Unreleased]
 
+### 2026-03-05 — Pipeline Run Summary
+**Author:** Omar Sherif
+**Plan:** [docs/plans/pipeline-run-summary.md](docs/plans/pipeline-run-summary.md)
+
+**Added:**
+- `RunSummary` and `StageRecord` dataclasses in `core/run_summary.py` — captures per-stage timing, status, detail, and a config snapshot
+- `save_timeline_chart()` in `core/run_chart.py` — matplotlib horizontal bar chart color-coded by stage status (green=ok, yellow=warning, red=failed, gray=skipped)
+- `run_summary.json` and `run_timeline.png` saved to output directory after every run (success or failure)
+- `Pipeline.last_context` — exposes the pipeline context even when the run fails, so the CLI can persist partial summaries
+
+**Changed:**
+- `orchestrator.py` — collects `StageRecord` list during the stage loop; attaches `RunSummary` to `ctx.run_summary` in a `finally` block
+- `pipeline.py` — wraps `orchestrator.run()` in try/finally to preserve `last_context`
+- `cli.py` — calls `_save_run_summary()` on both success and failure paths
+
+**Unchanged:**
+- No changes to any plugin, protocol, or config schema
+- Existing output artifacts unaffected
+
+**Files created:** `core/run_summary.py`, `core/run_chart.py`
+**Files modified:** `orchestrator.py`, `pipeline.py`, `cli.py`
+
+---
+
 ### 2026-03-04 — BIDS Response Loader
 **Author:** Omar Sherif
 **Plan:** [docs/plans/bids-response-loader.md](docs/plans/bids-response-loader.md)
