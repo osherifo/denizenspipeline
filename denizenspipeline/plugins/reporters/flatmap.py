@@ -65,12 +65,29 @@ class FlatmapReporter:
 
         # cortex.Volume accepts both full-volume and pre-masked 1-D arrays;
         # the transform defines the geometry in either case.
-        vol = cortex.Volume(
-            scores,
-            resp_data.surface,
-            resp_data.transform,
-            vmin=vmin, vmax=vmax, cmap=cmap,
-        )
+        try:
+            vol = cortex.Volume(
+                scores,
+                resp_data.surface,
+                resp_data.transform,
+                vmin=vmin, vmax=vmax, cmap=cmap,
+            )
+        except ValueError as exc:
+            if 'mask' in str(exc).lower():
+                n_scores = scores.shape[-1] if scores.ndim > 1 else scores.shape[0]
+                try:
+                    db_mask = cortex.db.get_mask(
+                        resp_data.surface, resp_data.transform, 'thick')
+                    n_mask = int(db_mask.sum())
+                except Exception:
+                    n_mask = '?'
+                logger.warning(
+                    "Flatmap skipped: score array has %s voxels but pycortex "
+                    "mask for %s/%s has %s. The response data does not match "
+                    "the pycortex database geometry.",
+                    n_scores, resp_data.surface, resp_data.transform, n_mask)
+                return {}
+            raise
 
         path = output_dir / 'prediction_accuracy_flatmap.png'
         cortex.quickflat.make_png(

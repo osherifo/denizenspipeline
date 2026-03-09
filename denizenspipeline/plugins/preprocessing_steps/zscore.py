@@ -2,9 +2,24 @@
 
 from __future__ import annotations
 
+import logging
+
+import numpy as np
+
 from denizenspipeline.core.array_utils import zscore
 from denizenspipeline.core.types import PreprocessingState
 from denizenspipeline.plugins._decorators import preprocessing_step
+
+logger = logging.getLogger(__name__)
+
+
+def _nan_report(arr: np.ndarray, label: str) -> None:
+    """Log a warning if arr contains NaN or Inf."""
+    n_nan = int(np.isnan(arr).sum())
+    n_inf = int(np.isinf(arr).sum())
+    if n_nan or n_inf:
+        logger.warning("NaN/Inf after zscore in %s: %d NaN, %d Inf (shape=%s)",
+                       label, n_nan, n_inf, arr.shape)
 
 
 @preprocessing_step("zscore")
@@ -21,21 +36,28 @@ class ZscoreStep:
             if "responses" in targets:
                 state.Y_train = zscore(state.Y_train)
                 state.Y_test = zscore(state.Y_test)
+                _nan_report(state.Y_train, "Y_train")
+                _nan_report(state.Y_test, "Y_test")
             if "features" in targets:
                 state.X_train = zscore(state.X_train)
                 state.X_test = zscore(state.X_test)
+                _nan_report(state.X_train, "X_train")
+                _nan_report(state.X_test, "X_test")
         else:
             # Operate on per-run dicts
             if "responses" in targets:
                 for run in state.all_runs:
                     if run in state.responses:
                         state.responses[run] = zscore(state.responses[run])
+                        _nan_report(state.responses[run], f"responses/{run}")
             if "features" in targets:
                 for feat_name in state.features:
                     for run in state.all_runs:
                         if run in state.features[feat_name]:
                             state.features[feat_name][run] = zscore(
                                 state.features[feat_name][run])
+                            _nan_report(state.features[feat_name][run],
+                                        f"features/{feat_name}/{run}")
 
     def validate_params(self, params: dict) -> list[str]:
         errors = []

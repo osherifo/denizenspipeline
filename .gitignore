@@ -3,4 +3,5 @@ experiments/
 __pycache__/
 *.pyc
 results/
-
+notebooks/
+docs/*

@@ -6,6 +6,9 @@ import string
 
 import numpy as np
 
+# Punctuation characters to strip from words (matches original study)
+_PUNCT_CHARS = string.punctuation + '{}[]'
+
 from denizenspipeline.core.datasequence import (
     DataSequence, make_phoneme_ds, make_word_ds,
 )
@@ -23,19 +26,20 @@ ARPABET_PHONEMES = [
 
 @feature_extractor("english1000")
 class English1000Extractor:
-    """Top-1000 English word indicator features.
+    """Dense english1000 word embeddings per TR.
 
-    Wraps Features.lexical_embeddings(embedding_name='english1000').
+    Loads 985-dim dense embeddings from ``data/english1000.npz`` and
+    downsamples via Lanczos interpolation, matching original study
+    ``Features.lexical_embeddings(embedding_name='english1000')``.
     """
 
     name = "english1000"
-    n_dims = 985  # Actual count depends on the word list used
+    n_dims = 985
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
-        vocab = self._load_vocab()
-        n_dims = len(vocab)
-        word_to_idx = {w: i for i, w in enumerate(vocab)}
+        embedding_dict, default_emb = self._load_embeddings()
+        n_dims = len(default_emb)
 
         data = {}
         for run_name in run_names:
@@ -43,9 +47,8 @@ class English1000Extractor:
             wordseq = make_word_ds(stim_run.textgrid, stim_run.trfile)
             embeddings = np.zeros((len(wordseq.data), n_dims))
             for i, word in enumerate(wordseq.data):
-                w = str(word).lower().strip()
-                if w in word_to_idx:
-                    embeddings[i, word_to_idx[w]] = 1.0
+                w = str(word).lower().strip(_PUNCT_CHARS).strip()
+                embeddings[i] = embedding_dict.get(w, default_emb)
             ds = DataSequence(embeddings, wordseq.split_inds,
                               wordseq.data_times, wordseq.tr_times)
             data[run_name] = ds.chunksums(interp="lanczos", window=3)
@@ -56,33 +59,15 @@ class English1000Extractor:
     def validate_config(self, config: dict) -> list[str]:
         return []
 
-    def _load_vocab(self):
-        """Load the English top-word vocabulary list.
-
-        Returns a list of the most common English words.
-        Placeholder implementation using a basic frequency list.
-        """
-        # In production, this loads from a data file shipped with the package.
-        # For now, return a basic set of common English words.
-        try:
-            from importlib.resources import files
-            vocab_path = files('denizenspipeline') / 'data' / 'english1000.txt'
-            if vocab_path.is_file():
-                with open(vocab_path) as f:
-                    return [line.strip() for line in f if line.strip()]
-        except Exception:
-            pass
-
-        # Fallback: common English words (abbreviated for bootstrap)
-        common = [
-            'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
-            'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
-            'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her',
-            'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there',
-            'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get',
-            'which', 'go', 'me',
-        ]
-        return common
+    def _load_embeddings(self):
+        """Load dense embeddings from ``data/english1000.npz``."""
+        from pathlib import Path
+        npz_path = Path(__file__).resolve().parent.parent.parent / 'data' / 'english1000.npz'
+        d = np.load(npz_path)
+        keys, values = d['keys'], d['values']
+        embedding_dict = {k: v for k, v in zip(keys, values)}
+        default_emb = np.zeros(values.shape[1])
+        return embedding_dict, default_emb
 
 
 @feature_extractor("letters")

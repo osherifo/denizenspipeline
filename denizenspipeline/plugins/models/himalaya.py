@@ -237,7 +237,31 @@ class BandedRidgeModel:
 
         _set_backend(backend)
 
-        delays_applied = data.metadata.get('delays_applied', True)
+        # Determine whether delays have already been applied to X_train.
+        # Prefer explicit metadata; otherwise, infer/validate from shapes.
+        metadata = getattr(data, "metadata", None) or {}
+        if isinstance(metadata, dict) and "delays_applied" in metadata:
+            delays_applied = bool(metadata["delays_applied"])
+        else:
+            n_features = data.X_train.shape[1]
+            base_width = int(sum(data.feature_dims))
+            n_delays = len(data.delays) if data.delays is not None else 0
+
+            if n_delays == 0:
+                # No delays configured; treat data as undelayed.
+                delays_applied = False
+            else:
+                delayed_width = base_width * n_delays
+                if n_features == delayed_width:
+                    delays_applied = True
+                elif n_features == base_width:
+                    delays_applied = False
+                else:
+                    raise ValueError(
+                        "Cannot infer whether delays have been applied: "
+                        f"n_features={n_features}, base_width={base_width}, "
+                        f"n_delays={n_delays}."
+                    )
         groups = _compute_group_labels(
             data.feature_dims, data.delays, delays_applied,
         )
@@ -296,9 +320,8 @@ class MultipleKernelRidgeModel:
 
     def fit(self, data: PreparedData, config: dict) -> ModelResult:
         from himalaya.kernel_ridge import (
-            ColumnKernelizer, Kernelizer, MultipleKernelRidgeCV,
+            ColumnKernelizer, MultipleKernelRidgeCV,
         )
-        from sklearn.pipeline import make_pipeline
 
         model_cfg = config.get('model', {}).get('params', {})
 
@@ -312,20 +335,22 @@ class MultipleKernelRidgeModel:
 
         _set_backend(backend)
 
-        delays = data.delays
-        delays_applied = data.metadata.get('delays_applied', True)
+        delays = data.delays if data.delays else model_cfg.get('delays', [0, 1, 2, 3])
+        delays_applied = data.metadata.get('delays_applied', False)
         group_slices = _compute_group_slices(
             data.feature_dims, delays_applied, delays,
         )
 
-        # Build per-group transformers: Delayer -> Kernelizer
+        # Build per-group transformers: Delayer only
+        # ColumnKernelizer handles kernelization internally — do NOT
+        # include Kernelizer here or kernels will be double-computed.
         transformers = []
         for i, sl in enumerate(group_slices):
             name = data.feature_names[i] if i < len(data.feature_names) else f"group_{i}"
             if delays_applied:
-                pipe = Kernelizer()
+                pipe = "passthrough"
             else:
-                pipe = make_pipeline(_Delayer(delays=delays), Kernelizer())
+                pipe = _Delayer(delays=delays)
             transformers.append((name, pipe, sl))
 
         column_kernelizer = ColumnKernelizer(transformers=transformers)
@@ -347,6 +372,8 @@ class MultipleKernelRidgeModel:
 
         K_test = column_kernelizer.transform(data.X_test)
         Y_pred = mkr.predict(K_test)
+        if hasattr(Y_pred, 'get'):  # cupy array → numpy
+            Y_pred = Y_pred.get()
         scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
 
         metadata = {
@@ -372,9 +399,20 @@ class MultipleKernelRidgeModel:
             errors.append(f"cv must be an integer >= 2, got {cv}")
 
         prep_cfg = config.get('preprocessing', {})
-        apply_delays = prep_cfg.get('apply_delays', True)
-        if apply_delays:
-            errors.append(
-                "multiple_kernel_ridge requires preprocessing.apply_delays: false"
-            )
+        prep_type = prep_cfg.get('type', 'default')
+        if prep_type == 'default':
+            apply_delays = prep_cfg.get('apply_delays', True)
+            if apply_delays:
+                errors.append(
+                    "multiple_kernel_ridge requires preprocessing.apply_delays: false"
+                )
+        elif prep_type == 'pipeline':
+            # Pipeline preprocessor: ensure no delay step is included
+            # (delays are applied per-group inside ColumnKernelizer)
+            step_names = [s.get('name') for s in prep_cfg.get('steps', [])]
+            if 'delay' in step_names:
+                errors.append(
+                    "multiple_kernel_ridge applies delays internally; "
+                    "remove the 'delay' step from preprocessing"
+                )
         return errors
