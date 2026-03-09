@@ -70,15 +70,17 @@ class DefaultPreprocessor:
                 run_feats.append(f)
             trimmed_feat[run] = np.hstack(run_feats)
 
-        # Log per-run shapes for debugging
+        # Validate per-run TR counts and log shapes
         for run in all_runs:
             nr = trimmed_resp[run].shape[0]
             nf = trimmed_feat[run].shape[0]
             if nr != nf:
-                logger.warning("Run '%s' shape mismatch: response=%d features=%d",
-                               run, nr, nf)
-            else:
-                logger.info("Run '%s': %d TRs", run, nr)
+                raise ValueError(
+                    f"Row mismatch in run '{run}': responses have "
+                    f"{nr} TRs but features have {nf} TRs. "
+                    f"Ensure trim_start and trim_end are applied consistently "
+                    f"to both responses and features.")
+            logger.info("Run '%s': %d TRs", run, nr)
 
         # Concatenate runs, split train/test
         Y_train = np.vstack([trimmed_resp[r] for r in train_runs])
