@@ -3,14 +3,16 @@ import { NavBar } from './components/layout/NavBar'
 import { PluginBrowser } from './views/PluginBrowser'
 import { PipelineComposer } from './views/PipelineComposer'
 import { RunManager } from './views/RunManager'
+import { PluginEditor } from './views/PluginEditor'
 import { usePluginStore } from './stores/plugin-store'
 
-type Route = 'plugins' | 'composer' | 'runs'
+type Route = 'plugins' | 'composer' | 'runs' | 'editor'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
   if (hash === 'composer') return 'composer'
   if (hash === 'runs') return 'runs'
+  if (hash === 'editor') return 'editor'
   return 'plugins'
 }
 
@@ -101,6 +103,7 @@ export function App() {
         {route === 'plugins' && <PluginBrowser />}
         {route === 'composer' && <PipelineComposer />}
         {route === 'runs' && <RunManager />}
+        {route === 'editor' && <PluginEditor />}
       </div>
     </div>
   )

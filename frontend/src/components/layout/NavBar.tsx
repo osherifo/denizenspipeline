@@ -48,6 +48,7 @@ const routes = [
   { key: 'plugins', label: 'Plugins', hash: '#plugins' },
   { key: 'composer', label: 'Composer', hash: '#composer' },
   { key: 'runs', label: 'Runs', hash: '#runs' },
+  { key: 'editor', label: 'Editor', hash: '#editor' },
 ]
 
 export function NavBar({ currentRoute }: NavBarProps) {

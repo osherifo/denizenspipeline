@@ -8,6 +8,10 @@ import type {
   ValidationResult,
   RunSummary,
   ParamSchema,
+  CodeValidationResult,
+  SavePluginResult,
+  UserPlugin,
+  TemplateResult,
 } from './types'
 
 const BASE = '/api'
@@ -100,6 +104,48 @@ export async function startRun(config: PipelineConfig): Promise<{ run_id: string
 
 export function artifactUrl(runId: string, artifactName: string): string {
   return `${BASE}/runs/${runId}/artifacts/${artifactName}`
+}
+
+// ── Plugin Editor ──
+
+export async function validatePluginCode(code: string, category?: string): Promise<CodeValidationResult> {
+  return json(`${BASE}/plugins/validate-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, category: category ?? null }),
+  })
+}
+
+export async function savePlugin(code: string, name: string, category: string): Promise<SavePluginResult> {
+  return json(`${BASE}/plugins/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, name, category }),
+  })
+}
+
+export async function fetchUserPlugins(): Promise<UserPlugin[]> {
+  return json(`${BASE}/plugins/user`)
+}
+
+export async function fetchUserPluginCode(name: string): Promise<{ name: string; code: string }> {
+  return json(`${BASE}/plugins/user/${name}`)
+}
+
+export async function deleteUserPlugin(name: string): Promise<{ deleted: boolean; name: string }> {
+  return json(`${BASE}/plugins/user/${name}`, { method: 'DELETE' })
+}
+
+export async function fetchTemplate(category: string, name: string): Promise<TemplateResult> {
+  return json(`${BASE}/plugins/template`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, name }),
+  })
+}
+
+export async function fetchTemplateCategories(): Promise<string[]> {
+  return json(`${BASE}/plugins/template-categories`)
 }
 
 // ── WebSocket ──

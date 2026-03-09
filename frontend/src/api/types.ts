@@ -134,3 +134,38 @@ export interface RunEvent {
   error?: string
   timestamp?: number
 }
+
+// ── Plugin Editor types ──
+
+export interface CodeValidationResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  plugin_name: string | null
+  class_name: string | null
+  category: string | null
+  params: ParamSchema | null
+}
+
+export interface SavePluginResult {
+  saved: boolean
+  path: string
+  registered: boolean
+  plugin_name: string
+  class_name: string
+  category: string
+}
+
+export interface UserPlugin {
+  name: string
+  filename: string
+  category: string | null
+  registered: boolean
+  path: string
+}
+
+export interface TemplateResult {
+  code: string
+  filename: string
+  category: string
+}
