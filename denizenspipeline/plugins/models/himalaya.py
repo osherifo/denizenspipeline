@@ -237,7 +237,31 @@ class BandedRidgeModel:
 
         _set_backend(backend)
 
-        delays_applied = data.metadata.get('delays_applied', False)
+        # Determine whether delays have already been applied to X_train.
+        # Prefer explicit metadata; otherwise, infer/validate from shapes.
+        metadata = getattr(data, "metadata", None) or {}
+        if isinstance(metadata, dict) and "delays_applied" in metadata:
+            delays_applied = bool(metadata["delays_applied"])
+        else:
+            n_features = data.X_train.shape[1]
+            base_width = int(sum(data.feature_dims))
+            n_delays = len(data.delays) if data.delays is not None else 0
+
+            if n_delays == 0:
+                # No delays configured; treat data as undelayed.
+                delays_applied = False
+            else:
+                delayed_width = base_width * n_delays
+                if n_features == delayed_width:
+                    delays_applied = True
+                elif n_features == base_width:
+                    delays_applied = False
+                else:
+                    raise ValueError(
+                        "Cannot infer whether delays have been applied: "
+                        f"n_features={n_features}, base_width={base_width}, "
+                        f"n_delays={n_delays}."
+                    )
         groups = _compute_group_labels(
             data.feature_dims, data.delays, delays_applied,
         )
