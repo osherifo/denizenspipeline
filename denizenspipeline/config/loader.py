@@ -11,6 +11,7 @@ import yaml
 
 from denizenspipeline.config.defaults import DEFAULT_CONFIG
 from denizenspipeline.config.schema import validate_config
+from denizenspipeline.core.subject_db import resolve_subject_config
 from denizenspipeline.exceptions import ConfigError
 
 
@@ -54,6 +55,9 @@ def load_config(path: str | Path) -> dict:
 
     # Resolve environment variables
     config = resolve_env_vars(config)
+
+    # Resolve subject config from subject database (fills in missing fields)
+    config = resolve_subject_config(config, config_dir=path.parent)
 
     # Validate
     errors = validate_config(config)

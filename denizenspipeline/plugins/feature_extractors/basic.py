@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from denizenspipeline.core.datasequence import make_phoneme_ds, make_word_ds
+from denizenspipeline.core.datasequence import DataSequence, make_phoneme_ds, make_word_ds
 from denizenspipeline.core.types import FeatureSet, StimulusData
 from denizenspipeline.plugins._decorators import feature_extractor
 
@@ -22,8 +22,10 @@ class NumWordsExtractor:
         for run_name in run_names:
             stim_run = stimuli.runs[run_name]
             wordseq = make_word_ds(stim_run.textgrid, stim_run.trfile)
+            chunks = wordseq.chunks()
+            n_trs = len(wordseq.tr_times)
             counts = np.atleast_2d(
-                [len(chunk) for chunk in wordseq.chunks()]
+                [len(chunks[i]) for i in range(n_trs)]
             ).T.astype(float)
             data[run_name] = counts
         return FeatureSet(name=self.name, data=data, n_dims=self.n_dims)
@@ -45,10 +47,11 @@ class NumLettersExtractor:
         for run_name in run_names:
             stim_run = stimuli.runs[run_name]
             wordseq = make_word_ds(stim_run.textgrid, stim_run.trfile)
-            lengths = np.atleast_2d(
-                [sum(len(w) for w in chunk) for chunk in wordseq.chunks()]
-            ).T.astype(float)
-            data[run_name] = lengths
+            # Per-word letter counts as a DataSequence, then lanczos downsample
+            newdata = np.vstack([len(w) for w in wordseq.data])
+            ds = DataSequence(newdata, wordseq.split_inds,
+                              wordseq.data_times, wordseq.tr_times)
+            data[run_name] = ds.chunksums(interp="lanczos", window=3)
         return FeatureSet(name=self.name, data=data, n_dims=self.n_dims)
 
     def validate_config(self, config: dict) -> list[str]:
@@ -68,8 +71,10 @@ class NumPhonemesExtractor:
         for run_name in run_names:
             stim_run = stimuli.runs[run_name]
             phonseq = make_phoneme_ds(stim_run.textgrid, stim_run.trfile)
+            chunks = phonseq.chunks()
+            n_trs = len(phonseq.tr_times)
             counts = np.atleast_2d(
-                [len(chunk) for chunk in phonseq.chunks()]
+                [len(chunks[i]) for i in range(n_trs)]
             ).T.astype(float)
             data[run_name] = counts
         return FeatureSet(name=self.name, data=data, n_dims=self.n_dims)
@@ -91,11 +96,11 @@ class WordLengthStdExtractor:
         for run_name in run_names:
             stim_run = stimuli.runs[run_name]
             wordseq = make_word_ds(stim_run.textgrid, stim_run.trfile)
-            stds = np.atleast_2d([
-                np.std([len(w) for w in chunk]) if len(chunk) > 0 else 0.0
-                for chunk in wordseq.chunks()
-            ]).T.astype(float)
-            data[run_name] = stds
+            # Per-word letter counts as a DataSequence, then chunkstds
+            newdata = np.vstack([len(w) for w in wordseq.data])
+            ds = DataSequence(newdata, wordseq.split_inds,
+                              wordseq.data_times, wordseq.tr_times)
+            data[run_name] = ds.chunkstds()
         return FeatureSet(name=self.name, data=data, n_dims=self.n_dims)
 
     def validate_config(self, config: dict) -> list[str]:

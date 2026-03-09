@@ -5,6 +5,7 @@ Standalone implementations based on v1 stimulus_utils.py patterns.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -249,11 +250,8 @@ def _load_textgrid(filepath):
     except ImportError:
         pass
 
-    try:
-        import tgt
-        return tgt.io.read_textgrid(filepath)
-    except ImportError:
-        pass
+    # Skip tgt — its strict overlap checking breaks on some TextGrids,
+    # and its tier API differs from what the pipeline expects.
 
     # Fallback: return a minimal wrapper
     return _SimpleTextGrid(filepath)
@@ -268,34 +266,134 @@ class _SimpleTextGrid:
         self._parse(filepath)
 
     def _parse(self, filepath):
-        """Parse a Praat TextGrid file."""
+        """Parse a Praat TextGrid file (long-form, short-form, or chronological)."""
         import codecs
         with codecs.open(filepath, 'r', 'utf-8') as f:
-            content = f.read()
+            lines = f.read().split('\n')
 
-        # Simple parser for interval tiers
-        tier = _SimpleTier()
+        # Detect format from header
+        header = lines[0].strip().strip('"') if lines else ''
+        if header == 'Praat chronological TextGrid text file':
+            self._parse_chronological(lines)
+        elif any('item [' in ln for ln in lines):
+            self._parse_long(lines)
+        else:
+            self._parse_short(lines)
+
+    def _parse_long(self, lines):
+        """Parse long-form TextGrid (with xmin=, xmax=, text= labels)."""
+        import re
+        tier = None
         in_intervals = False
-        current_start = current_end = None
-        current_text = None
+        current_start = current_end = current_text = None
 
-        for line in content.split('\n'):
-            line = line.strip()
-            if 'intervals' in line and '[' in line:
+        for line in lines:
+            stripped = line.strip()
+            if re.match(r'item\s*\[\d+\]\s*:?\s*$', stripped):
+                if tier is not None and tier.intervals:
+                    self.tiers.append(tier)
+                tier = _SimpleTier()
+                in_intervals = False
+                continue
+            if tier is None:
+                continue
+            if 'intervals' in stripped and '[' in stripped:
                 in_intervals = True
             elif in_intervals:
-                if line.startswith('xmin'):
-                    current_start = line.split('=')[1].strip()
-                elif line.startswith('xmax'):
-                    current_end = line.split('=')[1].strip()
-                elif line.startswith('text'):
-                    current_text = line.split('=', 1)[1].strip().strip('"')
+                if stripped.startswith('xmin'):
+                    current_start = stripped.split('=')[1].strip()
+                elif stripped.startswith('xmax'):
+                    current_end = stripped.split('=')[1].strip()
+                elif stripped.startswith('text') and '=' in stripped:
+                    current_text = stripped.split('=', 1)[1].strip().strip('"')
                     if current_start is not None:
                         tier.intervals.append((current_start, current_end, current_text))
                     current_start = current_end = current_text = None
 
-        if tier.intervals:
+        if tier is not None and tier.intervals:
             self.tiers.append(tier)
+
+    def _parse_short(self, lines):
+        """Parse short-form TextGrid (bare values, no labels).
+
+        Short-form layout per tier:
+            "IntervalTier"
+            "tier_name"
+            xmin            (tier start)
+            xmax            (tier end)
+            n_intervals
+            xmin_1          (interval start)
+            xmax_1          (interval end)
+            "text_1"
+            ...repeating triplets
+        """
+        i = 0
+        # Skip header lines until first "IntervalTier"
+        while i < len(lines):
+            if lines[i].strip().strip('"') == 'IntervalTier':
+                break
+            i += 1
+
+        while i < len(lines):
+            stripped = lines[i].strip().strip('"')
+            if stripped == 'IntervalTier':
+                tier = _SimpleTier()
+                i += 1  # tier name
+                i += 1  # tier xmin
+                i += 1  # tier xmax
+                i += 1  # n_intervals line
+                if i >= len(lines):
+                    break
+                n_intervals = int(lines[i].strip())
+                i += 1
+                for _ in range(n_intervals):
+                    if i + 2 >= len(lines):
+                        break
+                    xmin = lines[i].strip()
+                    xmax = lines[i + 1].strip()
+                    text = lines[i + 2].strip().strip('"')
+                    tier.intervals.append((xmin, xmax, text))
+                    i += 3
+                self.tiers.append(tier)
+            else:
+                i += 1
+
+
+    def _parse_chronological(self, lines):
+        """Parse chronological TextGrid (interleaved intervals with tier index).
+
+        Format:
+            "Praat chronological TextGrid text file"
+            xmin xmax   ! Time domain.
+            n_tiers   ! Number of tiers.
+            "IntervalTier" "name" xmin xmax    (one per tier)
+            tier_index xmin xmax               (1-indexed)
+            "text"
+            ...repeating pairs
+        """
+        # Line 2: n_tiers
+        n_tiers = int(lines[2].split()[0])
+        tiers = [_SimpleTier() for _ in range(n_tiers)]
+
+        # Skip header (3 lines) + tier declarations (n_tiers lines)
+        i = 3 + n_tiers
+        while i + 1 < len(lines):
+            parts = lines[i].strip().split()
+            if len(parts) >= 3:
+                try:
+                    tier_idx = int(parts[0]) - 1  # 1-indexed → 0-indexed
+                    xmin = parts[1]
+                    xmax = parts[2]
+                    text = lines[i + 1].strip().strip('"')
+                    if 0 <= tier_idx < n_tiers:
+                        tiers[tier_idx].intervals.append((xmin, xmax, text))
+                    i += 2
+                    continue
+                except (ValueError, IndexError):
+                    pass
+            i += 1
+
+        self.tiers = [t for t in tiers if t.intervals]
 
 
 class _SimpleTier:
