@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from denizenspipeline.core.stimulus_utils import (
     TRFile,
@@ -43,6 +47,14 @@ class TextGridStimulusLoader:
     trfile_dir : str, optional
         Explicit path to directory of .report files.  Overrides the
         default convention.
+    file_suffix : str, optional
+        When set, only load TextGrid/TRFile names ending with this suffix
+        and strip it from the run name.  E.g. ``Audio_en`` turns
+        ``soulsAudio_en.TextGrid`` into run name ``souls``.
+    trfile_subject : str, optional
+        When set alongside *file_suffix*, match trfiles named
+        ``{story}{suffix}_{subject}_0.report`` and strip the extra parts.
+        Useful when trfiles are per-subject (e.g. bling data).
     n_trs : dict[str, int], optional
         If no TRFiles are found, synthesize evenly-spaced triggers using
         this per-run TR count.  Keys are run names, values are ints.
@@ -76,6 +88,29 @@ class TextGridStimulusLoader:
                 trfiles.update(load_generic_trfiles(
                     experiment, session, tr_dir=trfile_dir))
 
+        # Filter and rename by file_suffix (e.g. "Audio_en")
+        suffix = stim_cfg.get('file_suffix', '')
+        if suffix:
+            grids = {
+                name[:-len(suffix)]: grid
+                for name, grid in grids.items()
+                if name.endswith(suffix)
+            }
+            trfile_subject = stim_cfg.get('trfile_subject', '')
+            if trfile_subject:
+                target = f"{suffix}_{trfile_subject}_0"
+                trfiles = {
+                    name[:-len(target)]: trf
+                    for name, trf in trfiles.items()
+                    if name.endswith(target)
+                }
+            else:
+                trfiles = {
+                    name[:-len(suffix)]: trf
+                    for name, trf in trfiles.items()
+                    if name.endswith(suffix)
+                }
+
         # Synthesize TRFiles for any grid that has no matching .report
         n_trs_map = stim_cfg.get('n_trs', {})
         tr = stim_cfg.get('tr', 2.0)
@@ -95,6 +130,19 @@ class TextGridStimulusLoader:
                     language=stim_cfg.get('language', 'en'),
                     modality=stim_cfg.get('modality', 'reading'),
                 )
+
+        # Log loaded stimuli summary
+        if suffix:
+            logger.info("file_suffix=%s  trfile_subject=%s",
+                        suffix, stim_cfg.get('trfile_subject', '(none)'))
+        logger.info("Loaded %d grids, %d trfiles, %d matched runs",
+                    len(grids), len(trfiles), len(runs))
+        for run_name in sorted(runs):
+            trf = runs[run_name].stimulus.trfile
+            n_trs = trf.n_trs if hasattr(trf, 'n_trs') else len(trf.get_reltriggertimes())
+            grid = runs[run_name].stimulus.textgrid
+            n_tiers = len(grid.tiers) if hasattr(grid, 'tiers') else '?'
+            logger.info("  %-30s  trs=%d  tiers=%s", run_name, n_trs, n_tiers)
 
         return StimulusData(runs=runs)
 

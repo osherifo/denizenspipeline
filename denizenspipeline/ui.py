@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 
 from rich.console import Console
@@ -12,6 +13,21 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 
 
 console = Console()
+
+
+@contextlib.contextmanager
+def model_live():
+    """Context manager that frames live model output between separator lines.
+
+    Suppresses sklearn FutureWarnings while letting solver progress
+    render live to the terminal.
+    """
+    import warnings
+    console.print("       [bright_blue]───── model fitting ─────[/]", highlight=False)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        yield
+    console.print("       [bright_blue]────────────────────────[/]", highlight=False)
 
 # Color scheme
 STAGE_COLORS = {
@@ -92,6 +108,30 @@ def stage_warn(name: str, t0: float, detail: str = ""):
 def log_hint(log_path: str):
     """Print a hint pointing to the log file."""
     console.print(f"\n  [dim]Details:[/] [bold]{log_path}[/]\n")
+
+
+def data_warning(msg: str):
+    """Print a colored data quality warning on the console."""
+    console.print(f"       [bold yellow]⚠[/]  [yellow]{msg}[/]", highlight=False)
+
+
+def trim_table(target: str, trim_start: int, trim_end: int,
+               run_shapes: list[tuple[str, int, int]]):
+    """Print a compact trim summary table.
+
+    *run_shapes*: list of (run_name, before_trs, after_trs)
+    """
+    color = "bright_green"
+    console.print(
+        f"       [bold {color}]trim {target}[/]  "
+        f"[dim]start=[/]{trim_start}  [dim]end=[/]{trim_end}",
+        highlight=False,
+    )
+    for run, before, after in run_shapes:
+        console.print(
+            f"         [dim]{run:<30}[/]  {before} [dim]->[/] {after}",
+            highlight=False,
+        )
 
 
 def feature_info(name: str, source: str, n_runs: int = 0, n_dims: int = 0):
