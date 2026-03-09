@@ -12,6 +12,8 @@ import type {
   SavePluginResult,
   UserPlugin,
   TemplateResult,
+  ConfigSummary,
+  ConfigDetail,
 } from './types'
 
 const BASE = '/api'
@@ -104,6 +106,31 @@ export async function startRun(config: PipelineConfig): Promise<{ run_id: string
 
 export function artifactUrl(runId: string, artifactName: string): string {
   return `${BASE}/runs/${runId}/artifacts/${artifactName}`
+}
+
+// ── Experiment Configs ──
+
+export async function fetchConfigs(): Promise<ConfigSummary[]> {
+  return json(`${BASE}/configs`)
+}
+
+export async function fetchConfigDetail(filename: string): Promise<ConfigDetail> {
+  return json(`${BASE}/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function validateConfigFile(filename: string): Promise<ValidationResult> {
+  return json(`${BASE}/configs/${encodeURIComponent(filename)}/validate`, { method: 'POST' })
+}
+
+export async function startRunFromConfig(
+  configPath: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ run_id: string; status: string }> {
+  return json(`${BASE}/runs/from-config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config_path: configPath, overrides: overrides ?? null }),
+  })
 }
 
 // ── Plugin Editor ──

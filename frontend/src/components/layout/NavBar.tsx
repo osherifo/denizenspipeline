@@ -47,6 +47,7 @@ function linkStyle(active: boolean): React.CSSProperties {
 const routes = [
   { key: 'plugins', label: 'Plugins', hash: '#plugins' },
   { key: 'composer', label: 'Composer', hash: '#composer' },
+  { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
   { key: 'runs', label: 'Runs', hash: '#runs' },
   { key: 'editor', label: 'Editor', hash: '#editor' },
 ]
