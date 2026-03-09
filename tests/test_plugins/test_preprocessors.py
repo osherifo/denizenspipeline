@@ -106,3 +106,32 @@ class TestDefaultPreprocessor:
         assert result.feature_names == ["feat"]
         assert result.feature_dims == [N_FEATURES]
         assert result.delays == [1, 2, 3, 4]
+
+    def test_tr_mismatch_raises_value_error(self, prep_config):
+        """A per-run TR mismatch between responses and features raises ValueError."""
+        rng = np.random.RandomState(0)
+        responses = ResponseData(
+            responses={
+                name: rng.randn(N_TRS, N_VOXELS).astype(np.float32)
+                for name in RUN_NAMES
+            },
+            mask=np.ones(N_VOXELS, dtype=bool),
+            surface="s",
+            transform="t",
+        )
+        # Features for "story1" have one extra TR to trigger a mismatch
+        fs = FeatureSet(
+            name="feat",
+            data={
+                name: rng.randn(
+                    N_TRS + (1 if name == "story1" else 0), N_FEATURES
+                ).astype(np.float32)
+                for name in RUN_NAMES
+            },
+            n_dims=N_FEATURES,
+        )
+        features = FeatureData(features={"feat": fs})
+
+        prep = DefaultPreprocessor()
+        with pytest.raises(ValueError, match="Row mismatch in run 'story1'"):
+            prep.prepare(responses, features, prep_config)
