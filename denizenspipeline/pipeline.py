@@ -26,6 +26,7 @@ class Pipeline:
         self.config = config
         self.registry = registry or PluginRegistry()
         self.registry.discover()
+        self.last_context: PipelineContext | None = None
 
     @classmethod
     def from_yaml(cls, path: str | Path,
@@ -70,4 +71,8 @@ class Pipeline:
         if resume_from is not None:
             context = PipelineContext.from_checkpoint(self.config, resume_from)
 
-        return orchestrator.run(stages=stages, context=context)
+        try:
+            ctx = orchestrator.run(stages=stages, context=context)
+        finally:
+            self.last_context = orchestrator.ctx
+        return ctx

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
 
 from denizenspipeline.core.types import FeatureSet, StimulusData
 from denizenspipeline.plugins._decorators import feature_source
+
+logger = logging.getLogger(__name__)
 
 
 @feature_source("compute")
@@ -36,6 +39,10 @@ class ComputeSource:
         """Extract features from stimuli using the configured extractor."""
         params = config.get('params', {})
         feature_set = self.extractor.extract(self.stimuli, run_names, params)
+
+        for run_name in sorted(feature_set.data):
+            shape = feature_set.data[run_name].shape
+            logger.info("  %-30s  %s  shape=%s", feature_set.name, run_name, shape)
 
         # Override the name if the config specifies a different one
         if config.get('name') and config['name'] != self.extractor.name:

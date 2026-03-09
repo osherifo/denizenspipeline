@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
 from denizenspipeline.core.types import PreprocessingState
 from denizenspipeline.plugins._decorators import preprocessing_step
+
+logger = logging.getLogger(__name__)
 
 
 @preprocessing_step("trim")
@@ -19,19 +23,50 @@ class TrimStep:
     name = "trim"
 
     def apply(self, state: PreprocessingState, params: dict) -> None:
+        from denizenspipeline import ui
+
         trim_start = params.get("trim_start", 5)
         trim_end = params.get("trim_end", 5)
         targets = params.get("targets", ["responses", "features"])
 
-        for run in state.all_runs:
-            if "responses" in targets and run in state.responses:
-                state.responses[run] = self._trim(
-                    state.responses[run], trim_start, trim_end)
-            if "features" in targets:
+        logger.info("Trim step: start=%d end=%d targets=%s", trim_start, trim_end, targets)
+
+        if "responses" in targets:
+            run_shapes = []
+            for run in state.all_runs:
+                if run in state.responses:
+                    before = state.responses[run].shape[0]
+                    state.responses[run] = self._trim(
+                        state.responses[run], trim_start, trim_end)
+                    after = state.responses[run].shape[0]
+                    run_shapes.append((run, before, after))
+                    logger.info("  %s responses: %d -> %d", run, before, after)
+            ui.trim_table("responses", trim_start, trim_end, run_shapes)
+
+        if "features" in targets:
+            run_shapes = []
+            for run in state.all_runs:
+                feat_sizes = {}
                 for feat_name in state.features:
                     if run in state.features[feat_name]:
+                        before = state.features[feat_name][run].shape[0]
                         state.features[feat_name][run] = self._trim(
                             state.features[feat_name][run], trim_start, trim_end)
+                        after = state.features[feat_name][run].shape[0]
+                        feat_sizes[feat_name] = (before, after)
+                        logger.info("  %s %s: %d -> %d", run, feat_name, before, after)
+                if feat_sizes:
+                    first_before, first_after = next(iter(feat_sizes.values()))
+                    mismatches = [
+                        f"{fn}:{sz[1]}"
+                        for fn, sz in feat_sizes.items()
+                        if sz[1] != first_after
+                    ]
+                    label = run
+                    if mismatches:
+                        label = f"{run}  [bold yellow]({', '.join(mismatches)} differ!)[/]"
+                    run_shapes.append((label, first_before, first_after))
+            ui.trim_table("features", trim_start, trim_end, run_shapes)
 
     def validate_params(self, params: dict) -> list[str]:
         errors = []

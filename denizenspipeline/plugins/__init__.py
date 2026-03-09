@@ -21,6 +21,7 @@ def register_builtins(registry):
     import denizenspipeline.plugins.response_loaders.local  # noqa: F401
     import denizenspipeline.plugins.response_loaders.readers  # noqa: F401
     import denizenspipeline.plugins.response_loaders.phact_hdf  # noqa: F401
+    import denizenspipeline.plugins.response_loaders.bling_hdf  # noqa: F401
 
     import denizenspipeline.plugins.feature_extractors.basic  # noqa: F401
     import denizenspipeline.plugins.feature_extractors.histograms  # noqa: F401
@@ -54,6 +55,7 @@ def register_builtins(registry):
 
     import denizenspipeline.plugins.reporters.metrics  # noqa: F401
     import denizenspipeline.plugins.reporters.flatmap  # noqa: F401
+    import denizenspipeline.plugins.reporters.flatmap_mapped  # noqa: F401
     import denizenspipeline.plugins.reporters.weights  # noqa: F401
     import denizenspipeline.plugins.reporters.histogram  # noqa: F401
     import denizenspipeline.plugins.reporters.webgl  # noqa: F401

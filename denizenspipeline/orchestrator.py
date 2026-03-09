@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import logging
+import time
+from datetime import datetime, timezone
 
 from denizenspipeline import ui
 from denizenspipeline.context import PipelineContext
+from denizenspipeline.core.run_summary import RunSummary, StageRecord
 from denizenspipeline.core.types import (
     FeatureData, ModelResult, PreparedData, ResponseData, StimulusData,
 )
@@ -57,26 +60,65 @@ class PipelineOrchestrator:
             raise ConfigError(errors)
 
         # Execute stages
-        for stage_name in stages_to_run:
-            if stage_name not in ALL_STAGES:
-                raise ConfigError(f"Unknown stage: '{stage_name}'")
+        records: list[StageRecord] = []
+        run_start = time.time()
+        started_at = datetime.now(timezone.utc).isoformat()
 
-            t0 = ui.stage_start(stage_name)
-            try:
-                detail = self._run_stage(stage_name, plugins)
-                if stage_name == 'report' and self._reporter_errors:
-                    ui.stage_warn(stage_name, t0, detail)
-                else:
-                    ui.stage_done(stage_name, t0, detail)
-            except ConfigError:
-                ui.stage_fail(stage_name, t0)
-                raise
-            except Exception as e:
-                ui.stage_fail(stage_name, t0, str(e))
-                raise StageError(stage_name, e) from e
+        try:
+            for stage_name in stages_to_run:
+                if stage_name not in ALL_STAGES:
+                    raise ConfigError(f"Unknown stage: '{stage_name}'")
 
-            if self.config.get('checkpoint', False):
-                self.ctx.save_checkpoint(stage_name)
+                t0 = ui.stage_start(stage_name)
+                try:
+                    detail = self._run_stage(stage_name, plugins)
+                    elapsed = time.time() - t0
+                    if stage_name == 'report' and self._reporter_errors:
+                        ui.stage_warn(stage_name, t0, detail)
+                        status = 'warning'
+                    else:
+                        ui.stage_done(stage_name, t0, detail)
+                        status = 'ok'
+                    records.append(StageRecord(
+                        name=stage_name, status=status,
+                        elapsed_s=round(elapsed, 3), detail=detail,
+                    ))
+                except ConfigError:
+                    elapsed = time.time() - t0
+                    records.append(StageRecord(
+                        name=stage_name, status='failed',
+                        elapsed_s=round(elapsed, 3), detail='config error',
+                    ))
+                    ui.stage_fail(stage_name, t0)
+                    raise
+                except Exception as e:
+                    elapsed = time.time() - t0
+                    records.append(StageRecord(
+                        name=stage_name, status='failed',
+                        elapsed_s=round(elapsed, 3), detail=str(e),
+                    ))
+                    ui.stage_fail(stage_name, t0, str(e))
+                    raise StageError(stage_name, e) from e
+
+                if self.config.get('checkpoint', False):
+                    self.ctx.save_checkpoint(stage_name)
+        finally:
+            total_elapsed = time.time() - run_start
+            cfg = self.config
+            self.ctx.run_summary = RunSummary(
+                experiment=cfg.get('experiment', ''),
+                subject=cfg.get('subject', ''),
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc).isoformat(),
+                total_elapsed_s=round(total_elapsed, 3),
+                stages=records,
+                config_snapshot={
+                    'model_type': cfg.get('model', {}).get('type', ''),
+                    'preprocessing_type': cfg.get('preprocessing', {}).get('type', ''),
+                    'features': [f.get('name', '') for f in cfg.get('features', [])],
+                    'split': cfg.get('preprocessing', {}).get('split', {}),
+                },
+            )
 
         return self.ctx
 
@@ -220,7 +262,8 @@ class PipelineOrchestrator:
 
         elif stage_name == 'model':
             prepared = self.ctx.get('prepared', PreparedData)
-            result = plugins['model'].fit(prepared, self.config)
+            with ui.model_live():
+                result = plugins['model'].fit(prepared, self.config)
             self.ctx.put('result', result)
             return (f"mean={result.scores.mean():.4f} "
                     f"max={result.scores.max():.4f}")

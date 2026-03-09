@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 
 from denizenspipeline.core.types import PreprocessingState
 from denizenspipeline.plugins._decorators import preprocessing_step
+
+logger = logging.getLogger(__name__)
 
 
 @preprocessing_step("concatenate")
@@ -41,13 +45,24 @@ class ConcatenateStep:
 
         # Stack runs and split train/test
         state.Y_train = np.vstack(
-            [state.responses[r] for r in state.train_runs])
+            [state.responses[r] for r in state.train_runs]).astype(np.float32)
         state.Y_test = np.vstack(
-            [state.responses[r] for r in state.test_runs])
+            [state.responses[r] for r in state.test_runs]).astype(np.float32)
         state.X_train = np.vstack(
-            [concat_feat[r] for r in state.train_runs])
+            [concat_feat[r] for r in state.train_runs]).astype(np.float32)
         state.X_test = np.vstack(
-            [concat_feat[r] for r in state.test_runs])
+            [concat_feat[r] for r in state.test_runs]).astype(np.float32)
+
+        # NaN/Inf summary
+        for name, arr in [("X_train", state.X_train), ("X_test", state.X_test),
+                          ("Y_train", state.Y_train), ("Y_test", state.Y_test)]:
+            n_nan = int(np.isnan(arr).sum())
+            n_inf = int(np.isinf(arr).sum())
+            if n_nan or n_inf:
+                logger.warning("After concatenate: %s has %d NaN, %d Inf (shape=%s)",
+                               name, n_nan, n_inf, arr.shape)
+            else:
+                logger.info("After concatenate: %s shape=%s — clean", name, arr.shape)
 
     def validate_params(self, params: dict) -> list[str]:
         return []

@@ -42,6 +42,10 @@ def _setup_file_logging(output_dir: str) -> Path:
     if root_logger.level > logging.DEBUG:
         root_logger.setLevel(logging.DEBUG)
 
+    # Silence noisy third-party loggers
+    for name in ('matplotlib', 'PIL', 'h5py'):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
     return log_path
 
 
@@ -158,6 +162,7 @@ def _cmd_run(args) -> int:
     )
     ui.console.print()
 
+    ctx = None
     try:
         ctx = pipeline.run(stages=stages, resume_from=args.resume_from)
         ui.success("Pipeline completed successfully.")
@@ -175,6 +180,7 @@ def _cmd_run(args) -> int:
         if ctx.artifacts:
             ui.artifacts_panel(ctx.artifacts)
 
+        _save_run_summary(ctx, output_dir)
         return 0
 
     except Exception as e:
@@ -184,7 +190,28 @@ def _cmd_run(args) -> int:
         ui.log_hint(str(log_path))
         if logger.isEnabledFor(logging.DEBUG):
             ui.console.print_exception()
+        # Save partial summary on failure too
+        if ctx is None:
+            ctx = pipeline.last_context
+        _save_run_summary(ctx, output_dir)
         return 1
+
+
+def _save_run_summary(ctx, output_dir: str) -> None:
+    """Persist run summary JSON and timeline chart if available."""
+    if ctx is None or not hasattr(ctx, 'run_summary'):
+        return
+    summary = ctx.run_summary
+    out = Path(output_dir)
+    try:
+        summary.save_json(out / 'run_summary.json')
+    except Exception:
+        logger.warning("Could not save run_summary.json", exc_info=True)
+    try:
+        from denizenspipeline.core.run_chart import save_timeline_chart
+        save_timeline_chart(summary, out / 'run_timeline.png')
+    except Exception:
+        logger.warning("Could not save run_timeline.png", exc_info=True)
 
 
 def _cmd_validate(args) -> int:

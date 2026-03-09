@@ -81,13 +81,14 @@ class DataSequence:
 
         Returns
         -------
-        ndarray, shape (n_trs,) or (n_trs, n_dims)
+        ndarray, shape (n_chunks, n_dims)
         """
-        chunks = self.chunks()
-        return np.array([
-            np.std(c, axis=0) if len(c) > 0 else 0.0
-            for c in chunks
-        ])
+        dsize = self.data.shape[1]
+        outmat = np.zeros((len(self.split_inds) + 1, dsize))
+        for ci, c in enumerate(self.chunks()):
+            if len(c):
+                outmat[ci] = np.vstack(c).std(0)
+        return outmat
 
     def data_to_chunk_ind(self, data_ind):
         """Find which chunk contains the given data index."""
@@ -136,21 +137,22 @@ class DataSequence:
         word_time : str
             How to assign word times: "start", "middle", or "end".
         """
-        tr_times = trfile.get_reltriggertimes()
-        words = [w for _, _, w in grid_transcript]
+        words = list(map(str.lower, list(zip(*grid_transcript))[2]))
+        word_starts = np.array(list(map(float, list(zip(*grid_transcript))[0])))
+        word_ends = np.array(list(map(float, list(zip(*grid_transcript))[1])))
 
         if word_time == "start":
-            data_times = np.array([float(s) for s, _, _ in grid_transcript])
+            word_times = word_starts
         elif word_time == "end":
-            data_times = np.array([float(e) for _, e, _ in grid_transcript])
+            word_times = word_ends
         else:  # middle
-            data_times = np.array([(float(s) + float(e)) / 2
-                                   for s, e, _ in grid_transcript])
+            word_times = (word_starts + word_ends) / 2.0
 
-        # Find split indices: which words fall in each TR
-        split_inds = np.searchsorted(data_times, tr_times)
+        tr = trfile.avgtr
+        trtimes = trfile.get_reltriggertimes()
 
-        return cls(words, split_inds, data_times, tr_times)
+        split_inds = [(word_starts < (t + tr)).sum() for t in trtimes][:-1]
+        return cls(words, split_inds, word_times, trtimes + tr / 2.0)
 
 
 def make_word_ds(textgrid, trfile):
@@ -201,14 +203,20 @@ def make_phoneme_ds(textgrid, trfile):
     return DataSequence.from_grid(transcript, trfile)
 
 
+_BAD_WORDS = frozenset([
+    'br', 'lg', 'ls', 'ns', 'sp', 'ig', 'cg', 'sl', '', 'ls)', '(br',
+    'ns_ap', 'sil', 'sentence_start', 'sentence_end', 'sentence start',
+    'clause_start', 'clause_end', 'paragraph_start', 'paragraph_end',
+])
+
+
 def _parse_grid_transcript(textgrid):
     """Extract word-level transcript from a TextGrid object."""
     # TextGrid word tier is typically tier index 1
     word_tier = textgrid.tiers[1] if len(textgrid.tiers) > 1 else textgrid.tiers[0]
     transcript = word_tier.make_simple_transcript()
-    # Filter out empty entries and common artifacts
-    bad_words = {"", "sp", "SIL", "{SL}", "{LG}", "{NS}", "{BR}", "{CG}"}
-    return [(s, e, w) for s, e, w in transcript if w.strip() not in bad_words]
+    return [(s, e, w) for s, e, w in transcript
+            if w.lower().strip("{}[]").strip() not in _BAD_WORDS]
 
 
 def _parse_phoneme_transcript(textgrid):
@@ -216,14 +224,28 @@ def _parse_phoneme_transcript(textgrid):
     # Phoneme tier is typically tier index 0
     phone_tier = textgrid.tiers[0]
     transcript = phone_tier.make_simple_transcript()
-    bad_phones = {"", "sp", "SIL", "sil"}
-    return [(s, e, p) for s, e, p in transcript if p.strip() not in bad_phones]
+    return [(s, e, p) for s, e, p in transcript
+            if p.lower().strip("{}[]").strip() not in _BAD_WORDS]
 
 
 # ─── Interpolation helpers ───────────────────────────────────────
 
+def _lanczosfun(cutoff, t, window=3):
+    """Lanczos kernel function.
+
+    Ported from text_lite.regression.interpdata.lanczosfun.
+    """
+    t = t * cutoff
+    val = window * np.sin(np.pi * t) * np.sin(np.pi * t / window) / (np.pi**2 * t**2)
+    val[t == 0] = 1.0
+    val[np.abs(t) > window] = 0.0
+    return val
+
+
 def lanczosinterp2D(data, oldtime, newtime, window=3):
     """Lanczos interpolation for 2D data.
+
+    Ported from text_lite.regression.interpdata.lanczosinterp2D.
 
     Parameters
     ----------
@@ -231,7 +253,7 @@ def lanczosinterp2D(data, oldtime, newtime, window=3):
     oldtime : array-like, shape (n_samples,)
     newtime : array-like, shape (n_new,)
     window : int
-        Lanczos window size.
+        Lanczos window size (number of lobes).
 
     Returns
     -------
@@ -244,23 +266,13 @@ def lanczosinterp2D(data, oldtime, newtime, window=3):
     oldtime = np.array(oldtime, dtype=float)
     newtime = np.array(newtime, dtype=float)
 
-    n_new = len(newtime)
-    n_dims = data.shape[1]
-    result = np.zeros((n_new, n_dims))
+    cutoff = 1.0 / np.mean(np.diff(newtime))
 
-    for i, t in enumerate(newtime):
-        # Find nearby samples
-        diffs = oldtime - t
-        # Lanczos kernel
-        for j in range(len(oldtime)):
-            x = diffs[j]
-            if abs(x) < window and abs(x) > 0:
-                sinc_val = np.sinc(x) * np.sinc(x / window)
-                result[i] += data[j] * sinc_val
-            elif abs(x) == 0:
-                result[i] += data[j]
+    sincmat = np.zeros((len(newtime), len(oldtime)))
+    for ndi in range(len(newtime)):
+        sincmat[ndi, :] = _lanczosfun(cutoff, newtime[ndi] - oldtime, window)
 
-    return result
+    return np.dot(sincmat, data)
 
 
 def sincinterp2D(data, oldtime, newtime, **kwargs):
