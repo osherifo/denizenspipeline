@@ -366,7 +366,8 @@ Controls data preparation before model fitting.
 | `type` | string | no | `default` | Preprocessor plugin. Built-in: `default`, `pre_prepared`. |
 | `trim_start` | int | no | `5` | TRs to trim from the start of each run. |
 | `trim_end` | int | no | `5` | TRs to trim from the end of each run. |
-| `trim_features` | bool | no | `true` | Apply trimming to features. Set to `false` when features are pre-trimmed (e.g. loaded from `grouped_hdf`). Responses are always trimmed. |
+| `trim_features` | bool | no | `true` | Apply trimming to features. Set to `false` when features are pre-trimmed (e.g. loaded from `grouped_hdf`). |
+| `trim_responses` | bool | no | `true` | Apply trimming to responses. Set to `false` when responses are pre-trimmed. |
 | `delays` | list[int] | no | `[1, 2, 3, 4]` | FIR delays in samples. |
 | `zscore` | bool | no | `true` | Z-score features and responses before fitting. |
 | `apply_delays` | bool | no | `true` | Apply temporal delays to features. Set to `false` when using `multiple_kernel_ridge` (delays are applied internally per feature group). |
