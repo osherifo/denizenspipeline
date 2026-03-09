@@ -4,15 +4,17 @@ import { PluginBrowser } from './views/PluginBrowser'
 import { PipelineComposer } from './views/PipelineComposer'
 import { RunManager } from './views/RunManager'
 import { PluginEditor } from './views/PluginEditor'
+import { ExperimentDashboard } from './views/ExperimentDashboard'
 import { usePluginStore } from './stores/plugin-store'
 
-type Route = 'plugins' | 'composer' | 'runs' | 'editor'
+type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
   if (hash === 'composer') return 'composer'
   if (hash === 'runs') return 'runs'
   if (hash === 'editor') return 'editor'
+  if (hash === 'dashboard') return 'dashboard'
   return 'plugins'
 }
 
@@ -104,6 +106,7 @@ export function App() {
         {route === 'composer' && <PipelineComposer />}
         {route === 'runs' && <RunManager />}
         {route === 'editor' && <PluginEditor />}
+        {route === 'dashboard' && <ExperimentDashboard />}
       </div>
     </div>
   )

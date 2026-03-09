@@ -169,3 +169,33 @@ export interface TemplateResult {
   filename: string
   category: string
 }
+
+// ── Experiment Dashboard types ──
+
+export interface ConfigSummary {
+  filename: string
+  path: string
+  experiment: string
+  subject: string
+  model_type: string
+  features: string[]
+  output_dir: string
+  group: string
+  preprocessing_type: string
+  stimulus_loader: string
+  response_loader: string
+  n_runs: number
+}
+
+export interface ConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
+export interface StageStatus {
+  status: 'pending' | 'running' | 'done' | 'warning' | 'failed'
+  detail: string
+  elapsed_s: number
+}
