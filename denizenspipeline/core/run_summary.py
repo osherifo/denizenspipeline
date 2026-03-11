@@ -45,3 +45,18 @@ class RunSummary:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, 'w') as f:
             json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def from_json(cls, path: Path) -> RunSummary:
+        """Load a RunSummary from a JSON file."""
+        with open(path) as f:
+            data = json.load(f)
+        return cls(
+            experiment=data.get('experiment', ''),
+            subject=data.get('subject', ''),
+            started_at=data.get('started_at', ''),
+            finished_at=data.get('finished_at', ''),
+            total_elapsed_s=data.get('total_elapsed_s', 0.0),
+            stages=[StageRecord(**s) for s in data.get('stages', [])],
+            config_snapshot=data.get('config_snapshot', {}),
+        )

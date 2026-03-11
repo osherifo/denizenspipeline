@@ -5,9 +5,10 @@ import { PipelineComposer } from './views/PipelineComposer'
 import { RunManager } from './views/RunManager'
 import { PluginEditor } from './views/PluginEditor'
 import { ExperimentDashboard } from './views/ExperimentDashboard'
+import { PreprocManager } from './views/PreprocManager'
 import { usePluginStore } from './stores/plugin-store'
 
-type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard'
+type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
@@ -15,6 +16,7 @@ function getRoute(): Route {
   if (hash === 'runs') return 'runs'
   if (hash === 'editor') return 'editor'
   if (hash === 'dashboard') return 'dashboard'
+  if (hash === 'preproc') return 'preproc'
   return 'plugins'
 }
 
@@ -107,6 +109,7 @@ export function App() {
         {route === 'runs' && <RunManager />}
         {route === 'editor' && <PluginEditor />}
         {route === 'dashboard' && <ExperimentDashboard />}
+        {route === 'preproc' && <PreprocManager />}
       </div>
     </div>
   )

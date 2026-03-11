@@ -27,6 +27,9 @@ class ZscoreStep:
     """Z-scores responses and/or features (per-run or concatenated)."""
 
     name = "zscore"
+    PARAM_SCHEMA = {
+        "targets": {"type": "list[string]", "default": ["responses", "features"], "enum": ["responses", "features"], "description": "Which data to z-score"},
+    }
 
     def apply(self, state: PreprocessingState, params: dict) -> None:
         targets = params.get("targets", ["responses", "features"])

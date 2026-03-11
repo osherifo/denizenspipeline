@@ -35,6 +35,13 @@ class MultiphaseHdfReader:
 
     name = "multiphase_hdf"
 
+    PARAM_SCHEMA = {
+        "subject": {"type": "string", "required": True, "description": "Subject ID"},
+        "modality": {"type": "string", "default": "reading", "description": "Stimulus modality"},
+        "phases": {"type": "list[string]", "default": ["trn", "val"], "description": "Data phases to load"},
+        "multirep": {"type": "string", "default": "mean", "enum": ["mean", "first"], "description": "How to collapse repetitions"},
+    }
+
     def read(
         self, resp_dir: Path, run_names: list[str] | None, config: dict,
     ) -> dict[str, np.ndarray]:

@@ -31,6 +31,15 @@ class FilesystemSource:
     """
 
     name = "filesystem"
+    PARAM_SCHEMA = {
+        "path": {"type": "path", "required": True, "description": "Base directory or file path"},
+        "format": {"type": "string", "default": "npz", "enum": ["npz", "hdf5", "pickle"], "description": "File format"},
+        "name": {"type": "string", "required": True, "description": "Feature name"},
+        "file_pattern": {"type": "string", "default": "{run}", "description": "Filename pattern"},
+        "npz_key": {"type": "string", "default": "data", "description": "Key inside .npz files"},
+        "pickle_key": {"type": "string", "description": "Key inside pickle dict"},
+        "layer": {"type": "int", "description": "Sub-select layer from nested data"},
+    }
 
     def load(self, run_names: list[str], config: dict) -> FeatureSet:
         path = Path(config['path'])
