@@ -17,6 +17,7 @@ class ConcatenateStep:
     """Horizontally stacks features, vertically stacks runs, splits train/test."""
 
     name = "concatenate"
+    PARAM_SCHEMA = {}
 
     def apply(self, state: PreprocessingState, params: dict) -> None:
         if state.is_concatenated:

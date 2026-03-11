@@ -22,6 +22,12 @@ class ComputeSource:
     """
 
     name = "compute"
+    PARAM_SCHEMA = {
+        "extractor": {"type": "string", "description": "Feature extractor to use"},
+        "params": {"type": "dict", "default": {}, "description": "Parameters passed to the extractor"},
+        "name": {"type": "string", "description": "Override feature name"},
+        "save_to": {"type": "dict", "description": "Save extracted features: {backend, path/bucket, prefix}"},
+    }
 
     def __init__(self):
         self.extractor = None

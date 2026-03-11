@@ -14,6 +14,10 @@ class CloudResponseLoader:
 
     name = "cloud"
 
+    PARAM_SCHEMA = {
+        "mask_type": {"type": "string", "default": "thick", "description": "Pycortex cortical mask type"},
+    }
+
     def load(self, config: dict) -> ResponseData:
         import cottoncandy as cc
         import cortex

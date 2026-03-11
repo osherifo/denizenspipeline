@@ -120,6 +120,13 @@ denizens list plugins
 denizens list preprocess
 denizens list features
 denizens list model
+
+# fMRI preprocessing
+denizens preproc doctor                        # check backend availability
+denizens preproc collect --backend fmriprep ... # build manifest from existing outputs
+denizens preproc run --config preproc.yaml      # run preprocessing
+denizens preproc validate manifest.json         # validate a manifest
+denizens preproc info manifest.json             # show manifest details
 ```
 
 ## Python API
@@ -307,7 +314,7 @@ Run `denizens list plugins` for the full list. Summary:
 
 **Stimulus Loaders:** `textgrid`, `skip`
 
-**Response Loaders:** `cloud`, `local`
+**Response Loaders:** `cloud`, `local`, `bids`, `preproc`
 
 **Preprocessors:** `default`, `pre_prepared`, `pipeline`
 
@@ -316,6 +323,164 @@ Run `denizens list plugins` for the full list. Summary:
 **Models:** `bootstrap_ridge`, `himalaya_ridge`, `banded_ridge`, `multiple_kernel_ridge`
 
 **Reporters:** `metrics`, `flatmap`, `weights`, `histogram`, `webgl`
+
+## fMRI Preprocessing (`denizens preproc`)
+
+A standalone module for managing fMRI preprocessing (fmriprep, custom scripts, BIDS-Apps). It produces a `PreprocManifest` — a JSON contract between preprocessing and the analysis pipeline — so you get provenance tracking, validation, and reproducibility.
+
+### Environment setup
+
+fMRIPrep has heavy dependencies, so the recommended approach is to install `denizenspipeline` into the conda env that already has fmriprep:
+
+```bash
+# Option A: install the pipeline into your fmriprep env (recommended)
+conda activate fmriprep-py310
+cd denizenspipeline
+pip install -e .
+
+# Option B: install fmriprep into the pipeline env
+conda activate denizenspipeline
+pip install fmriprep
+```
+
+For container-based runs (Singularity), install singularity via conda:
+
+```bash
+conda install conda-forge::singularity
+```
+
+You also need a FreeSurfer license file. Set it as an environment variable or pass it as a flag:
+
+```bash
+export FS_LICENSE=~/fmriprep-local/fs_license.txt
+```
+
+### Quick check
+
+```bash
+# What backends are available on this machine?
+denizens preproc doctor
+```
+
+### Workflow 1: Register existing fmriprep outputs
+
+If you already ran fmriprep and just want to hook the outputs into the pipeline:
+
+```bash
+# Build a manifest from existing fmriprep derivatives
+denizens preproc collect \
+  --backend fmriprep \
+  --output-dir /data/derivatives/fmriprep/ \
+  --subject AN \
+  --task reading \
+  --run-map '{"run-01": "alternateithicatom", "run-02": "avatar"}'
+
+# Inspect it
+denizens preproc info /data/derivatives/fmriprep/sub-AN/preproc_manifest.json
+
+# Validate it (and optionally check compatibility with an analysis config)
+denizens preproc validate /data/derivatives/fmriprep/sub-AN/preproc_manifest.json
+denizens preproc validate /data/derivatives/fmriprep/sub-AN/preproc_manifest.json \
+  --for-config experiments/denizens_reading_en_AN.yaml
+```
+
+Then point your analysis config at the manifest:
+
+```yaml
+response:
+  loader: preproc
+  manifest: /data/derivatives/fmriprep/sub-AN/preproc_manifest.json
+  mask_type: thick
+```
+
+### Workflow 2: Run preprocessing through the pipeline
+
+```bash
+# Run fmriprep via Singularity
+denizens preproc run \
+  --backend fmriprep \
+  --bids-dir /data/bids/denizens_reading/ \
+  --output-dir /data/derivatives/fmriprep/ \
+  --subject AN \
+  --task reading \
+  --container /images/fmriprep-23.2.1.sif \
+  --container-type singularity \
+  --fs-license-file ~/.freesurfer/license.txt \
+  --output-spaces T1w MNI152NLin2009cAsym
+
+# Or run from a YAML config
+denizens preproc run --config preproc_config.yaml
+```
+
+A preprocessing YAML config looks like:
+
+```yaml
+# preproc_config.yaml
+preproc:
+  backend: fmriprep
+  bids_dir: /data/bids/denizens_reading/
+  output_dir: /data/derivatives/fmriprep/
+  subject: AN
+  task: reading
+  sessions: [20170607AN]
+
+  backend_params:
+    container: /images/fmriprep-23.2.1.sif
+    container_type: singularity
+    output_spaces: [T1w]
+    fs_license_file: ~/.freesurfer/license.txt
+
+  confounds:
+    strategy: motion_24
+    high_pass: 0.01
+
+  run_map:
+    run-01: alternateithicatom
+    run-02: avatar
+```
+
+### Workflow 3: Custom preprocessing script
+
+```bash
+denizens preproc run \
+  --backend custom \
+  --raw-dir /data/raw/AN/ \
+  --output-dir /data/preprocessed/AN/ \
+  --subject AN \
+  --command "python my_preproc.py --subject {subject} --input {input_dir} --output {output_dir}"
+```
+
+### Confound regression at load time
+
+Instead of cleaning the data on disk, you can apply confound regression when the analysis pipeline loads the data:
+
+```yaml
+response:
+  loader: preproc
+  manifest: /data/derivatives/fmriprep/sub-AN/preproc_manifest.json
+  confounds:
+    strategy: motion_24    # or: motion_6, acompcor, custom
+    high_pass: 0.01
+    fd_threshold: 0.5      # scrub high-motion TRs
+```
+
+Available confound strategies:
+- `motion_24` — 6 motion params + derivatives + squared + squared derivatives
+- `motion_6` — 6 motion params only
+- `acompcor` — 6 motion params + 5 anatomical CompCor components
+- `custom` — specify exact column names with `columns: [col1, col2, ...]`
+
+### Backends
+
+| Backend | Use case |
+|---------|----------|
+| `fmriprep` | Wraps fmriprep (bare, Singularity, or Docker) |
+| `custom` | Runs any shell command with `{subject}`, `{input_dir}`, `{output_dir}` placeholders |
+| `bids_app` | Generic BIDS-App wrapper (any container following the standard CLI) |
+
+### The manifest
+
+The `preproc_manifest.json` records everything about the preprocessing: what backend was used, which version, what parameters, what space, which confounds were applied, per-run QC metrics (framewise displacement, tSNR), and the exact file paths. The analysis pipeline validates this before loading data, so you catch mismatches early instead of getting cryptic shape errors in the model stage.
 
 ## Defaults
 

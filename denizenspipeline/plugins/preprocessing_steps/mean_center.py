@@ -12,6 +12,9 @@ class MeanCenterStep:
     """Mean-centers responses and/or features (per-run or concatenated)."""
 
     name = "mean_center"
+    PARAM_SCHEMA = {
+        "targets": {"type": "list[string]", "default": ["responses", "features"], "enum": ["responses", "features"], "description": "Which data to mean-center"},
+    }
 
     def apply(self, state: PreprocessingState, params: dict) -> None:
         targets = params.get("targets", ["responses", "features"])

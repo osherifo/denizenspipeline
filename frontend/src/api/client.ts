@@ -14,6 +14,10 @@ import type {
   TemplateResult,
   ConfigSummary,
   ConfigDetail,
+  BackendInfo,
+  ManifestSummary,
+  ManifestDetail,
+  CollectResult,
 } from './types'
 
 const BASE = '/api'
@@ -175,9 +179,98 @@ export async function fetchTemplateCategories(): Promise<string[]> {
   return json(`${BASE}/plugins/template-categories`)
 }
 
+// ── Preprocessing ──
+
+export async function fetchPreprocBackends(): Promise<BackendInfo[]> {
+  const r = await json<{ backends: BackendInfo[] }>(`${BASE}/preproc/backends`)
+  return r.backends
+}
+
+export async function fetchManifests(): Promise<ManifestSummary[]> {
+  const r = await json<{ manifests: ManifestSummary[] }>(`${BASE}/preproc/manifests`)
+  return r.manifests
+}
+
+export async function rescanManifests(): Promise<ManifestSummary[]> {
+  const r = await json<{ manifests: ManifestSummary[] }>(`${BASE}/preproc/manifests/rescan`, { method: 'POST' })
+  return r.manifests
+}
+
+export async function fetchManifestDetail(subject: string): Promise<ManifestDetail> {
+  return json(`${BASE}/preproc/manifests/${encodeURIComponent(subject)}`)
+}
+
+export async function validateManifest(
+  subject: string,
+  configFilename?: string,
+): Promise<{ errors: string[] }> {
+  return json(`${BASE}/preproc/manifests/${encodeURIComponent(subject)}/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config_filename: configFilename ?? null }),
+  })
+}
+
+export async function collectPreprocOutputs(params: {
+  backend: string
+  output_dir: string
+  subject: string
+  task?: string
+  sessions?: string[]
+  bids_dir?: string
+  run_map?: Record<string, string>
+  backend_params?: Record<string, unknown>
+}): Promise<CollectResult> {
+  return json(`${BASE}/preproc/collect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function startPreprocRun(params: {
+  backend: string
+  output_dir: string
+  subject: string
+  bids_dir?: string
+  raw_dir?: string
+  work_dir?: string
+  task?: string
+  sessions?: string[]
+  run_map?: Record<string, string>
+  backend_params?: Record<string, unknown>
+  confounds?: Record<string, unknown>
+}): Promise<{ run_id: string; status: string }> {
+  return json(`${BASE}/preproc/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function validatePreprocConfig(params: {
+  backend: string
+  output_dir: string
+  subject: string
+  bids_dir?: string
+  raw_dir?: string
+  backend_params?: Record<string, unknown>
+}): Promise<{ valid: boolean; errors: string[] }> {
+  return json(`${BASE}/preproc/validate-config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
 // ── WebSocket ──
 
 export function connectRunWs(runId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return new WebSocket(`${proto}//${window.location.host}/ws/runs/${runId}`)
+}
+
+export function connectPreprocWs(runId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return new WebSocket(`${proto}//${window.location.host}/ws/preproc/${runId}`)
 }

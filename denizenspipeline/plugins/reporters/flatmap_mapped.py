@@ -33,6 +33,14 @@ class FlatmapMappedReporter:
     """
 
     name = "flatmap_mapped"
+    PARAM_SCHEMA = {
+        "mapper_path": {"type": "path", "required": True, "description": "Path to HDF file with sparse CSR mapper"},
+        "cmap": {"type": "string", "default": "inferno", "description": "Matplotlib colormap"},
+        "vmin": {"type": "float", "default": 0.0, "description": "Color scale minimum"},
+        "vmax": {"type": "float", "default": 0.5, "description": "Color scale maximum"},
+        "threshold": {"type": "float", "description": "Mask scores below this value"},
+        "dpi": {"type": "int", "default": 100, "min": 50, "description": "PNG resolution"},
+    }
 
     def report(self, result: ModelResult, context, config: dict) -> dict[str, str]:
         output_dir = Path(config.get('reporting', {}).get('output_dir', './results'))
