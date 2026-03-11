@@ -137,6 +137,11 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    # Python 3.3+ argparse bug: nested subparsers don't always set the
+    # parent dest.  Fall back to checking preproc_command when command is None.
+    if args.command is None and getattr(args, 'preproc_command', None):
+        args.command = 'preproc'
+
     # Set up logging — suppress standard log format, let rich handle output.
     # Always show logs for preproc commands (they are long-running).
     level = logging.DEBUG if args.verbose else logging.INFO
@@ -147,11 +152,6 @@ def main(argv: list[str] | None = None) -> int:
         datefmt='%H:%M:%S',
         handlers=[logging.NullHandler()] if not show_logs else None,
     )
-
-    # Python 3.3+ argparse bug: nested subparsers don't always set the
-    # parent dest.  Fall back to checking preproc_command when command is None.
-    if args.command is None and getattr(args, 'preproc_command', None):
-        args.command = 'preproc'
 
     if args.command == 'run':
         return _cmd_run(args)
