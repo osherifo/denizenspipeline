@@ -51,6 +51,7 @@ const routes = [
   { key: 'preproc', label: 'Preproc', hash: '#preproc' },
   { key: 'runs', label: 'Runs', hash: '#runs' },
   { key: 'editor', label: 'Editor', hash: '#editor' },
+  { key: 'errors', label: 'Errors', hash: '#errors' },
 ]
 
 export function NavBar({ currentRoute }: NavBarProps) {

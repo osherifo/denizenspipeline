@@ -18,6 +18,7 @@ import type {
   ManifestSummary,
   ManifestDetail,
   CollectResult,
+  ErrorEntry,
 } from './types'
 
 const BASE = '/api'
@@ -261,6 +262,22 @@ export async function validatePreprocConfig(params: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   })
+}
+
+// ── Error Knowledge Base ──
+
+export async function fetchErrors(opts?: {
+  stage?: string
+  tag?: string
+  q?: string
+}): Promise<ErrorEntry[]> {
+  const params = new URLSearchParams()
+  if (opts?.stage) params.set('stage', opts.stage)
+  if (opts?.tag) params.set('tag', opts.tag)
+  if (opts?.q) params.set('q', opts.q)
+  const qs = params.toString()
+  const r = await json<{ errors: ErrorEntry[]; total: number }>(`${BASE}/errors${qs ? '?' + qs : ''}`)
+  return r.errors
 }
 
 // ── WebSocket ──

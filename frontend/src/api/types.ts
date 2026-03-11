@@ -274,3 +274,20 @@ export interface CollectResult {
   manifest: ManifestDetail
   manifest_path: string
 }
+
+// ── Error Knowledge Base types ──
+
+export interface ErrorEntry {
+  id: string | number
+  title: string
+  date: string
+  author: string
+  stage: string
+  tags: string[]
+  symptoms: string
+  root_cause: string
+  fix: string
+  diagnosis: string
+  config_note: string
+  references: string[]
+}

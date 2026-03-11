@@ -153,7 +153,13 @@ export function PluginBrowser() {
                   No plugins
                 </div>
               ) : (
-                stagePlugins.map((p) => <PluginCard key={`${p.category}-${p.name}`} plugin={p} />)
+                <div style={{
+                  maxHeight: 330,
+                  overflowY: stagePlugins.length > 3 ? 'auto' : 'visible',
+                  paddingRight: stagePlugins.length > 3 ? 4 : 0,
+                }}>
+                  {stagePlugins.map((p) => <PluginCard key={`${p.category}-${p.name}`} plugin={p} />)}
+                </div>
               )}
             </div>
           )

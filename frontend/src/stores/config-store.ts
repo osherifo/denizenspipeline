@@ -31,8 +31,10 @@ interface ConfigState {
   config: PipelineConfig
   yamlString: string
   validationErrors: string[]
+  yamlErrors: string[]
   isDirty: boolean
   yamlSyncing: boolean
+  yamlEditing: boolean  // true while user is editing YAML directly
 
   setField: (path: string, value: unknown) => void
   setConfig: (config: PipelineConfig) => void
@@ -54,6 +56,8 @@ interface ConfigState {
   toggleReporter: (format: string) => void
 
   importYaml: (yaml: string) => Promise<void>
+  setYamlDirect: (yaml: string) => void
+  applyYaml: () => Promise<void>
   exportYaml: () => Promise<string>
   validate: () => Promise<string[]>
   reset: () => void
@@ -64,8 +68,10 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   config: { ...EMPTY_CONFIG },
   yamlString: '',
   validationErrors: [],
+  yamlErrors: [],
   isDirty: false,
   yamlSyncing: false,
+  yamlEditing: false,
 
   setField: (path, value) => {
     const newConfig = deepSet(get().config, path, value)
@@ -182,7 +188,25 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     if (result.errors.length > 0) {
       set({ validationErrors: result.errors })
     } else {
-      set({ config: result.config, yamlString: yaml, isDirty: false, validationErrors: [] })
+      set({ config: result.config, yamlString: yaml, isDirty: false, validationErrors: [], yamlErrors: [], yamlEditing: false })
+    }
+  },
+
+  setYamlDirect: (yaml) => {
+    set({ yamlString: yaml, yamlEditing: true, yamlErrors: [] })
+  },
+
+  applyYaml: async () => {
+    const yaml = get().yamlString
+    try {
+      const result = await configFromYaml(yaml)
+      if (result.errors.length > 0) {
+        set({ yamlErrors: result.errors })
+      } else {
+        set({ config: result.config, isDirty: false, yamlErrors: [], yamlEditing: false, validationErrors: [] })
+      }
+    } catch (e) {
+      set({ yamlErrors: [String(e)] })
     }
   },
 
@@ -199,7 +223,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   },
 
   reset: () => {
-    set({ config: { ...EMPTY_CONFIG }, yamlString: '', validationErrors: [], isDirty: false })
+    set({ config: { ...EMPTY_CONFIG }, yamlString: '', validationErrors: [], yamlErrors: [], isDirty: false, yamlEditing: false })
   },
 
   syncYaml: async () => {

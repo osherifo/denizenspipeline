@@ -121,6 +121,25 @@ export function PluginEditor() {
                   class {store.validation.class_name}
                 </span>
               )}
+              <button
+                onClick={() => store.reset()}
+                style={{
+                  marginLeft: store.validation?.class_name ? 12 : 'auto',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  padding: '2px 6px',
+                  lineHeight: 1,
+                  borderRadius: 4,
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.backgroundColor = 'var(--bg-input)' }}
+                onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.backgroundColor = 'transparent' }}
+                title="Close editor"
+              >
+                &#x2715;
+              </button>
             </div>
 
             {/* Code editor */}

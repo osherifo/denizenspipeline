@@ -93,8 +93,9 @@ def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
         result['errors'].append(f"Syntax error on line {e.lineno}: {e.msg}")
         return result
 
-    # Step 2: snapshot registries to detect new entries
+    # Step 2: snapshot registries (keys AND identity of classes) to detect changes
     snapshots = {cat: set(reg.keys()) for cat, reg in CATEGORY_REGISTRY.items()}
+    cls_snapshots = {cat: {k: id(v) for k, v in reg.items()} for cat, reg in CATEGORY_REGISTRY.items()}
 
     # Step 3: exec in controlled namespace
     try:
@@ -105,13 +106,19 @@ def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
         _rollback(snapshots)
         return result
 
-    # Step 4: find what was registered
+    # Step 4: find what was registered (new key OR replaced class)
     detected_category = None
     detected_name = None
     detected_cls = None
 
     for cat, reg in CATEGORY_REGISTRY.items():
         new_names = set(reg.keys()) - snapshots[cat]
+        # Also detect re-registered plugins (same key, different class object)
+        if not new_names:
+            for k, v in reg.items():
+                if k in cls_snapshots[cat] and id(v) != cls_snapshots[cat][k]:
+                    new_names = {k}
+                    break
         if new_names:
             if detected_category is not None:
                 result['warnings'].append(
@@ -181,6 +188,7 @@ def register_code(code: str) -> tuple[str, str, str]:
     Raises ValueError if registration fails.
     """
     snapshots = {cat: set(reg.keys()) for cat, reg in CATEGORY_REGISTRY.items()}
+    cls_snapshots = {cat: {k: id(v) for k, v in reg.items()} for cat, reg in CATEGORY_REGISTRY.items()}
 
     try:
         exec(compile(code, '<user_plugin>', 'exec'))
@@ -190,6 +198,12 @@ def register_code(code: str) -> tuple[str, str, str]:
 
     for cat, reg in CATEGORY_REGISTRY.items():
         new_names = set(reg.keys()) - snapshots[cat]
+        # Also detect re-registered plugins (same key, different class object)
+        if not new_names:
+            for k, v in reg.items():
+                if k in cls_snapshots[cat] and id(v) != cls_snapshots[cat][k]:
+                    new_names = {k}
+                    break
         if new_names:
             name = next(iter(new_names))
             cls = reg[name]
