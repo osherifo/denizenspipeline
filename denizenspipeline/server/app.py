@@ -70,15 +70,19 @@ def create_app(
     from denizenspipeline.server.routes.editor import router as editor_router
     from denizenspipeline.server.routes.configs import router as configs_router
     from denizenspipeline.server.routes.preproc import router as preproc_router
+    from denizenspipeline.server.routes.errors import router as errors_router
     from denizenspipeline.server.ws import router as ws_router
 
+    # Editor routes must come before plugin_router so that
+    # /plugins/user/{name} is matched before /plugins/{category}/{name}
+    app.include_router(editor_router, prefix="/api")
     app.include_router(plugin_router, prefix="/api")
     app.include_router(config_router, prefix="/api")
     app.include_router(run_router, prefix="/api")
     app.include_router(artifact_router, prefix="/api")
-    app.include_router(editor_router, prefix="/api")
     app.include_router(configs_router, prefix="/api")
     app.include_router(preproc_router, prefix="/api")
+    app.include_router(errors_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

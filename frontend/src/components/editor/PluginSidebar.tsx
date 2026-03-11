@@ -97,6 +97,7 @@ export function PluginSidebar({
 }: PluginSidebarProps) {
   const [showTemplates, setShowTemplates] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  const [nameError, setNameError] = useState(false)
 
   return (
     <div style={sidebarStyle}>
@@ -129,7 +130,12 @@ export function PluginSidebar({
       </div>
 
       <div style={{ borderTop: '1px solid var(--border)' }}>
-        <div style={sectionTitle}>New Plugin</div>
+        <div
+          style={{ ...sectionTitle, cursor: showTemplates ? 'pointer' : 'default' }}
+          onClick={() => { if (showTemplates) { setShowTemplates(false); setTemplateName(''); setNameError(false) } }}
+        >
+          New Plugin {showTemplates && <span style={{ fontSize: 10, fontWeight: 400 }}>&#x2715;</span>}
+        </div>
         {!showTemplates ? (
           <button style={newBtnStyle} onClick={() => setShowTemplates(true)}>
             + From Template
@@ -140,19 +146,25 @@ export function PluginSidebar({
               type="text"
               placeholder="plugin_name"
               value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
+              onChange={(e) => { setTemplateName(e.target.value); setNameError(false) }}
               style={{
                 width: '100%',
                 padding: '6px 8px',
                 fontSize: 12,
                 backgroundColor: 'var(--bg-input)',
-                border: '1px solid var(--border)',
+                border: nameError ? '1px solid var(--accent-red, #ff1744)' : '1px solid var(--border)',
                 borderRadius: 4,
                 color: 'var(--text-primary)',
                 fontFamily: 'inherit',
-                marginBottom: 6,
+                marginBottom: nameError ? 2 : 6,
               }}
+              autoFocus
             />
+            {nameError && (
+              <div style={{ fontSize: 11, color: 'var(--accent-red, #ff1744)', marginBottom: 4 }}>
+                Enter a name first
+              </div>
+            )}
             {templateCategories.map((cat) => (
               <button
                 key={cat}
@@ -162,6 +174,9 @@ export function PluginSidebar({
                     onNewFromTemplate(cat, templateName.trim())
                     setShowTemplates(false)
                     setTemplateName('')
+                    setNameError(false)
+                  } else {
+                    setNameError(true)
                   }
                 }}
                 onMouseOver={(e) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePluginStore } from '../stores/plugin-store'
 import { useConfigStore } from '../stores/config-store'
 import { ParamForm } from '../components/composer/ParamForm'
@@ -657,21 +657,32 @@ export function PipelineComposer() {
   const config = useConfigStore((s) => s.config)
   const yamlString = useConfigStore((s) => s.yamlString)
   const validationErrors = useConfigStore((s) => s.validationErrors)
+  const yamlErrors = useConfigStore((s) => s.yamlErrors)
   const isDirty = useConfigStore((s) => s.isDirty)
+  const yamlEditing = useConfigStore((s) => s.yamlEditing)
   const setField = useConfigStore((s) => s.setField)
   const validate = useConfigStore((s) => s.validate)
   const exportYaml = useConfigStore((s) => s.exportYaml)
   const syncYaml = useConfigStore((s) => s.syncYaml)
+  const setYamlDirect = useConfigStore((s) => s.setYamlDirect)
+  const applyYaml = useConfigStore((s) => s.applyYaml)
   const reset = useConfigStore((s) => s.reset)
   const loaded = usePluginStore((s) => s.loaded)
+  const yamlApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Sync YAML preview when config changes
+  // Sync YAML preview when config changes (only if user isn't editing YAML)
   useEffect(() => {
-    if (isDirty) {
+    if (isDirty && !yamlEditing) {
       const timer = setTimeout(() => syncYaml(), 500)
       return () => clearTimeout(timer)
     }
-  }, [config, isDirty, syncYaml])
+  }, [config, isDirty, yamlEditing, syncYaml])
+
+  const handleYamlChange = useCallback((value: string) => {
+    setYamlDirect(value)
+    if (yamlApplyTimer.current) clearTimeout(yamlApplyTimer.current)
+    yamlApplyTimer.current = setTimeout(() => applyYaml(), 800)
+  }, [setYamlDirect, applyYaml])
 
   const handleValidate = useCallback(async () => {
     await validate()
@@ -790,15 +801,39 @@ export function PipelineComposer() {
           )}
         </div>
 
-        {/* Right: YAML preview */}
+        {/* Right: YAML editor */}
         <div style={yamlPanelStyle}>
-          <div style={yamlLabelStyle}>YAML Preview</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={yamlLabelStyle}>YAML {yamlEditing ? '(editing)' : ''}</div>
+            {yamlEditing && (
+              <div style={{ fontSize: 11, color: 'var(--accent-cyan)' }}>
+                auto-syncing to form
+              </div>
+            )}
+          </div>
           <textarea
-            style={yamlTextareaStyle}
+            style={{
+              ...yamlTextareaStyle,
+              borderColor: yamlErrors.length > 0 ? 'rgba(255, 23, 68, 0.5)' : yamlEditing ? 'rgba(0, 229, 255, 0.3)' : 'var(--border)',
+            }}
             value={yamlString}
-            readOnly
-            placeholder="Configure your pipeline to see the YAML output here..."
+            onChange={(e) => handleYamlChange(e.target.value)}
+            onBlur={() => {
+              if (yamlEditing) applyYaml()
+            }}
+            placeholder="Configure your pipeline using the form or edit YAML directly..."
+            spellCheck={false}
           />
+          {yamlErrors.length > 0 && (
+            <div style={{ ...errorListStyle, marginTop: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-red)', marginBottom: 4 }}>
+                YAML Parse Error
+              </div>
+              {yamlErrors.map((err, i) => (
+                <div key={i} style={{ fontSize: 11, color: 'var(--accent-red)' }}>{err}</div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
