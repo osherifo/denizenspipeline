@@ -22,6 +22,15 @@ class PreparedDataLoader:
     """
 
     name = "pre_prepared"
+    PARAM_SCHEMA = {
+        "source": {"type": "string", "default": "local", "enum": ["local", "cloud"], "description": "Where to load prepared data from"},
+        "Y_path": {"type": "path", "description": "Path to Y (response) .npz file"},
+        "X_path": {"type": "path", "description": "Path to X (feature) .npz file"},
+        "s3_bucket": {"type": "string", "description": "S3 bucket for cloud source"},
+        "delays": {"type": "list[int]", "default": [1, 2, 3, 4], "description": "Delay values metadata"},
+        "do_zscore": {"type": "bool", "default": True, "description": "Apply z-score after loading"},
+        "feature_names": {"type": "list[string]", "description": "Feature names for dict reconstruction"},
+    }
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:

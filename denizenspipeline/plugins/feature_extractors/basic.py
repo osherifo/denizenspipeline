@@ -15,6 +15,7 @@ class NumWordsExtractor:
 
     name = "numwords"
     n_dims = 1
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -40,6 +41,7 @@ class NumLettersExtractor:
 
     name = "numletters"
     n_dims = 1
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -64,6 +66,7 @@ class NumPhonemesExtractor:
 
     name = "numphonemes"
     n_dims = 1
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -89,6 +92,7 @@ class WordLengthStdExtractor:
 
     name = "word_length_std"
     n_dims = 1
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:

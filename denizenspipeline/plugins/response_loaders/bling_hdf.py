@@ -42,6 +42,13 @@ class BlingHdfReader:
 
     name = "bling_hdf"
 
+    PARAM_SCHEMA = {
+        "language": {"type": "string", "required": True, "enum": ["en", "zh"], "description": "Stimulus language"},
+        "subject": {"type": "string", "description": "Subject identifier"},
+        "multirep": {"type": "string", "default": "mean", "enum": ["mean", "first"], "description": "How to collapse repetitions"},
+        "hdf_key": {"type": "string", "default": "s", "description": "HDF dataset key"},
+    }
+
     def read(
         self, resp_dir: Path, run_names: list[str] | None, config: dict,
     ) -> dict[str, np.ndarray]:

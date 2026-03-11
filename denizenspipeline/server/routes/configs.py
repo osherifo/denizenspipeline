@@ -1,0 +1,61 @@
+"""Experiment config browsing endpoints."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException, Request
+
+router = APIRouter(tags=["configs"])
+
+
+@router.get("/configs")
+async def list_configs(request: Request):
+    """List all experiment configs with metadata."""
+    store = request.app.state.config_store
+    configs = store.list_configs()
+
+    # Also get run counts per experiment+subject from run_store
+    run_store = request.app.state.run_store
+    all_runs = run_store.list_runs(limit=1000)
+
+    # Count runs per experiment+subject
+    run_counts: dict[str, int] = {}
+    for run in all_runs:
+        key = f"{run['summary'].experiment}|{run['summary'].subject}"
+        run_counts[key] = run_counts.get(key, 0) + 1
+
+    result = []
+    for cfg in configs:
+        key = f"{cfg.experiment}|{cfg.subject}"
+        result.append({
+            'filename': cfg.filename,
+            'path': cfg.path,
+            'experiment': cfg.experiment,
+            'subject': cfg.subject,
+            'model_type': cfg.model_type,
+            'features': cfg.features,
+            'output_dir': cfg.output_dir,
+            'group': cfg.group,
+            'preprocessing_type': cfg.preprocessing_type,
+            'stimulus_loader': cfg.stimulus_loader,
+            'response_loader': cfg.response_loader,
+            'n_runs': run_counts.get(key, 0),
+        })
+
+    return result
+
+
+@router.get("/configs/{filename}")
+async def get_config(request: Request, filename: str):
+    """Get full config + raw YAML for a single config file."""
+    store = request.app.state.config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Config '{filename}' not found")
+    return result
+
+
+@router.post("/configs/{filename}/validate")
+async def validate_config_file(request: Request, filename: str):
+    """Validate a config file."""
+    store = request.app.state.config_store
+    return store.validate_config(filename)

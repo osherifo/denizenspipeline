@@ -245,3 +245,66 @@ class PluginRegistry:
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
         }
+
+    def get_plugin_class(self, category: str, name: str) -> type:
+        """Return the raw class (not an instance) for a plugin."""
+        registry_map = {
+            'stimulus_loaders': self._stimulus_loaders,
+            'response_loaders': self._response_loaders,
+            'response_readers': self._response_readers,
+            'feature_extractors': self._feature_extractors,
+            'feature_sources': self._feature_sources,
+            'preprocessors': self._preprocessors,
+            'preprocessing_steps': self._preprocessing_steps,
+            'analyzers': self._analyzers,
+            'models': self._models,
+            'reporters': self._reporters,
+        }
+        if category not in registry_map:
+            raise PluginNotFoundError(f"Unknown category '{category}'")
+        plugins = registry_map[category]
+        if name not in plugins:
+            raise PluginNotFoundError(
+                f"Plugin '{name}' not found in '{category}'. "
+                f"Available: {sorted(plugins.keys())}")
+        return plugins[name]
+
+    def plugin_metadata(self) -> dict[str, list[dict]]:
+        """Return full plugin metadata for all categories.
+
+        Each entry includes name, docstring, category, stage, n_dims
+        (for extractors), and PARAM_SCHEMA.
+        """
+        from denizenspipeline.plugins._schema import extract_schema
+
+        CATEGORY_TO_STAGE = {
+            'stimulus_loaders': 'stimuli',
+            'response_loaders': 'responses',
+            'response_readers': 'responses',
+            'feature_extractors': 'features',
+            'feature_sources': 'features',
+            'preprocessors': 'preprocess',
+            'preprocessing_steps': 'preprocess',
+            'analyzers': 'analyze',
+            'models': 'model',
+            'reporters': 'report',
+        }
+
+        result = {}
+        for category, names in self.list_plugins().items():
+            result[category] = []
+            for name in names:
+                cls = self.get_plugin_class(category, name)
+                doc = (cls.__doc__ or '').strip()
+                entry = {
+                    'name': name,
+                    'docstring': doc.split('\n')[0] if doc else '',
+                    'full_docstring': doc,
+                    'category': category,
+                    'stage': CATEGORY_TO_STAGE[category],
+                    'params': extract_schema(cls),
+                }
+                if hasattr(cls, 'n_dims'):
+                    entry['n_dims'] = cls.n_dims
+                result[category].append(entry)
+        return result
