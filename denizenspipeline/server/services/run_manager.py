@@ -39,6 +39,7 @@ class RunHandle:
         """Run the pipeline and capture UI events."""
         capture = UICaptureProxy(self.event_queue)
         capture.install()
+        file_handler: logging.FileHandler | None = None
         try:
             from denizenspipeline.pipeline import Pipeline
 
@@ -54,7 +55,7 @@ class RunHandle:
             # Set up file logging
             output_dir = pipeline.config.get('reporting', {}).get(
                 'output_dir', './results')
-            self._setup_logging(output_dir)
+            file_handler = self._setup_logging(output_dir)
 
             ctx = pipeline.run()
             self.status = 'done'
@@ -78,12 +79,15 @@ class RunHandle:
             logger.error("Run %s failed: %s", self.run_id, e, exc_info=True)
         finally:
             capture.uninstall()
+            if file_handler is not None:
+                logging.getLogger().removeHandler(file_handler)
+                file_handler.close()
 
-    def _setup_logging(self, output_dir: str) -> None:
-        """Set up file logging for this run."""
+    def _setup_logging(self, output_dir: str) -> logging.FileHandler:
+        """Set up file logging for this run. Returns the handler for later cleanup."""
         log_dir = Path(output_dir)
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / "pipeline.log"
+        log_path = log_dir / f"pipeline_{self.run_id}.log"
 
         file_handler = logging.FileHandler(log_path, mode='w')
         file_handler.setLevel(logging.DEBUG)
@@ -92,6 +96,7 @@ class RunHandle:
             datefmt='%Y-%m-%d %H:%M:%S',
         ))
         logging.getLogger().addHandler(file_handler)
+        return file_handler
 
     def _save_summary(self, ctx: Any, output_dir: str) -> None:
         """Save run summary JSON."""
