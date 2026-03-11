@@ -17,6 +17,9 @@ class Word2VecExtractor:
 
     name = "word2vec"
     n_dims = 300
+    PARAM_SCHEMA = {
+        "embedding_path": {"type": "path", "required": True, "description": "Path to Word2Vec model (Gensim KeyedVectors format)"},
+    }
 
     def __init__(self):
         self._model_cache = {}
@@ -71,6 +74,10 @@ class BERTExtractor:
 
     name = "bert"
     n_dims = None  # determined dynamically
+    PARAM_SCHEMA = {
+        "model": {"type": "string", "default": "bert-base-uncased", "description": "Huggingface model name"},
+        "layer": {"type": "int", "min": 0, "description": "Hidden layer to extract (default: middle layer)"},
+    }
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -196,6 +203,9 @@ class FastTextExtractor:
 
     name = "fasttext"
     n_dims = 300
+    PARAM_SCHEMA = {
+        "model_path": {"type": "path", "required": True, "description": "Path to FastText model file"},
+    }
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -233,6 +243,10 @@ class GPT2Extractor:
 
     name = "gpt2"
     n_dims = 768  # gpt2 / distilgpt2 hidden size
+    PARAM_SCHEMA = {
+        "model": {"type": "string", "default": "gpt2", "description": "Huggingface model name (gpt2, distilgpt2)"},
+        "layer": {"type": "int", "default": 8, "min": 0, "description": "Hidden layer to extract"},
+    }
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:

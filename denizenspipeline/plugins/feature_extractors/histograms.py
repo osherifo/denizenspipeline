@@ -35,6 +35,7 @@ class English1000Extractor:
 
     name = "english1000"
     n_dims = 985
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -76,6 +77,7 @@ class LetterHistogramExtractor:
 
     name = "letters"
     n_dims = 26
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -109,6 +111,7 @@ class PhonemeHistogramExtractor:
 
     name = "phonemes"
     n_dims = 39  # ARPAbet phoneme set
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:

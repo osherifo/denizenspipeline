@@ -50,6 +50,16 @@ class BidsResponseLoader:
 
     name = "bids"
 
+    PARAM_SCHEMA = {
+        "path": {"type": "path", "required": True, "description": "BIDS dataset root directory"},
+        "task": {"type": "string", "required": True, "description": "BIDS task label"},
+        "sessions": {"type": "list[string]", "description": "Session labels (auto-discovered if omitted)"},
+        "suffix": {"type": "string", "default": "bold", "description": "BIDS file suffix"},
+        "extension": {"type": "string", "default": ".nii.gz", "description": "File extension"},
+        "run_map": {"type": "dict", "description": "Remap BIDS run names to pipeline names"},
+        "mask_type": {"type": "string", "default": "thick", "description": "Pycortex cortical mask type"},
+    }
+
     def load(self, config: dict) -> ResponseData:
         try:
             import nibabel as nib

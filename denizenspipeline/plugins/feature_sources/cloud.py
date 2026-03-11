@@ -22,6 +22,11 @@ class CloudSource:
     """
 
     name = "cloud"
+    PARAM_SCHEMA = {
+        "bucket": {"type": "string", "required": True, "description": "S3 bucket name"},
+        "prefix": {"type": "string", "description": "Path prefix within bucket"},
+        "name": {"type": "string", "required": True, "description": "Feature name"},
+    }
 
     def load(self, run_names: list[str], config: dict) -> FeatureSet:
         import cottoncandy as cc
