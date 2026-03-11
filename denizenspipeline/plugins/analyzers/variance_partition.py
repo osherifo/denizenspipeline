@@ -27,6 +27,9 @@ class VariancePartitionAnalyzer:
     """
 
     name = "variance_partition"
+    PARAM_SCHEMA = {
+        "groups": {"type": "dict", "description": "Custom feature groups {group_name: [feature_names]}"},
+    }
 
     def analyze(self, context, config: dict) -> None:
         result = context.get('result', ModelResult)

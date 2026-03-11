@@ -30,6 +30,13 @@ class WebGLReporter:
     """
 
     name = "webgl"
+    PARAM_SCHEMA = {
+        "cmap": {"type": "string", "default": "inferno", "description": "Matplotlib colormap"},
+        "vmin": {"type": "float", "default": 0.0, "description": "Color scale minimum"},
+        "vmax": {"type": "float", "default": 0.5, "description": "Color scale maximum"},
+        "open_browser": {"type": "bool", "default": False, "description": "Open viewer in browser after saving"},
+        "threshold": {"type": "float", "description": "Mask scores below this value"},
+    }
 
     def report(self, result: ModelResult, context, config: dict) -> dict[str, str]:
         import cortex

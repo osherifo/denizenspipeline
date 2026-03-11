@@ -35,6 +35,10 @@ class NpzPerRunReader:
 
     name = "npz_per_run"
 
+    PARAM_SCHEMA = {
+        "npz_key": {"type": "string", "default": "data", "description": "Key inside .npz files"},
+    }
+
     def read(
         self, resp_dir: Path, run_names: list[str] | None, config: dict,
     ) -> dict[str, np.ndarray]:
@@ -61,6 +65,10 @@ class Hdf5PerRunReader:
     """One .hdf5 file per run. Key controlled by config['hdf5_key']."""
 
     name = "hdf5_per_run"
+
+    PARAM_SCHEMA = {
+        "hdf5_key": {"type": "string", "default": "data", "description": "Key inside .hdf5 files"},
+    }
 
     def read(
         self, resp_dir: Path, run_names: list[str] | None, config: dict,
@@ -97,6 +105,10 @@ class SinglePickleReader:
     """
 
     name = "single_pickle"
+
+    PARAM_SCHEMA = {
+        "pickle_key": {"type": "string", "description": "Nested dict key to index before accessing run keys"},
+    }
 
     def read(
         self, resp_dir: Path, run_names: list[str] | None, config: dict,
@@ -142,6 +154,10 @@ class SingleHdf5Reader:
 
     name = "single_hdf5"
 
+    PARAM_SCHEMA = {
+        "hdf5_key": {"type": "string", "description": "Group prefix for datasets"},
+    }
+
     def read(
         self, resp_dir: Path, run_names: list[str] | None, config: dict,
     ) -> dict[str, np.ndarray]:
@@ -184,6 +200,8 @@ class AutoReader:
     """Auto-detect format: try hdf5_per_run first, then npz_per_run."""
 
     name = "auto"
+
+    PARAM_SCHEMA = {}
 
     def read(
         self, resp_dir: Path, run_names: list[str] | None, config: dict,

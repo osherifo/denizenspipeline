@@ -17,6 +17,13 @@ class BootstrapRidgeModel:
     """
 
     name = "bootstrap_ridge"
+    PARAM_SCHEMA = {
+        "alphas": {"type": "string", "default": "logspace(1,3,20)", "description": "Regularization values (logspace expression or list)"},
+        "n_boots": {"type": "int", "default": 50, "min": 1, "description": "Number of bootstrap samples"},
+        "single_alpha": {"type": "bool", "default": False, "description": "Use single alpha for all voxels"},
+        "chunk_len": {"type": "int", "default": 40, "min": 1, "description": "Chunk length for bootstrap sampling"},
+        "n_chunks": {"type": "int", "default": 20, "min": 1, "description": "Number of chunks per bootstrap"},
+    }
 
     def fit(self, data: PreparedData, config: dict) -> ModelResult:
         model_cfg = config.get('model', {}).get('params', {})

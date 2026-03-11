@@ -23,6 +23,15 @@ class DefaultPreprocessor:
     """
 
     name = "default"
+    PARAM_SCHEMA = {
+        "trim_start": {"type": "int", "default": 5, "min": 0, "description": "TRs to remove from start of each run"},
+        "trim_end": {"type": "int", "default": 5, "min": 0, "description": "TRs to remove from end of each run"},
+        "zscore": {"type": "bool", "default": True, "description": "Apply z-score normalization"},
+        "trim_features": {"type": "bool", "default": True, "description": "Trim features along with responses"},
+        "trim_responses": {"type": "bool", "default": True, "description": "Trim responses"},
+        "apply_delays": {"type": "bool", "default": True, "description": "Apply temporal delays to features"},
+        "delays": {"type": "list[int]", "default": [1, 2, 3, 4], "description": "Delay values in TRs"},
+    }
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:

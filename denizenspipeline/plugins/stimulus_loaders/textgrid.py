@@ -64,6 +64,17 @@ class TextGridStimulusLoader:
 
     name = "textgrid"
 
+    PARAM_SCHEMA = {
+        "language": {"type": "string", "default": "en", "enum": ["en", "zh", "es"], "description": "Stimulus language"},
+        "modality": {"type": "string", "default": "reading", "enum": ["reading", "listening", "visual"], "description": "Stimulus modality"},
+        "sessions": {"type": "list[string]", "default": ["generic"], "description": "Session labels"},
+        "source": {"type": "string", "default": "local", "enum": ["local", "cloud"], "description": "Where to load stimulus files from"},
+        "file_suffix": {"type": "string", "description": "Filter and rename TextGrid files by suffix"},
+        "trfile_subject": {"type": "string", "description": "Match TRFiles per-subject (study data layout)"},
+        "n_trs": {"type": "dict", "description": "Synthetic TR counts per run (run_name → int)"},
+        "tr": {"type": "float", "default": 2.0, "min": 0.1, "description": "TR duration in seconds for synthetic triggers"},
+    }
+
     def load(self, config: dict) -> StimulusData:
         stim_cfg = config.get('stimulus', {})
         sessions = stim_cfg.get('sessions', ['generic'])

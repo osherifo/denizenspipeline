@@ -5,3 +5,5 @@ __pycache__/
 results/
 notebooks/
 docs/*
+**/node_modules/**
+work/

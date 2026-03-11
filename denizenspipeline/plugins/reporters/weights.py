@@ -13,6 +13,7 @@ class WeightsReporter:
     """Saves model weights to HDF5."""
 
     name = "weights"
+    PARAM_SCHEMA = {}
 
     def report(self, result: ModelResult, context, config: dict) -> dict[str, str]:
         import h5py

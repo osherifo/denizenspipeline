@@ -70,6 +70,12 @@ class GroupedHDFSource:
     """Load a single feature from phase-split HDF files."""
 
     name = "grouped_hdf"
+    PARAM_SCHEMA = {
+        "name": {"type": "string", "required": True, "description": "Feature name (also used as HDF dataset key)"},
+        "paths": {"type": "dict", "required": True, "description": "Phase labels mapped to HDF file paths"},
+        "dataset": {"type": "string", "description": "HDF dataset name (defaults to feature name)"},
+        "run_map": {"type": "dict", "description": "Map HDF story names to pipeline run names"},
+    }
 
     def load(self, run_names: list[str], config: dict) -> FeatureSet:
         import h5py
