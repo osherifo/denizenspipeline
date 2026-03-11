@@ -95,6 +95,20 @@ class RunHandle:
             '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S',
         ))
+
+        # Ensure this handler only records log messages from this run's thread.
+        # Threads are named "run-{run_id}" in start(), and logging records include
+        # the originating thread name in record.threadName.
+        class RunThreadFilter(logging.Filter):
+            def __init__(self, thread_name: str) -> None:
+                super().__init__()
+                self._thread_name = thread_name
+
+            def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+                return record.threadName == self._thread_name
+
+        thread_name = f"run-{self.run_id}"
+        file_handler.addFilter(RunThreadFilter(thread_name))
         logging.getLogger().addHandler(file_handler)
         return file_handler
 
