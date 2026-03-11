@@ -12,6 +12,9 @@ class DelayStep:
     """Applies temporal delays to X_train and X_test."""
 
     name = "delay"
+    PARAM_SCHEMA = {
+        "delays": {"type": "list[int]", "default": [1, 2, 3, 4], "description": "Delay values in TRs"},
+    }
 
     def apply(self, state: PreprocessingState, params: dict) -> None:
         delays = params.get("delays", [1, 2, 3, 4])

@@ -199,3 +199,78 @@ export interface StageStatus {
   detail: string
   elapsed_s: number
 }
+
+// ── Preprocessing types ──
+
+export interface BackendInfo {
+  name: string
+  available: boolean
+  detail: string
+}
+
+export interface ManifestSummary {
+  subject: string
+  path: string
+  backend: string
+  backend_version: string
+  space: string
+  n_runs: number
+  created: string
+  dataset: string
+}
+
+export interface RunQC {
+  mean_fd: number | null
+  max_fd: number | null
+  n_high_motion_trs: number | null
+  tsnr_median: number | null
+  n_outlier_trs: number | null
+  notes: string | null
+}
+
+export interface ManifestRun {
+  run_name: string
+  source_file: string
+  output_file: string
+  n_trs: number
+  n_voxels: number | null
+  shape: number[]
+  confounds_file: string | null
+  qc: RunQC | null
+}
+
+export interface ManifestDetail {
+  subject: string
+  dataset: string
+  sessions: string[]
+  runs: ManifestRun[]
+  backend: string
+  backend_version: string
+  parameters: Record<string, unknown>
+  space: string
+  resolution: string | null
+  confounds_applied: string[]
+  additional_steps: string[]
+  output_dir: string
+  output_format: string
+  file_pattern: string
+  created: string
+  pipeline_version: string | null
+  checksum: string | null
+  manifest_version: number
+}
+
+export interface PreprocEvent {
+  event: string
+  message?: string
+  error?: string
+  manifest_path?: string
+  n_runs?: number
+  elapsed?: number
+  timestamp?: number
+}
+
+export interface CollectResult {
+  manifest: ManifestDetail
+  manifest_path: string
+}

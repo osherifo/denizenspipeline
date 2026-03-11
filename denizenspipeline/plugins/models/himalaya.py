@@ -171,6 +171,12 @@ class HimalayaRidgeModel:
     """
 
     name = "himalaya_ridge"
+    PARAM_SCHEMA = {
+        "alphas": {"type": "string", "default": "logspace(-2,5,20)", "description": "Regularization values (logspace expression or list)"},
+        "cv": {"type": "int", "default": 5, "min": 2, "description": "Cross-validation folds"},
+        "score_metric": {"type": "string", "default": "r2", "enum": ["r2", "pearson_r"], "description": "Scoring metric"},
+        "backend": {"type": "string", "enum": ["numpy", "cupy", "torch", "torch_cuda"], "description": "Compute backend"},
+    }
 
     def fit(self, data: PreparedData, config: dict) -> ModelResult:
         from himalaya.ridge import RidgeCV
@@ -223,6 +229,13 @@ class BandedRidgeModel:
     """
 
     name = "banded_ridge"
+    PARAM_SCHEMA = {
+        "alphas": {"type": "string", "default": "logspace(-2,5,20)", "description": "Regularization values (logspace expression or list)"},
+        "cv": {"type": "int", "default": 5, "min": 2, "description": "Cross-validation folds"},
+        "score_metric": {"type": "string", "default": "r2", "enum": ["r2", "pearson_r"], "description": "Scoring metric"},
+        "backend": {"type": "string", "enum": ["numpy", "cupy", "torch", "torch_cuda"], "description": "Compute backend"},
+        "solver_params": {"type": "dict", "default": {}, "description": "Solver-specific parameters"},
+    }
 
     def fit(self, data: PreparedData, config: dict) -> ModelResult:
         from himalaya.ridge import BandedRidgeCV
@@ -317,6 +330,16 @@ class MultipleKernelRidgeModel:
     """
 
     name = "multiple_kernel_ridge"
+    PARAM_SCHEMA = {
+        "alphas": {"type": "string", "default": "logspace(-2,5,20)", "description": "Regularization values (logspace expression or list)"},
+        "cv": {"type": "int", "default": 5, "min": 2, "description": "Cross-validation folds"},
+        "solver": {"type": "string", "default": "random_search", "description": "Solver strategy"},
+        "n_iter": {"type": "int", "default": 200, "min": 1, "description": "Solver iterations"},
+        "score_metric": {"type": "string", "default": "r2", "enum": ["r2", "pearson_r"], "description": "Scoring metric"},
+        "backend": {"type": "string", "enum": ["numpy", "cupy", "torch", "torch_cuda"], "description": "Compute backend"},
+        "solver_params": {"type": "dict", "default": {}, "description": "Solver-specific parameters"},
+        "delays": {"type": "list[int]", "description": "Delay values to apply per feature group"},
+    }
 
     def fit(self, data: PreparedData, config: dict) -> ModelResult:
         from himalaya.kernel_ridge import (

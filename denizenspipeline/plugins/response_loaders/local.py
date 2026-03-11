@@ -34,6 +34,13 @@ class LocalResponseLoader:
 
     name = "local"
 
+    PARAM_SCHEMA = {
+        "path": {"type": "path", "description": "Response data directory path"},
+        "reader": {"type": "string", "default": "auto", "enum": ["auto", "npz_per_run", "hdf5_per_run", "single_pickle", "single_hdf5", "multiphase_hdf", "study_hdf"], "description": "Response file reader"},
+        "run_map": {"type": "dict", "description": "Map run names to file names"},
+        "mask_type": {"type": "string", "default": "thick", "description": "Pycortex cortical mask type"},
+    }
+
     def load(self, config: dict) -> ResponseData:
         resp_cfg = config.get('response', {})
         sub_cfg = config.get('subject_config', {})

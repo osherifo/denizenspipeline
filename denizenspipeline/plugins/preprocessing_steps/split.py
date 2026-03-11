@@ -11,6 +11,10 @@ class SplitStep:
     """Sets train_runs / test_runs on state from config split section."""
 
     name = "split"
+    PARAM_SCHEMA = {
+        "test_runs": {"type": "list[string]", "description": "Test run names (overrides config.split)"},
+        "train_runs": {"type": "list[string]", "description": "Train run names (auto-computed if omitted)"},
+    }
 
     def apply(self, state: PreprocessingState, params: dict) -> None:
         config = params.get("_config", {})

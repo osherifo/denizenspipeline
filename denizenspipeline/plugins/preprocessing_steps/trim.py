@@ -21,6 +21,11 @@ class TrimStep:
     """
 
     name = "trim"
+    PARAM_SCHEMA = {
+        "trim_start": {"type": "int", "default": 5, "min": 0, "description": "TRs to remove from start of each run"},
+        "trim_end": {"type": "int", "default": 5, "min": 0, "description": "TRs to remove from end of each run"},
+        "targets": {"type": "list[string]", "default": ["responses", "features"], "enum": ["responses", "features"], "description": "Which data to trim"},
+    }
 
     def apply(self, state: PreprocessingState, params: dict) -> None:
         from denizenspipeline import ui

@@ -24,6 +24,13 @@ class HistogramReporter:
     """
 
     name = "histogram"
+    PARAM_SCHEMA = {
+        "bins": {"type": "int", "default": 50, "min": 1, "description": "Number of histogram bins"},
+        "threshold": {"type": "float", "description": "Reference line on histogram"},
+        "show_stats": {"type": "bool", "default": True, "description": "Show mean/median/n_significant stats"},
+        "figsize": {"type": "list[int]", "default": [8, 5], "description": "Figure size [width, height]"},
+        "dpi": {"type": "int", "default": 150, "min": 50, "description": "PNG resolution"},
+    }
 
     def report(self, result: ModelResult, context, config: dict) -> dict[str, str]:
         import matplotlib

@@ -31,6 +31,9 @@ class MelSpectrogramExtractor:
 
     name = "mel_spectrogram"
     n_dims = 128  # default, overridden at extract time
+    PARAM_SCHEMA = {
+        "n_mels": {"type": "int", "default": 128, "min": 1, "description": "Number of mel frequency bands"},
+    }
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -75,6 +78,7 @@ class RMSEnergyExtractor:
 
     name = "rms_energy"
     n_dims = 1
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
