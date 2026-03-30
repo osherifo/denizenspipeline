@@ -44,6 +44,13 @@ async def list_configs(request: Request):
     return result
 
 
+@router.get("/configs/field-values")
+async def field_values(request: Request):
+    """Return unique values per field path across all configs (for autocomplete)."""
+    store = request.app.state.config_store
+    return store.field_values()
+
+
 @router.get("/configs/{filename}")
 async def get_config(request: Request, filename: str):
     """Get full config + raw YAML for a single config file."""

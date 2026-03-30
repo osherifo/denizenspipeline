@@ -117,9 +117,30 @@ export function PluginSidebar({
                 </div>
               )}
             </div>
-            <span style={badgeStyle(p.registered)}>
-              {p.registered ? 'active' : 'saved'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={badgeStyle(p.registered)}>
+                {p.registered ? 'active' : 'saved'}
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(p.name) }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  padding: '0 2px',
+                  lineHeight: 1,
+                  borderRadius: 4,
+                  opacity: 0.5,
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--accent-red, #ff1744)' }}
+                onMouseOut={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                title={`Delete ${p.name}`}
+              >
+                &#x2715;
+              </button>
+            </div>
           </div>
         ))}
         {userPlugins.length === 0 && (
