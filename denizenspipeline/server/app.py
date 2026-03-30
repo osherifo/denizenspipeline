@@ -15,6 +15,7 @@ from denizenspipeline.server.services.run_manager import RunManager
 from denizenspipeline.server.services.plugin_loader import discover_user_plugins
 from denizenspipeline.server.services.config_store import ConfigStore
 from denizenspipeline.server.services.preproc_manager import PreprocManager
+from denizenspipeline.server.services.convert_manager import ConvertManager
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +56,14 @@ def create_app(
     run_manager = RunManager()
     config_store = ConfigStore(Path(configs_dir))
     preproc_manager = PreprocManager(Path(derivatives_dir))
+    convert_manager = ConvertManager()
 
     app.state.registry = registry
     app.state.run_store = run_store
     app.state.run_manager = run_manager
     app.state.config_store = config_store
     app.state.preproc_manager = preproc_manager
+    app.state.convert_manager = convert_manager
 
     # API routes
     from denizenspipeline.server.routes.plugins import router as plugin_router
@@ -70,6 +73,7 @@ def create_app(
     from denizenspipeline.server.routes.editor import router as editor_router
     from denizenspipeline.server.routes.configs import router as configs_router
     from denizenspipeline.server.routes.preproc import router as preproc_router
+    from denizenspipeline.server.routes.convert import router as convert_router
     from denizenspipeline.server.routes.errors import router as errors_router
     from denizenspipeline.server.ws import router as ws_router
 
@@ -82,6 +86,7 @@ def create_app(
     app.include_router(artifact_router, prefix="/api")
     app.include_router(configs_router, prefix="/api")
     app.include_router(preproc_router, prefix="/api")
+    app.include_router(convert_router, prefix="/api")
     app.include_router(errors_router, prefix="/api")
     app.include_router(ws_router)
 

@@ -6,10 +6,11 @@ import { RunManager } from './views/RunManager'
 import { PluginEditor } from './views/PluginEditor'
 import { ExperimentDashboard } from './views/ExperimentDashboard'
 import { PreprocManager } from './views/PreprocManager'
+import { DicomBidsConverter } from './views/DicomBidsConverter'
 import { ErrorBrowser } from './views/ErrorBrowser'
 import { usePluginStore } from './stores/plugin-store'
 
-type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'errors'
+type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'errors'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
@@ -18,6 +19,7 @@ function getRoute(): Route {
   if (hash === 'editor') return 'editor'
   if (hash === 'dashboard') return 'dashboard'
   if (hash === 'preproc') return 'preproc'
+  if (hash === 'convert') return 'convert'
   if (hash === 'errors') return 'errors'
   return 'plugins'
 }
@@ -112,6 +114,7 @@ export function App() {
         {route === 'editor' && <PluginEditor />}
         {route === 'dashboard' && <ExperimentDashboard />}
         {route === 'preproc' && <PreprocManager />}
+        {route === 'convert' && <DicomBidsConverter />}
         {route === 'errors' && <ErrorBrowser />}
       </div>
     </div>

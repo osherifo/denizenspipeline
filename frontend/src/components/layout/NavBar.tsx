@@ -49,6 +49,7 @@ const routes = [
   { key: 'composer', label: 'Composer', hash: '#composer' },
   { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
   { key: 'preproc', label: 'Preproc', hash: '#preproc' },
+  { key: 'convert', label: 'DICOM\u2192BIDS', hash: '#convert' },
   { key: 'runs', label: 'Runs', hash: '#runs' },
   { key: 'editor', label: 'Editor', hash: '#editor' },
   { key: 'errors', label: 'Errors', hash: '#errors' },

@@ -135,12 +135,16 @@ def main(argv: list[str] | None = None) -> int:
     from denizenspipeline.preproc.cli import add_preproc_subcommands
     add_preproc_subcommands(subparsers)
 
+    # ── convert ──
+    from denizenspipeline.convert.cli import add_convert_subcommands
+    add_convert_subcommands(subparsers)
+
     args = parser.parse_args(argv)
 
     # Set up logging — suppress standard log format, let rich handle output.
     # Always show logs for preproc commands (they are long-running).
     level = logging.DEBUG if args.verbose else logging.INFO
-    show_logs = args.verbose or args.command == 'preproc'
+    show_logs = args.verbose or args.command in ('preproc', 'convert')
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -149,9 +153,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Python 3.3+ argparse bug: nested subparsers don't always set the
-    # parent dest.  Fall back to checking preproc_command when command is None.
+    # parent dest.  Fall back to checking subcommand attrs when command is None.
     if args.command is None and getattr(args, 'preproc_command', None):
         args.command = 'preproc'
+    if args.command is None and getattr(args, 'convert_command', None):
+        args.command = 'convert'
 
     if args.command == 'run':
         return _cmd_run(args)
@@ -168,6 +174,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == 'preproc':
         from denizenspipeline.preproc.cli import dispatch_preproc
         return dispatch_preproc(args)
+    elif args.command == 'convert':
+        from denizenspipeline.convert.cli import dispatch_convert
+        return dispatch_convert(args)
     else:
         parser.print_help()
         return 1

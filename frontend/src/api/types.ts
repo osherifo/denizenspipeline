@@ -291,3 +291,83 @@ export interface ErrorEntry {
   config_note: string
   references: string[]
 }
+
+// ── DICOM-to-BIDS Conversion ────────────────────────────────────────────
+
+export interface HeuristicInfo {
+  name: string
+  description: string | null
+  scanner_pattern: string | null
+  version: string | null
+  tasks: string[] | null
+  path: string
+}
+
+export interface ToolStatus {
+  name: string
+  available: boolean
+  version: string | null
+  detail: string
+}
+
+export interface ConvertManifestSummary {
+  subject: string
+  path: string
+  dataset: string
+  heudiconv_version: string
+  n_runs: number
+  created: string
+  bids_valid: boolean | null
+}
+
+export interface ConvertManifestDetail {
+  subject: string
+  dataset: string
+  sessions: string[]
+  runs: ConvertRunRecord[]
+  heudiconv_version: string
+  heuristic: { name: string; path: string; content_hash: string; scanner_pattern: string | null; description: string | null } | null
+  parameters: Record<string, unknown>
+  source_dir: string
+  scanner: { manufacturer: string | null; model: string | null; field_strength: number | null; software_version: string | null; station_name: string | null; institution: string | null } | null
+  bids_dir: string
+  bids_valid: boolean | null
+  bids_errors: string[]
+  bids_warnings: string[]
+  created: string
+}
+
+export interface ConvertRunRecord {
+  run_name: string
+  task: string
+  session: string
+  source_series: string
+  output_file: string
+  sidecar_file: string
+  n_volumes: number
+  modality: string
+  shape: number[]
+  tr: number | null
+  notes: string | null
+}
+
+export interface DicomSeriesInfo {
+  number: number
+  description: string
+  n_images: number
+  modality_guess: string
+}
+
+export interface DicomScanResult {
+  scanner: { manufacturer: string | null; model: string | null; field_strength: number | null; software_version: string | null; station_name: string | null; institution: string | null } | null
+  series: DicomSeriesInfo[]
+  matching_heuristic: string | null
+}
+
+export interface ConvertEvent {
+  event: string
+  message?: string
+  error?: string
+  timestamp?: number
+  [key: string]: unknown
+}
