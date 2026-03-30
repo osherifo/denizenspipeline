@@ -1,71 +1,163 @@
-const navStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '0 32px',
-  height: 56,
-  backgroundColor: 'var(--bg-secondary)',
-  borderBottom: '1px solid var(--border)',
-  position: 'sticky',
-  top: 0,
-  zIndex: 100,
-}
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 700,
-  color: 'var(--accent-cyan)',
-  letterSpacing: 3,
-  textDecoration: 'none',
-}
-
-const linksStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: 8,
-}
+import { useState, useEffect } from 'react'
 
 interface NavBarProps {
   currentRoute: string
 }
 
-function linkStyle(active: boolean): React.CSSProperties {
+const sidebarStyle: React.CSSProperties = {
+  width: 210,
+  minWidth: 210,
+  height: '100vh',
+  backgroundColor: 'var(--bg-secondary)',
+  borderRight: '1px solid var(--border)',
+  display: 'flex',
+  flexDirection: 'column',
+  position: 'sticky',
+  top: 0,
+  zIndex: 100,
+  overflowY: 'auto',
+}
+
+const logoStyle: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 800,
+  color: 'var(--accent-cyan)',
+  letterSpacing: 3,
+  textDecoration: 'none',
+  padding: '20px 16px 20px',
+  display: 'block',
+  borderBottom: '1px solid var(--border)',
+  marginBottom: 8,
+}
+
+// Category header — clickable, distinct background
+function groupHeaderStyle(expanded: boolean, hasActive: boolean): React.CSSProperties {
   return {
-    padding: '8px 16px',
-    fontSize: 13,
-    fontWeight: 600,
-    textDecoration: 'none',
-    color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-    backgroundColor: active ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
-    borderRadius: 6,
-    border: active ? '1px solid rgba(0, 229, 255, 0.25)' : '1px solid transparent',
-    transition: 'all 0.15s ease',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '10px 16px',
+    margin: '4px 8px',
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
     cursor: 'pointer',
-    letterSpacing: 1,
+    userSelect: 'none',
+    borderRadius: 6,
+    color: hasActive ? 'var(--accent-cyan)' : '#9898bb',
+    backgroundColor: expanded ? '#1e1e3a' : 'transparent',
+    transition: 'all 0.15s ease',
   }
 }
 
-const routes = [
-  { key: 'plugins', label: 'Plugins', hash: '#plugins' },
-  { key: 'composer', label: 'Composer', hash: '#composer' },
-  { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
-  { key: 'preproc', label: 'Preproc', hash: '#preproc' },
-  { key: 'convert', label: 'DICOM\u2192BIDS', hash: '#convert' },
-  { key: 'runs', label: 'Runs', hash: '#runs' },
-  { key: 'editor', label: 'Editor', hash: '#editor' },
-  { key: 'errors', label: 'Errors', hash: '#errors' },
+const chevronStyle = (expanded: boolean): React.CSSProperties => ({
+  fontSize: 10,
+  transition: 'transform 0.15s ease',
+  transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+  opacity: 0.5,
+})
+
+// Sub-items — indented, slightly lighter bg when section open
+function linkStyle(active: boolean): React.CSSProperties {
+  return {
+    display: 'block',
+    padding: '7px 16px 7px 28px',
+    fontSize: 12,
+    fontWeight: active ? 600 : 500,
+    textDecoration: 'none',
+    color: active ? 'var(--accent-cyan)' : '#7878a0',
+    backgroundColor: active ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
+    borderLeft: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+    cursor: 'pointer',
+    letterSpacing: 0.3,
+    transition: 'all 0.12s ease',
+    marginLeft: 8,
+  }
+}
+
+const groups = [
+  {
+    label: 'Analysis',
+    items: [
+      { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
+      { key: 'plugins', label: 'Plugins', hash: '#plugins' },
+      { key: 'composer', label: 'Composer', hash: '#composer' },
+      { key: 'runs', label: 'Runs', hash: '#runs' },
+      { key: 'editor', label: 'Editor', hash: '#editor' },
+    ],
+  },
+  {
+    label: 'Preprocessing',
+    items: [
+      { key: 'convert', label: 'DICOM \u2192 BIDS', hash: '#convert' },
+      { key: 'preproc', label: 'Preproc', hash: '#preproc' },
+    ],
+  },
+  {
+    label: 'Reference',
+    items: [
+      { key: 'errors', label: 'Errors', hash: '#errors' },
+    ],
+  },
 ]
 
+function groupForRoute(route: string): string | null {
+  for (const g of groups) {
+    if (g.items.some((i) => i.key === route)) return g.label
+  }
+  return null
+}
+
 export function NavBar({ currentRoute }: NavBarProps) {
+  // Auto-expand the group containing the active route
+  const activeGroup = groupForRoute(currentRoute)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {}
+    for (const g of groups) {
+      init[g.label] = g.label === activeGroup
+    }
+    return init
+  })
+
+  // When route changes, make sure its group is expanded
+  useEffect(() => {
+    if (activeGroup && !expanded[activeGroup]) {
+      setExpanded((prev) => ({ ...prev, [activeGroup]: true }))
+    }
+  }, [activeGroup])
+
+  const toggle = (label: string) => {
+    setExpanded((prev) => ({ ...prev, [label]: !prev[label] }))
+  }
+
   return (
-    <nav style={navStyle}>
-      <a href="#plugins" style={titleStyle}>DENIZENS</a>
-      <div style={linksStyle}>
-        {routes.map((r) => (
-          <a key={r.key} href={r.hash} style={linkStyle(currentRoute === r.key)}>
-            {r.label}
-          </a>
-        ))}
-      </div>
+    <nav style={sidebarStyle}>
+      <a href="#dashboard" style={logoStyle}>fMRIflow</a>
+      {groups.map((g) => {
+        const isExpanded = expanded[g.label] ?? false
+        const hasActive = g.items.some((i) => i.key === currentRoute)
+        return (
+          <div key={g.label}>
+            <div
+              style={groupHeaderStyle(isExpanded, hasActive)}
+              onClick={() => toggle(g.label)}
+            >
+              <span>{g.label}</span>
+              <span style={chevronStyle(isExpanded)}>{'\u25B6'}</span>
+            </div>
+            {isExpanded && (
+              <div style={{ paddingBottom: 4 }}>
+                {g.items.map((r) => (
+                  <a key={r.key} href={r.hash} style={linkStyle(currentRoute === r.key)}>
+                    {r.label}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </nav>
   )
 }

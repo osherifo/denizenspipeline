@@ -8,7 +8,7 @@ import { LiveProgress } from '../components/dashboard/LiveProgress'
 
 const containerStyle: React.CSSProperties = {
   display: 'flex',
-  height: 'calc(100vh - 56px - 48px)',
+  height: 'calc(100vh - 48px)',
   margin: '0 -32px',
   backgroundColor: 'var(--bg-primary)',
 }

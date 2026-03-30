@@ -5,7 +5,7 @@ import { ConvertManifestDetailPanel } from './ConvertManifestDetail'
 
 const containerStyle: React.CSSProperties = {
   display: 'flex',
-  height: 'calc(100vh - 56px - 48px - 80px)',
+  height: 'calc(100vh - 48px - 80px)',
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
