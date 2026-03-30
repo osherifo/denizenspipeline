@@ -8,3 +8,5 @@ docs/*
 node_modules/
 work/
 **/*.tsbuildinfo
+.claude
+proposals/

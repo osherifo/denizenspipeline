@@ -371,3 +371,58 @@ export interface ConvertEvent {
   timestamp?: number
   [key: string]: unknown
 }
+
+// ── Batch Conversion ────────────────────────────────────────────────────
+
+export interface BatchJobConfig {
+  subject: string
+  source_dir: string
+  session: string
+}
+
+export interface BatchRunParams {
+  heuristic: string
+  bids_dir: string
+  jobs: BatchJobConfig[]
+  source_root: string
+  max_workers: number
+  dataset_name: string
+  grouping: string
+  minmeta: boolean
+  overwrite: boolean
+  validate_bids: boolean
+}
+
+export interface BatchJobStatus {
+  job_id: string
+  subject: string
+  session: string
+  status: 'queued' | 'running' | 'done' | 'failed'
+  error: string | null
+  started_at: number
+  finished_at: number
+}
+
+export interface BatchSummary {
+  batch_id: string
+  status: string
+  n_jobs: number
+  counts: { queued: number; running: number; done: number; failed: number }
+  jobs: BatchJobStatus[]
+}
+
+export interface BatchEvent {
+  event: string
+  job_id?: string | null
+  message?: string
+  error?: string
+  timestamp?: number
+  subject?: string
+  session?: string
+  queued?: number
+  running?: number
+  done?: number
+  failed?: number
+  elapsed?: number
+  [key: string]: unknown
+}

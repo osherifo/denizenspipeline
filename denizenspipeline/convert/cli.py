@@ -6,6 +6,7 @@ Commands:
     denizens convert validate    — validate a conversion manifest
     denizens convert scan        — list DICOM series in a directory
     denizens convert dry-run     — preview conversion mapping
+    denizens convert batch       — run batch conversion from YAML config
     denizens convert heuristics  — manage heuristic registry
     denizens convert doctor      — check tool availability
 """
@@ -84,6 +85,17 @@ def add_convert_subcommands(subparsers: argparse._SubParsersAction) -> None:
     dryrun_p.add_argument("--subject", type=str, required=True)
     dryrun_p.add_argument("--heuristic", type=str, required=True)
 
+    # ── batch ──
+    batch_p = convert_subs.add_parser(
+        "batch", help="Run batch conversion from YAML config",
+    )
+    batch_p.add_argument("--config", type=str, required=True,
+                         help="Path to batch YAML config file")
+    batch_p.add_argument("--parallel", type=int, default=None,
+                         help="Override max_workers from config")
+    batch_p.add_argument("--dry-run", action="store_true", dest="batch_dry_run",
+                         help="Print job table without running")
+
     # ── heuristics ──
     heur_p = convert_subs.add_parser(
         "heuristics", help="Manage heuristic registry",
@@ -131,12 +143,14 @@ def dispatch_convert(args) -> int:
         return _convert_scan(args)
     elif cmd == "dry-run":
         return _convert_dry_run(args)
+    elif cmd == "batch":
+        return _convert_batch(args)
     elif cmd == "heuristics":
         return _convert_heuristics(args)
     elif cmd == "doctor":
         return _convert_doctor(args)
     else:
-        print("Usage: denizens convert {run|collect|validate|scan|dry-run|heuristics|doctor}")
+        print("Usage: denizens convert {run|collect|validate|scan|dry-run|batch|heuristics|doctor}")
         return 1
 
 
@@ -320,6 +334,106 @@ def _convert_dry_run(args) -> int:
     except Exception as e:
         print(f"\nDry run failed: {e}", file=sys.stderr)
         return 1
+
+
+def _convert_batch(args) -> int:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from pathlib import Path
+    from denizenspipeline.convert.batch import parse_batch_yaml
+    from denizenspipeline.convert.manifest import ConvertConfig
+    from denizenspipeline.convert.runner import run_conversion
+    import time
+
+    config_path = Path(args.config)
+    if not config_path.exists():
+        print(f"Config file not found: {config_path}", file=sys.stderr)
+        return 1
+
+    try:
+        batch_config = parse_batch_yaml(config_path.read_text())
+    except Exception as e:
+        print(f"Failed to parse batch config: {e}", file=sys.stderr)
+        return 1
+
+    if args.parallel is not None:
+        batch_config.max_workers = args.parallel
+
+    # Print job table
+    print(f"\nBatch conversion: {len(batch_config.jobs)} jobs")
+    print(f"  Heuristic:   {batch_config.heuristic}")
+    print(f"  BIDS dir:    {batch_config.bids_dir}")
+    if batch_config.source_root:
+        print(f"  Source root: {batch_config.source_root}")
+    print(f"  Workers:     {batch_config.max_workers}")
+    print()
+    print(f"  {'#':<4s} {'Subject':<12s} {'Session':<10s} {'Source Dir'}")
+    print(f"  {'-'*4} {'-'*12} {'-'*10} {'-'*40}")
+    for i, job in enumerate(batch_config.jobs, 1):
+        print(f"  {i:<4d} {job.subject:<12s} {job.session or '-':<10s} {job.source_dir}")
+    print()
+
+    if args.batch_dry_run:
+        print("Dry run — no conversions executed.")
+        return 0
+
+    # Execute
+    results: dict[int, dict] = {}
+    start_time = time.time()
+
+    max_workers = min(batch_config.max_workers, len(batch_config.jobs))
+
+    def run_job(idx: int, job):
+        params = batch_config.to_convert_params(job)
+        config = ConvertConfig(
+            source_dir=params["source_dir"],
+            subject=params["subject"],
+            bids_dir=params["bids_dir"],
+            heuristic=params["heuristic"],
+            sessions=params.get("sessions"),
+            dataset_name=params.get("dataset_name"),
+            grouping=params.get("grouping"),
+            minmeta=params.get("minmeta", False),
+            overwrite=params.get("overwrite", True),
+            validate_bids=params.get("validate_bids", True),
+        )
+        job_start = time.time()
+        try:
+            manifest = run_conversion(config)
+            return {
+                "status": "done",
+                "n_runs": len(manifest.runs),
+                "elapsed": time.time() - job_start,
+            }
+        except Exception as e:
+            return {
+                "status": "failed",
+                "error": str(e),
+                "elapsed": time.time() - job_start,
+            }
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {}
+        for i, job in enumerate(batch_config.jobs):
+            futures[executor.submit(run_job, i, job)] = i
+
+        for future in as_completed(futures):
+            idx = futures[future]
+            job = batch_config.jobs[idx]
+            result = future.result()
+            results[idx] = result
+            status_icon = "OK" if result["status"] == "done" else "FAIL"
+            elapsed = f"{result['elapsed']:.1f}s"
+            print(f"  [{status_icon}] sub-{job.subject}"
+                  f"{f' ses-{job.session}' if job.session else ''}"
+                  f"  {elapsed}"
+                  f"{'  ' + result.get('error', '') if result['status'] == 'failed' else ''}")
+
+    total_elapsed = time.time() - start_time
+    n_done = sum(1 for r in results.values() if r["status"] == "done")
+    n_failed = sum(1 for r in results.values() if r["status"] == "failed")
+
+    print(f"\nBatch complete: {n_done} succeeded, {n_failed} failed, {total_elapsed:.1f}s total")
+    return 1 if n_failed > 0 else 0
 
 
 def _convert_heuristics(args) -> int:

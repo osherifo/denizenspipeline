@@ -7,6 +7,10 @@ import type {
   ConvertManifestDetail,
   ConvertEvent,
   DicomScanResult,
+  BatchJobConfig,
+  BatchRunParams,
+  BatchJobStatus,
+  BatchEvent,
 } from '../api/types'
 import {
   fetchConvertTools,
@@ -19,9 +23,12 @@ import {
   collectConvertOutputs,
   startConvertRun,
   connectConvertWs,
+  startBatchConvert,
+  connectBatchWs,
+  parseBatchYaml,
 } from '../api/client'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert'
+type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert' | 'batch'
 
 interface ConvertState {
   tab: Tab
@@ -59,6 +66,27 @@ interface ConvertState {
   runError: string | null
   running: boolean
 
+  // Batch
+  batchId: string | null
+  batchJobs: BatchJobConfig[]
+  batchShared: {
+    heuristic: string
+    bidsDir: string
+    sourceRoot: string
+    maxWorkers: number
+    datasetName: string
+    grouping: string
+    minmeta: boolean
+    overwrite: boolean
+    validateBids: boolean
+  }
+  batchRunning: boolean
+  batchEvents: BatchEvent[]
+  batchJobStatuses: Record<string, BatchJobStatus>
+  batchCounts: { queued: number; running: number; done: number; failed: number }
+  batchError: string | null
+  batchStartTime: number | null
+
   // Actions
   setTab: (tab: Tab) => void
   loadTools: () => Promise<void>
@@ -73,6 +101,15 @@ interface ConvertState {
   clearRun: () => void
   clearCollect: () => void
   clearScan: () => void
+
+  // Batch actions
+  addBatchJob: () => void
+  removeBatchJob: (index: number) => void
+  updateBatchJob: (index: number, patch: Partial<BatchJobConfig>) => void
+  updateBatchShared: (patch: Partial<ConvertState['batchShared']>) => void
+  startBatch: () => Promise<void>
+  clearBatch: () => void
+  loadBatchYaml: (yamlText: string) => Promise<void>
 }
 
 export const useConvertStore = create<ConvertState>((set, get) => ({
@@ -104,6 +141,27 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   runStartTime: null,
   runError: null,
   running: false,
+
+  // Batch initial state
+  batchId: null,
+  batchJobs: [{ subject: '', source_dir: '', session: '' }],
+  batchShared: {
+    heuristic: '',
+    bidsDir: '',
+    sourceRoot: '',
+    maxWorkers: 2,
+    datasetName: '',
+    grouping: '',
+    minmeta: false,
+    overwrite: true,
+    validateBids: true,
+  },
+  batchRunning: false,
+  batchEvents: [],
+  batchJobStatuses: {},
+  batchCounts: { queued: 0, running: 0, done: 0, failed: 0 },
+  batchError: null,
+  batchStartTime: null,
 
   setTab: (tab) => set({ tab }),
 
@@ -222,4 +280,153 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   clearCollect: () => set({ collectResult: null, collectError: null }),
 
   clearScan: () => set({ scanResult: null, scanError: null }),
+
+  // ── Batch actions ──────────────────────────────────────────────
+
+  addBatchJob: () => set((s) => ({
+    batchJobs: [...s.batchJobs, { subject: '', source_dir: '', session: '' }],
+  })),
+
+  removeBatchJob: (index) => set((s) => ({
+    batchJobs: s.batchJobs.filter((_, i) => i !== index),
+  })),
+
+  updateBatchJob: (index, patch) => set((s) => ({
+    batchJobs: s.batchJobs.map((j, i) => i === index ? { ...j, ...patch } : j),
+  })),
+
+  updateBatchShared: (patch) => set((s) => ({
+    batchShared: { ...s.batchShared, ...patch },
+  })),
+
+  startBatch: async () => {
+    const { batchShared, batchJobs } = get()
+    const validJobs = batchJobs.filter((j) => j.subject.trim() && j.source_dir.trim())
+    if (validJobs.length === 0) return
+
+    set({
+      batchRunning: true,
+      batchError: null,
+      batchEvents: [],
+      batchJobStatuses: {},
+      batchCounts: { queued: validJobs.length, running: 0, done: 0, failed: 0 },
+      batchStartTime: Date.now(),
+      batchId: null,
+    })
+
+    try {
+      const params: BatchRunParams = {
+        heuristic: batchShared.heuristic,
+        bids_dir: batchShared.bidsDir,
+        source_root: batchShared.sourceRoot,
+        max_workers: batchShared.maxWorkers,
+        dataset_name: batchShared.datasetName,
+        grouping: batchShared.grouping,
+        minmeta: batchShared.minmeta,
+        overwrite: batchShared.overwrite,
+        validate_bids: batchShared.validateBids,
+        jobs: validJobs,
+      }
+
+      const result = await startBatchConvert(params)
+      set({ batchId: result.batch_id })
+
+      const ws = connectBatchWs(result.batch_id)
+      ws.onmessage = (msg) => {
+        const event: BatchEvent = JSON.parse(msg.data)
+        set((s) => {
+          const newEvents = [...s.batchEvents, event]
+          const newStatuses = { ...s.batchJobStatuses }
+          let newCounts = { ...s.batchCounts }
+
+          // Update per-job status from job events
+          if (event.job_id && event.event === 'job_started') {
+            newStatuses[event.job_id] = {
+              job_id: event.job_id,
+              subject: event.subject || '',
+              session: event.session || '',
+              status: 'running',
+              error: null,
+              started_at: event.timestamp || 0,
+              finished_at: 0,
+            }
+          }
+
+          // Update from individual job done/failed events forwarded from _BatchAwareRunHandle
+          if (event.job_id && event.event === 'done') {
+            const existing = newStatuses[event.job_id]
+            if (existing) {
+              newStatuses[event.job_id] = { ...existing, status: 'done', finished_at: event.timestamp || 0 }
+            }
+          }
+          if (event.job_id && event.event === 'failed') {
+            const existing = newStatuses[event.job_id]
+            if (existing) {
+              newStatuses[event.job_id] = { ...existing, status: 'failed', error: event.error || null, finished_at: event.timestamp || 0 }
+            }
+          }
+
+          // Update counts from batch_progress events
+          if (event.event === 'batch_progress' || event.event === 'batch_done') {
+            newCounts = {
+              queued: event.queued ?? newCounts.queued,
+              running: event.running ?? newCounts.running,
+              done: event.done ?? newCounts.done,
+              failed: event.failed ?? newCounts.failed,
+            }
+          }
+
+          return { batchEvents: newEvents, batchJobStatuses: newStatuses, batchCounts: newCounts }
+        })
+
+        if (event.event === 'batch_done') {
+          ws.close()
+          set({ batchRunning: false })
+          get().rescan()
+        }
+      }
+
+      ws.onerror = () => {
+        set({ batchRunning: false, batchError: 'WebSocket connection failed' })
+      }
+    } catch (e) {
+      set({ batchRunning: false, batchError: String(e) })
+    }
+  },
+
+  clearBatch: () => set({
+    batchId: null,
+    batchEvents: [],
+    batchJobStatuses: {},
+    batchCounts: { queued: 0, running: 0, done: 0, failed: 0 },
+    batchError: null,
+    batchStartTime: null,
+    batchRunning: false,
+  }),
+
+  loadBatchYaml: async (yamlText) => {
+    try {
+      const parsed = await parseBatchYaml(yamlText)
+      set({
+        batchShared: {
+          heuristic: parsed.heuristic,
+          bidsDir: parsed.bids_dir,
+          sourceRoot: parsed.source_root,
+          maxWorkers: parsed.max_workers,
+          datasetName: parsed.dataset_name,
+          grouping: parsed.grouping,
+          minmeta: parsed.minmeta,
+          overwrite: parsed.overwrite,
+          validateBids: parsed.validate_bids,
+        },
+        batchJobs: parsed.jobs.map((j) => ({
+          subject: j.subject,
+          source_dir: j.source_dir,
+          session: j.session || '',
+        })),
+      })
+    } catch (e) {
+      set({ batchError: String(e) })
+    }
+  },
 }))

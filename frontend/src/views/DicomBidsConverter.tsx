@@ -1,12 +1,14 @@
-/** DICOM-to-BIDS Converter — browse tools, heuristics, scan DICOMs, manifests, run conversion. */
+/** DICOM-to-BIDS Converter — browse tools, heuristics, scan DICOMs, manifests, run conversion, batch. */
 import { useConvertStore } from '../stores/convert-store'
 import { ToolStatusPanel } from '../components/convert/ToolStatus'
 import { HeuristicBrowser } from '../components/convert/HeuristicBrowser'
 import { DicomScanner } from '../components/convert/DicomScanner'
 import { ConvertManifestBrowser } from '../components/convert/ConvertManifestBrowser'
 import { ConvertForm } from '../components/convert/ConvertForm'
+import { BatchForm } from '../components/convert/BatchForm'
+import { BatchProgress } from '../components/convert/BatchProgress'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert'
+type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert' | 'batch'
 
 const tabs: { key: Tab; label: string }[] = [
   { key: 'tools', label: 'Tools' },
@@ -14,6 +16,7 @@ const tabs: { key: Tab; label: string }[] = [
   { key: 'scan', label: 'Scan' },
   { key: 'manifests', label: 'Manifests' },
   { key: 'convert', label: 'Convert' },
+  { key: 'batch', label: 'Batch' },
 ]
 
 const tabBarStyle: React.CSSProperties = {
@@ -39,7 +42,9 @@ function tabStyle(active: boolean): React.CSSProperties {
 }
 
 export function DicomBidsConverter() {
-  const { tab, setTab } = useConvertStore()
+  const { tab, setTab, batchRunning, batchEvents } = useConvertStore()
+
+  const hasBatchProgress = batchRunning || batchEvents.length > 0
 
   return (
     <div>
@@ -56,6 +61,12 @@ export function DicomBidsConverter() {
       {tab === 'scan' && <DicomScanner />}
       {tab === 'manifests' && <ConvertManifestBrowser />}
       {tab === 'convert' && <ConvertForm />}
+      {tab === 'batch' && (
+        <>
+          <BatchForm />
+          {hasBatchProgress && <BatchProgress />}
+        </>
+      )}
     </div>
   )
 }
