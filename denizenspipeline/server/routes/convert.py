@@ -43,6 +43,34 @@ class RegisterHeuristicBody(BaseModel):
     description: str | None = None
 
 
+class BatchJobBody(BaseModel):
+    subject: str
+    source_dir: str
+    session: str = ""
+    dataset_name: str | None = None
+    grouping: str | None = None
+    minmeta: bool | None = None
+    overwrite: bool | None = None
+    validate_bids: bool | None = None
+
+
+class BatchRunBody(BaseModel):
+    heuristic: str
+    bids_dir: str
+    jobs: list[BatchJobBody]
+    source_root: str = ""
+    max_workers: int = 2
+    dataset_name: str = ""
+    grouping: str = ""
+    minmeta: bool = False
+    overwrite: bool = True
+    validate_bids: bool = True
+
+
+class BatchParseYamlBody(BaseModel):
+    yaml_text: str
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/convert/heuristics")
@@ -141,6 +169,96 @@ async def register_heuristic(request: Request, body: RegisterHeuristicBody):
             "path": str(info.path),
             "description": info.description,
             "scanner_pattern": info.scanner_pattern,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Batch conversion ──────────────────────────────────────────────────────
+
+@router.post("/convert/batch/run")
+async def start_batch(request: Request, body: BatchRunBody):
+    """Start a batch DICOM-to-BIDS conversion."""
+    from denizenspipeline.convert.batch import BatchConfig, BatchJobConfig
+
+    mgr = request.app.state.convert_manager
+    try:
+        batch_config = BatchConfig(
+            heuristic=body.heuristic,
+            bids_dir=body.bids_dir,
+            jobs=[
+                BatchJobConfig(
+                    subject=j.subject,
+                    source_dir=j.source_dir,
+                    session=j.session,
+                    dataset_name=j.dataset_name,
+                    grouping=j.grouping,
+                    minmeta=j.minmeta,
+                    overwrite=j.overwrite,
+                    validate_bids=j.validate_bids,
+                )
+                for j in body.jobs
+            ],
+            source_root=body.source_root,
+            max_workers=body.max_workers,
+            dataset_name=body.dataset_name,
+            grouping=body.grouping,
+            minmeta=body.minmeta,
+            overwrite=body.overwrite,
+            validate_bids=body.validate_bids,
+        )
+        batch_id = mgr.start_batch(batch_config)
+        return {"batch_id": batch_id, "status": "started", "n_jobs": len(body.jobs)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/convert/batch/{batch_id}")
+async def get_batch_status(request: Request, batch_id: str):
+    """Get status summary for a batch conversion."""
+    mgr = request.app.state.convert_manager
+    result = mgr.get_batch_status(batch_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Batch '{batch_id}' not found")
+    return result
+
+
+@router.post("/convert/batch/{batch_id}/retry-failed")
+async def retry_failed_batch(request: Request, batch_id: str):
+    """Get the failed jobs from a batch for retry."""
+    mgr = request.app.state.convert_manager
+    try:
+        result = mgr.retry_failed(batch_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/convert/batch/parse-yaml")
+async def parse_batch_yaml(request: Request, body: BatchParseYamlBody):
+    """Parse a YAML batch config and return as JSON."""
+    from denizenspipeline.convert.batch import parse_batch_yaml as _parse
+
+    try:
+        config = _parse(body.yaml_text)
+        return {
+            "heuristic": config.heuristic,
+            "bids_dir": config.bids_dir,
+            "source_root": config.source_root,
+            "max_workers": config.max_workers,
+            "dataset_name": config.dataset_name,
+            "grouping": config.grouping,
+            "minmeta": config.minmeta,
+            "overwrite": config.overwrite,
+            "validate_bids": config.validate_bids,
+            "jobs": [
+                {
+                    "subject": j.subject,
+                    "source_dir": j.source_dir,
+                    "session": j.session,
+                }
+                for j in config.jobs
+            ],
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

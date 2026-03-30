@@ -24,6 +24,8 @@ import type {
   ConvertManifestSummary,
   ConvertManifestDetail,
   DicomScanResult,
+  BatchRunParams,
+  BatchSummary,
 } from './types'
 
 const BASE = '/api'
@@ -367,4 +369,35 @@ export async function startConvertRun(params: {
 export function connectConvertWs(runId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return new WebSocket(`${proto}//${window.location.host}/ws/convert/${runId}`)
+}
+
+// ── Batch Conversion ─────────────────────────────────────────────────────
+
+export async function startBatchConvert(params: BatchRunParams): Promise<{ batch_id: string; status: string; n_jobs: number }> {
+  return json(`${BASE}/convert/batch/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function fetchBatchStatus(batchId: string): Promise<BatchSummary> {
+  return json(`${BASE}/convert/batch/${encodeURIComponent(batchId)}`)
+}
+
+export async function retryFailedBatch(batchId: string): Promise<{ failed_jobs: Array<{ job_id: string; subject: string; session: string; error: string | null }> }> {
+  return json(`${BASE}/convert/batch/${encodeURIComponent(batchId)}/retry-failed`, { method: 'POST' })
+}
+
+export async function parseBatchYaml(yamlText: string): Promise<BatchRunParams> {
+  return json(`${BASE}/convert/batch/parse-yaml`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_text: yamlText }),
+  })
+}
+
+export function connectBatchWs(batchId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return new WebSocket(`${proto}//${window.location.host}/ws/convert/batch/${batchId}`)
 }

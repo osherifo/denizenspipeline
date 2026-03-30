@@ -94,6 +94,46 @@ async def preproc_websocket(websocket: WebSocket, run_id: str):
             pass
 
 
+@router.websocket("/ws/convert/batch/{batch_id}")
+async def convert_batch_websocket(websocket: WebSocket, batch_id: str):
+    """Stream live events from a batch DICOM-to-BIDS conversion."""
+    manager = websocket.app.state.convert_manager
+    handle = manager.active_batches.get(batch_id)
+
+    if handle is None:
+        await websocket.close(code=4004, reason=f"Batch '{batch_id}' not found")
+        return
+
+    await websocket.accept()
+
+    try:
+        # Send historical events
+        with handle._lock:
+            for event in handle.events:
+                await websocket.send_json(event)
+
+        # Poll for new events
+        while handle.status == 'running':
+            new_events = handle.drain_events()
+            for event in new_events:
+                await websocket.send_json(event)
+            if not new_events:
+                await asyncio.sleep(0.3)
+
+        # Drain final events
+        final_events = handle.drain_events()
+        for event in final_events:
+            await websocket.send_json(event)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
 @router.websocket("/ws/convert/{run_id}")
 async def convert_websocket(websocket: WebSocket, run_id: str):
     """Stream live events from a running DICOM-to-BIDS conversion."""
