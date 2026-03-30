@@ -41,7 +41,7 @@ export interface FeatureConfig {
   paths?: Record<string, string>
   bucket?: string
   run_map?: Record<string, string>
-  dataset?: string
+  [key: string]: unknown
 }
 
 export interface StepConfig {

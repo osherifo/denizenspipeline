@@ -3,6 +3,26 @@ import { usePluginStore } from '../stores/plugin-store'
 import { useConfigStore } from '../stores/config-store'
 import { ParamForm } from '../components/composer/ParamForm'
 import type { PluginInfo, FeatureConfig, StepConfig, AnalyzerConfig, ParamSchema } from '../api/types'
+import type { FieldValues } from '../api/client'
+
+/**
+ * Extract suggestions for ParamForm fields from the global field-values map.
+ * Given prefix "response", maps "response.path" -> suggestions under key "path".
+ */
+function suggestionsForPrefix(fieldValues: FieldValues, prefix: string): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  const dot = prefix + '.'
+  for (const [key, values] of Object.entries(fieldValues)) {
+    if (key.startsWith(dot)) {
+      const field = key.slice(dot.length)
+      // Only use leaf keys (no further dots) to avoid noise
+      if (!field.includes('.')) {
+        result[field] = values
+      }
+    }
+  }
+  return result
+}
 
 // ── Styles ──
 
@@ -263,12 +283,14 @@ function getPluginsForCategories(plugins: Record<string, PluginInfo[]>, categori
 
 function StimulusSection() {
   const plugins = usePluginStore((s) => s.plugins)
+  const fieldValues = usePluginStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
   const available = getPluginsForCategories(plugins, ['stimulus_loaders'])
   const selected = config.stimulus?.loader || ''
   const plugin = findPlugin(plugins, ['stimulus_loaders'], selected)
+  const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'stimulus'), [fieldValues])
 
   return (
     <div>
@@ -287,6 +309,7 @@ function StimulusSection() {
           schema={plugin.params}
           values={config.stimulus || {}}
           onChange={(key, val) => setField(`stimulus.${key}`, val)}
+          suggestions={hints}
         />
       )}
     </div>
@@ -295,12 +318,20 @@ function StimulusSection() {
 
 function ResponseSection() {
   const plugins = usePluginStore((s) => s.plugins)
+  const fieldValues = usePluginStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
-  const available = getPluginsForCategories(plugins, ['response_loaders', 'response_readers'])
+  const loaders = getPluginsForCategories(plugins, ['response_loaders'])
   const selected = config.response?.loader || ''
-  const plugin = findPlugin(plugins, ['response_loaders', 'response_readers'], selected)
+  const plugin = findPlugin(plugins, ['response_loaders'], selected)
+  const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'response'), [fieldValues])
+
+  // When loader is "local" and a reader is selected, show the reader's params too
+  const readerName = config.response?.reader as string | undefined
+  const readerPlugin = readerName && readerName !== 'auto'
+    ? findPlugin(plugins, ['response_readers'], readerName)
+    : null
 
   return (
     <div>
@@ -310,7 +341,7 @@ function ResponseSection() {
         onChange={(e) => setField('response.loader', e.target.value)}
       >
         <option value="">-- select loader --</option>
-        {available.map((p) => (
+        {loaders.map((p) => (
           <option key={p.name} value={p.name}>{p.name}</option>
         ))}
       </select>
@@ -319,6 +350,127 @@ function ResponseSection() {
           schema={plugin.params}
           values={config.response || {}}
           onChange={(key, val) => setField(`response.${key}`, val)}
+          suggestions={hints}
+        />
+      )}
+      {readerPlugin && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+            {readerName} reader params
+          </div>
+          <ParamForm
+            schema={readerPlugin.params}
+            values={config.response || {}}
+            onChange={(key, val) => setField(`response.${key}`, val)}
+            suggestions={hints}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FeatureCard({ feat, index }: { feat: FeatureConfig; index: number }) {
+  const plugins = usePluginStore((s) => s.plugins)
+  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const { removeFeature, updateFeature } = useConfigStore()
+
+  const extractors = getPluginsForCategories(plugins, ['feature_extractors'])
+  const sources = getPluginsForCategories(plugins, ['feature_sources'])
+
+  const source = feat.source || 'compute'
+  const isCompute = source === 'compute'
+  const extractorName = feat.extractor || (isCompute ? feat.name : '')
+
+  const sourcePlugin = findPlugin(plugins, ['feature_sources'], source)
+  const extractorPlugin = isCompute
+    ? findPlugin(plugins, ['feature_extractors'], extractorName)
+    : null
+
+  const featureHints = useMemo(() => suggestionsForPrefix(fieldValues, 'features'), [fieldValues])
+
+  return (
+    <div style={miniCardStyle}>
+      <div style={miniCardHeader}>
+        <span style={miniCardName}>{feat.name}</span>
+        <button style={removeBtn} onClick={() => removeFeature(index)}>x</button>
+      </div>
+
+      {/* Source selector */}
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>
+          Source
+        </label>
+        <select
+          style={{ ...selectStyle, marginTop: 4 }}
+          value={source}
+          onChange={(e) => {
+            const newSource = e.target.value
+            // Reset source-specific fields when changing source
+            const updated: FeatureConfig = { name: feat.name, source: newSource }
+            if (newSource === 'compute') {
+              updated.extractor = feat.name
+              updated.params = {}
+            }
+            updateFeature(index, updated)
+          }}
+        >
+          {sources.map((s) => (
+            <option key={s.name} value={s.name}>{s.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Compute source: show extractor dropdown + extractor params */}
+      {isCompute && (
+        <>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>
+              Extractor
+            </label>
+            <select
+              style={{ ...selectStyle, marginTop: 4 }}
+              value={extractorName}
+              onChange={(e) => {
+                const updated = { ...feat, source: 'compute', extractor: e.target.value }
+                // Auto-set name if it was still the old extractor name
+                if (feat.name === feat.extractor || feat.name === extractorName) {
+                  updated.name = e.target.value
+                }
+                updateFeature(index, updated)
+              }}
+            >
+              <option value="">-- select extractor --</option>
+              {extractors.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}{p.n_dims != null ? ` [${p.n_dims}d]` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          {extractorPlugin && Object.keys(extractorPlugin.params).length > 0 && (
+            <ParamForm
+              schema={extractorPlugin.params}
+              values={feat.params || {}}
+              onChange={(key, val) => {
+                const updated = { ...feat, params: { ...(feat.params || {}), [key]: val } }
+                updateFeature(index, updated)
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {/* Non-compute source: show source params (written to feature top level) */}
+      {!isCompute && sourcePlugin && Object.keys(sourcePlugin.params).length > 0 && (
+        <ParamForm
+          schema={sourcePlugin.params}
+          values={feat}
+          onChange={(key, val) => {
+            const updated = { ...feat, [key]: val }
+            updateFeature(index, updated)
+          }}
+          suggestions={featureHints}
         />
       )}
     </div>
@@ -327,74 +479,89 @@ function ResponseSection() {
 
 function FeatureSection() {
   const plugins = usePluginStore((s) => s.plugins)
+  const fieldValues = usePluginStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
-  const { addFeature, removeFeature, updateFeature } = useConfigStore()
+  const { addFeature } = useConfigStore()
 
   const extractors = getPluginsForCategories(plugins, ['feature_extractors'])
-  const sources = getPluginsForCategories(plugins, ['feature_sources'])
-  const allFeaturePlugins = [...extractors, ...sources]
-
   const features = config.features || []
-  const [adding, setAdding] = useState(false)
 
-  const handleAdd = (name: string) => {
-    addFeature({ name, params: {} })
+  const [adding, setAdding] = useState(false)
+  const [addSource, setAddSource] = useState<string>('compute')
+  const [addName, setAddName] = useState('')
+
+  const nameHints = fieldValues['features.name'] || []
+
+  const handleAdd = () => {
+    if (!addName.trim()) return
+    const feat: FeatureConfig = { name: addName.trim(), source: addSource }
+    if (addSource === 'compute') {
+      // If name matches an extractor, auto-set it
+      const matchesExtractor = extractors.some((e) => e.name === addName.trim())
+      if (matchesExtractor) {
+        feat.extractor = addName.trim()
+      }
+    }
+    addFeature(feat)
     setAdding(false)
+    setAddName('')
+    setAddSource('compute')
   }
 
   return (
     <div>
-      {features.map((feat, i) => {
-        const plugin = findPlugin(plugins, ['feature_extractors', 'feature_sources'], feat.extractor || feat.source || feat.name)
-        return (
-          <div key={i} style={miniCardStyle}>
-            <div style={miniCardHeader}>
-              <span style={miniCardName}>{feat.name}</span>
-              <button style={removeBtn} onClick={() => removeFeature(i)}>x</button>
-            </div>
-            {feat.extractor && (
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                extractor: {feat.extractor}
-              </div>
-            )}
-            {feat.source && (
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                source: {feat.source}
-              </div>
-            )}
-            {plugin && (
-              <ParamForm
-                schema={plugin.params}
-                values={feat.params || {}}
-                onChange={(key, val) => {
-                  const updated = { ...feat, params: { ...(feat.params || {}), [key]: val } }
-                  updateFeature(i, updated)
-                }}
-              />
+      {features.map((feat, i) => (
+        <FeatureCard key={i} feat={feat} index={i} />
+      ))}
+      {adding ? (
+        <div style={{ ...miniCardStyle, borderColor: 'rgba(0, 229, 255, 0.3)' }}>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>
+              Feature name
+            </label>
+            <input
+              type="text"
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              style={{ ...selectStyle, marginTop: 4 }}
+              placeholder="e.g. english1000, bert_layer8"
+              list="dl-feat-name"
+              autoFocus
+            />
+            {nameHints.length > 0 && (
+              <datalist id="dl-feat-name">
+                {nameHints.map((v) => <option key={v} value={v} />)}
+              </datalist>
             )}
           </div>
-        )
-      })}
-      {adding ? (
-        <div style={{ marginTop: 8 }}>
-          <select
-            style={selectStyle}
-            value=""
-            onChange={(e) => {
-              if (e.target.value) handleAdd(e.target.value)
-            }}
-          >
-            <option value="">-- select feature --</option>
-            {allFeaturePlugins.map((p) => (
-              <option key={`${p.category}-${p.name}`} value={p.name}>
-                {p.name} ({p.category})
-                {p.n_dims != null ? ` [${p.n_dims}d]` : ''}
-              </option>
-            ))}
-          </select>
-          <button style={{ ...removeBtn, color: 'var(--text-secondary)' }} onClick={() => setAdding(false)}>
-            cancel
-          </button>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>
+              Source
+            </label>
+            <select
+              style={{ ...selectStyle, marginTop: 4 }}
+              value={addSource}
+              onChange={(e) => setAddSource(e.target.value)}
+            >
+              {getPluginsForCategories(plugins, ['feature_sources']).map((s) => (
+                <option key={s.name} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={{ ...addBtnStyle, marginTop: 0 }}
+              onClick={handleAdd}
+            >
+              Add
+            </button>
+            <button
+              style={{ ...removeBtn, color: 'var(--text-secondary)' }}
+              onClick={() => { setAdding(false); setAddName(''); setAddSource('compute') }}
+            >
+              cancel
+            </button>
+          </div>
         </div>
       ) : (
         <button style={addBtnStyle} onClick={() => setAdding(true)}>+ Add Feature</button>
@@ -405,6 +572,7 @@ function FeatureSection() {
 
 function PreprocessingSection() {
   const plugins = usePluginStore((s) => s.plugins)
+  const fieldValues = usePluginStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
   const { addStep, removeStep, updateStep } = useConfigStore()
@@ -447,6 +615,7 @@ function PreprocessingSection() {
                     const updated = { ...step, params: { ...(step.params || {}), [key]: val } }
                     updateStep(i, updated)
                   }}
+                  suggestions={suggestionsForPrefix(fieldValues, step.name)}
                 />
               )}
             </div>
@@ -501,6 +670,7 @@ function PreprocessingSection() {
           schema={selectedPreprocessor.params}
           values={prep}
           onChange={(key, val) => setField(`preprocessing.${key}`, val)}
+          suggestions={suggestionsForPrefix(fieldValues, 'preprocessing')}
         />
       )}
     </div>
@@ -509,12 +679,14 @@ function PreprocessingSection() {
 
 function ModelSection() {
   const plugins = usePluginStore((s) => s.plugins)
+  const fieldValues = usePluginStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
   const available = getPluginsForCategories(plugins, ['models'])
   const selected = config.model?.type || ''
   const plugin = findPlugin(plugins, ['models'], selected)
+  const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'model.params'), [fieldValues])
 
   return (
     <div>
@@ -533,6 +705,7 @@ function ModelSection() {
           schema={plugin.params}
           values={config.model?.params || {}}
           onChange={(key, val) => setField(`model.params.${key}`, val)}
+          suggestions={hints}
         />
       )}
     </div>
@@ -600,12 +773,14 @@ function AnalysisSection() {
 }
 
 function ReportingSection() {
+  const fieldValues = usePluginStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const toggleReporter = useConfigStore((s) => s.toggleReporter)
   const setField = useConfigStore((s) => s.setField)
 
   const formats = config.reporting?.formats || []
   const outputDir = config.reporting?.output_dir || './results'
+  const outputDirHints = fieldValues['reporting.output_dir'] || []
 
   return (
     <div>
@@ -630,7 +805,13 @@ function ReportingSection() {
           value={outputDir}
           onChange={(e) => setField('reporting.output_dir', e.target.value)}
           style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}
+          list="dl-reporting-output-dir"
         />
+        {outputDirHints.length > 0 && (
+          <datalist id="dl-reporting-output-dir">
+            {outputDirHints.map((v) => <option key={v} value={v} />)}
+          </datalist>
+        )}
       </div>
     </div>
   )
@@ -668,6 +849,7 @@ export function PipelineComposer() {
   const applyYaml = useConfigStore((s) => s.applyYaml)
   const reset = useConfigStore((s) => s.reset)
   const loaded = usePluginStore((s) => s.loaded)
+  const fieldValues = usePluginStore((s) => s.fieldValues)
   const yamlApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sync YAML preview when config changes (only if user isn't editing YAML)
@@ -723,7 +905,13 @@ export function PipelineComposer() {
                   onChange={(e) => setField('experiment', e.target.value)}
                   style={inputStyle}
                   placeholder="e.g. reading_task"
+                  list="dl-experiment"
                 />
+                {fieldValues['experiment'] && (
+                  <datalist id="dl-experiment">
+                    {fieldValues['experiment'].map((v) => <option key={v} value={v} />)}
+                  </datalist>
+                )}
               </div>
               <div>
                 <label style={labelSmall}>Subject</label>
@@ -733,7 +921,13 @@ export function PipelineComposer() {
                   onChange={(e) => setField('subject', e.target.value)}
                   style={inputStyle}
                   placeholder="e.g. sub-01"
+                  list="dl-subject"
                 />
+                {fieldValues['subject'] && (
+                  <datalist id="dl-subject">
+                    {fieldValues['subject'].map((v) => <option key={v} value={v} />)}
+                  </datalist>
+                )}
               </div>
             </div>
           </div>
@@ -769,7 +963,13 @@ export function PipelineComposer() {
               }
               style={inputStyle}
               placeholder="e.g. run-05, run-06"
+              list="dl-test-runs"
             />
+            {fieldValues['split.test_runs'] && (
+              <datalist id="dl-test-runs">
+                {fieldValues['split.test_runs'].map((v) => <option key={v} value={v} />)}
+              </datalist>
+            )}
           </div>
 
           {/* Actions */}

@@ -131,6 +131,63 @@ class ConfigStore:
             'yaml_string': raw,
         }
 
+    def field_values(self) -> dict[str, list[str]]:
+        """Collect unique string/path values per dotted field path across all configs.
+
+        Used by the frontend Composer for autocomplete suggestions.
+        """
+        self._maybe_rescan()
+        buckets: dict[str, set[str]] = {}
+
+        for yaml_path in sorted(self.configs_dir.glob('*.yaml')):
+            if yaml_path.name.startswith('_'):
+                continue
+            try:
+                with open(yaml_path) as f:
+                    config = yaml.safe_load(f) or {}
+                if isinstance(config, dict):
+                    self._walk_config(config, '', buckets)
+            except Exception:
+                continue
+
+        # Convert sets to sorted lists, drop empty strings
+        return {k: sorted(v - {''}) for k, v in buckets.items() if v - {''}}
+
+    def _walk_config(
+        self,
+        obj: Any,
+        prefix: str,
+        buckets: dict[str, set[str]],
+    ) -> None:
+        """Recursively walk a config dict and collect string values.
+
+        For dict-valued fields (like run_map, paths), also stores the whole
+        dict as a compact JSON string so it can be offered as a suggestion.
+        """
+        if isinstance(obj, dict):
+            for key, val in obj.items():
+                # Skip private/anchor keys
+                if isinstance(key, str) and key.startswith('_'):
+                    continue
+                path = f"{prefix}.{key}" if prefix else key
+                # If the value is a dict of scalars, also store it whole as JSON
+                if isinstance(val, dict) and val and all(
+                    isinstance(v, (str, int, float)) for v in val.values()
+                ):
+                    import json
+                    buckets.setdefault(path, set()).add(
+                        json.dumps(val, ensure_ascii=False)
+                    )
+                self._walk_config(val, path, buckets)
+        elif isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, dict):
+                    self._walk_config(item, prefix, buckets)
+                elif isinstance(item, str):
+                    buckets.setdefault(prefix, set()).add(item)
+        elif isinstance(obj, str):
+            buckets.setdefault(prefix, set()).add(obj)
+
     def validate_config(self, filename: str) -> dict[str, Any]:
         """Run full validation on a config file.
 

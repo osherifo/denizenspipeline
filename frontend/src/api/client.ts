@@ -119,6 +119,12 @@ export async function fetchConfigs(): Promise<ConfigSummary[]> {
   return json(`${BASE}/configs`)
 }
 
+export type FieldValues = Record<string, string[]>
+
+export async function fetchFieldValues(): Promise<FieldValues> {
+  return json(`${BASE}/configs/field-values`)
+}
+
 export async function fetchConfigDetail(filename: string): Promise<ConfigDetail> {
   return json(`${BASE}/configs/${encodeURIComponent(filename)}`)
 }
