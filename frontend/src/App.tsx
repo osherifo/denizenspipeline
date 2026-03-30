@@ -21,10 +21,11 @@ function getRoute(): Route {
   if (hash === 'preproc') return 'preproc'
   if (hash === 'convert') return 'convert'
   if (hash === 'errors') return 'errors'
-  return 'plugins'
+  return 'dashboard'
 }
 
 const rootStyle: React.CSSProperties = {
+  display: 'flex',
   minHeight: '100vh',
   margin: 0,
   padding: 0,
@@ -84,9 +85,10 @@ input, select, textarea, button {
 `
 
 const contentStyle: React.CSSProperties = {
+  flex: 1,
   padding: '24px 32px',
   maxWidth: 1400,
-  margin: '0 auto',
+  overflowY: 'auto',
 }
 
 export function App() {
