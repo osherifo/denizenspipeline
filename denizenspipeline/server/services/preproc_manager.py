@@ -290,12 +290,12 @@ class PreprocManager:
 class _LogCapture(logging.Handler):
     """Logging handler that pushes log records as events to a run handle."""
 
-    def __init__(self, handle: PreprocRunHandle):
+    def __init__(self, run_handle: PreprocRunHandle):
         super().__init__()
-        self.handle = handle
+        self.run_handle = run_handle
 
     def emit(self, record: logging.LogRecord) -> None:
-        self.handle.push_event({
+        self.run_handle.push_event({
             "event": "log",
             "message": self.format(record),
         })

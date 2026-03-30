@@ -19,6 +19,11 @@ import type {
   ManifestDetail,
   CollectResult,
   ErrorEntry,
+  HeuristicInfo,
+  ToolStatus,
+  ConvertManifestSummary,
+  ConvertManifestDetail,
+  DicomScanResult,
 } from './types'
 
 const BASE = '/api'
@@ -296,4 +301,70 @@ export function connectRunWs(runId: string): WebSocket {
 export function connectPreprocWs(runId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return new WebSocket(`${proto}//${window.location.host}/ws/preproc/${runId}`)
+}
+
+// ── DICOM-to-BIDS Conversion ────────────────────────────────────────────
+
+export async function fetchConvertHeuristics(): Promise<HeuristicInfo[]> {
+  const r = await json<{ heuristics: HeuristicInfo[] }>(`${BASE}/convert/heuristics`)
+  return r.heuristics
+}
+
+export async function fetchConvertTools(): Promise<ToolStatus[]> {
+  const r = await json<{ tools: ToolStatus[] }>(`${BASE}/convert/tools`)
+  return r.tools
+}
+
+export async function fetchConvertManifests(): Promise<ConvertManifestSummary[]> {
+  const r = await json<{ manifests: ConvertManifestSummary[] }>(`${BASE}/convert/manifests`)
+  return r.manifests
+}
+
+export async function rescanConvertManifests(): Promise<ConvertManifestSummary[]> {
+  const r = await json<{ manifests: ConvertManifestSummary[] }>(`${BASE}/convert/manifests/rescan`, { method: 'POST' })
+  return r.manifests
+}
+
+export async function fetchConvertManifestDetail(subject: string): Promise<ConvertManifestDetail> {
+  return json<ConvertManifestDetail>(`${BASE}/convert/manifests/${encodeURIComponent(subject)}`)
+}
+
+export async function validateConvertManifest(subject: string): Promise<{ errors: string[] }> {
+  return json<{ errors: string[] }>(`${BASE}/convert/manifests/${encodeURIComponent(subject)}/validate`, { method: 'POST' })
+}
+
+export async function scanDicomDirectory(sourceDir: string): Promise<DicomScanResult> {
+  return json<DicomScanResult>(`${BASE}/convert/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_dir: sourceDir }),
+  })
+}
+
+export async function collectConvertOutputs(params: {
+  bids_dir: string; subject: string; source_dir?: string; heuristic?: string;
+  sessions?: string[]; dataset_name?: string;
+}): Promise<{ manifest: ConvertManifestDetail; manifest_path: string }> {
+  return json(`${BASE}/convert/collect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function startConvertRun(params: {
+  source_dir: string; bids_dir: string; subject: string; heuristic: string;
+  sessions?: string[]; dataset_name?: string; grouping?: string;
+  minmeta?: boolean; overwrite?: boolean; validate_bids?: boolean;
+}): Promise<{ run_id: string; status: string }> {
+  return json(`${BASE}/convert/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export function connectConvertWs(runId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return new WebSocket(`${proto}//${window.location.host}/ws/convert/${runId}`)
 }
