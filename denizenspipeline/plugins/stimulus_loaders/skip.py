@@ -23,6 +23,8 @@ class SkipStimulusLoader:
 
     name = "skip"
 
+    PARAM_SCHEMA = {}
+
     def load(self, config: dict) -> StimulusData:
         return StimulusData(runs={})
 

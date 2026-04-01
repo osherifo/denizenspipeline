@@ -16,6 +16,7 @@ class MetricsReporter:
     """Saves prediction accuracy metrics as JSON."""
 
     name = "metrics"
+    PARAM_SCHEMA = {}
 
     def report(self, result: ModelResult, context, config: dict) -> dict[str, str]:
         output_dir = Path(config.get('reporting', {}).get('output_dir', './results'))

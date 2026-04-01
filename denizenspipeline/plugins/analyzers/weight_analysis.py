@@ -22,6 +22,9 @@ class WeightAnalysisAnalyzer:
     """
 
     name = "weight_analysis"
+    PARAM_SCHEMA = {
+        "normalize": {"type": "bool", "default": False, "description": "Normalize per-feature importance"},
+    }
 
     def analyze(self, context, config: dict) -> None:
         result = context.get('result', ModelResult)

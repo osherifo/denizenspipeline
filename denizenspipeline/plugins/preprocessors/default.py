@@ -23,6 +23,15 @@ class DefaultPreprocessor:
     """
 
     name = "default"
+    PARAM_SCHEMA = {
+        "trim_start": {"type": "int", "default": 5, "min": 0, "description": "TRs to remove from start of each run"},
+        "trim_end": {"type": "int", "default": 5, "min": 0, "description": "TRs to remove from end of each run"},
+        "zscore": {"type": "bool", "default": True, "description": "Apply z-score normalization"},
+        "trim_features": {"type": "bool", "default": True, "description": "Trim features along with responses"},
+        "trim_responses": {"type": "bool", "default": True, "description": "Trim responses"},
+        "apply_delays": {"type": "bool", "default": True, "description": "Apply temporal delays to features"},
+        "delays": {"type": "list[int]", "default": [1, 2, 3, 4], "description": "Delay values in TRs"},
+    }
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
@@ -70,15 +79,17 @@ class DefaultPreprocessor:
                 run_feats.append(f)
             trimmed_feat[run] = np.hstack(run_feats)
 
-        # Log per-run shapes for debugging
+        # Validate per-run TR counts and log shapes
         for run in all_runs:
             nr = trimmed_resp[run].shape[0]
             nf = trimmed_feat[run].shape[0]
             if nr != nf:
-                logger.warning("Run '%s' shape mismatch: response=%d features=%d",
-                               run, nr, nf)
-            else:
-                logger.info("Run '%s': %d TRs", run, nr)
+                raise ValueError(
+                    f"Row mismatch in run '{run}': responses have "
+                    f"{nr} TRs but features have {nf} TRs. "
+                    f"Ensure trim_start and trim_end are applied consistently "
+                    f"to both responses and features.")
+            logger.info("Run '%s': %d TRs", run, nr)
 
         # Concatenate runs, split train/test
         Y_train = np.vstack([trimmed_resp[r] for r in train_runs])

@@ -55,6 +55,7 @@ class LuminanceExtractor:
 
     name = "luminance"
     n_dims = 1
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:
@@ -82,6 +83,7 @@ class MotionEnergyExtractor:
 
     name = "motion_energy"
     n_dims = 1
+    PARAM_SCHEMA = {}
 
     def extract(self, stimuli: StimulusData, run_names: list[str],
                 config: dict) -> FeatureSet:

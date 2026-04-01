@@ -38,6 +38,14 @@ class FlatmapReporter:
     """
 
     name = "flatmap"
+    PARAM_SCHEMA = {
+        "cmap": {"type": "string", "default": "inferno", "description": "Matplotlib colormap"},
+        "vmin": {"type": "float", "default": 0.0, "description": "Color scale minimum"},
+        "vmax": {"type": "float", "default": 0.5, "description": "Color scale maximum"},
+        "with_curvature": {"type": "bool", "default": True, "description": "Overlay cortical curvature"},
+        "threshold": {"type": "float", "description": "Mask scores below this value"},
+        "dpi": {"type": "int", "default": 100, "min": 50, "description": "PNG resolution"},
+    }
 
     def report(self, result: ModelResult, context, config: dict) -> dict[str, str]:
         import cortex

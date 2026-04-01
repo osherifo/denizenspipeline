@@ -36,6 +36,14 @@ class AudioStimulusLoader:
 
     name = "audio"
 
+    PARAM_SCHEMA = {
+        "path": {"type": "path", "required": True, "description": "Directory containing .wav files"},
+        "tr": {"type": "float", "default": 2.0, "min": 0.1, "description": "TR duration in seconds"},
+        "n_trs": {"type": "dict", "description": "TR counts per run (run_name → int)"},
+        "language": {"type": "string", "default": "en", "enum": ["en", "zh", "es"], "description": "Stimulus language"},
+        "modality": {"type": "string", "default": "listening", "enum": ["reading", "listening", "visual"], "description": "Stimulus modality"},
+    }
+
     def load(self, config: dict) -> StimulusData:
         try:
             import librosa

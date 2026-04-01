@@ -101,16 +101,63 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    # ── serve ──
+    serve_parser = subparsers.add_parser(
+        'serve', help='Start the frontend server')
+    serve_parser.add_argument(
+        '--port', type=int, default=8421, help='Server port (default: 8421)')
+    serve_parser.add_argument(
+        '--host', type=str, default='127.0.0.1', help='Server host')
+    serve_parser.add_argument(
+        '--results-dir', type=str, default='./results',
+        help='Directory to scan for run summaries')
+    serve_parser.add_argument(
+        '--no-open', action='store_true',
+        help='Do not open browser automatically')
+    serve_parser.add_argument(
+        '--plugins-dir', type=str, default=None,
+        help='Directory for user plugins (default: ~/.denizens/plugins/)')
+    serve_parser.add_argument(
+        '--configs-dir', type=str, default='./experiments',
+        help='Directory containing experiment YAML configs (default: ./experiments)')
+    serve_parser.add_argument(
+        '--derivatives-dir', type=str, default='./derivatives',
+        help='Directory containing preprocessing derivatives (default: ./derivatives)')
+
+    # ── compose ──
+    compose_parser = subparsers.add_parser(
+        'compose', help='Open a config in the frontend composer')
+    compose_parser.add_argument('config', help='Path to experiment YAML config')
+    compose_parser.add_argument(
+        '--port', type=int, default=8421, help='Server port (default: 8421)')
+
+    # ── preproc ──
+    from denizenspipeline.preproc.cli import add_preproc_subcommands
+    add_preproc_subcommands(subparsers)
+
+    # ── convert ──
+    from denizenspipeline.convert.cli import add_convert_subcommands
+    add_convert_subcommands(subparsers)
+
     args = parser.parse_args(argv)
 
-    # Set up logging — suppress standard log format, let rich handle output
+    # Set up logging — suppress standard log format, let rich handle output.
+    # Always show logs for preproc commands (they are long-running).
     level = logging.DEBUG if args.verbose else logging.INFO
+    show_logs = args.verbose or args.command in ('preproc', 'convert')
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
         datefmt='%H:%M:%S',
-        handlers=[logging.NullHandler()] if not args.verbose else None,
+        handlers=[logging.NullHandler()] if not show_logs else None,
     )
+
+    # Python 3.3+ argparse bug: nested subparsers don't always set the
+    # parent dest.  Fall back to checking subcommand attrs when command is None.
+    if args.command is None and getattr(args, 'preproc_command', None):
+        args.command = 'preproc'
+    if args.command is None and getattr(args, 'convert_command', None):
+        args.command = 'convert'
 
     if args.command == 'run':
         return _cmd_run(args)
@@ -120,6 +167,16 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_plugins(args)
     elif args.command == 'list':
         return _cmd_list(args)
+    elif args.command == 'serve':
+        return _cmd_serve(args)
+    elif args.command == 'compose':
+        return _cmd_compose(args)
+    elif args.command == 'preproc':
+        from denizenspipeline.preproc.cli import dispatch_preproc
+        return dispatch_preproc(args)
+    elif args.command == 'convert':
+        from denizenspipeline.convert.cli import dispatch_convert
+        return dispatch_convert(args)
     else:
         parser.print_help()
         return 1
@@ -332,6 +389,55 @@ def _cmd_list(args) -> int:
     filtered = {k: plugins[k] for k in categories if k in plugins}
     ui.console.print()
     ui.plugins_table(filtered, title=f"Plugins for stage: {what}")
+    return 0
+
+
+def _cmd_serve(args) -> int:
+    """Start the frontend server."""
+    try:
+        import uvicorn
+        from denizenspipeline.server.app import create_app
+    except ImportError:
+        ui.error_panel(
+            "Frontend dependencies not installed.\n"
+            "Run: pip install denizenspipeline[frontend]"
+        )
+        return 1
+
+    app = create_app(
+        results_dir=args.results_dir,
+        plugins_dir=args.plugins_dir,
+        configs_dir=args.configs_dir,
+        derivatives_dir=args.derivatives_dir,
+    )
+
+    ui.console.print(
+        f"\n[bold bright_cyan]Denizens Pipeline Server[/] "
+        f"starting on [bold]http://{args.host}:{args.port}[/]\n"
+    )
+
+    if not args.no_open:
+        import webbrowser
+        webbrowser.open(f"http://{args.host}:{args.port}")
+
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
+def _cmd_compose(args) -> int:
+    """Open a config in the frontend composer."""
+    import urllib.parse
+
+    config_path = Path(args.config).resolve()
+    if not config_path.is_file():
+        ui.error_panel(f"Config file not found: {config_path}")
+        return 1
+
+    url = f"http://127.0.0.1:{args.port}/#/compose?config={urllib.parse.quote(str(config_path))}"
+    ui.console.print(f"\n[bold]Opening composer:[/] {url}\n")
+
+    import webbrowser
+    webbrowser.open(url)
     return 0
 
 

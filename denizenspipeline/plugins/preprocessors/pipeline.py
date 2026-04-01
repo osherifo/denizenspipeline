@@ -34,6 +34,9 @@ class PipelinePreprocessor:
     """
 
     name = "pipeline"
+    PARAM_SCHEMA = {
+        "steps": {"type": "list[dict]", "required": True, "description": "Ordered list of preprocessing steps ({name, params})"},
+    }
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
