@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 /** Run history table scoped to a config's experiment+subject. */
 import type { RunSummary, ArtifactInfo } from '../../api/types'
 import { StageTimeline } from '../runs/StageTimeline'
@@ -11,7 +12,7 @@ interface RunHistoryProps {
   onClearRun: () => void
 }
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
@@ -19,7 +20,7 @@ const containerStyle: React.CSSProperties = {
   marginBottom: 16,
 }
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   padding: '12px 16px',
   fontSize: 12,
   fontWeight: 700,
@@ -30,13 +31,13 @@ const headerStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--border)',
 }
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
   fontSize: 12,
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: 'left',
   padding: '8px 12px',
   backgroundColor: 'var(--bg-secondary)',
@@ -48,18 +49,18 @@ const thStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '8px 12px',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',
 }
 
-const rowStyle = (selected: boolean): React.CSSProperties => ({
+const rowStyle = (selected: boolean): CSSProperties => ({
   cursor: 'pointer',
   backgroundColor: selected ? 'rgba(0, 229, 255, 0.05)' : 'transparent',
 })
 
-function statusBadge(status: string): React.CSSProperties {
+function statusBadge(status: string): CSSProperties {
   let bg: string; let fg: string
   switch (status.toLowerCase()) {
     case 'ok': case 'done': bg = 'rgba(0, 230, 118, 0.12)'; fg = 'var(--accent-green)'; break
@@ -92,32 +93,32 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const detailPanel: React.CSSProperties = {
+const detailPanel: CSSProperties = {
   padding: '16px',
   borderTop: '1px solid var(--border)',
   backgroundColor: 'var(--bg-secondary)',
 }
 
-const sectionLabel: React.CSSProperties = {
+const sectionLabel: CSSProperties = {
   fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)',
   textTransform: 'uppercase', letterSpacing: 1, marginTop: 16, marginBottom: 8,
 }
 
-const summaryGrid: React.CSSProperties = {
+const summaryGrid: CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
   gap: 8, marginBottom: 12,
 }
 
-const summaryCard: React.CSSProperties = {
+const summaryCard: CSSProperties = {
   backgroundColor: 'var(--bg-card)', borderRadius: 6, padding: '8px 10px',
 }
 
-const summaryCardLabel: React.CSSProperties = {
+const summaryCardLabel: CSSProperties = {
   fontSize: 9, fontWeight: 600, color: 'var(--text-secondary)',
   textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
 }
 
-const summaryCardValue: React.CSSProperties = {
+const summaryCardValue: CSSProperties = {
   fontSize: 13, fontWeight: 700, color: 'var(--text-primary)',
 }
 

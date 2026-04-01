@@ -1,29 +1,30 @@
 /** Batch DICOM-to-BIDS conversion — form for shared settings + jobs table. */
 import { useEffect, useRef } from 'react'
+import type { CSSProperties, ChangeEvent } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '20px 24px',
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   color: 'var(--text-primary)',
   marginBottom: 16,
 }
 
-const fieldRow: React.CSSProperties = {
+const fieldRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   marginBottom: 12,
   gap: 12,
 }
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -32,7 +33,7 @@ const labelStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   padding: '8px 12px',
   fontSize: 12,
   fontFamily: 'inherit',
@@ -44,18 +45,18 @@ const inputStyle: React.CSSProperties = {
   maxWidth: 400,
 }
 
-const selectStyle: React.CSSProperties = {
+const selectStyle: CSSProperties = {
   ...inputStyle,
   appearance: 'auto' as const,
   maxWidth: 250,
 }
 
-const smallInput: React.CSSProperties = {
+const smallInput: CSSProperties = {
   ...inputStyle,
   maxWidth: 80,
 }
 
-const sectionTitle: React.CSSProperties = {
+const sectionTitle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -65,7 +66,7 @@ const sectionTitle: React.CSSProperties = {
   marginBottom: 10,
 }
 
-const checkRow: React.CSSProperties = {
+const checkRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   marginBottom: 8,
@@ -73,21 +74,21 @@ const checkRow: React.CSSProperties = {
   marginLeft: 122,
 }
 
-const checkLabel: React.CSSProperties = {
+const checkLabel: CSSProperties = {
   fontSize: 12,
   color: 'var(--text-secondary)',
   cursor: 'pointer',
   userSelect: 'none',
 }
 
-const checkboxStyle: React.CSSProperties = {
+const checkboxStyle: CSSProperties = {
   width: 14,
   height: 14,
   cursor: 'pointer',
   accentColor: 'var(--accent-cyan)',
 }
 
-const btnStyle: React.CSSProperties = {
+const btnStyle: CSSProperties = {
   padding: '8px 24px',
   fontSize: 12,
   fontWeight: 600,
@@ -96,21 +97,21 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const primaryBtn: React.CSSProperties = {
+const primaryBtn: CSSProperties = {
   ...btnStyle,
   border: 'none',
   backgroundColor: 'var(--accent-cyan)',
   color: '#000',
 }
 
-const secondaryBtn: React.CSSProperties = {
+const secondaryBtn: CSSProperties = {
   ...btnStyle,
   border: '1px solid var(--border)',
   backgroundColor: 'var(--bg-input)',
   color: 'var(--text-secondary)',
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -121,12 +122,12 @@ const thStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--border)',
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '4px 4px',
   verticalAlign: 'middle',
 }
 
-const cellInput: React.CSSProperties = {
+const cellInput: CSSProperties = {
   padding: '6px 8px',
   fontSize: 12,
   fontFamily: 'inherit',
@@ -138,7 +139,7 @@ const cellInput: React.CSSProperties = {
   boxSizing: 'border-box',
 }
 
-const removeBtn: React.CSSProperties = {
+const removeBtn: CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--text-secondary)',
@@ -168,7 +169,7 @@ export function BatchForm() {
     fileRef.current?.click()
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const text = await file.text()

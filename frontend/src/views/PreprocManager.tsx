@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 /** Preprocessing Manager — browse backends, manifests, collect outputs, run preprocessing. */
 import { usePreprocStore } from '../stores/preproc-store'
 import { BackendStatus } from '../components/preproc/BackendStatus'
@@ -14,13 +15,13 @@ const tabs: { key: Tab; label: string }[] = [
   { key: 'run', label: 'Run' },
 ]
 
-const tabBarStyle: React.CSSProperties = {
+const tabBarStyle: CSSProperties = {
   display: 'flex',
   gap: 4,
   marginBottom: 16,
 }
 
-function tabStyle(active: boolean): React.CSSProperties {
+function tabStyle(active: boolean): CSSProperties {
   return {
     padding: '8px 20px',
     fontSize: 12,

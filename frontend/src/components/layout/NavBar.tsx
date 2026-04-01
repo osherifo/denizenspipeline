@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import type { CSSProperties } from 'react'
 
 interface NavBarProps {
   currentRoute: string
 }
 
-const sidebarStyle: React.CSSProperties = {
+const sidebarStyle: CSSProperties = {
   width: 210,
   minWidth: 210,
   height: '100vh',
@@ -18,7 +19,7 @@ const sidebarStyle: React.CSSProperties = {
   overflowY: 'auto',
 }
 
-const logoStyle: React.CSSProperties = {
+const logoStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 800,
   color: 'var(--accent-cyan)',
@@ -31,7 +32,7 @@ const logoStyle: React.CSSProperties = {
 }
 
 // Category header — clickable, distinct background
-function groupHeaderStyle(expanded: boolean, hasActive: boolean): React.CSSProperties {
+function groupHeaderStyle(expanded: boolean, hasActive: boolean): CSSProperties {
   return {
     display: 'flex',
     alignItems: 'center',
@@ -51,7 +52,7 @@ function groupHeaderStyle(expanded: boolean, hasActive: boolean): React.CSSPrope
   }
 }
 
-const chevronStyle = (expanded: boolean): React.CSSProperties => ({
+const chevronStyle = (expanded: boolean): CSSProperties => ({
   fontSize: 10,
   transition: 'transform 0.15s ease',
   transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -59,7 +60,7 @@ const chevronStyle = (expanded: boolean): React.CSSProperties => ({
 })
 
 // Sub-items — indented, slightly lighter bg when section open
-function linkStyle(active: boolean): React.CSSProperties {
+function linkStyle(active: boolean): CSSProperties {
   return {
     display: 'block',
     padding: '7px 16px 7px 28px',

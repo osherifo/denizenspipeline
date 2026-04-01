@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { PluginInfo, ParamField } from '../../api/types'
 
 interface PluginCardProps {
   plugin: PluginInfo
 }
 
-const cardStyle: React.CSSProperties = {
+const cardStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
@@ -15,20 +16,20 @@ const cardStyle: React.CSSProperties = {
   marginBottom: 8,
 }
 
-const cardHoverStyle: React.CSSProperties = {
+const cardHoverStyle: CSSProperties = {
   ...cardStyle,
   borderColor: 'var(--accent-cyan)',
   boxShadow: '0 0 12px rgba(0, 229, 255, 0.1)',
 }
 
-const nameStyle: React.CSSProperties = {
+const nameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   color: 'var(--text-primary)',
   marginBottom: 4,
 }
 
-const categoryBadgeStyle: React.CSSProperties = {
+const categoryBadgeStyle: CSSProperties = {
   display: 'inline-block',
   fontSize: 10,
   fontWeight: 600,
@@ -41,7 +42,7 @@ const categoryBadgeStyle: React.CSSProperties = {
   textTransform: 'uppercase',
 }
 
-const dimsBadgeStyle: React.CSSProperties = {
+const dimsBadgeStyle: CSSProperties = {
   display: 'inline-block',
   fontSize: 10,
   fontWeight: 600,
@@ -52,27 +53,27 @@ const dimsBadgeStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const docStyle: React.CSSProperties = {
+const docStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--text-secondary)',
   marginTop: 6,
   lineHeight: 1.5,
 }
 
-const paramCountStyle: React.CSSProperties = {
+const paramCountStyle: CSSProperties = {
   fontSize: 11,
   color: 'var(--text-secondary)',
   marginTop: 6,
 }
 
-const paramTableStyle: React.CSSProperties = {
+const paramTableStyle: CSSProperties = {
   marginTop: 12,
   width: '100%',
   borderCollapse: 'collapse',
   fontSize: 11,
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: 'left',
   padding: '6px 8px',
   borderBottom: '1px solid var(--border)',
@@ -83,7 +84,7 @@ const thStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '5px 8px',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',

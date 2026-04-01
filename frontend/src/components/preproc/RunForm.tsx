@@ -1,31 +1,32 @@
 /** Tab 4: Run preprocessing — form + live progress. */
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import { usePreprocStore } from '../../stores/preproc-store'
 import { RunMapEditor } from './RunMapEditor'
 import { PreprocProgress } from './PreprocProgress'
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '20px 24px',
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   color: 'var(--text-primary)',
   marginBottom: 16,
 }
 
-const fieldRow: React.CSSProperties = {
+const fieldRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   marginBottom: 12,
   gap: 12,
 }
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -34,7 +35,7 @@ const labelStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   padding: '8px 12px',
   fontSize: 12,
   fontFamily: 'inherit',
@@ -46,13 +47,13 @@ const inputStyle: React.CSSProperties = {
   maxWidth: 400,
 }
 
-const selectStyle: React.CSSProperties = {
+const selectStyle: CSSProperties = {
   ...inputStyle,
   appearance: 'auto' as const,
   maxWidth: 200,
 }
 
-const sectionTitle: React.CSSProperties = {
+const sectionTitle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -62,7 +63,7 @@ const sectionTitle: React.CSSProperties = {
   marginBottom: 10,
 }
 
-const btnStyle: React.CSSProperties = {
+const btnStyle: CSSProperties = {
   padding: '8px 24px',
   fontSize: 12,
   fontWeight: 600,
@@ -71,14 +72,14 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const primaryBtn: React.CSSProperties = {
+const primaryBtn: CSSProperties = {
   ...btnStyle,
   border: 'none',
   backgroundColor: 'var(--accent-cyan)',
   color: '#000',
 }
 
-const secondaryBtn: React.CSSProperties = {
+const secondaryBtn: CSSProperties = {
   ...btnStyle,
   border: '1px solid var(--border)',
   backgroundColor: 'var(--bg-input)',

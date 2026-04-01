@@ -1,5 +1,6 @@
 /** Sidebar: user plugin list + template picker. */
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { UserPlugin } from '../../api/types'
 
 interface PluginSidebarProps {
@@ -12,7 +13,7 @@ interface PluginSidebarProps {
   onNew: () => void
 }
 
-const sidebarStyle: React.CSSProperties = {
+const sidebarStyle: CSSProperties = {
   width: 240,
   minWidth: 240,
   backgroundColor: 'var(--bg-secondary)',
@@ -22,7 +23,7 @@ const sidebarStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-const sectionTitle: React.CSSProperties = {
+const sectionTitle: CSSProperties = {
   padding: '12px 16px 8px',
   fontSize: 11,
   fontWeight: 700,
@@ -31,7 +32,7 @@ const sectionTitle: React.CSSProperties = {
   textTransform: 'uppercase',
 }
 
-const pluginItem = (active: boolean): React.CSSProperties => ({
+const pluginItem = (active: boolean): CSSProperties => ({
   padding: '8px 16px',
   fontSize: 13,
   cursor: 'pointer',
@@ -43,7 +44,7 @@ const pluginItem = (active: boolean): React.CSSProperties => ({
   color: active ? 'var(--accent-cyan)' : 'var(--text-primary)',
 })
 
-const badgeStyle = (registered: boolean): React.CSSProperties => ({
+const badgeStyle = (registered: boolean): CSSProperties => ({
   fontSize: 10,
   padding: '2px 6px',
   borderRadius: 4,
@@ -51,7 +52,7 @@ const badgeStyle = (registered: boolean): React.CSSProperties => ({
   color: registered ? 'var(--accent-green)' : 'var(--accent-yellow)',
 })
 
-const templateBtn: React.CSSProperties = {
+const templateBtn: CSSProperties = {
   padding: '6px 16px',
   fontSize: 13,
   cursor: 'pointer',
@@ -63,7 +64,7 @@ const templateBtn: React.CSSProperties = {
   width: '100%',
 }
 
-const newBtnStyle: React.CSSProperties = {
+const newBtnStyle: CSSProperties = {
   margin: '8px 16px',
   padding: '8px',
   fontSize: 13,

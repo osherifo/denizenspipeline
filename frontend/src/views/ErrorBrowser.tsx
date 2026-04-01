@@ -1,24 +1,25 @@
 /** Error Knowledge Base browser — searchable list of known pipeline errors. */
 import { useEffect, useState, useMemo } from 'react'
+import type { CSSProperties } from 'react'
 import { fetchErrors } from '../api/client'
 import type { ErrorEntry } from '../api/types'
 
 // ── Styles ──
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 700,
   color: 'var(--text-primary)',
   marginBottom: 4,
 }
 
-const subtitleStyle: React.CSSProperties = {
+const subtitleStyle: CSSProperties = {
   fontSize: 13,
   color: 'var(--text-secondary)',
   marginBottom: 20,
 }
 
-const searchRow: React.CSSProperties = {
+const searchRow: CSSProperties = {
   display: 'flex',
   gap: 12,
   marginBottom: 20,
@@ -26,7 +27,7 @@ const searchRow: React.CSSProperties = {
   alignItems: 'center',
 }
 
-const searchInputStyle: React.CSSProperties = {
+const searchInputStyle: CSSProperties = {
   flex: 1,
   minWidth: 200,
   maxWidth: 420,
@@ -39,7 +40,7 @@ const searchInputStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-const filterBtn = (active: boolean): React.CSSProperties => ({
+const filterBtn = (active: boolean): CSSProperties => ({
   padding: '6px 14px',
   fontSize: 11,
   fontWeight: 600,
@@ -52,7 +53,7 @@ const filterBtn = (active: boolean): React.CSSProperties => ({
   textTransform: 'uppercase' as const,
 })
 
-const cardStyle: React.CSSProperties = {
+const cardStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
@@ -62,19 +63,19 @@ const cardStyle: React.CSSProperties = {
   transition: 'border-color 0.15s ease',
 }
 
-const cardHoverStyle: React.CSSProperties = {
+const cardHoverStyle: CSSProperties = {
   ...cardStyle,
   borderColor: 'var(--accent-cyan)',
 }
 
-const titleRow: React.CSSProperties = {
+const titleRow: CSSProperties = {
   display: 'flex',
   alignItems: 'flex-start',
   gap: 10,
   marginBottom: 6,
 }
 
-const idBadge: React.CSSProperties = {
+const idBadge: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   padding: '2px 8px',
@@ -85,7 +86,7 @@ const idBadge: React.CSSProperties = {
   flexShrink: 0,
 }
 
-const stageBadge = (stage: string): React.CSSProperties => {
+const stageBadge = (stage: string): CSSProperties => {
   const colors: Record<string, string> = {
     stimuli: '#00e5ff',
     responses: '#e040fb',
@@ -112,7 +113,7 @@ const stageBadge = (stage: string): React.CSSProperties => {
   }
 }
 
-const tagStyle: React.CSSProperties = {
+const tagStyle: CSSProperties = {
   display: 'inline-block',
   fontSize: 10,
   padding: '2px 6px',
@@ -123,7 +124,7 @@ const tagStyle: React.CSSProperties = {
   marginTop: 4,
 }
 
-const sectionLabel: React.CSSProperties = {
+const sectionLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -133,14 +134,14 @@ const sectionLabel: React.CSSProperties = {
   marginTop: 14,
 }
 
-const sectionText: React.CSSProperties = {
+const sectionText: CSSProperties = {
   fontSize: 12,
   color: 'var(--text-primary)',
   lineHeight: 1.7,
   whiteSpace: 'pre-wrap',
 }
 
-const metaRow: React.CSSProperties = {
+const metaRow: CSSProperties = {
   display: 'flex',
   gap: 16,
   fontSize: 11,
@@ -148,7 +149,7 @@ const metaRow: React.CSSProperties = {
   marginTop: 10,
 }
 
-const loadingStyle: React.CSSProperties = {
+const loadingStyle: CSSProperties = {
   color: 'var(--text-secondary)',
   fontSize: 14,
   padding: '60px 0',

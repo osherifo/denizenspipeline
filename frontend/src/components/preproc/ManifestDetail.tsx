@@ -1,5 +1,6 @@
 /** Manifest detail panel — metadata, runs table with QC, validation. */
 import { useState, useEffect } from 'react'
+import type { CSSProperties } from 'react'
 import type { ManifestDetail as ManifestDetailType } from '../../api/types'
 import { usePreprocStore } from '../../stores/preproc-store'
 import { QcBadge } from './QcBadge'
@@ -8,20 +9,20 @@ interface Props {
   manifest: ManifestDetailType
 }
 
-const gridStyle: React.CSSProperties = {
+const gridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
   gap: 10,
   marginBottom: 20,
 }
 
-const fieldCard: React.CSSProperties = {
+const fieldCard: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '8px 12px',
 }
 
-const fieldLabel: React.CSSProperties = {
+const fieldLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -30,13 +31,13 @@ const fieldLabel: React.CSSProperties = {
   marginBottom: 2,
 }
 
-const fieldValue: React.CSSProperties = {
+const fieldValue: CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: 'var(--text-primary)',
 }
 
-const sectionLabel: React.CSSProperties = {
+const sectionLabel: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -46,13 +47,13 @@ const sectionLabel: React.CSSProperties = {
   marginBottom: 8,
 }
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
   fontSize: 12,
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: 'left',
   padding: '8px 10px',
   backgroundColor: 'var(--bg-secondary)',
@@ -64,13 +65,13 @@ const thStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '8px 10px',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',
 }
 
-const btnStyle: React.CSSProperties = {
+const btnStyle: CSSProperties = {
   padding: '6px 16px',
   fontSize: 11,
   fontWeight: 600,
@@ -82,7 +83,7 @@ const btnStyle: React.CSSProperties = {
   color: 'var(--text-secondary)',
 }
 
-const primaryBtn: React.CSSProperties = {
+const primaryBtn: CSSProperties = {
   ...btnStyle,
   backgroundColor: 'var(--accent-cyan)',
   color: '#000',

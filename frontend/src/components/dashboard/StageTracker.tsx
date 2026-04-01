@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 /** Vertical stage status tracker for live runs. */
 import type { StageStatus } from '../../api/types'
 
@@ -7,13 +8,13 @@ interface StageTrackerProps {
 
 const ALL_STAGES = ['stimuli', 'responses', 'features', 'preprocess', 'model', 'analyze', 'report']
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 2,
 }
 
-const stageRow: React.CSSProperties = {
+const stageRow: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: '100px 24px 1fr 70px',
   alignItems: 'center',
@@ -21,7 +22,7 @@ const stageRow: React.CSSProperties = {
   gap: 8,
 }
 
-const stageLabel: React.CSSProperties = {
+const stageLabel: CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   textAlign: 'right',

@@ -1,5 +1,6 @@
 /** Config summary + YAML viewer + action buttons. */
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { ConfigDetail as ConfigDetailType } from '../../api/types'
 
 interface ConfigDetailProps {
@@ -12,7 +13,7 @@ interface ConfigDetailProps {
   isRunning: boolean
 }
 
-const cardStyle: React.CSSProperties = {
+const cardStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
@@ -20,33 +21,33 @@ const cardStyle: React.CSSProperties = {
   marginBottom: 16,
 }
 
-const titleRow: React.CSSProperties = {
+const titleRow: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 16,
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 700,
   color: 'var(--accent-cyan)',
 }
 
-const gridStyle: React.CSSProperties = {
+const gridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
   gap: 10,
   marginBottom: 16,
 }
 
-const fieldCard: React.CSSProperties = {
+const fieldCard: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '10px 12px',
 }
 
-const fieldLabel: React.CSSProperties = {
+const fieldLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -55,13 +56,13 @@ const fieldLabel: React.CSSProperties = {
   marginBottom: 3,
 }
 
-const fieldValue: React.CSSProperties = {
+const fieldValue: CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: 'var(--text-primary)',
 }
 
-const yamlToggle: React.CSSProperties = {
+const yamlToggle: CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--text-secondary)',
@@ -72,7 +73,7 @@ const yamlToggle: React.CSSProperties = {
   marginBottom: 8,
 }
 
-const yamlPre: React.CSSProperties = {
+const yamlPre: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   padding: '12px 14px',
   borderRadius: 6,
@@ -85,13 +86,13 @@ const yamlPre: React.CSSProperties = {
   wordBreak: 'break-all',
 }
 
-const actionBar: React.CSSProperties = {
+const actionBar: CSSProperties = {
   display: 'flex',
   gap: 8,
   marginTop: 12,
 }
 
-const btnStyle = (variant: 'primary' | 'secondary' | 'default'): React.CSSProperties => ({
+const btnStyle = (variant: 'primary' | 'secondary' | 'default'): CSSProperties => ({
   padding: '8px 20px',
   fontSize: 12,
   fontWeight: 600,
@@ -107,7 +108,7 @@ const btnStyle = (variant: 'primary' | 'secondary' | 'default'): React.CSSProper
   letterSpacing: 0.5,
 })
 
-const validationStyle = (ok: boolean): React.CSSProperties => ({
+const validationStyle = (ok: boolean): CSSProperties => ({
   marginTop: 12,
   padding: '8px 12px',
   borderRadius: 6,

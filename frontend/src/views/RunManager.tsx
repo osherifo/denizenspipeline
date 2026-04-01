@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react'
+import type { CSSProperties } from 'react'
 import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
 import { artifactUrl } from '../api/client'
@@ -6,20 +7,20 @@ import type { RunSummary, ArtifactInfo } from '../api/types'
 
 // ── Styles ──
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 24,
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 700,
   color: 'var(--text-primary)',
 }
 
-const refreshBtn: React.CSSProperties = {
+const refreshBtn: CSSProperties = {
   padding: '8px 20px',
   fontSize: 12,
   fontWeight: 600,
@@ -31,20 +32,20 @@ const refreshBtn: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const tableContainerStyle: React.CSSProperties = {
+const tableContainerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
   overflow: 'hidden',
 }
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
   fontSize: 13,
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: 'left',
   padding: '12px 16px',
   backgroundColor: 'var(--bg-secondary)',
@@ -56,19 +57,19 @@ const thStyle: React.CSSProperties = {
   letterSpacing: 1,
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '10px 16px',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',
 }
 
-const rowStyle = (selected: boolean): React.CSSProperties => ({
+const rowStyle = (selected: boolean): CSSProperties => ({
   cursor: 'pointer',
   backgroundColor: selected ? 'rgba(0, 229, 255, 0.05)' : 'transparent',
   transition: 'background-color 0.1s ease',
 })
 
-const detailPanel: React.CSSProperties = {
+const detailPanel: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
@@ -76,20 +77,20 @@ const detailPanel: React.CSSProperties = {
   marginTop: 20,
 }
 
-const detailHeader: React.CSSProperties = {
+const detailHeader: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 20,
 }
 
-const detailTitle: React.CSSProperties = {
+const detailTitle: CSSProperties = {
   fontSize: 16,
   fontWeight: 700,
   color: 'var(--accent-cyan)',
 }
 
-const closeBtn: React.CSSProperties = {
+const closeBtn: CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--text-secondary)',
@@ -99,7 +100,7 @@ const closeBtn: React.CSSProperties = {
   padding: '4px 8px',
 }
 
-const sectionLabel: React.CSSProperties = {
+const sectionLabel: CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -109,20 +110,20 @@ const sectionLabel: React.CSSProperties = {
   marginBottom: 10,
 }
 
-const summaryGrid: React.CSSProperties = {
+const summaryGrid: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
   gap: 12,
   marginBottom: 20,
 }
 
-const summaryCard: React.CSSProperties = {
+const summaryCard: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '12px 14px',
 }
 
-const summaryLabel: React.CSSProperties = {
+const summaryLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -131,19 +132,19 @@ const summaryLabel: React.CSSProperties = {
   marginBottom: 4,
 }
 
-const summaryValue: React.CSSProperties = {
+const summaryValue: CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
   color: 'var(--text-primary)',
 }
 
-const artifactList: React.CSSProperties = {
+const artifactList: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 6,
 }
 
-const artifactRow: React.CSSProperties = {
+const artifactRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -153,21 +154,21 @@ const artifactRow: React.CSSProperties = {
   fontSize: 12,
 }
 
-const artifactLink: React.CSSProperties = {
+const artifactLink: CSSProperties = {
   color: 'var(--accent-cyan)',
   textDecoration: 'none',
   fontSize: 11,
   fontWeight: 600,
 }
 
-const loadingStyle: React.CSSProperties = {
+const loadingStyle: CSSProperties = {
   color: 'var(--text-secondary)',
   fontSize: 14,
   padding: '60px 0',
   textAlign: 'center',
 }
 
-const emptyStyle: React.CSSProperties = {
+const emptyStyle: CSSProperties = {
   color: 'var(--text-secondary)',
   fontSize: 13,
   padding: '40px 0',
@@ -175,7 +176,7 @@ const emptyStyle: React.CSSProperties = {
   fontStyle: 'italic',
 }
 
-const errorStyle: React.CSSProperties = {
+const errorStyle: CSSProperties = {
   color: 'var(--accent-red)',
   fontSize: 14,
   padding: '60px 0',
@@ -184,7 +185,7 @@ const errorStyle: React.CSSProperties = {
 
 // ── Helpers ──
 
-function statusBadge(status: string): React.CSSProperties {
+function statusBadge(status: string): CSSProperties {
   let bg: string
   let fg: string
   switch (status.toLowerCase()) {

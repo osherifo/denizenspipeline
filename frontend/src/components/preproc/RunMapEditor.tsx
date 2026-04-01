@@ -1,19 +1,20 @@
 /** Key-value editor for run_map (maps backend run names to pipeline run names). */
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 
 interface Props {
   value: Record<string, string>
   onChange: (value: Record<string, string>) => void
 }
 
-const rowStyle: React.CSSProperties = {
+const rowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
   marginBottom: 6,
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   padding: '6px 10px',
   fontSize: 12,
   fontFamily: 'inherit',
@@ -24,7 +25,7 @@ const inputStyle: React.CSSProperties = {
   width: 140,
 }
 
-const smallBtn: React.CSSProperties = {
+const smallBtn: CSSProperties = {
   padding: '4px 10px',
   fontSize: 10,
   fontWeight: 600,

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 /** DICOM-to-BIDS Converter — browse tools, heuristics, scan DICOMs, manifests, run conversion, batch. */
 import { useConvertStore } from '../stores/convert-store'
 import { ToolStatusPanel } from '../components/convert/ToolStatus'
@@ -19,13 +20,13 @@ const tabs: { key: Tab; label: string }[] = [
   { key: 'batch', label: 'Batch' },
 ]
 
-const tabBarStyle: React.CSSProperties = {
+const tabBarStyle: CSSProperties = {
   display: 'flex',
   gap: 4,
   marginBottom: 16,
 }
 
-function tabStyle(active: boolean): React.CSSProperties {
+function tabStyle(active: boolean): CSSProperties {
   return {
     padding: '8px 20px',
     fontSize: 12,
