@@ -1,5 +1,6 @@
 /** Live progress panel with stage tracker and event log. */
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { RunEvent, StageStatus, RunSummary, ArtifactInfo } from '../../api/types'
 import { StageTracker } from './StageTracker'
 import { StageTimeline } from '../runs/StageTimeline'
@@ -14,7 +15,7 @@ interface LiveProgressProps {
   onDismiss?: () => void
 }
 
-const panelStyle: React.CSSProperties = {
+const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--accent-cyan)',
   borderRadius: 8,
@@ -22,14 +23,14 @@ const panelStyle: React.CSSProperties = {
   marginBottom: 16,
 }
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 16,
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   color: 'var(--accent-cyan)',
@@ -38,13 +39,13 @@ const titleStyle: React.CSSProperties = {
   gap: 8,
 }
 
-const elapsedStyle: React.CSSProperties = {
+const elapsedStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: 'var(--text-primary)',
 }
 
-const sectionLabel: React.CSSProperties = {
+const sectionLabel: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -54,7 +55,7 @@ const sectionLabel: React.CSSProperties = {
   marginBottom: 8,
 }
 
-const eventLogStyle: React.CSSProperties = {
+const eventLogStyle: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '10px 12px',
@@ -65,7 +66,7 @@ const eventLogStyle: React.CSSProperties = {
   fontFamily: 'monospace',
 }
 
-const eventLine: React.CSSProperties = {
+const eventLine: CSSProperties = {
   color: 'var(--text-secondary)',
   whiteSpace: 'nowrap',
   overflow: 'hidden',
@@ -123,20 +124,20 @@ function ElapsedTimer({ startTime }: { startTime: number | null }) {
   )
 }
 
-const resultsGrid: React.CSSProperties = {
+const resultsGrid: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
   gap: 10,
   marginBottom: 16,
 }
 
-const resultCard: React.CSSProperties = {
+const resultCard: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '10px 12px',
 }
 
-const resultLabel: React.CSSProperties = {
+const resultLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -145,13 +146,13 @@ const resultLabel: React.CSSProperties = {
   marginBottom: 3,
 }
 
-const resultValue: React.CSSProperties = {
+const resultValue: CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
   color: 'var(--text-primary)',
 }
 
-const artifactRow: React.CSSProperties = {
+const artifactRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -162,7 +163,7 @@ const artifactRow: React.CSSProperties = {
   fontSize: 11,
 }
 
-const artifactLink: React.CSSProperties = {
+const artifactLink: CSSProperties = {
   color: 'var(--accent-cyan)',
   textDecoration: 'none',
   fontWeight: 600,

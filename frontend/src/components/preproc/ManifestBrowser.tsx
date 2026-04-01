@@ -1,9 +1,10 @@
 /** Tab 2: Left sidebar — manifest list + right panel — manifest details. */
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { usePreprocStore } from '../../stores/preproc-store'
 import { ManifestDetail } from './ManifestDetail'
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   display: 'flex',
   height: 'calc(100vh - 48px - 80px)',
   backgroundColor: 'var(--bg-card)',
@@ -12,7 +13,7 @@ const containerStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-const sidebarStyle: React.CSSProperties = {
+const sidebarStyle: CSSProperties = {
   width: 240,
   backgroundColor: 'var(--bg-secondary)',
   borderRight: '1px solid var(--border)',
@@ -21,7 +22,7 @@ const sidebarStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-const sidebarHeader: React.CSSProperties = {
+const sidebarHeader: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
@@ -29,7 +30,7 @@ const sidebarHeader: React.CSSProperties = {
   borderBottom: '1px solid var(--border)',
 }
 
-const sidebarTitle: React.CSSProperties = {
+const sidebarTitle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -37,12 +38,12 @@ const sidebarTitle: React.CSSProperties = {
   letterSpacing: 1,
 }
 
-const listStyle: React.CSSProperties = {
+const listStyle: CSSProperties = {
   flex: 1,
   overflowY: 'auto',
 }
 
-const itemStyle = (active: boolean): React.CSSProperties => ({
+const itemStyle = (active: boolean): CSSProperties => ({
   padding: '10px 16px',
   cursor: 'pointer',
   backgroundColor: active ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
@@ -50,13 +51,13 @@ const itemStyle = (active: boolean): React.CSSProperties => ({
   borderBottom: '1px solid var(--border)',
 })
 
-const mainPanel: React.CSSProperties = {
+const mainPanel: CSSProperties = {
   flex: 1,
   overflowY: 'auto',
   padding: '20px 24px',
 }
 
-const emptyState: React.CSSProperties = {
+const emptyState: CSSProperties = {
   flex: 1,
   display: 'flex',
   flexDirection: 'column',
@@ -68,7 +69,7 @@ const emptyState: React.CSSProperties = {
   height: '100%',
 }
 
-const rescanBtn: React.CSSProperties = {
+const rescanBtn: CSSProperties = {
   padding: '4px 10px',
   fontSize: 10,
   fontWeight: 600,

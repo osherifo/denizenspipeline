@@ -1,5 +1,6 @@
 /** Config browser sidebar with grouping and filters. */
 import { useState, useMemo } from 'react'
+import type { CSSProperties } from 'react'
 import type { ConfigSummary } from '../../api/types'
 
 interface ConfigBrowserProps {
@@ -10,7 +11,7 @@ interface ConfigBrowserProps {
   onRescan: () => void
 }
 
-const sidebarStyle: React.CSSProperties = {
+const sidebarStyle: CSSProperties = {
   width: 260,
   minWidth: 260,
   backgroundColor: 'var(--bg-secondary)',
@@ -20,7 +21,7 @@ const sidebarStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-const searchInput: React.CSSProperties = {
+const searchInput: CSSProperties = {
   margin: '12px',
   padding: '8px 12px',
   fontSize: 12,
@@ -32,7 +33,7 @@ const searchInput: React.CSSProperties = {
   outline: 'none',
 }
 
-const groupHeader: React.CSSProperties = {
+const groupHeader: CSSProperties = {
   padding: '8px 16px',
   fontSize: 11,
   fontWeight: 700,
@@ -46,7 +47,7 @@ const groupHeader: React.CSSProperties = {
   borderTop: '1px solid var(--border)',
 }
 
-const configItem = (active: boolean): React.CSSProperties => ({
+const configItem = (active: boolean): CSSProperties => ({
   padding: '8px 16px 8px 24px',
   fontSize: 12,
   cursor: 'pointer',
@@ -54,13 +55,13 @@ const configItem = (active: boolean): React.CSSProperties => ({
   borderLeft: active ? '3px solid var(--accent-cyan)' : '3px solid transparent',
 })
 
-const configName: React.CSSProperties = {
+const configName: CSSProperties = {
   fontWeight: 600,
   color: 'var(--text-primary)',
   marginBottom: 2,
 }
 
-const configMeta: React.CSSProperties = {
+const configMeta: CSSProperties = {
   fontSize: 10,
   color: 'var(--text-secondary)',
   display: 'flex',
@@ -68,7 +69,7 @@ const configMeta: React.CSSProperties = {
   alignItems: 'center',
 }
 
-const runBadge = (n: number): React.CSSProperties => ({
+const runBadge = (n: number): CSSProperties => ({
   fontSize: 10,
   padding: '1px 5px',
   borderRadius: 3,
@@ -76,7 +77,7 @@ const runBadge = (n: number): React.CSSProperties => ({
   color: n > 0 ? 'var(--accent-green)' : 'var(--text-secondary)',
 })
 
-const rescanBtn: React.CSSProperties = {
+const rescanBtn: CSSProperties = {
   margin: '8px 12px 12px',
   padding: '6px',
   fontSize: 11,

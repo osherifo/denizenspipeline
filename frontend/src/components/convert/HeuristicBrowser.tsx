@@ -1,29 +1,30 @@
 /** Tab 2: Heuristic browser — list available heuristic files with details. */
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 import type { HeuristicInfo } from '../../api/types'
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '20px 24px',
 }
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 16,
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   color: 'var(--text-primary)',
 }
 
-const btnStyle: React.CSSProperties = {
+const btnStyle: CSSProperties = {
   padding: '6px 16px',
   fontSize: 11,
   fontWeight: 600,
@@ -35,13 +36,13 @@ const btnStyle: React.CSSProperties = {
   color: 'var(--text-secondary)',
 }
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
   fontSize: 12,
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: 'left',
   padding: '8px 10px',
   backgroundColor: 'var(--bg-secondary)',
@@ -53,13 +54,13 @@ const thStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '8px 10px',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',
 }
 
-const tagStyle: React.CSSProperties = {
+const tagStyle: CSSProperties = {
   display: 'inline-block',
   padding: '2px 6px',
   borderRadius: 3,
@@ -71,14 +72,14 @@ const tagStyle: React.CSSProperties = {
   marginBottom: 2,
 }
 
-const detailPanel: React.CSSProperties = {
+const detailPanel: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '16px 20px',
   marginTop: 16,
 }
 
-const fieldLabel: React.CSSProperties = {
+const fieldLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -87,7 +88,7 @@ const fieldLabel: React.CSSProperties = {
   marginBottom: 2,
 }
 
-const fieldValue: React.CSSProperties = {
+const fieldValue: CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: 'var(--text-primary)',

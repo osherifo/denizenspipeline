@@ -1,5 +1,6 @@
 /** Live preprocessing progress — log stream + timer + completion summary. */
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { PreprocEvent } from '../../api/types'
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
   onDismiss?: () => void
 }
 
-const panelStyle = (status: 'running' | 'done' | 'failed'): React.CSSProperties => ({
+const panelStyle = (status: 'running' | 'done' | 'failed'): CSSProperties => ({
   backgroundColor: 'var(--bg-card)',
   border: `1px solid ${
     status === 'done' ? 'var(--accent-green)' :
@@ -22,14 +23,14 @@ const panelStyle = (status: 'running' | 'done' | 'failed'): React.CSSProperties 
   marginTop: 16,
 })
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 12,
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   display: 'flex',
@@ -37,7 +38,7 @@ const titleStyle: React.CSSProperties = {
   gap: 8,
 }
 
-const logStyle: React.CSSProperties = {
+const logStyle: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '10px 12px',
@@ -55,7 +56,7 @@ const pulseKeyframes = `
 }
 `
 
-const dismissBtn: React.CSSProperties = {
+const dismissBtn: CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--text-secondary)',

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { ParamSchema, ParamField } from '../../api/types'
 
 interface ParamFormProps {
@@ -8,11 +9,11 @@ interface ParamFormProps {
   suggestions?: Record<string, string[]>
 }
 
-const formGroupStyle: React.CSSProperties = {
+const formGroupStyle: CSSProperties = {
   marginBottom: 12,
 }
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: 'block',
   fontSize: 11,
   fontWeight: 600,
@@ -22,7 +23,7 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   fontSize: 13,
@@ -33,31 +34,31 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-const pathInputStyle: React.CSSProperties = {
+const pathInputStyle: CSSProperties = {
   ...inputStyle,
   fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
   fontSize: 12,
 }
 
-const selectStyle: React.CSSProperties = {
+const selectStyle: CSSProperties = {
   ...inputStyle,
   cursor: 'pointer',
 }
 
-const checkboxWrapperStyle: React.CSSProperties = {
+const checkboxWrapperStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
 }
 
-const checkboxStyle: React.CSSProperties = {
+const checkboxStyle: CSSProperties = {
   width: 16,
   height: 16,
   cursor: 'pointer',
   accentColor: 'var(--accent-cyan)',
 }
 
-const textareaStyle: React.CSSProperties = {
+const textareaStyle: CSSProperties = {
   ...inputStyle,
   minHeight: 80,
   resize: 'vertical',
@@ -65,14 +66,14 @@ const textareaStyle: React.CSSProperties = {
   fontSize: 12,
 }
 
-const descStyle: React.CSSProperties = {
+const descStyle: CSSProperties = {
   fontSize: 10,
   color: 'var(--text-secondary)',
   marginTop: 2,
   fontStyle: 'italic',
 }
 
-const rangeHint: React.CSSProperties = {
+const rangeHint: CSSProperties = {
   fontSize: 10,
   color: 'var(--text-secondary)',
   marginTop: 2,

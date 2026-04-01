@@ -1,25 +1,26 @@
 /** Plugin Editor view — write, validate, and register plugins in the browser. */
 import { useEffect, useCallback, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import { useEditorStore } from '../stores/editor-store'
 import { CodeEditor } from '../components/editor/CodeEditor'
 import { PluginSidebar } from '../components/editor/PluginSidebar'
 import { StatusPanel } from '../components/editor/StatusPanel'
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   display: 'flex',
   height: 'calc(100vh - 48px)',
   margin: '0 -32px',
   backgroundColor: 'var(--bg-primary)',
 }
 
-const mainStyle: React.CSSProperties = {
+const mainStyle: CSSProperties = {
   flex: 1,
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
 }
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 12,
@@ -29,7 +30,7 @@ const headerStyle: React.CSSProperties = {
   fontSize: 13,
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   padding: '4px 8px',
   fontSize: 13,
   backgroundColor: 'var(--bg-input)',
@@ -39,12 +40,12 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'inherit',
 }
 
-const editorWrapper: React.CSSProperties = {
+const editorWrapper: CSSProperties = {
   flex: 1,
   overflow: 'hidden',
 }
 
-const emptyState: React.CSSProperties = {
+const emptyState: CSSProperties = {
   flex: 1,
   display: 'flex',
   flexDirection: 'column',

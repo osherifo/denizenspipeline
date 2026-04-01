@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { NavBar } from './components/layout/NavBar'
 import { PluginBrowser } from './views/PluginBrowser'
 import { PipelineComposer } from './views/PipelineComposer'
@@ -24,7 +25,7 @@ function getRoute(): Route {
   return 'dashboard'
 }
 
-const rootStyle: React.CSSProperties = {
+const rootStyle: CSSProperties = {
   display: 'flex',
   minHeight: '100vh',
   margin: 0,
@@ -84,7 +85,7 @@ input, select, textarea, button {
 }
 `
 
-const contentStyle: React.CSSProperties = {
+const contentStyle: CSSProperties = {
   flex: 1,
   padding: '24px 32px',
   maxWidth: 1400,

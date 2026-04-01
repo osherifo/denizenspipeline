@@ -1,26 +1,27 @@
 import { useState, useMemo } from 'react'
+import type { CSSProperties } from 'react'
 import { usePluginStore } from '../stores/plugin-store'
 import { PluginCard } from '../components/plugins/PluginCard'
 import type { PluginInfo } from '../api/types'
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 700,
   color: 'var(--text-primary)',
   marginBottom: 8,
 }
 
-const subtitleStyle: React.CSSProperties = {
+const subtitleStyle: CSSProperties = {
   fontSize: 13,
   color: 'var(--text-secondary)',
   marginBottom: 24,
 }
 
-const searchWrapperStyle: React.CSSProperties = {
+const searchWrapperStyle: CSSProperties = {
   marginBottom: 24,
 }
 
-const searchInputStyle: React.CSSProperties = {
+const searchInputStyle: CSSProperties = {
   width: '100%',
   maxWidth: 480,
   padding: '10px 16px',
@@ -32,18 +33,18 @@ const searchInputStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-const gridStyle: React.CSSProperties = {
+const gridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
   gap: 24,
   alignItems: 'start',
 }
 
-const stageColumnStyle: React.CSSProperties = {
+const stageColumnStyle: CSSProperties = {
   minWidth: 0,
 }
 
-const stageTitleStyle = (color?: string): React.CSSProperties => ({
+const stageTitleStyle = (color?: string): CSSProperties => ({
   fontSize: 14,
   fontWeight: 700,
   color: color || 'var(--accent-cyan)',
@@ -52,13 +53,13 @@ const stageTitleStyle = (color?: string): React.CSSProperties => ({
   letterSpacing: 1.5,
 })
 
-const stageDescStyle: React.CSSProperties = {
+const stageDescStyle: CSSProperties = {
   fontSize: 11,
   color: 'var(--text-secondary)',
   marginBottom: 12,
 }
 
-const countBadge: React.CSSProperties = {
+const countBadge: CSSProperties = {
   display: 'inline-block',
   fontSize: 10,
   fontWeight: 600,
@@ -69,14 +70,14 @@ const countBadge: React.CSSProperties = {
   marginLeft: 8,
 }
 
-const loadingStyle: React.CSSProperties = {
+const loadingStyle: CSSProperties = {
   color: 'var(--text-secondary)',
   fontSize: 14,
   padding: '60px 0',
   textAlign: 'center',
 }
 
-const errorStyle: React.CSSProperties = {
+const errorStyle: CSSProperties = {
   color: 'var(--accent-red)',
   fontSize: 14,
   padding: '60px 0',
