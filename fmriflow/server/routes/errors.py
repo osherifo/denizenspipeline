@@ -1,4 +1,4 @@
-"""Error knowledge base endpoints — serves docs/errors/*.yaml entries."""
+"""Error knowledge base endpoints — serves devdocs/errors/*.yaml entries."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ router = APIRouter(tags=["errors"])
 logger = logging.getLogger(__name__)
 
 # Locate the errors directory relative to the repo root
-_ERRORS_DIR = Path(__file__).resolve().parents[3] / "docs" / "errors"
+_ERRORS_DIR = Path(__file__).resolve().parents[3] / "devdocs" / "errors"
 
 # Simple cache
 _cache: list[dict] | None = None

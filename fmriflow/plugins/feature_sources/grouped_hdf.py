@@ -20,8 +20,8 @@ Config example (single feature)::
           trn: /data/features/features_trn_NEW.hdf
           val: /data/features/features_val_NEW.hdf
         run_map:
-          story_01: story02
-          story_02: story11
+          story_01: run_name_01
+          story_02: run_name_02
 
 To load many features from the same files without repeating yourself,
 use YAML anchors::
@@ -32,8 +32,8 @@ use YAML anchors::
         trn: /data/features/features_trn_NEW.hdf
         val: /data/features/features_val_NEW.hdf
       run_map:
-        story_01: story02
-        story_02: story11
+        story_01: run_name_01
+        story_02: run_name_02
 
     features:
       - name: numwords
