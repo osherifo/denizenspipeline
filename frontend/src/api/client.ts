@@ -1,4 +1,4 @@
-/** Typed API client for the Denizens Pipeline backend. */
+/** Typed API client for the fMRIflow backend. */
 
 import type {
   PluginMetadata,

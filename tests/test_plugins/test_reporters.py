@@ -5,8 +5,8 @@ import json
 import numpy as np
 import pytest
 
-from denizenspipeline.core.types import ModelResult
-from denizenspipeline.plugins.reporters.metrics import MetricsReporter
+from fmriflow.core.types import ModelResult
+from fmriflow.plugins.reporters.metrics import MetricsReporter
 
 
 @pytest.fixture

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to DenizensPipeline are documented in this file.
+All notable changes to fMRIflow are documented in this file.
 
 ---
 
@@ -106,7 +106,7 @@ All notable changes to DenizensPipeline are documented in this file.
   - `weight_analysis` — decomposes delayed weights into per-feature importance and temporal profiles
 - Analyzer resolution, validation, and execution in `orchestrator.py`
 - Schema validation for optional `analysis` config section
-- `denizens list analyze` shows available analyzers
+- `fmriflow list analyze` shows available analyzers
 - 3 example configs: `analysis_weights.yaml`, `analysis_variance.yaml`, `analysis_full.yaml`
 
 **Design:**
@@ -121,13 +121,13 @@ All notable changes to DenizensPipeline are documented in this file.
 
 ---
 
-### 2026-03-04 — `denizens list` CLI command
+### 2026-03-04 — `fmriflow list` CLI command
 **Author:** Omar Sherif
 
 **Added:**
-- `denizens list` — lists all pipeline stages with descriptions
-- `denizens list plugins` — lists all registered plugins across every category
-- `denizens list <stage>` — lists plugins available for a specific stage (e.g. `denizens list preprocess`, `denizens list features`)
+- `fmriflow list` — lists all pipeline stages with descriptions
+- `fmriflow list plugins` — lists all registered plugins across every category
+- `fmriflow list <stage>` — lists plugins available for a specific stage (e.g. `fmriflow list preprocess`, `fmriflow list features`)
 - `stages_table()` UI helper in `ui.py`
 - `plugins_table()` now accepts a custom title and includes response_readers and preprocessing_steps categories
 
@@ -201,6 +201,6 @@ All notable changes to DenizensPipeline are documented in this file.
 
 - Plugin-based pipeline with 6 sequential stages
 - YAML-driven configuration with inheritance and env var substitution
-- CLI entry point (`denizens run/validate/plugins`)
+- CLI entry point (`fmriflow run/validate/plugins`)
 - Bootstrap ridge regression preserved from v1
 - Config checkpointing and resume support

@@ -3,12 +3,12 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.datasequence import (
+from fmriflow.core.datasequence import (
     DataSequence,
     make_phoneme_ds,
     make_word_ds,
 )
-from denizenspipeline.tests.conftest import MockTextGrid, MockTRFile
+from tests.conftest import MockTextGrid, MockTRFile
 
 
 class TestDataSequenceChunks:

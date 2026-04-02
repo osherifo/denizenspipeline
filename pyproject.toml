@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "denizenspipeline"
+name = "fmriflow"
 version = "2.0.0a1"
-description = "Denizens Pipeline — Plugin-based neuroscience encoding model pipeline"
+description = "fMRIflow — Plugin-based neuroscience encoding model pipeline"
 requires-python = ">=3.10"
 license = "MIT"
 
@@ -26,60 +26,60 @@ audio = ["librosa>=0.10", "soundfile>=0.12"]
 video = ["opencv-python>=4.7"]
 bids = ["nibabel>=5.0"]
 frontend = ["fastapi>=0.109", "uvicorn>=0.27", "websockets>=12.0"]
-all = ["denizenspipeline[cloud,viz,ml,nlp,himalaya,audio,video,bids,frontend]"]
-dev = ["denizenspipeline[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
+all = ["fmriflow[cloud,viz,ml,nlp,himalaya,audio,video,bids,frontend]"]
+dev = ["fmriflow[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
 
 [project.scripts]
-denizens = "denizenspipeline.cli:main"
+fmriflow = "fmriflow.cli:main"
 
 # Built-in plugins registered via entry points
-[project.entry-points."denizenspipeline.stimulus_loaders"]
-textgrid = "denizenspipeline.plugins.stimulus_loaders.textgrid:TextGridStimulusLoader"
-audio = "denizenspipeline.plugins.stimulus_loaders.audio:AudioStimulusLoader"
-video = "denizenspipeline.plugins.stimulus_loaders.video:VideoStimulusLoader"
+[project.entry-points."fmriflow.stimulus_loaders"]
+textgrid = "fmriflow.plugins.stimulus_loaders.textgrid:TextGridStimulusLoader"
+audio = "fmriflow.plugins.stimulus_loaders.audio:AudioStimulusLoader"
+video = "fmriflow.plugins.stimulus_loaders.video:VideoStimulusLoader"
 
-[project.entry-points."denizenspipeline.response_loaders"]
-bids = "denizenspipeline.plugins.response_loaders.bids:BidsResponseLoader"
-cloud = "denizenspipeline.plugins.response_loaders.cloud:CloudResponseLoader"
-local = "denizenspipeline.plugins.response_loaders.local:LocalResponseLoader"
+[project.entry-points."fmriflow.response_loaders"]
+bids = "fmriflow.plugins.response_loaders.bids:BidsResponseLoader"
+cloud = "fmriflow.plugins.response_loaders.cloud:CloudResponseLoader"
+local = "fmriflow.plugins.response_loaders.local:LocalResponseLoader"
 
-[project.entry-points."denizenspipeline.feature_extractors"]
-numwords = "denizenspipeline.plugins.feature_extractors.basic:NumWordsExtractor"
-numletters = "denizenspipeline.plugins.feature_extractors.basic:NumLettersExtractor"
-numphonemes = "denizenspipeline.plugins.feature_extractors.basic:NumPhonemesExtractor"
-word_length_std = "denizenspipeline.plugins.feature_extractors.basic:WordLengthStdExtractor"
-english1000 = "denizenspipeline.plugins.feature_extractors.histograms:English1000Extractor"
-letters = "denizenspipeline.plugins.feature_extractors.histograms:LetterHistogramExtractor"
-phonemes = "denizenspipeline.plugins.feature_extractors.histograms:PhonemeHistogramExtractor"
-word2vec = "denizenspipeline.plugins.feature_extractors.embeddings:Word2VecExtractor"
-bert = "denizenspipeline.plugins.feature_extractors.embeddings:BERTExtractor"
-fasttext = "denizenspipeline.plugins.feature_extractors.embeddings:FastTextExtractor"
-mel_spectrogram = "denizenspipeline.plugins.feature_extractors.audio:MelSpectrogramExtractor"
-rms_energy = "denizenspipeline.plugins.feature_extractors.audio:RMSEnergyExtractor"
-luminance = "denizenspipeline.plugins.feature_extractors.visual:LuminanceExtractor"
-motion_energy = "denizenspipeline.plugins.feature_extractors.visual:MotionEnergyExtractor"
+[project.entry-points."fmriflow.feature_extractors"]
+numwords = "fmriflow.plugins.feature_extractors.basic:NumWordsExtractor"
+numletters = "fmriflow.plugins.feature_extractors.basic:NumLettersExtractor"
+numphonemes = "fmriflow.plugins.feature_extractors.basic:NumPhonemesExtractor"
+word_length_std = "fmriflow.plugins.feature_extractors.basic:WordLengthStdExtractor"
+english1000 = "fmriflow.plugins.feature_extractors.histograms:English1000Extractor"
+letters = "fmriflow.plugins.feature_extractors.histograms:LetterHistogramExtractor"
+phonemes = "fmriflow.plugins.feature_extractors.histograms:PhonemeHistogramExtractor"
+word2vec = "fmriflow.plugins.feature_extractors.embeddings:Word2VecExtractor"
+bert = "fmriflow.plugins.feature_extractors.embeddings:BERTExtractor"
+fasttext = "fmriflow.plugins.feature_extractors.embeddings:FastTextExtractor"
+mel_spectrogram = "fmriflow.plugins.feature_extractors.audio:MelSpectrogramExtractor"
+rms_energy = "fmriflow.plugins.feature_extractors.audio:RMSEnergyExtractor"
+luminance = "fmriflow.plugins.feature_extractors.visual:LuminanceExtractor"
+motion_energy = "fmriflow.plugins.feature_extractors.visual:MotionEnergyExtractor"
 
-[project.entry-points."denizenspipeline.feature_sources"]
-compute = "denizenspipeline.plugins.feature_sources.compute:ComputeSource"
-filesystem = "denizenspipeline.plugins.feature_sources.filesystem:FilesystemSource"
-cloud = "denizenspipeline.plugins.feature_sources.cloud:CloudSource"
+[project.entry-points."fmriflow.feature_sources"]
+compute = "fmriflow.plugins.feature_sources.compute:ComputeSource"
+filesystem = "fmriflow.plugins.feature_sources.filesystem:FilesystemSource"
+cloud = "fmriflow.plugins.feature_sources.cloud:CloudSource"
 
-[project.entry-points."denizenspipeline.preprocessors"]
-default = "denizenspipeline.plugins.preprocessors.default:DefaultPreprocessor"
-pre_prepared = "denizenspipeline.plugins.preprocessors.pre_prepared:PreparedDataLoader"
+[project.entry-points."fmriflow.preprocessors"]
+default = "fmriflow.plugins.preprocessors.default:DefaultPreprocessor"
+pre_prepared = "fmriflow.plugins.preprocessors.pre_prepared:PreparedDataLoader"
 
-[project.entry-points."denizenspipeline.models"]
-bootstrap_ridge = "denizenspipeline.plugins.models.ridge:BootstrapRidgeModel"
-himalaya_ridge = "denizenspipeline.plugins.models.himalaya:HimalayaRidgeModel"
-banded_ridge = "denizenspipeline.plugins.models.himalaya:BandedRidgeModel"
-multiple_kernel_ridge = "denizenspipeline.plugins.models.himalaya:MultipleKernelRidgeModel"
+[project.entry-points."fmriflow.models"]
+bootstrap_ridge = "fmriflow.plugins.models.ridge:BootstrapRidgeModel"
+himalaya_ridge = "fmriflow.plugins.models.himalaya:HimalayaRidgeModel"
+banded_ridge = "fmriflow.plugins.models.himalaya:BandedRidgeModel"
+multiple_kernel_ridge = "fmriflow.plugins.models.himalaya:MultipleKernelRidgeModel"
 
-[project.entry-points."denizenspipeline.reporters"]
-metrics = "denizenspipeline.plugins.reporters.metrics:MetricsReporter"
-flatmap = "denizenspipeline.plugins.reporters.flatmap:FlatmapReporter"
-weights = "denizenspipeline.plugins.reporters.weights:WeightsReporter"
-histogram = "denizenspipeline.plugins.reporters.histogram:HistogramReporter"
-webgl = "denizenspipeline.plugins.reporters.webgl:WebGLReporter"
+[project.entry-points."fmriflow.reporters"]
+metrics = "fmriflow.plugins.reporters.metrics:MetricsReporter"
+flatmap = "fmriflow.plugins.reporters.flatmap:FlatmapReporter"
+weights = "fmriflow.plugins.reporters.weights:WeightsReporter"
+histogram = "fmriflow.plugins.reporters.histogram:HistogramReporter"
+webgl = "fmriflow.plugins.reporters.webgl:WebGLReporter"
 
 [tool.hatch.build.targets.wheel]
-packages = ["denizenspipeline"]
+packages = ["fmriflow"]

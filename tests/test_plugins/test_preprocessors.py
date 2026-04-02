@@ -3,14 +3,14 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.types import (
+from fmriflow.core.types import (
     FeatureData,
     FeatureSet,
     PreparedData,
     ResponseData,
 )
-from denizenspipeline.plugins.preprocessors.default import DefaultPreprocessor
-from denizenspipeline.tests.conftest import N_FEATURES, N_TRS, N_VOXELS, RUN_NAMES
+from fmriflow.plugins.preprocessors.default import DefaultPreprocessor
+from tests.conftest import N_FEATURES, N_TRS, N_VOXELS, RUN_NAMES
 
 
 @pytest.fixture

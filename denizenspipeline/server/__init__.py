@@ -1,1 +1,0 @@
-"""Denizens Pipeline frontend server."""

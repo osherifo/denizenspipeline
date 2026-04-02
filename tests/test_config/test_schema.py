@@ -2,7 +2,7 @@
 
 import pytest
 
-from denizenspipeline.config.schema import validate_config
+from fmriflow.config.schema import validate_config
 
 
 class TestValidateConfig:

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.ridge import _columnwise_corr, bootstrap_ridge
+from fmriflow.core.ridge import _columnwise_corr, bootstrap_ridge
 
 
 class TestBootstrapRidge:

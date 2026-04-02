@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.array_utils import (
+from fmriflow.core.array_utils import (
     make_delayed,
     mean_center,
     undelay_weights,
