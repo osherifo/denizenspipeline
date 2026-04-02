@@ -14,6 +14,16 @@ Format follows [Conventional Changelog](https://www.conventionalcommits.org/).
 - **fe:** add sidebar navigation with category grouping — moved from top tabs to side nav with Preprocessing/Analysis/Reference categories
 - **fe:** add save/load/delete UI for conversion configs in BatchForm
 
+---
+
+## v2.0.0-alpha.2 (2026-04-02)
+
+### Bug Fixes
+- **fe:** add missing plugins route to hash router — Plugins tab was falling through to dashboard
+
+### Other Changes
+- **chore:** add MIT license file
+
 ### Bug Fixes
 - **server:** close FileHandler on run completion to prevent leak
 - **fe:** replace React namespace types with direct imports across all TSX files
