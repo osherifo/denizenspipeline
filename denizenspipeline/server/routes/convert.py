@@ -71,6 +71,24 @@ class BatchParseYamlBody(BaseModel):
     yaml_text: str
 
 
+class SaveConfigBody(BaseModel):
+    name: str
+    config: dict
+    description: str = ""
+
+
+class SaveRunConfigBody(BaseModel):
+    name: str = ""
+    description: str = ""
+    params: dict
+
+
+class SaveBatchConfigBody(BaseModel):
+    name: str = ""
+    description: str = ""
+    params: dict
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/convert/heuristics")
@@ -262,3 +280,64 @@ async def parse_batch_yaml(request: Request, body: BatchParseYamlBody):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Saved configs ─────────────────────────────────────────────────────────
+
+@router.get("/convert/configs")
+async def list_saved_configs(request: Request):
+    """List saved conversion configs."""
+    store = request.app.state.convert_config_store
+    return {"configs": store.list_configs()}
+
+
+@router.get("/convert/configs/{filename}")
+async def get_saved_config(request: Request, filename: str):
+    """Get a saved conversion config."""
+    store = request.app.state.convert_config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Config '{filename}' not found")
+    return result
+
+
+@router.post("/convert/configs/save")
+async def save_config(request: Request, body: SaveConfigBody):
+    """Save a conversion config (raw dict)."""
+    store = request.app.state.convert_config_store
+    try:
+        summary = store.save_config(body.name, body.config, body.description)
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/convert/configs/save-run")
+async def save_run_config(request: Request, body: SaveRunConfigBody):
+    """Save a single-run conversion config from run params."""
+    store = request.app.state.convert_config_store
+    try:
+        summary = store.save_from_run_params(body.params, body.name, body.description)
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/convert/configs/save-batch")
+async def save_batch_config(request: Request, body: SaveBatchConfigBody):
+    """Save a batch conversion config from batch params."""
+    store = request.app.state.convert_config_store
+    try:
+        summary = store.save_from_batch_params(body.params, body.name, body.description)
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/convert/configs/{filename}")
+async def delete_saved_config(request: Request, filename: str):
+    """Delete a saved conversion config."""
+    store = request.app.state.convert_config_store
+    if not store.delete_config(filename):
+        raise HTTPException(status_code=404, detail=f"Config '{filename}' not found")
+    return {"deleted": True, "filename": filename}
