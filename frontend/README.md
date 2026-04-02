@@ -1,4 +1,4 @@
-# Denizens Pipeline Frontend
+# fMRIflow Frontend
 
 Web-based UI for browsing plugins, composing pipeline configs, managing runs, and writing custom plugins.
 
@@ -6,7 +6,7 @@ Web-based UI for browsing plugins, composing pipeline configs, managing runs, an
 
 ### 1. Install backend dependencies
 
-These are needed in whichever conda/pip environment you use to run `denizens`:
+These are needed in whichever conda/pip environment you use to run `fmriflow`:
 
 ```bash
 pip install fastapi "uvicorn[standard]" websockets
@@ -37,8 +37,8 @@ Open two terminals:
 
 **Terminal 1 — API server:**
 ```bash
-conda activate dv2   # or whichever env has denizenspipeline installed
-denizens serve --port 8421
+conda activate dv2   # or whichever env has fmriflow installed
+fmriflow serve --port 8421
 ```
 
 **Terminal 2 — Frontend dev server (with hot reload):**
@@ -55,23 +55,23 @@ Build the frontend into static files, then serve everything from the backend:
 
 ```bash
 cd frontend
-npm run build        # outputs to ../denizenspipeline/server/static/
+npm run build        # outputs to ../fmriflow/server/static/
 cd ..
-denizens serve       # serves API + frontend on http://127.0.0.1:8421
+fmriflow serve       # serves API + frontend on http://127.0.0.1:8421
 ```
 
 ## CLI Commands
 
 ```bash
-denizens serve                            # Start server (default port 8421)
-denizens serve --port 9000                # Custom port
-denizens serve --host 0.0.0.0             # Expose on network
-denizens serve --results-dir ./results    # Where to find run summaries
-denizens serve --configs-dir ./experiments  # Where to find experiment YAMLs
-denizens serve --plugins-dir ~/.denizens/plugins  # User plugins directory
-denizens serve --no-open                  # Don't auto-open browser
+fmriflow serve                            # Start server (default port 8421)
+fmriflow serve --port 9000                # Custom port
+fmriflow serve --host 0.0.0.0             # Expose on network
+fmriflow serve --results-dir ./results    # Where to find run summaries
+fmriflow serve --configs-dir ./experiments  # Where to find experiment YAMLs
+fmriflow serve --plugins-dir ~/.fmriflow/plugins  # User plugins directory
+fmriflow serve --no-open                  # Don't auto-open browser
 
-denizens compose experiment.yaml          # Open a config in the composer
+fmriflow compose experiment.yaml          # Open a config in the composer
 ```
 
 ## Views
@@ -103,4 +103,4 @@ pip install fastapi "uvicorn[standard]" websockets
 nvm install 22
 ```
 
-**"No configs found" in Dashboard** — Make sure you pass `--configs-dir` pointing to where your YAML files live, or run `denizens serve` from the project root (defaults to `./experiments`).
+**"No configs found" in Dashboard** — Make sure you pass `--configs-dir` pointing to where your YAML files live, or run `fmriflow serve` from the project root (defaults to `./experiments`).

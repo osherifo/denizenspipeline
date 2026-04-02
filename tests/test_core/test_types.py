@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.types import (
+from fmriflow.core.types import (
     FeatureData,
     FeatureExtractor,
     FeatureSet,

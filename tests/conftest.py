@@ -1,9 +1,9 @@
-"""Shared fixtures for denizenspipeline test suite."""
+"""Shared fixtures for fmriflow test suite."""
 
 import numpy as np
 import pytest
 
-from denizenspipeline.core.types import (
+from fmriflow.core.types import (
     FeatureData,
     FeatureSet,
     LanguageStim,

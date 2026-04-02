@@ -2,8 +2,8 @@
 
 import pytest
 
-from denizenspipeline.exceptions import PluginNotFoundError
-from denizenspipeline.registry import PluginRegistry
+from fmriflow.exceptions import PluginNotFoundError
+from fmriflow.registry import PluginRegistry
 
 
 class TestPluginRegistryDiscover:
