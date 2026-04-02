@@ -121,7 +121,7 @@ interface ConvertState {
   savedConfigs: SavedConvertConfig[]
   savedConfigsLoading: boolean
   loadSavedConfigs: () => Promise<void>
-  saveCurrentRunConfig: (name: string, description?: string) => Promise<void>
+  saveCurrentRunConfig: (name: string, description?: string, params?: Record<string, unknown>) => Promise<void>
   saveCurrentBatchConfig: (name: string, description?: string) => Promise<void>
   loadSavedConfig: (filename: string) => Promise<void>
   deleteSavedConfig: (filename: string) => Promise<void>
@@ -460,7 +460,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     }
   },
 
-  saveCurrentRunConfig: async (name, description, params) => {
+  saveCurrentRunConfig: async (name: string, description?: string, params?: Record<string, unknown>) => {
     // This is called from ConvertForm with the current form values.
     // The caller passes the params directly; avoid saving an empty config.
     if (!params) {
