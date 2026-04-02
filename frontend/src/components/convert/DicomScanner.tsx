@@ -1,29 +1,30 @@
 /** Tab 3: DICOM Scanner — input source dir path, scan for DICOM series info. */
 import { useState } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '20px 24px',
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   color: 'var(--text-primary)',
   marginBottom: 16,
 }
 
-const fieldRow: React.CSSProperties = {
+const fieldRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   marginBottom: 12,
   gap: 12,
 }
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -32,7 +33,7 @@ const labelStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   padding: '8px 12px',
   fontSize: 12,
   fontFamily: 'inherit',
@@ -44,7 +45,7 @@ const inputStyle: React.CSSProperties = {
   maxWidth: 500,
 }
 
-const primaryBtn: React.CSSProperties = {
+const primaryBtn: CSSProperties = {
   padding: '8px 24px',
   fontSize: 12,
   fontWeight: 600,
@@ -56,7 +57,7 @@ const primaryBtn: React.CSSProperties = {
   color: '#000',
 }
 
-const secondaryBtn: React.CSSProperties = {
+const secondaryBtn: CSSProperties = {
   padding: '8px 24px',
   fontSize: 12,
   fontWeight: 600,
@@ -68,7 +69,7 @@ const secondaryBtn: React.CSSProperties = {
   color: 'var(--text-secondary)',
 }
 
-const sectionLabel: React.CSSProperties = {
+const sectionLabel: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -80,20 +81,20 @@ const sectionLabel: React.CSSProperties = {
   paddingTop: 16,
 }
 
-const gridStyle: React.CSSProperties = {
+const gridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
   gap: 10,
   marginBottom: 20,
 }
 
-const fieldCard: React.CSSProperties = {
+const fieldCard: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '8px 12px',
 }
 
-const fieldCardLabel: React.CSSProperties = {
+const fieldCardLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -102,19 +103,19 @@ const fieldCardLabel: React.CSSProperties = {
   marginBottom: 2,
 }
 
-const fieldCardValue: React.CSSProperties = {
+const fieldCardValue: CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: 'var(--text-primary)',
 }
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
   fontSize: 12,
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: 'left',
   padding: '8px 10px',
   backgroundColor: 'var(--bg-secondary)',
@@ -126,7 +127,7 @@ const thStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '8px 10px',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',
@@ -142,7 +143,7 @@ export function DicomScanner() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && sourceDir.trim() && !scanning) {
       handleScan()
     }

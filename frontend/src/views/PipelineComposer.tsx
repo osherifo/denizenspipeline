@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import { usePluginStore } from '../stores/plugin-store'
 import { useConfigStore } from '../stores/config-store'
 import { ParamForm } from '../components/composer/ParamForm'
@@ -26,21 +27,21 @@ function suggestionsForPrefix(fieldValues: FieldValues, prefix: string): Record<
 
 // ── Styles ──
 
-const composerLayout: React.CSSProperties = {
+const composerLayout: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: '1fr 420px',
   gap: 32,
   alignItems: 'start',
 }
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 700,
   color: 'var(--text-primary)',
   marginBottom: 24,
 }
 
-const sectionStyle: React.CSSProperties = {
+const sectionStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
@@ -48,14 +49,14 @@ const sectionStyle: React.CSSProperties = {
   marginBottom: 20,
 }
 
-const stageHeaderStyle = (color?: string): React.CSSProperties => ({
+const stageHeaderStyle = (color?: string): CSSProperties => ({
   display: 'flex',
   alignItems: 'center',
   gap: 10,
   marginBottom: 16,
 })
 
-const stageNumberStyle = (color: string): React.CSSProperties => ({
+const stageNumberStyle = (color: string): CSSProperties => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -69,7 +70,7 @@ const stageNumberStyle = (color: string): React.CSSProperties => ({
   flexShrink: 0,
 })
 
-const stageNameStyle = (color: string): React.CSSProperties => ({
+const stageNameStyle = (color: string): CSSProperties => ({
   fontSize: 15,
   fontWeight: 700,
   color,
@@ -77,7 +78,7 @@ const stageNameStyle = (color: string): React.CSSProperties => ({
   letterSpacing: 1,
 })
 
-const selectStyle: React.CSSProperties = {
+const selectStyle: CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   fontSize: 13,
@@ -90,7 +91,7 @@ const selectStyle: React.CSSProperties = {
   marginBottom: 12,
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   fontSize: 13,
@@ -102,7 +103,7 @@ const inputStyle: React.CSSProperties = {
   marginBottom: 12,
 }
 
-const miniCardStyle: React.CSSProperties = {
+const miniCardStyle: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   border: '1px solid var(--border)',
   borderRadius: 6,
@@ -110,20 +111,20 @@ const miniCardStyle: React.CSSProperties = {
   marginBottom: 8,
 }
 
-const miniCardHeader: React.CSSProperties = {
+const miniCardHeader: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 8,
 }
 
-const miniCardName: React.CSSProperties = {
+const miniCardName: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   color: 'var(--accent-cyan)',
 }
 
-const removeBtn: React.CSSProperties = {
+const removeBtn: CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--accent-red)',
@@ -133,7 +134,7 @@ const removeBtn: React.CSSProperties = {
   padding: '2px 6px',
 }
 
-const addBtnStyle: React.CSSProperties = {
+const addBtnStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
@@ -148,13 +149,13 @@ const addBtnStyle: React.CSSProperties = {
   marginTop: 8,
 }
 
-const checkboxGroupStyle: React.CSSProperties = {
+const checkboxGroupStyle: CSSProperties = {
   display: 'flex',
   flexWrap: 'wrap',
   gap: 12,
 }
 
-const checkboxItemStyle: React.CSSProperties = {
+const checkboxItemStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
@@ -163,12 +164,12 @@ const checkboxItemStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const yamlPanelStyle: React.CSSProperties = {
+const yamlPanelStyle: CSSProperties = {
   position: 'sticky',
   top: 80,
 }
 
-const yamlLabelStyle: React.CSSProperties = {
+const yamlLabelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -177,7 +178,7 @@ const yamlLabelStyle: React.CSSProperties = {
   marginBottom: 8,
 }
 
-const yamlTextareaStyle: React.CSSProperties = {
+const yamlTextareaStyle: CSSProperties = {
   width: '100%',
   minHeight: 500,
   padding: '12px 14px',
@@ -192,14 +193,14 @@ const yamlTextareaStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-const actionBarStyle: React.CSSProperties = {
+const actionBarStyle: CSSProperties = {
   display: 'flex',
   gap: 12,
   marginTop: 24,
   marginBottom: 32,
 }
 
-const primaryBtn: React.CSSProperties = {
+const primaryBtn: CSSProperties = {
   padding: '10px 24px',
   fontSize: 13,
   fontWeight: 700,
@@ -211,7 +212,7 @@ const primaryBtn: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const secondaryBtn: React.CSSProperties = {
+const secondaryBtn: CSSProperties = {
   padding: '10px 24px',
   fontSize: 13,
   fontWeight: 700,
@@ -223,7 +224,7 @@ const secondaryBtn: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const errorListStyle: React.CSSProperties = {
+const errorListStyle: CSSProperties = {
   backgroundColor: 'rgba(255, 23, 68, 0.08)',
   border: '1px solid rgba(255, 23, 68, 0.3)',
   borderRadius: 6,
@@ -231,13 +232,13 @@ const errorListStyle: React.CSSProperties = {
   marginTop: 12,
 }
 
-const errorItemStyle: React.CSSProperties = {
+const errorItemStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--accent-red)',
   marginBottom: 4,
 }
 
-const labelSmall: React.CSSProperties = {
+const labelSmall: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: 'var(--text-secondary)',

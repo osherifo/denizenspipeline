@@ -1,23 +1,24 @@
+import type { CSSProperties } from 'react'
 import type { StageRecord } from '../../api/types'
 
 interface StageTimelineProps {
   stages: StageRecord[]
 }
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 6,
   padding: '8px 0',
 }
 
-const rowStyle: React.CSSProperties = {
+const rowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 12,
 }
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: 'var(--text-secondary)',
@@ -28,7 +29,7 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: 0.5,
 }
 
-const barContainerStyle: React.CSSProperties = {
+const barContainerStyle: CSSProperties = {
   flex: 1,
   height: 22,
   backgroundColor: 'var(--bg-input)',
@@ -61,7 +62,7 @@ function statusColor(status: string): string {
   }
 }
 
-const timeStyle: React.CSSProperties = {
+const timeStyle: CSSProperties = {
   fontSize: 11,
   color: 'var(--text-secondary)',
   width: 60,
