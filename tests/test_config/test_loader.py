@@ -5,13 +5,13 @@ import os
 import pytest
 import yaml
 
-from denizenspipeline.config.loader import (
+from fmriflow.config.loader import (
     load_config,
     load_config_with_inheritance,
     merge_configs,
     resolve_env_vars,
 )
-from denizenspipeline.exceptions import ConfigError
+from fmriflow.exceptions import ConfigError
 
 
 class TestMergeConfigs:

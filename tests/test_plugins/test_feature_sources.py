@@ -3,10 +3,10 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.types import FeatureSet, StimulusData
-from denizenspipeline.plugins.feature_sources.compute import ComputeSource
-from denizenspipeline.plugins.feature_sources.filesystem import FilesystemSource
-from denizenspipeline.tests.conftest import N_FEATURES, N_TRS, RUN_NAMES
+from fmriflow.core.types import FeatureSet, StimulusData
+from fmriflow.plugins.feature_sources.compute import ComputeSource
+from fmriflow.plugins.feature_sources.filesystem import FilesystemSource
+from tests.conftest import N_FEATURES, N_TRS, RUN_NAMES
 
 
 class TestFilesystemSource:

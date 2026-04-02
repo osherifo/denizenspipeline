@@ -25,7 +25,7 @@ export PATH="$HOME/afni_bin:$PATH"
 # Force unbuffered output so logs appear in real time
 export PYTHONUNBUFFERED=1
 
-denizens -v preproc run \
+fmriflow -v preproc run \
   --backend fmriprep \
   --bids-dir /home/omarsh/projects/fmriprep-playground/raw-to-bids/bids_output \
   --output-dir /home/omarsh/projects/fmriprep-playground/derivatives \

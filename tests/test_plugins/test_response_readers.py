@@ -5,13 +5,13 @@ import pickle
 import numpy as np
 import pytest
 
-from denizenspipeline.plugins.response_loaders.readers import (
+from fmriflow.plugins.response_loaders.readers import (
     _READERS,
     get_reader,
     list_readers,
     response_reader,
 )
-from denizenspipeline.plugins.response_loaders.local import LocalResponseLoader
+from fmriflow.plugins.response_loaders.local import LocalResponseLoader
 
 N_TRS = 50
 N_VOXELS = 20
