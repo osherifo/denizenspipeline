@@ -1,6 +1,6 @@
 """Tests for default configuration values."""
 
-from denizenspipeline.config.defaults import DEFAULT_CONFIG
+from fmriflow.config.defaults import DEFAULT_CONFIG
 
 
 class TestDefaultConfig:

@@ -3,14 +3,14 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.types import FeatureSet
-from denizenspipeline.plugins.feature_extractors.basic import (
+from fmriflow.core.types import FeatureSet
+from fmriflow.plugins.feature_extractors.basic import (
     NumLettersExtractor,
     NumPhonemesExtractor,
     NumWordsExtractor,
     WordLengthStdExtractor,
 )
-from denizenspipeline.tests.conftest import RUN_NAMES
+from tests.conftest import RUN_NAMES
 
 
 class TestNumWordsExtractor:

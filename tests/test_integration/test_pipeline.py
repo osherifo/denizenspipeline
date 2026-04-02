@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.context import PipelineContext
-from denizenspipeline.core.types import (
+from fmriflow.context import PipelineContext
+from fmriflow.core.types import (
     FeatureData,
     FeatureSet,
     ModelResult,
@@ -13,9 +13,9 @@ from denizenspipeline.core.types import (
     StimulusData,
     StimRun,
 )
-from denizenspipeline.pipeline import Pipeline
-from denizenspipeline.registry import PluginRegistry
-from denizenspipeline.tests.conftest import (
+from fmriflow.pipeline import Pipeline
+from fmriflow.registry import PluginRegistry
+from tests.conftest import (
     MockTextGrid,
     MockTRFile,
     N_FEATURES,

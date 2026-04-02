@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from denizenspipeline.core.types import ModelResult, PreparedData
-from denizenspipeline.plugins.models.ridge import BootstrapRidgeModel
+from fmriflow.core.types import ModelResult, PreparedData
+from fmriflow.plugins.models.ridge import BootstrapRidgeModel
 
 
 @pytest.fixture
