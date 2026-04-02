@@ -1,11 +1,15 @@
-# denizenspipeline v2
+# fMRIflow
+
+![Version](https://img.shields.io/badge/version-2.0.0--alpha.1-blue)
+![Python](https://img.shields.io/badge/python-≥3.10-green)
+![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
 Plugin-based pipeline for voxelwise encoding models. Replaces the monolithic v1 `study` package with a config-driven, modular architecture.
 
 ## Install
 
 ```bash
-cd denizenspipeline
+cd fmriflow
 pip install -e .
 
 # With optional dependencies
@@ -21,7 +25,7 @@ pip install -e ".[all]"      # everything
 
 ```yaml
 # experiments/my_experiment.yaml
-experiment: denizens_reading_en
+experiment: study_reading_en
 subject: sub01
 
 subject_config:
@@ -44,7 +48,7 @@ features:
     source: compute
     extractor: word2vec
     params:
-      embedding_path: ${DENIZENS_DATA_DIR}/embeddings/word2vec_en.bin
+      embedding_path: ${FMRIFLOW_DATA_DIR}/embeddings/word2vec_en.bin
 
 split:
   test_runs: [story01]
@@ -58,17 +62,17 @@ reporting:
 
 **CLI:**
 ```bash
-denizens run experiments/my_experiment.yaml
+fmriflow run experiments/my_experiment.yaml
 ```
 
 **Python:**
 ```python
-from denizenspipeline import Pipeline
+from fmriflow import Pipeline
 
 pipeline = Pipeline.from_yaml("experiments/my_experiment.yaml")
 ctx = pipeline.run()
 
-from denizenspipeline.core.types import ModelResult
+from fmriflow.core.types import ModelResult
 result = ctx.get("result", ModelResult)
 print(f"Mean prediction accuracy: {result.scores.mean():.4f}")
 ```
@@ -93,47 +97,47 @@ Everything else (preprocessing params, model type, response loader, etc.) uses s
 
 ```bash
 # Run full pipeline
-denizens run experiment.yaml
+fmriflow run experiment.yaml
 
 # Run specific stages
-denizens run experiment.yaml --stages features,preprocess,model
+fmriflow run experiment.yaml --stages features,preprocess,model
 
 # Resume from a checkpoint
-denizens run experiment.yaml --resume-from preprocess
+fmriflow run experiment.yaml --resume-from preprocess
 
 # Dry run (show what would execute)
-denizens run experiment.yaml --dry-run
+fmriflow run experiment.yaml --dry-run
 
 # Validate config without running
-denizens validate experiment.yaml
+fmriflow validate experiment.yaml
 
 # List available plugins
-denizens plugins
+fmriflow plugins
 
 # List pipeline stages
-denizens list
+fmriflow list
 
 # List all plugins (by category)
-denizens list plugins
+fmriflow list plugins
 
 # List plugins for a specific stage
-denizens list preprocess
-denizens list features
-denizens list model
+fmriflow list preprocess
+fmriflow list features
+fmriflow list model
 
 # fMRI preprocessing
-denizens preproc doctor                        # check backend availability
-denizens preproc collect --backend fmriprep ... # build manifest from existing outputs
-denizens preproc run --config preproc.yaml      # run preprocessing
-denizens preproc validate manifest.json         # validate a manifest
-denizens preproc info manifest.json             # show manifest details
+fmriflow preproc doctor                        # check backend availability
+fmriflow preproc collect --backend fmriprep ... # build manifest from existing outputs
+fmriflow preproc run --config preproc.yaml      # run preprocessing
+fmriflow preproc validate manifest.json         # validate a manifest
+fmriflow preproc info manifest.json             # show manifest details
 ```
 
 ## Python API
 
 ```python
-from denizenspipeline import Pipeline
-from denizenspipeline.core.types import ModelResult, FeatureData
+from fmriflow import Pipeline
+from fmriflow.core.types import ModelResult, FeatureData
 
 # From YAML
 pipeline = Pipeline.from_yaml("experiment.yaml")
@@ -175,7 +179,7 @@ features:
       layer: 8
     save_to:
       backend: filesystem
-      path: ${DENIZENS_DATA_DIR}/features/bert_layer8/
+      path: ${FMRIFLOW_DATA_DIR}/features/bert_layer8/
 
   # Load pre-extracted features from disk
   - name: gpt2_hidden_states
@@ -186,7 +190,7 @@ features:
   # Load from S3
   - name: shared_bert
     source: cloud
-    bucket: glab-denizens-shared
+    bucket: fmriflow-shared
     prefix: features/bert_layer8/
 ```
 
@@ -196,7 +200,7 @@ Configs can inherit from parent configs, so you only specify what changes per su
 
 ```yaml
 # base.yaml
-experiment: denizens_reading_en
+experiment: study_reading_en
 stimulus:
   language: en
 features:
@@ -222,16 +226,16 @@ Set these to avoid hardcoded paths:
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `DENIZENS_DATA_DIR` | Base data directory | `/data1/experiments/denizens` |
-| `DENIZENS_S3_BUCKET` | S3 bucket name | `glab-denizens-shared` |
-| `DENIZENS_OUTPUT_DIR` | Default output directory | `~/denizens_results` |
+| `FMRIFLOW_DATA_DIR` | Base data directory | `/data1/experiments/fmriflow` |
+| `FMRIFLOW_S3_BUCKET` | S3 bucket name | `fmriflow-shared` |
+| `FMRIFLOW_OUTPUT_DIR` | Default output directory | `~/fmriflow_results` |
 
 Reference them in YAML with `${VAR}` or `${VAR:default}`:
 
 ```yaml
 paths:
-  data_dir: ${DENIZENS_DATA_DIR}
-  output_dir: ${DENIZENS_OUTPUT_DIR:./results}
+  data_dir: ${FMRIFLOW_DATA_DIR}
+  output_dir: ${FMRIFLOW_OUTPUT_DIR:./results}
 ```
 
 ## Skip to model fitting (pre-prepared data)
@@ -257,7 +261,7 @@ split:
 Plugins are plain classes — no base class required, just implement the right methods:
 
 ```python
-from denizenspipeline.core.types import FeatureSet, StimulusData
+from fmriflow.core.types import FeatureSet, StimulusData
 
 class MySurprisalExtractor:
     name = "gpt2_surprisal"
@@ -275,7 +279,7 @@ class MySurprisalExtractor:
 Register it:
 
 ```python
-from denizenspipeline.registry import PluginRegistry
+from fmriflow.registry import PluginRegistry
 
 registry = PluginRegistry()
 registry.discover()
@@ -289,7 +293,7 @@ Or package it with entry points for automatic discovery:
 
 ```toml
 # In your plugin's pyproject.toml
-[project.entry-points."denizenspipeline.feature_extractors"]
+[project.entry-points."fmriflow.feature_extractors"]
 gpt2_surprisal = "my_plugin:MySurprisalExtractor"
 ```
 
@@ -306,7 +310,7 @@ gpt2_surprisal = "my_plugin:MySurprisalExtractor"
 
 ## Built-in plugins
 
-Run `denizens list plugins` for the full list. Summary:
+Run `fmriflow list plugins` for the full list. Summary:
 
 **Feature Extractors:** `numwords`, `numletters`, `numphonemes`, `word_length_std`, `english1000`, `letters`, `phonemes`, `word2vec`, `bert`, `fasttext`, `gpt2`
 
@@ -324,22 +328,22 @@ Run `denizens list plugins` for the full list. Summary:
 
 **Reporters:** `metrics`, `flatmap`, `weights`, `histogram`, `webgl`
 
-## fMRI Preprocessing (`denizens preproc`)
+## fMRI Preprocessing (`fmriflow preproc`)
 
 A standalone module for managing fMRI preprocessing (fmriprep, custom scripts, BIDS-Apps). It produces a `PreprocManifest` — a JSON contract between preprocessing and the analysis pipeline — so you get provenance tracking, validation, and reproducibility.
 
 ### Environment setup
 
-fMRIPrep has heavy dependencies, so the recommended approach is to install `denizenspipeline` into the conda env that already has fmriprep:
+fMRIPrep has heavy dependencies, so the recommended approach is to install `fmriflow` into the conda env that already has fmriprep:
 
 ```bash
 # Option A: install the pipeline into your fmriprep env (recommended)
 conda activate fmriprep-py310
-cd denizenspipeline
+cd fmriflow
 pip install -e .
 
 # Option B: install fmriprep into the pipeline env
-conda activate denizenspipeline
+conda activate fmriflow
 pip install fmriprep
 ```
 
@@ -359,7 +363,7 @@ export FS_LICENSE=~/fmriprep-local/fs_license.txt
 
 ```bash
 # What backends are available on this machine?
-denizens preproc doctor
+fmriflow preproc doctor
 ```
 
 ### Workflow 1: Register existing fmriprep outputs
@@ -368,7 +372,7 @@ If you already ran fmriprep and just want to hook the outputs into the pipeline:
 
 ```bash
 # Build a manifest from existing fmriprep derivatives
-denizens preproc collect \
+fmriflow preproc collect \
   --backend fmriprep \
   --output-dir /data/derivatives/fmriprep/ \
   --subject sub01 \
@@ -376,12 +380,12 @@ denizens preproc collect \
   --run-map '{"run-01": "story02", "run-02": "story11"}'
 
 # Inspect it
-denizens preproc info /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+fmriflow preproc info /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
 
 # Validate it (and optionally check compatibility with an analysis config)
-denizens preproc validate /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
-denizens preproc validate /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json \
-  --for-config experiments/denizens_reading_en_AN.yaml
+fmriflow preproc validate /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+fmriflow preproc validate /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json \
+  --for-config experiments/study_reading_en_AN.yaml
 ```
 
 Then point your analysis config at the manifest:
@@ -397,9 +401,9 @@ response:
 
 ```bash
 # Run fmriprep via Singularity
-denizens preproc run \
+fmriflow preproc run \
   --backend fmriprep \
-  --bids-dir /data/bids/denizens_reading/ \
+  --bids-dir /data/bids/fmriflow_reading/ \
   --output-dir /data/derivatives/fmriprep/ \
   --subject sub01 \
   --task reading \
@@ -409,7 +413,7 @@ denizens preproc run \
   --output-spaces T1w MNI152NLin2009cAsym
 
 # Or run from a YAML config
-denizens preproc run --config preproc_config.yaml
+fmriflow preproc run --config preproc_config.yaml
 ```
 
 A preprocessing YAML config looks like:
@@ -418,7 +422,7 @@ A preprocessing YAML config looks like:
 # preproc_config.yaml
 preproc:
   backend: fmriprep
-  bids_dir: /data/bids/denizens_reading/
+  bids_dir: /data/bids/fmriflow_reading/
   output_dir: /data/derivatives/fmriprep/
   subject: sub01
   task: reading
@@ -442,7 +446,7 @@ preproc:
 ### Workflow 3: Custom preprocessing script
 
 ```bash
-denizens preproc run \
+fmriflow preproc run \
   --backend custom \
   --raw-dir /data/raw/sub01/ \
   --output-dir /data/preprocessed/sub01/ \

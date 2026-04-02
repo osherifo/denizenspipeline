@@ -1,4 +1,4 @@
-/** Typed API client for the Denizens Pipeline backend. */
+/** Typed API client for the fMRIflow backend. */
 
 import type {
   PluginMetadata,
@@ -26,6 +26,8 @@ import type {
   DicomScanResult,
   BatchRunParams,
   BatchSummary,
+  SavedConvertConfig,
+  SavedConvertConfigDetail,
 } from './types'
 
 const BASE = '/api'
@@ -400,4 +402,39 @@ export async function parseBatchYaml(yamlText: string): Promise<BatchRunParams> 
 export function connectBatchWs(batchId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return new WebSocket(`${proto}//${window.location.host}/ws/convert/batch/${batchId}`)
+}
+
+// ── Saved Convert Configs ────────────────────────────────────────────────
+
+export async function fetchSavedConvertConfigs(): Promise<SavedConvertConfig[]> {
+  const r = await json<{ configs: SavedConvertConfig[] }>(`${BASE}/convert/configs`)
+  return r.configs
+}
+
+export async function fetchSavedConvertConfig(filename: string): Promise<SavedConvertConfigDetail> {
+  return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function saveConvertRunConfig(params: {
+  name?: string; description?: string; params: Record<string, unknown>
+}): Promise<SavedConvertConfig> {
+  return json(`${BASE}/convert/configs/save-run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function saveConvertBatchConfig(params: {
+  name?: string; description?: string; params: Record<string, unknown>
+}): Promise<SavedConvertConfig> {
+  return json(`${BASE}/convert/configs/save-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function deleteSavedConvertConfig(filename: string): Promise<{ deleted: boolean }> {
+  return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
 }

@@ -2,9 +2,9 @@
 
 import pytest
 
-from denizenspipeline.exceptions import (
+from fmriflow.exceptions import (
     ConfigError,
-    DenizensError,
+    FmriflowError,
     PipelineError,
     PluginNotFoundError,
     StageError,
@@ -47,27 +47,27 @@ class TestStageError:
 
 
 class TestInheritance:
-    def test_config_error_is_denizens_error(self):
-        assert issubclass(ConfigError, DenizensError)
+    def test_config_error_is_fmriflow_error(self):
+        assert issubclass(ConfigError, FmriflowError)
 
-    def test_plugin_not_found_is_denizens_error(self):
-        assert issubclass(PluginNotFoundError, DenizensError)
+    def test_plugin_not_found_is_fmriflow_error(self):
+        assert issubclass(PluginNotFoundError, FmriflowError)
 
-    def test_pipeline_error_is_denizens_error(self):
-        assert issubclass(PipelineError, DenizensError)
+    def test_pipeline_error_is_fmriflow_error(self):
+        assert issubclass(PipelineError, FmriflowError)
 
     def test_stage_error_is_pipeline_error(self):
         assert issubclass(StageError, PipelineError)
 
-    def test_stage_error_is_denizens_error(self):
-        assert issubclass(StageError, DenizensError)
+    def test_stage_error_is_fmriflow_error(self):
+        assert issubclass(StageError, FmriflowError)
 
-    def test_catch_all_denizens_errors(self):
-        with pytest.raises(DenizensError):
+    def test_catch_all_fmriflow_errors(self):
+        with pytest.raises(FmriflowError):
             raise ConfigError("test")
-        with pytest.raises(DenizensError):
+        with pytest.raises(FmriflowError):
             raise PluginNotFoundError("test")
-        with pytest.raises(DenizensError):
+        with pytest.raises(FmriflowError):
             raise PipelineError("test")
-        with pytest.raises(DenizensError):
+        with pytest.raises(FmriflowError):
             raise StageError("stage", ValueError("x"))

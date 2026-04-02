@@ -2,8 +2,8 @@
 
 import pytest
 
-from denizenspipeline.context import PipelineContext
-from denizenspipeline.exceptions import PipelineError
+from fmriflow.context import PipelineContext
+from fmriflow.exceptions import PipelineError
 
 
 class TestPipelineContextPutGet:

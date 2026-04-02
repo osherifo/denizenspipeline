@@ -1,11 +1,11 @@
 {
-  "name": "denizens-frontend",
+  "name": "fmriflow-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build --outDir ../denizenspipeline/server/static",
+    "build": "tsc -b && vite build --outDir ../fmriflow/server/static",
     "preview": "vite preview"
   },
   "dependencies": {

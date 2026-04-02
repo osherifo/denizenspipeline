@@ -15,6 +15,7 @@ type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
+  if (hash === 'plugins') return 'plugins'
   if (hash === 'composer') return 'composer'
   if (hash === 'runs') return 'runs'
   if (hash === 'editor') return 'editor'

@@ -11,6 +11,7 @@ import type {
   BatchRunParams,
   BatchJobStatus,
   BatchEvent,
+  SavedConvertConfig,
 } from '../api/types'
 import {
   fetchConvertTools,
@@ -26,6 +27,11 @@ import {
   startBatchConvert,
   connectBatchWs,
   parseBatchYaml,
+  fetchSavedConvertConfigs,
+  fetchSavedConvertConfig,
+  saveConvertRunConfig,
+  saveConvertBatchConfig,
+  deleteSavedConvertConfig,
 } from '../api/client'
 
 type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert' | 'batch'
@@ -110,6 +116,15 @@ interface ConvertState {
   startBatch: () => Promise<void>
   clearBatch: () => void
   loadBatchYaml: (yamlText: string) => Promise<void>
+
+  // Saved configs
+  savedConfigs: SavedConvertConfig[]
+  savedConfigsLoading: boolean
+  loadSavedConfigs: () => Promise<void>
+  saveCurrentRunConfig: (name: string, description?: string, params?: Record<string, unknown>) => Promise<void>
+  saveCurrentBatchConfig: (name: string, description?: string) => Promise<void>
+  loadSavedConfig: (filename: string) => Promise<void>
+  deleteSavedConfig: (filename: string) => Promise<void>
 }
 
 export const useConvertStore = create<ConvertState>((set, get) => ({
@@ -427,6 +442,98 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
       })
     } catch (e) {
       set({ batchError: String(e) })
+    }
+  },
+
+  // ── Saved configs ──────────────────────────────────────────────
+
+  savedConfigs: [],
+  savedConfigsLoading: false,
+
+  loadSavedConfigs: async () => {
+    set({ savedConfigsLoading: true })
+    try {
+      const configs = await fetchSavedConvertConfigs()
+      set({ savedConfigs: configs, savedConfigsLoading: false })
+    } catch {
+      set({ savedConfigsLoading: false })
+    }
+  },
+
+  saveCurrentRunConfig: async (name: string, description?: string, params?: Record<string, unknown>) => {
+    // This is called from ConvertForm with the current form values.
+    // The caller passes the params directly; avoid saving an empty config.
+    if (!params) {
+      return
+    }
+    await saveConvertRunConfig({ name, description, params })
+    get().loadSavedConfigs()
+  },
+
+  saveCurrentBatchConfig: async (name, description) => {
+    const { batchShared, batchJobs } = get()
+    const validJobs = batchJobs.filter((j) => j.subject.trim() && j.source_dir.trim())
+    const params = {
+      heuristic: batchShared.heuristic,
+      bids_dir: batchShared.bidsDir,
+      source_root: batchShared.sourceRoot,
+      max_workers: batchShared.maxWorkers,
+      dataset_name: batchShared.datasetName,
+      grouping: batchShared.grouping,
+      minmeta: batchShared.minmeta,
+      overwrite: batchShared.overwrite,
+      validate_bids: batchShared.validateBids,
+      jobs: validJobs,
+    }
+    try {
+      await saveConvertBatchConfig({ name, description, params })
+      get().loadSavedConfigs()
+    } catch (e) {
+      set({ batchError: String(e) })
+    }
+  },
+
+  loadSavedConfig: async (filename) => {
+    try {
+      const detail = await fetchSavedConvertConfig(filename)
+      const config = detail.config as Record<string, unknown>
+
+      if ('convert_batch' in config) {
+        // Batch config — load into batch form
+        const batch = config.convert_batch as Record<string, unknown>
+        const jobs = (batch.jobs as Array<Record<string, string>>) || []
+        set({
+          tab: 'batch',
+          batchShared: {
+            heuristic: String(batch.heuristic || ''),
+            bidsDir: String(batch.bids_dir || ''),
+            sourceRoot: String(batch.source_root || ''),
+            maxWorkers: Number.isFinite(Number(batch.max_workers)) ? Number(batch.max_workers) : 2,
+            datasetName: String(batch.dataset_name || ''),
+            grouping: String(batch.grouping || ''),
+            minmeta: Boolean(batch.minmeta),
+            overwrite: batch.overwrite !== false,
+            validateBids: batch.validate_bids !== false,
+          },
+          batchJobs: jobs.map((j) => ({
+            subject: j.subject || '',
+            source_dir: j.source_dir || '',
+            session: j.session || '',
+          })),
+        })
+      }
+      // Single run configs could be loaded into the convert form in the future
+    } catch (e) {
+      set({ batchError: String(e) })
+    }
+  },
+
+  deleteSavedConfig: async (filename) => {
+    try {
+      await deleteSavedConvertConfig(filename)
+      get().loadSavedConfigs()
+    } catch {
+      // silent
     }
   },
 }))
