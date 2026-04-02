@@ -10,3 +10,5 @@ work/
 **/*.tsbuildinfo
 .claude
 proposals/
+heuristics/
+CHANGES

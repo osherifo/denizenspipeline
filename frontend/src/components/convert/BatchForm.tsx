@@ -1,6 +1,8 @@
 /** Batch DICOM-to-BIDS conversion — form for shared settings + jobs table. */
-import { useEffect, useRef } from 'react'
+
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ChangeEvent } from 'react'
+
 import { useConvertStore } from '../../stores/convert-store'
 
 const containerStyle: CSSProperties = {
@@ -156,9 +158,14 @@ export function BatchForm() {
     addBatchJob, removeBatchJob, updateBatchJob, updateBatchShared,
     startBatch, loadBatchYaml,
     batchRunning,
+    savedConfigs, savedConfigsLoading, loadSavedConfigs,
+    saveCurrentBatchConfig, loadSavedConfig, deleteSavedConfig,
   } = useConvertStore()
 
   const fileRef = useRef<HTMLInputElement>(null)
+  const [saveName, setSaveName] = useState('')
+  const [showSave, setShowSave] = useState(false)
+  const [showSaved, setShowSaved] = useState(false)
 
   useEffect(() => { loadHeuristics() }, [])
 
@@ -381,9 +388,15 @@ export function BatchForm() {
       </button>
 
       {/* Actions */}
-      <div style={{ marginTop: 20, display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div style={{ marginTop: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <button style={primaryBtn} onClick={startBatch} disabled={!canRun}>
           {batchRunning ? 'Running...' : `Run Batch (${validJobs.length} jobs)`}
+        </button>
+        <button style={secondaryBtn} onClick={() => setShowSave(!showSave)}>
+          Save Config
+        </button>
+        <button style={secondaryBtn} onClick={() => { setShowSaved(!showSaved); if (!showSaved) loadSavedConfigs() }}>
+          Saved Configs
         </button>
         <button style={secondaryBtn} onClick={handleLoadYaml}>
           Load YAML
@@ -399,6 +412,79 @@ export function BatchForm() {
           onChange={handleFileChange}
         />
       </div>
+
+      {/* Save config inline */}
+      {showSave && (
+        <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            style={{ ...inputStyle, maxWidth: 250 }}
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            placeholder="Config name..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && saveName.trim()) {
+                saveCurrentBatchConfig(saveName.trim())
+                setSaveName('')
+                setShowSave(false)
+              }
+            }}
+          />
+          <button
+            style={{ ...secondaryBtn, fontSize: 11, padding: '6px 16px' }}
+            disabled={!saveName.trim()}
+            onClick={() => {
+              saveCurrentBatchConfig(saveName.trim())
+              setSaveName('')
+              setShowSave(false)
+            }}
+          >
+            Save
+          </button>
+          <button
+            style={{ ...secondaryBtn, fontSize: 11, padding: '6px 12px' }}
+            onClick={() => setShowSave(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Saved configs list */}
+      {showSaved && (
+        <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 6, padding: 12, backgroundColor: 'var(--bg-secondary)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+            Saved Configs {savedConfigsLoading && '(loading...)'}
+          </div>
+          {savedConfigs.length === 0 && !savedConfigsLoading && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+              No saved configs yet.
+            </div>
+          )}
+          {savedConfigs.filter((c) => c.type === 'batch').map((c) => (
+            <div key={c.filename} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <button
+                style={{ ...secondaryBtn, fontSize: 11, padding: '4px 12px', flex: 'none' }}
+                onClick={() => { loadSavedConfig(c.filename); setShowSaved(false) }}
+              >
+                Load
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>
+                {c.name}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {c.n_jobs} jobs &middot; {c.heuristic}
+              </span>
+              <button
+                style={{ ...removeBtn, fontSize: 14 }}
+                onClick={() => deleteSavedConfig(c.filename)}
+                title="Delete"
+              >
+                {'\u00D7'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {batchError && !batchRunning && (
         <div style={{ marginTop: 12, fontSize: 12, color: 'var(--accent-red)' }}>

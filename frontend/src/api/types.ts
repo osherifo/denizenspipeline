@@ -411,6 +411,24 @@ export interface BatchSummary {
   jobs: BatchJobStatus[]
 }
 
+export interface SavedConvertConfig {
+  filename: string
+  name: string
+  type: 'single' | 'batch'
+  created: string
+  description: string
+  heuristic: string
+  bids_dir: string
+  n_jobs?: number
+  subject?: string
+}
+
+export interface SavedConvertConfigDetail {
+  filename: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
 export interface BatchEvent {
   event: string
   job_id?: string | null

@@ -16,6 +16,7 @@ from denizenspipeline.server.services.plugin_loader import discover_user_plugins
 from denizenspipeline.server.services.config_store import ConfigStore
 from denizenspipeline.server.services.preproc_manager import PreprocManager
 from denizenspipeline.server.services.convert_manager import ConvertManager
+from denizenspipeline.server.services.convert_config_store import ConvertConfigStore
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ def create_app(
     config_store = ConfigStore(Path(configs_dir))
     preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
+    convert_config_store = ConvertConfigStore()
 
     app.state.registry = registry
     app.state.run_store = run_store
@@ -64,6 +66,7 @@ def create_app(
     app.state.config_store = config_store
     app.state.preproc_manager = preproc_manager
     app.state.convert_manager = convert_manager
+    app.state.convert_config_store = convert_config_store
 
     # API routes
     from denizenspipeline.server.routes.plugins import router as plugin_router
