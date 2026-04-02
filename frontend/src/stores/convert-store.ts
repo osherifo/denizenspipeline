@@ -460,12 +460,14 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     }
   },
 
-  saveCurrentRunConfig: async (name, description) => {
-    // Build params from what the ConvertForm would submit
-    // This is called from ConvertForm with the current form values
-    // The caller passes the params directly
+  saveCurrentRunConfig: async (name, description, params) => {
+    // This is called from ConvertForm with the current form values.
+    // The caller passes the params directly; avoid saving an empty config.
+    if (!params) {
+      return
+    }
     try {
-      await saveConvertRunConfig({ name, description, params: {} })
+      await saveConvertRunConfig({ name, description, params })
       get().loadSavedConfigs()
     } catch (e) {
       // silently fail — UI will show the error via the save button
