@@ -1,6 +1,11 @@
 """fmriflow — Plugin-based neuroscience encoding model pipeline."""
 
-__version__ = "2.0.0a1"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("fmriflow")
+except PackageNotFoundError:
+    __version__ = "0.0.0-dev"
 
 from fmriflow.pipeline import Pipeline
 
