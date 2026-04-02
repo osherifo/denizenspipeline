@@ -78,6 +78,13 @@ function linkStyle(active: boolean): React.CSSProperties {
 
 const groups = [
   {
+    label: 'Preprocessing',
+    items: [
+      { key: 'convert', label: 'DICOM \u2192 BIDS', hash: '#convert' },
+      { key: 'preproc', label: 'Preproc', hash: '#preproc' },
+    ],
+  },
+  {
     label: 'Analysis',
     items: [
       { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
@@ -85,13 +92,6 @@ const groups = [
       { key: 'composer', label: 'Composer', hash: '#composer' },
       { key: 'runs', label: 'Runs', hash: '#runs' },
       { key: 'editor', label: 'Editor', hash: '#editor' },
-    ],
-  },
-  {
-    label: 'Preprocessing',
-    items: [
-      { key: 'convert', label: 'DICOM \u2192 BIDS', hash: '#convert' },
-      { key: 'preproc', label: 'Preproc', hash: '#preproc' },
     ],
   },
   {
