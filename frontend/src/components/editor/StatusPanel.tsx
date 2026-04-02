@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 /** Validation status display. */
 import type { CodeValidationResult, ParamSchema } from '../../api/types'
 
@@ -13,13 +14,13 @@ interface StatusPanelProps {
   hasPlugin: boolean
 }
 
-const panelStyle: React.CSSProperties = {
+const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderTop: '1px solid var(--border)',
   padding: '12px 16px',
 }
 
-const statusRow: React.CSSProperties = {
+const statusRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
@@ -27,7 +28,7 @@ const statusRow: React.CSSProperties = {
   marginBottom: 4,
 }
 
-const btnStyle = (variant: 'primary' | 'danger' | 'default'): React.CSSProperties => ({
+const btnStyle = (variant: 'primary' | 'danger' | 'default'): CSSProperties => ({
   padding: '8px 16px',
   fontSize: 13,
   fontFamily: 'inherit',
@@ -45,7 +46,7 @@ const btnStyle = (variant: 'primary' | 'danger' | 'default'): React.CSSPropertie
     : 'var(--text-primary)',
 })
 
-const actionBar: React.CSSProperties = {
+const actionBar: CSSProperties = {
   display: 'flex',
   gap: 8,
   marginTop: 12,

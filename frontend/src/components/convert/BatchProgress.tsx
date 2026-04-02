@@ -1,9 +1,10 @@
 /** Batch DICOM-to-BIDS conversion progress — summary bar + per-job status table + log. */
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 import type { BatchEvent, BatchJobStatus } from '../../api/types'
 
-const panelStyle = (status: 'running' | 'done' | 'failed'): React.CSSProperties => ({
+const panelStyle = (status: 'running' | 'done' | 'failed'): CSSProperties => ({
   backgroundColor: 'var(--bg-card)',
   border: `1px solid ${
     status === 'done' ? 'var(--accent-green)' :
@@ -15,14 +16,14 @@ const panelStyle = (status: 'running' | 'done' | 'failed'): React.CSSProperties 
   marginTop: 16,
 })
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: 12,
 }
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   display: 'flex',
@@ -37,7 +38,7 @@ const pulseKeyframes = `
 }
 `
 
-const dismissBtn: React.CSSProperties = {
+const dismissBtn: CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--text-secondary)',
@@ -46,7 +47,7 @@ const dismissBtn: React.CSSProperties = {
   fontFamily: 'inherit',
 }
 
-const countsBar: React.CSSProperties = {
+const countsBar: CSSProperties = {
   display: 'flex',
   gap: 16,
   marginBottom: 12,
@@ -54,7 +55,7 @@ const countsBar: React.CSSProperties = {
   fontWeight: 600,
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--text-secondary)',
@@ -65,13 +66,13 @@ const thStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--border)',
 }
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: '6px 8px',
   fontSize: 12,
   borderBottom: '1px solid var(--border)',
 }
 
-const logStyle: React.CSSProperties = {
+const logStyle: CSSProperties = {
   backgroundColor: 'var(--bg-secondary)',
   borderRadius: 6,
   padding: '10px 12px',
@@ -83,7 +84,7 @@ const logStyle: React.CSSProperties = {
   marginTop: 12,
 }
 
-function statusBadge(status: string): React.CSSProperties {
+function statusBadge(status: string): CSSProperties {
   const colors: Record<string, string> = {
     queued: 'var(--text-secondary)',
     running: 'var(--accent-cyan)',

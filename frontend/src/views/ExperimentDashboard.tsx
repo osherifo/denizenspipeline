@@ -1,25 +1,26 @@
 /** Experiment Dashboard — browse configs, launch runs, watch live progress. */
 import { useEffect } from 'react'
+import type { CSSProperties } from 'react'
 import { useDashboardStore } from '../stores/dashboard-store'
 import { ConfigBrowser } from '../components/dashboard/ConfigBrowser'
 import { ConfigDetail } from '../components/dashboard/ConfigDetail'
 import { RunHistory } from '../components/dashboard/RunHistory'
 import { LiveProgress } from '../components/dashboard/LiveProgress'
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   display: 'flex',
   height: 'calc(100vh - 48px)',
   margin: '0 -32px',
   backgroundColor: 'var(--bg-primary)',
 }
 
-const mainPanel: React.CSSProperties = {
+const mainPanel: CSSProperties = {
   flex: 1,
   overflowY: 'auto',
   padding: '20px 24px',
 }
 
-const emptyState: React.CSSProperties = {
+const emptyState: CSSProperties = {
   flex: 1,
   display: 'flex',
   flexDirection: 'column',
