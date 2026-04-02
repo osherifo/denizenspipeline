@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fmriflow"
-version = "2.0.0a1"
+version = "2.0.0a2"
 description = "fMRIflow — Plugin-based neuroscience encoding model pipeline"
 requires-python = ">=3.10"
 license = "MIT"
