@@ -117,7 +117,7 @@ class ConvertConfigStore:
         }
 
         path = self.configs_dir / filename
-        raw = yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        raw = yaml.safe_dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True)
         path.write_text(raw)
         self._invalidate()
 
