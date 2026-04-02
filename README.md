@@ -1,4 +1,8 @@
-# fMRIflow v2
+# fMRIflow
+
+![Version](https://img.shields.io/badge/version-2.0.0--alpha.1-blue)
+![Python](https://img.shields.io/badge/python-≥3.10-green)
+![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
 Plugin-based pipeline for voxelwise encoding models. Replaces the monolithic v1 `bling` package with a config-driven, modular architecture.
 
