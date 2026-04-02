@@ -7,7 +7,7 @@ Config usage:
 
     response:
       loader: preproc
-      manifest: /data/derivatives/fmriprep/sub-AN/preproc_manifest.json
+      manifest: /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
       mask_type: thick
       confounds:          # optional — apply confound regression at load time
         strategy: motion_24

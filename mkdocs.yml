@@ -1,0 +1,58 @@
+site_name: fMRIflow
+site_description: Plugin-based pipeline for voxelwise encoding models
+repo_url: https://github.com/denizens/fmriflow
+repo_name: denizens/fmriflow
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: cyan
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: cyan
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: guide/installation.md
+    - Quickstart: guide/quickstart.md
+  - User Guide:
+    - Configuration: guide/configuration.md
+    - CLI Reference: guide/cli.md
+    - Python API: guide/python-api.md
+    - Writing Plugins: guide/plugins.md
+    - Preprocessing: guide/preprocessing.md
+    - DICOM to BIDS: guide/dicom-to-bids.md
+    - Web UI: guide/web-ui.md
+  - Reference:
+    - Built-in Plugins: reference/plugins.md
+    - Config Reference: reference/config.md
+    - Defaults: reference/defaults.md

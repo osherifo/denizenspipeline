@@ -3,7 +3,7 @@
 Loads a JSON file (e.g. ``surfaces.json``) that maps subject IDs to
 surface/transform/masktype.  The config loader calls ``resolve_subject_config``
 to fill in ``subject_config`` fields that the experiment YAML didn't set
-explicitly, so configs can be as minimal as ``subject: TYE``.
+explicitly, so configs can be as minimal as ``subject: sub01``.
 
 Resolution order (explicit config always wins):
     1. Experiment YAML ``subject_config.surface`` -> used as-is

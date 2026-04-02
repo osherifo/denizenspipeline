@@ -18,7 +18,7 @@ class Pipeline:
     >>> pipeline = Pipeline.from_yaml("experiment.yaml")
     >>> result = pipeline.run()
 
-    >>> pipeline = Pipeline(config={"experiment": "test", "subject": "AN", ...})
+    >>> pipeline = Pipeline(config={"experiment": "test", "subject": "sub01", ...})
     >>> result = pipeline.run(stages=["features", "preprocess"])
     """
 

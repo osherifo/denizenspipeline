@@ -348,7 +348,7 @@ export function BatchForm() {
                     style={cellInput}
                     value={job.subject}
                     onChange={(e) => updateBatchJob(i, { subject: e.target.value })}
-                    placeholder="AN"
+                    placeholder="sub01"
                   />
                 </td>
                 <td style={tdStyle}>
@@ -364,7 +364,7 @@ export function BatchForm() {
                     style={cellInput}
                     value={job.source_dir}
                     onChange={(e) => updateBatchJob(i, { source_dir: e.target.value })}
-                    placeholder="20150722AN/"
+                    placeholder="session01/"
                   />
                 </td>
                 <td style={tdStyle}>

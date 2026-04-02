@@ -205,8 +205,8 @@ _BIDS_ENTITY_RE = re.compile(r"([a-zA-Z]+)-([a-zA-Z0-9]+)")
 def _parse_bids_filename(filename: str) -> dict[str, str]:
     """Extract BIDS entities from a filename.
 
-    e.g. "sub-AN_ses-20170607AN_task-reading_run-01_bold.nii.gz"
-    → {"sub": "AN", "ses": "20170607AN", "task": "reading", "run": "01"}
+    e.g. "sub-sub01_ses-session01_task-reading_run-01_bold.nii.gz"
+    → {"sub": "sub01", "ses": "session01", "task": "reading", "run": "01"}
     """
     return dict(_BIDS_ENTITY_RE.findall(filename))
 

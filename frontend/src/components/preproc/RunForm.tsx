@@ -180,7 +180,7 @@ export function RunForm() {
         {/* Common fields */}
         <div style={fieldRow}>
           <span style={labelStyle}>Subject</span>
-          <input style={inputStyle} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="AN" />
+          <input style={inputStyle} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="sub01" />
         </div>
         <div style={fieldRow}>
           <span style={labelStyle}>Output Dir</span>

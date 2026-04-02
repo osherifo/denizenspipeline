@@ -162,7 +162,7 @@ def load_grids_for_stories_from_cloud(experiment, session, bucket=None):
     """
     import cottoncandy as cc
     if bucket is None:
-        bucket = os.environ.get('FMRIFLOW_S3_BUCKET', 'glab-fmriflow-shared')
+        bucket = os.environ.get('FMRIFLOW_S3_BUCKET', 'fmriflow-shared')
     cci = cc.get_interface(bucket)
 
     prefix = f"stimuli/{experiment}/{session}/TextGrids/"
@@ -180,7 +180,7 @@ def load_trfiles_from_cloud(experiment, session, bucket=None, expectedtr=2.0045)
     """Load TRFile objects from S3 cloud storage."""
     import cottoncandy as cc
     if bucket is None:
-        bucket = os.environ.get('FMRIFLOW_S3_BUCKET', 'glab-fmriflow-shared')
+        bucket = os.environ.get('FMRIFLOW_S3_BUCKET', 'fmriflow-shared')
     cci = cc.get_interface(bucket)
 
     prefix = f"stimuli/{experiment}/{session}/trfiles/"
