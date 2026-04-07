@@ -43,3 +43,13 @@ fmriflow run experiments/my_experiment.yaml
 - [Built-in Plugins](docs/reference/plugins.md) — full plugin list
 - [Config Reference](docs/reference/config.md) — complete config schema
 - [Defaults](docs/reference/defaults.md) — default values for all settings
+
+### Build the docs
+
+Install the documentation dependencies and serve or build locally:
+
+```bash
+pip install mkdocs-material pymdown-extensions
+mkdocs serve   # live-reload dev server at http://127.0.0.1:8000
+mkdocs build   # static site output in site/
+```
