@@ -21,7 +21,10 @@ def register_builtins(registry):
     import fmriflow.plugins.response_loaders.local  # noqa: F401
     import fmriflow.plugins.response_loaders.readers  # noqa: F401
     import fmriflow.plugins.response_loaders.multiphase_hdf  # noqa: F401
-    import fmriflow.plugins.response_loaders.study_hdf  # noqa: F401
+    try:
+        import fmriflow.plugins.response_loaders.study_hdf  # noqa: F401
+    except ImportError:
+        pass  # optional lab-specific loader, not distributed
     import fmriflow.plugins.response_loaders.preproc  # noqa: F401
 
     import fmriflow.plugins.feature_extractors.basic  # noqa: F401
