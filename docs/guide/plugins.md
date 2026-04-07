@@ -53,7 +53,7 @@ my_feature = "my_plugin:MyFeatureExtractor"
 
 ### Web UI
 
-The Plugin Editor in the web UI lets you write, validate, and register plugins directly in the browser. Plugins saved there go to `~/.denizens/plugins/` and are loaded on server startup.
+The Plugin Editor in the web UI lets you write, validate, and register plugins directly in the browser. Plugins saved there go to `~/.fmriflow/plugins/` and are loaded on server startup.
 
 ## Plugin types
 
