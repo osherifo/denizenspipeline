@@ -25,6 +25,7 @@ class ConvertConfigStore:
     def __init__(self, configs_dir: Path | None = None):
         self.configs_dir = configs_dir or DEFAULT_DIR
         self.configs_dir.mkdir(parents=True, exist_ok=True)
+        self._configs_dir_resolved = self.configs_dir.resolve()
         self._cache: list[dict] | None = None
         self._cache_time: float = 0
         self._cache_ttl = 5.0
@@ -81,9 +82,28 @@ class ConvertConfigStore:
         """Return summaries of all saved configs."""
         return self._maybe_rescan()
 
+    def _validate_filename(self, filename: str) -> Path:
+        """Validate *filename* and return a safe :class:`~pathlib.Path`.
+
+        Raises :class:`ValueError` when *filename* contains path separators,
+        lacks a ``.yaml`` extension, or would escape *configs_dir* after
+        resolution (path-traversal guard).
+        """
+        if "/" in filename or "\\" in filename or not filename:
+            raise ValueError(f"Invalid config filename: {filename!r}")
+        if not filename.endswith(".yaml"):
+            raise ValueError(f"Config filename must end with .yaml: {filename!r}")
+        resolved = (self.configs_dir / filename).resolve()
+        if not resolved.is_relative_to(self._configs_dir_resolved):
+            raise ValueError(f"Config filename escapes config directory: {filename!r}")
+        return resolved
+
     def get_config(self, filename: str) -> dict | None:
         """Return full config + raw YAML for a saved config."""
-        path = self.configs_dir / filename
+        try:
+            path = self._validate_filename(filename)
+        except ValueError:
+            return None
         if not path.is_file():
             return None
         raw = path.read_text()
@@ -102,12 +122,20 @@ class ConvertConfigStore:
 
         Adds _meta block with name, timestamp, description.
         Returns the saved summary.
+        Raises :class:`FileExistsError` if a config with that name already exists.
         """
         # Sanitize filename
         safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
         if not safe_name:
             safe_name = "convert_config"
         filename = f"{safe_name}.yaml"
+
+        path = self.configs_dir / filename
+        if path.exists():
+            raise FileExistsError(
+                f"A config named '{name}' already exists. "
+                "Delete it first or choose a different name."
+            )
 
         # Add metadata
         config["_meta"] = {
@@ -116,7 +144,6 @@ class ConvertConfigStore:
             "description": description,
         }
 
-        path = self.configs_dir / filename
         raw = yaml.safe_dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True)
         path.write_text(raw)
         self._invalidate()
@@ -126,7 +153,10 @@ class ConvertConfigStore:
 
     def delete_config(self, filename: str) -> bool:
         """Delete a saved config."""
-        path = self.configs_dir / filename
+        try:
+            path = self._validate_filename(filename)
+        except ValueError:
+            return False
         if not path.is_file():
             return False
         path.unlink()

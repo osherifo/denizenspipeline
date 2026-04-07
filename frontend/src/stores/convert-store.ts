@@ -466,12 +466,8 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     if (!params) {
       return
     }
-    try {
-      await saveConvertRunConfig({ name, description, params })
-      get().loadSavedConfigs()
-    } catch (e) {
-      // silently fail — UI will show the error via the save button
-    }
+    await saveConvertRunConfig({ name, description, params })
+    get().loadSavedConfigs()
   },
 
   saveCurrentBatchConfig: async (name, description) => {
@@ -512,7 +508,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
             heuristic: String(batch.heuristic || ''),
             bidsDir: String(batch.bids_dir || ''),
             sourceRoot: String(batch.source_root || ''),
-            maxWorkers: Number(batch.max_workers) || 2,
+            maxWorkers: Number.isFinite(Number(batch.max_workers)) ? Number(batch.max_workers) : 2,
             datasetName: String(batch.dataset_name || ''),
             grouping: String(batch.grouping || ''),
             minmeta: Boolean(batch.minmeta),
