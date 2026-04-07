@@ -105,7 +105,7 @@ def infotodict(seqinfo):
 Conversion configs can be saved for reproducibility and re-use:
 
 - **Web UI:** "Save Config" button on the Batch form
-- Configs are stored as YAML in `~/.denizens/convert_configs/`
+- Configs are stored as YAML in `~/.fmriflow/convert_configs/`
 - Saved configs are valid batch YAML files — usable directly with `fmriflow convert batch --config`
 
 ## Web UI
