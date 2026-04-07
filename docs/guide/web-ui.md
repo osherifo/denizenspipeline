@@ -143,7 +143,7 @@ Write, validate, and register custom plugins directly in the browser.
 
 **Workflow**: pick a template (or start blank) → write code → auto-validates → name and save → plugin is immediately available in the Composer and Plugin Browser.
 
-Saved plugins go to `~/.denizens/plugins/` and are auto-loaded on server startup.
+Saved plugins go to `~/.fmriflow/plugins/` and are auto-loaded on server startup.
 
 ---
 
