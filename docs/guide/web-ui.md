@@ -151,12 +151,14 @@ Saved plugins go to `~/.fmriflow/plugins/` and are auto-loaded on server startup
 
 ### Error Knowledge Base
 
-A searchable reference of known pipeline errors with symptoms, root causes, and fixes.
+A searchable reference of known pipeline errors with symptoms, root causes, and fixes. The server loads entries from `devdocs/errors/`.
+
+If you have not created any local error definitions in `devdocs/errors/`, this page may be empty by default.
 
 - **Search** across symptoms, root cause, fix text, and tags
 - **Filter** by pipeline stage (stimuli, responses, features, preprocess, model, etc.)
 - **Error cards** show: ID, stage badge, title, tags, symptom preview
-- **Expanded view**: full symptoms, root cause, diagnosis steps, fix instructions, config notes, references
+- **Expanded view**: for available entries, full symptoms, root cause, diagnosis steps, fix instructions, config notes, references
 
 ---
 
