@@ -50,11 +50,11 @@ class TextGridStimulusLoader:
     file_suffix : str, optional
         When set, only load TextGrid/TRFile names ending with this suffix
         and strip it from the run name.  E.g. ``Audio_en`` turns
-        ``story10Audio_en.TextGrid`` into run name ``story10``.
+        ``storyAudio_en.TextGrid`` into run name ``story``.
     trfile_subject : str, optional
         When set alongside *file_suffix*, match trfiles named
         ``{story}{suffix}_{subject}_0.report`` and strip the extra parts.
-        Useful when trfiles are per-subject (e.g. study data).
+        Useful when trfiles are per-subject.
     n_trs : dict[str, int], optional
         If no TRFiles are found, synthesize evenly-spaced triggers using
         this per-run TR count.  Keys are run names, values are ints.
@@ -70,7 +70,7 @@ class TextGridStimulusLoader:
         "sessions": {"type": "list[string]", "default": ["generic"], "description": "Session labels"},
         "source": {"type": "string", "default": "local", "enum": ["local", "cloud"], "description": "Where to load stimulus files from"},
         "file_suffix": {"type": "string", "description": "Filter and rename TextGrid files by suffix"},
-        "trfile_subject": {"type": "string", "description": "Match TRFiles per-subject (study data layout)"},
+        "trfile_subject": {"type": "string", "description": "Match TRFiles per-subject"},
         "n_trs": {"type": "dict", "description": "Synthetic TR counts per run (run_name → int)"},
         "tr": {"type": "float", "default": 2.0, "min": 0.1, "description": "TR duration in seconds for synthetic triggers"},
     }
