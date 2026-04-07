@@ -39,7 +39,7 @@ Convert raw DICOM images to BIDS format. Six tabs cover the full workflow:
 - **Shared settings** at the top: heuristic, BIDS dir, source root, max workers
 - **Jobs table** below: add rows for each subject/session/source directory
 - **Load YAML** to import a pre-configured batch, or **Export YAML** to save one
-- **Save Config** stores the batch for re-use (saved to `~/.denizens/convert_configs/`)
+- **Save Config** stores the batch for re-use (saved to `~/.fmriflow/convert_configs/`)
 - **Saved Configs** panel lists previously saved batches with Load/Delete actions
 - Click **Run Batch** to start — progress shows per-job status badges (queued, running, done, failed), elapsed time, and expandable per-job logs
 
