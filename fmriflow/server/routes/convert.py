@@ -308,6 +308,8 @@ async def save_config(request: Request, body: SaveConfigBody):
     try:
         summary = store.save_config(body.name, body.config, body.description)
         return summary
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -319,6 +321,8 @@ async def save_run_config(request: Request, body: SaveRunConfigBody):
     try:
         summary = store.save_from_run_params(body.params, body.name, body.description)
         return summary
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -330,6 +334,8 @@ async def save_batch_config(request: Request, body: SaveBatchConfigBody):
     try:
         summary = store.save_from_batch_params(body.params, body.name, body.description)
         return summary
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
