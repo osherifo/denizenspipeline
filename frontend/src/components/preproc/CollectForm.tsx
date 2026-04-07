@@ -128,7 +128,7 @@ export function CollectForm() {
       <div style={fieldRow}>
         <span style={labelStyle}>Subject</span>
         <input style={inputStyle} value={subject} onChange={(e) => setSubject(e.target.value)}
-          placeholder="AN" />
+          placeholder="sub01" />
       </div>
 
       <div style={fieldRow}>

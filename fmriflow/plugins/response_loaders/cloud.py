@@ -25,7 +25,7 @@ class CloudResponseLoader:
         resp_cfg = config.get('response', {})
         sub_cfg = config.get('subject_config', {})
         bucket = config.get('paths', {}).get(
-            's3_bucket', 'glab-fmriflow-shared')
+            's3_bucket', 'fmriflow-shared')
 
         subject = config['subject']
         experiment = config['experiment']

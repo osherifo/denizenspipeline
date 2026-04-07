@@ -1,9 +1,26 @@
 """Subject database — central lookup for per-subject pycortex metadata.
 
-Loads a JSON file (e.g. ``surfaces.json``) that maps subject IDs to
+Loads a JSON file (e.g. ``subjects.json``) that maps subject IDs to
 surface/transform/masktype.  The config loader calls ``resolve_subject_config``
 to fill in ``subject_config`` fields that the experiment YAML didn't set
-explicitly, so configs can be as minimal as ``subject: TYE``.
+explicitly.
+
+.. note::
+    No built-in subject database is shipped with the package.  If a DB
+    cannot be found, ``subject_config`` fields (``surface``, ``transform``,
+    ``masktype``) will **not** be populated automatically — they must be set
+    explicitly in your experiment YAML.  A minimal config therefore requires
+    either a DB or explicit ``subject_config`` values::
+
+        # Requires a resolvable subject database:
+        subject: sub01
+
+        # Self-contained (no DB needed):
+        subject: sub01
+        subject_config:
+          surface: sub01
+          transform: func_space
+          masktype: cortical
 
 Resolution order (explicit config always wins):
     1. Experiment YAML ``subject_config.surface`` -> used as-is
@@ -13,6 +30,8 @@ The DB file is located via (first match wins):
     1. ``paths.subjects_db`` in config
     2. ``FMRIFLOW_SUBJECTS_DB`` env var
     3. ``subjects.json`` in the config file's directory
+    4. ``fmriflow/data/subjects.json`` inside the package tree (not shipped;
+       for local development only)
 """
 
 from __future__ import annotations

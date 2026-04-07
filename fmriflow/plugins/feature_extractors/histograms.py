@@ -6,7 +6,7 @@ import string
 
 import numpy as np
 
-# Punctuation characters to strip from words (matches original bling)
+# Punctuation characters to strip from words (matches original pipeline)
 _PUNCT_CHARS = string.punctuation + '{}[]'
 
 from fmriflow.core.datasequence import (
@@ -29,7 +29,7 @@ class English1000Extractor:
     """Dense english1000 word embeddings per TR.
 
     Loads 985-dim dense embeddings from ``data/english1000.npz`` and
-    downsamples via Lanczos interpolation, matching original bling
+    downsamples via Lanczos interpolation, matching the original v1
     ``Features.lexical_embeddings(embedding_name='english1000')``.
     """
 
