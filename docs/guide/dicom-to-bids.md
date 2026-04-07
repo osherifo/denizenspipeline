@@ -53,7 +53,7 @@ Jobs run in parallel via a thread pool. The web UI shows live per-job progress w
 
 ## Heuristics
 
-Heuristics are Python files that tell heudiconv how to map DICOM series to BIDS filenames. They live in `~/.denizens/heuristics/`.
+Heuristics are Python files that tell heudiconv how to map DICOM series to BIDS filenames. They live in `~/.fmriflow/heuristics/`.
 
 ```bash
 # List available heuristics
