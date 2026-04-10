@@ -5,6 +5,21 @@ import pytest
 from fmriflow.exceptions import PluginNotFoundError
 from fmriflow.registry import PluginRegistry
 
+# Categories that PluginRegistry.discover() must always populate.
+# Update this set when adding a new top-level plugin category.
+EXPECTED_CATEGORIES = {
+    "stimulus_loaders",
+    "response_loaders",
+    "response_readers",
+    "feature_extractors",
+    "feature_sources",
+    "preprocessors",
+    "preprocessing_steps",
+    "analyzers",
+    "models",
+    "reporters",
+}
+
 
 class TestPluginRegistryDiscover:
     @pytest.fixture
@@ -15,19 +30,23 @@ class TestPluginRegistryDiscover:
 
     def test_discover_populates_all_categories(self, registry):
         plugins = registry.list_plugins()
-        assert len(plugins) == 7
+        assert set(plugins) == EXPECTED_CATEGORIES
         for category, names in plugins.items():
             assert len(names) > 0, f"{category} should have plugins"
 
-    def test_list_plugins_counts(self, registry):
+    def test_known_builtins_registered(self, registry):
+        """Spot-check that representative built-in plugins are discovered.
+
+        Asserts plugin *names* rather than counts so the test doesn't break
+        every time someone adds a new built-in.
+        """
         plugins = registry.list_plugins()
-        assert len(plugins['stimulus_loaders']) == 1
-        assert len(plugins['response_loaders']) == 2
-        assert len(plugins['feature_extractors']) == 10
-        assert len(plugins['feature_sources']) == 3
-        assert len(plugins['preprocessors']) == 2
-        assert len(plugins['models']) == 1
-        assert len(plugins['reporters']) == 3
+        assert "textgrid" in plugins["stimulus_loaders"]
+        assert "local" in plugins["response_loaders"]
+        assert "auto" in plugins["response_readers"]
+        assert "numwords" in plugins["feature_extractors"]
+        assert "default" in plugins["preprocessors"]
+        assert "flatmap" in plugins["reporters"]
 
     def test_get_feature_extractor(self, registry):
         ext = registry.get_feature_extractor("numwords")

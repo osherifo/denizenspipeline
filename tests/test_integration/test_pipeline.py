@@ -7,6 +7,7 @@ from fmriflow.context import PipelineContext
 from fmriflow.core.types import (
     FeatureData,
     FeatureSet,
+    LanguageStim,
     ModelResult,
     PreparedData,
     ResponseData,
@@ -35,8 +36,10 @@ class MockStimulusLoader:
         for name in RUN_NAMES:
             runs[name] = StimRun(
                 name=name,
-                textgrid=MockTextGrid(),
-                trfile=MockTRFile(),
+                stimulus=LanguageStim(
+                    textgrid=MockTextGrid(),
+                    trfile=MockTRFile(),
+                ),
             )
         return StimulusData(runs=runs)
 

@@ -72,6 +72,12 @@ class MockTRFile:
     def get_reltriggertimes(self):
         return np.linspace(0, self._duration, self._n_trs)
 
+    @property
+    def avgtr(self):
+        if self._n_trs < 2:
+            return 0.0
+        return self._duration / (self._n_trs - 1)
+
 
 # ── Fixtures ──────────────────────────────────────────────────────
 

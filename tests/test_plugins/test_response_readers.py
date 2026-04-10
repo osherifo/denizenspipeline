@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from fmriflow.plugins.response_loaders.readers import (
-    _READERS,
+    _response_readers,
     get_reader,
     list_readers,
     response_reader,
@@ -39,7 +39,7 @@ class TestNpzPerRunReader:
             np.savez_compressed(tmp_path / f"{name}.npz", data=arr)
 
         reader = get_reader("npz_per_run")
-        result = reader(tmp_path, None, {})
+        result = reader.read(tmp_path, None, {})
 
         assert set(result.keys()) == set(RUN_NAMES)
         for name in RUN_NAMES:
@@ -50,7 +50,7 @@ class TestNpzPerRunReader:
             np.savez_compressed(tmp_path / f"{name}.npz", responses=arr)
 
         reader = get_reader("npz_per_run")
-        result = reader(tmp_path, None, {"npz_key": "responses"})
+        result = reader.read(tmp_path, None, {"npz_key": "responses"})
 
         assert set(result.keys()) == set(RUN_NAMES)
         for name in RUN_NAMES:
@@ -68,7 +68,7 @@ class TestHdf5PerRunReader:
                 h.create_dataset("data", data=arr)
 
         reader = get_reader("hdf5_per_run")
-        result = reader(tmp_path, None, {})
+        result = reader.read(tmp_path, None, {})
 
         assert set(result.keys()) == set(RUN_NAMES)
         for name in RUN_NAMES:
@@ -85,7 +85,7 @@ class TestSinglePickleReader:
             pickle.dump(arrays, f)
 
         reader = get_reader("single_pickle")
-        result = reader(tmp_path, None, {})
+        result = reader.read(tmp_path, None, {})
 
         assert set(result.keys()) == set(RUN_NAMES)
         for name in RUN_NAMES:
@@ -98,7 +98,7 @@ class TestSinglePickleReader:
             pickle.dump(nested, f)
 
         reader = get_reader("single_pickle")
-        result = reader(tmp_path, None, {"pickle_key": "brain_data"})
+        result = reader.read(tmp_path, None, {"pickle_key": "brain_data"})
 
         assert set(result.keys()) == set(RUN_NAMES)
         for name in RUN_NAMES:
@@ -110,7 +110,7 @@ class TestSinglePickleReader:
             pickle.dump(arrays, f)
 
         reader = get_reader("single_pickle")
-        result = reader(pkl_path, None, {})
+        result = reader.read(pkl_path, None, {})
 
         assert set(result.keys()) == set(RUN_NAMES)
 
@@ -127,7 +127,7 @@ class TestSingleHdf5Reader:
                 h.create_dataset(name, data=arr)
 
         reader = get_reader("single_hdf5")
-        result = reader(tmp_path, None, {})
+        result = reader.read(tmp_path, None, {})
 
         assert set(result.keys()) == set(RUN_NAMES)
         for name in RUN_NAMES:
@@ -143,7 +143,7 @@ class TestAutoReader:
             np.savez_compressed(tmp_path / f"{name}.npz", data=arr)
 
         reader = get_reader("auto")
-        result = reader(tmp_path, None, {})
+        result = reader.read(tmp_path, None, {})
 
         assert set(result.keys()) == set(RUN_NAMES)
 
@@ -154,7 +154,7 @@ class TestAutoReader:
                 h.create_dataset("data", data=arr)
 
         reader = get_reader("auto")
-        result = reader(tmp_path, None, {})
+        result = reader.read(tmp_path, None, {})
 
         assert set(result.keys()) == set(RUN_NAMES)
 
@@ -178,17 +178,18 @@ class TestRegistry:
 
     def test_custom_reader_registration(self, tmp_path):
         @response_reader("test_custom")
-        def _read_custom(resp_dir, run_names, config):
-            return {"custom_run": np.zeros((10, 5))}
+        class CustomReader:
+            def read(self, resp_dir, run_names, config):
+                return {"custom_run": np.zeros((10, 5))}
 
         try:
             reader = get_reader("test_custom")
-            result = reader(tmp_path, None, {})
+            result = reader.read(tmp_path, None, {})
             assert "custom_run" in result
             assert result["custom_run"].shape == (10, 5)
         finally:
             # Clean up to avoid polluting other tests
-            _READERS.pop("test_custom", None)
+            _response_readers.pop("test_custom", None)
 
 
 # ── LocalResponseLoader integration ─────────────────────────────
