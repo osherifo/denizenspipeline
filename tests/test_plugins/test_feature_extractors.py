@@ -92,10 +92,10 @@ class TestNumPhonemesExtractor:
         ext = NumPhonemesExtractor()
         result = ext.extract(mock_stimuli, RUN_NAMES, {})
         for arr in result.data.values():
-            # Lanczos resampling produces small negative side-lobes even when
-            # the underlying signal (counts, std) is non-negative. The
-            # meaningful invariant is finiteness, not strict non-negativity.
+            # NumPhonemesExtractor returns per-TR phoneme counts, so values
+            # should remain finite and non-negative.
             assert np.isfinite(arr).all()
+            assert (arr >= 0).all()
 
 
 class TestWordLengthStdExtractor:
