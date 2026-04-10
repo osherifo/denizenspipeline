@@ -20,6 +20,7 @@ import type {
   CollectResult,
   ErrorEntry,
   HeuristicInfo,
+  SaveHeuristicParams,
   ToolStatus,
   ConvertManifestSummary,
   ConvertManifestDetail,
@@ -312,6 +313,31 @@ export function connectPreprocWs(runId: string): WebSocket {
 export async function fetchConvertHeuristics(): Promise<HeuristicInfo[]> {
   const r = await json<{ heuristics: HeuristicInfo[] }>(`${BASE}/convert/heuristics`)
   return r.heuristics
+}
+
+export async function fetchHeuristicCode(name: string): Promise<string> {
+  const r = await json<{ name: string; code: string }>(`${BASE}/convert/heuristics/${encodeURIComponent(name)}/code`)
+  return r.code
+}
+
+export async function saveHeuristic(params: SaveHeuristicParams): Promise<{ saved: boolean; name: string; path: string }> {
+  return json(`${BASE}/convert/heuristics/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function fetchHeuristicTemplate(name: string = 'my_study'): Promise<{ code: string; name: string }> {
+  return json(`${BASE}/convert/heuristics/template`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function deleteHeuristic(name: string): Promise<{ deleted: boolean; name: string }> {
+  return json(`${BASE}/convert/heuristics/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
 
 export async function fetchConvertTools(): Promise<ToolStatus[]> {

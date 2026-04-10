@@ -161,6 +161,33 @@ def register_heuristic(
     return _load_heuristic_info(dest)
 
 
+def read_heuristic_source(name: str) -> str:
+    """Return the Python source code of a registered heuristic."""
+    path = get_heuristic(name)
+    return path.read_text()
+
+
+
+def save_heuristic_code(name: str, code: str) -> HeuristicInfo:
+    """Write *code* to the heuristic file for *name*.
+
+    If the file already exists it is overwritten (edit).
+    If it does not exist a new heuristic is created.
+    Returns the ``HeuristicInfo`` for the saved file.
+    """
+    hdir = _heuristics_dir()
+    dest = hdir / f"{name}.py"
+    dest.write_text(code)
+    logger.info("Saved heuristic '%s' at %s", name, dest)
+    return _load_heuristic_info(dest)
+
+
+def get_heuristic_template(name: str = "my_study") -> str:
+    """Return the skeleton heudiconv template source code."""
+    from fmriflow.convert.heuristic_template import render_template
+    return render_template(name=name)
+
+
 def remove_heuristic(name: str) -> None:
     """Remove a heuristic and its sidecar from the registry."""
     hdir = _heuristics_dir()

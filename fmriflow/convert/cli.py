@@ -119,6 +119,20 @@ def add_convert_subcommands(subparsers: argparse._SubParsersAction) -> None:
     # heuristics info
     heur_info = heur_subs.add_parser("info", help="Show heuristic details")
     heur_info.add_argument("name", help="Heuristic name")
+    heur_info.add_argument("--code", action="store_true",
+                           help="Print the heuristic Python source code")
+
+    # heuristics create
+    heur_create = heur_subs.add_parser(
+        "create", help="Create a new heuristic from template",
+    )
+    heur_create.add_argument("name", help="Name for the new heuristic")
+    heur_create.add_argument("--description", type=str, default=None)
+    heur_create.add_argument("--scanner-pattern", type=str, default=None)
+    heur_create.add_argument("--site", type=str, default=None)
+    heur_create.add_argument("--author", type=str, default=None)
+    heur_create.add_argument("--version", type=str, default=None)
+    heur_create.add_argument("--tasks", type=str, nargs="*", default=None)
 
     # heuristics remove
     heur_rm = heur_subs.add_parser("remove", help="Remove a heuristic")
@@ -439,7 +453,8 @@ def _convert_batch(args) -> int:
 def _convert_heuristics(args) -> int:
     from fmriflow.convert.heuristics import (
         list_heuristics, register_heuristic, remove_heuristic, _load_heuristic_info,
-        get_heuristic,
+        get_heuristic, read_heuristic_source, get_heuristic_template,
+        save_heuristic_code,
     )
 
     heur_cmd = getattr(args, "heuristics_command", None)
@@ -505,9 +520,45 @@ def _convert_heuristics(args) -> int:
                 print(f"{'Tasks:':<16}{', '.join(info.tasks)}")
             if info.notes:
                 print(f"{'Notes:':<16}{info.notes}")
+            if getattr(args, "code", False):
+                code = read_heuristic_source(args.name)
+                print(f"\n{'─' * 60}")
+                print(code)
             return 0
         except Exception as e:
             print(f"\n{e}", file=sys.stderr)
+            return 1
+
+    elif heur_cmd == "create":
+        try:
+            code = get_heuristic_template(name=args.name)
+            info = save_heuristic_code(args.name, code)
+
+            # Write sidecar with metadata
+            import yaml
+            sidecar_data: dict = {"name": args.name}
+            if args.description:
+                sidecar_data["description"] = args.description
+            if args.scanner_pattern:
+                sidecar_data["scanner_pattern"] = args.scanner_pattern
+            if args.tasks:
+                sidecar_data["tasks"] = args.tasks
+            if getattr(args, "site", None):
+                sidecar_data["site"] = args.site
+            if getattr(args, "author", None):
+                sidecar_data["author"] = args.author
+            if getattr(args, "version", None):
+                sidecar_data["version"] = args.version
+
+            sidecar_path = info.path.with_suffix(".yaml")
+            sidecar_path.write_text(yaml.dump(sidecar_data, default_flow_style=False))
+
+            print(f"\nCreated heuristic: {info.name}")
+            print(f"  Path: {info.path}")
+            print(f"\nEdit the file to customize classification and BIDS mapping logic.")
+            return 0
+        except Exception as e:
+            print(f"\nFailed to create heuristic: {e}", file=sys.stderr)
             return 1
 
     elif heur_cmd == "remove":
@@ -520,7 +571,7 @@ def _convert_heuristics(args) -> int:
             return 1
 
     else:
-        print("Usage: fmriflow convert heuristics {list|add|info|remove}")
+        print("Usage: fmriflow convert heuristics {list|add|create|info|remove}")
         return 1
 
 
