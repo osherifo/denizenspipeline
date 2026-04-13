@@ -531,6 +531,16 @@ def _convert_heuristics(args) -> int:
 
     elif heur_cmd == "create":
         try:
+            try:
+                existing_path = get_heuristic(args.name)
+            except Exception:
+                existing_path = None
+
+            if existing_path is not None:
+                raise FileExistsError(
+                    f"Heuristic '{args.name}' already exists at {existing_path}. "
+                    "Refusing to overwrite an existing heuristic with 'create'."
+                )
             code = get_heuristic_template(name=args.name)
             info = save_heuristic_code(args.name, code)
 
