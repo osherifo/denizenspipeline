@@ -196,11 +196,19 @@ export function HeuristicBrowser() {
           {heuristics.map((h) => (
             <div
               key={h.name}
+              role="button"
+              tabIndex={0}
               style={{
                 ...itemStyle,
                 backgroundColor: editorName === h.name ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
               }}
               onClick={() => openHeuristic(h.name)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  openHeuristic(h.name)
+                }
+              }}
             >
               <div>
                 <div style={{ fontWeight: 600, color: editorName === h.name ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
