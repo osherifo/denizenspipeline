@@ -1,0 +1,37 @@
+# Version control
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+
+# Frontend dev artifacts (we build inside Docker)
+frontend/node_modules/
+node_modules/
+
+# Dev docs (gitignored, but just in case)
+devdocs/
+
+# Runtime data (mounted, never baked in)
+results/
+derivatives/
+experiments/
+heuristics/
+
+# IDE
+.vscode/
+.idea/
+
+# Built static files (rebuilt in Docker)
+fmriflow/server/static/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore

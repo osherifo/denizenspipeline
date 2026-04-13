@@ -1,0 +1,19 @@
+services:
+  fmriflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime          # "runtime" for lean image, "full" for dcm2niix + autoflatten
+    image: fmriflow:latest
+    ports:
+      - "8421:8421"
+    volumes:
+      - ./experiments:/data/experiments
+      - ./results:/data/results
+      - ./derivatives:/data/derivatives
+      # Uncomment to persist user plugins / heuristics / configs across restarts:
+      # - ~/.denizens:/home/fmriflow/.denizens
+    # environment:
+    #   # FreeSurfer license — mount the file and set the path:
+    #   - FS_LICENSE=/data/freesurfer_license.txt
+    restart: unless-stopped
