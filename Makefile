@@ -1,4 +1,5 @@
 IMAGE       := fmriflow
+REGISTRY    := ghcr.io/osherifo
 TAG         := latest
 TARGET      := runtime
 PORT        := 8421
@@ -23,6 +24,28 @@ build:  ## Build the runtime image (web UI + analysis pipeline)
 
 build-full:  ## Build the full image (adds dcm2niix + autoflatten)
 	docker build --target full -t $(IMAGE)-full:$(TAG) .
+
+# ── Singularity ─────────────────────────────────────────────────────────
+
+.PHONY: sif sif-full
+
+sif: build  ## Build Singularity .sif from Docker image
+	singularity build $(IMAGE).sif docker-daemon://$(IMAGE):$(TAG)
+
+sif-full: build-full  ## Build full Singularity .sif
+	singularity build $(IMAGE)-full.sif docker-daemon://$(IMAGE)-full:$(TAG)
+
+# ── Registry ────────────────────────────────────────────────────────────
+
+.PHONY: push push-full
+
+push: build  ## Push runtime image to GHCR
+	docker tag $(IMAGE):$(TAG) $(REGISTRY)/$(IMAGE):$(TAG)
+	docker push $(REGISTRY)/$(IMAGE):$(TAG)
+
+push-full: build-full  ## Push full image to GHCR
+	docker tag $(IMAGE)-full:$(TAG) $(REGISTRY)/$(IMAGE)-full:$(TAG)
+	docker push $(REGISTRY)/$(IMAGE)-full:$(TAG)
 
 # ── Run ──────────────────────────────────────────────────────────────────
 

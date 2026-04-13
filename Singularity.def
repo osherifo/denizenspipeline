@@ -1,0 +1,48 @@
+# Singularity / Apptainer definition for fMRIflow.
+#
+# The recommended build path is from the Docker image:
+#
+#   docker build --target runtime -t fmriflow:latest .
+#   singularity build fmriflow.sif docker-daemon://fmriflow:latest
+#
+# Or pull from the container registry (no Docker needed):
+#
+#   singularity build fmriflow.sif docker://ghcr.io/osherifo/fmriflow:latest
+#
+# This def file provides labels, help text, and HPC environment overrides.
+# Build it with:
+#
+#   singularity build fmriflow.sif Singularity.def
+
+Bootstrap: docker
+From: ghcr.io/osherifo/fmriflow:latest
+
+%labels
+    Author Omar Sherif
+    Version 2.0.0
+
+%help
+    fMRIflow — neuroscience encoding model pipeline
+
+    Web UI:
+        singularity run fmriflow.sif serve --host 0.0.0.0 --port 8421
+
+    Run pipeline:
+        singularity exec fmriflow.sif fmriflow run /data/experiments/config.yaml
+
+    Preprocessing:
+        singularity exec fmriflow.sif fmriflow preproc run \
+            --backend fmriprep --container /images/fmriprep.sif ...
+
+    Tips:
+        --writable-tmpfs     writable temp (for caches)
+        -B $SCRATCH:/tmp     bind cluster scratch
+        --nv                 enable GPU passthrough
+
+%environment
+    export LC_ALL=C
+    export MPLCONFIGDIR=/tmp/matplotlib
+    export XDG_CACHE_HOME=/tmp/cache
+
+%runscript
+    exec fmriflow "$@"
