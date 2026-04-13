@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +25,32 @@ from fmriflow.convert.manifest import HeuristicRef, ScannerInfo
 logger = logging.getLogger(__name__)
 
 DEFAULT_HEURISTICS_DIR = Path("heuristics")
+
+# Allowlist: only letters, digits, underscores, and hyphens are permitted in a
+# heuristic name.  This prevents path-traversal attacks via the web API/CLI.
+_VALID_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _validate_heuristic_name(name: str) -> None:
+    """Raise ``ValueError`` if *name* is unsafe to use as a filesystem stem.
+
+    Enforces an allowlist of characters (letters, digits, ``_``, ``-``) so
+    that path separators and other special characters cannot be injected into
+    the heuristics directory path.
+    """
+    if not name or not _VALID_NAME_RE.match(name):
+        raise ValueError(
+            f"Invalid heuristic name {name!r}. "
+            "Names must contain only letters, digits, underscores, and hyphens."
+        )
+    # Belt-and-suspenders: resolve the path and confirm it stays inside the
+    # heuristics directory (guards against any edge-cases on exotic filesystems).
+    hdir = _heuristics_dir()
+    resolved = (hdir / f"{name}.py").resolve()
+    if not str(resolved).startswith(str(hdir.resolve()) + os.sep):
+        raise ValueError(
+            f"Heuristic name {name!r} resolves outside the registry directory."
+        )
 
 
 def _heuristics_dir() -> Path:
@@ -76,6 +103,7 @@ def get_heuristic(name: str) -> Path:
 
     Raises HeuristicError if not found.
     """
+    _validate_heuristic_name(name)
     hdir = _heuristics_dir()
     path = hdir / f"{name}.py"
     if path.is_file():
@@ -175,6 +203,7 @@ def save_heuristic_code(name: str, code: str) -> HeuristicInfo:
     If it does not exist a new heuristic is created.
     Returns the ``HeuristicInfo`` for the saved file.
     """
+    _validate_heuristic_name(name)
     hdir = _heuristics_dir()
     dest = hdir / f"{name}.py"
     dest.write_text(code)
@@ -190,6 +219,7 @@ def get_heuristic_template(name: str = "my_study") -> str:
 
 def remove_heuristic(name: str) -> None:
     """Remove a heuristic and its sidecar from the registry."""
+    _validate_heuristic_name(name)
     hdir = _heuristics_dir()
     py_file = hdir / f"{name}.py"
     yaml_file = hdir / f"{name}.yaml"
