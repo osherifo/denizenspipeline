@@ -41,9 +41,18 @@ pip install -e ".[viz]"      # pycortex flatmaps
 pip install -e ".[all]"      # everything
 ```
 
+## Quick start (Docker)
+
+```bash
+git clone https://github.com/osherifo/denizenspipeline.git && cd denizenspipeline
+make build
+make serve    # http://localhost:8421
+```
+
 ## Next steps
 
 - [Installation](guide/installation.md) — full install options and environment setup
 - [Quickstart](guide/quickstart.md) — write your first experiment config and run it
+- [Deployment](guide/deployment.md) — Docker, Singularity, HPC clusters, SLURM
 - [CLI Reference](guide/cli.md) — all available commands
 - [Writing Plugins](guide/plugins.md) — extend the pipeline with custom extractors, models, and reporters

@@ -52,6 +52,7 @@ nav:
     - Preprocessing: guide/preprocessing.md
     - DICOM to BIDS: guide/dicom-to-bids.md
     - Web UI: guide/web-ui.md
+    - Deployment: guide/deployment.md
   - Reference:
     - Built-in Plugins: reference/plugins.md
     - Config Reference: reference/config.md
