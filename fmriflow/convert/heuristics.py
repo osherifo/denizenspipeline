@@ -38,16 +38,22 @@ def _validate_heuristic_name(name: str) -> None:
     that path separators and other special characters cannot be injected into
     the heuristics directory path.
     """
-    if not name or not _VALID_NAME_RE.match(name):
+    if not name:
+        raise ValueError(
+            "Heuristic name must not be empty."
+        )
+    if not _VALID_NAME_RE.match(name):
         raise ValueError(
             f"Invalid heuristic name {name!r}. "
             "Names must contain only letters, digits, underscores, and hyphens."
         )
     # Belt-and-suspenders: resolve the path and confirm it stays inside the
-    # heuristics directory (guards against any edge-cases on exotic filesystems).
+    # heuristics directory.  At this point name is already restricted to
+    # [A-Za-z0-9_-] by the regex above, so this check should always pass for
+    # well-behaved filesystems; it guards against unexpected symlink tricks.
     hdir = _heuristics_dir()
     resolved = (hdir / f"{name}.py").resolve()
-    if not str(resolved).startswith(str(hdir.resolve()) + os.sep):
+    if not resolved.is_relative_to(hdir.resolve()):  # Python 3.9+
         raise ValueError(
             f"Heuristic name {name!r} resolves outside the registry directory."
         )
