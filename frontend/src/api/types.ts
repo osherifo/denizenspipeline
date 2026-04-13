@@ -303,6 +303,14 @@ export interface HeuristicInfo {
   path: string
 }
 
+export interface SaveHeuristicParams {
+  name: string
+  code: string
+  description?: string
+  scanner_pattern?: string
+  tasks?: string[]
+}
+
 export interface ToolStatus {
   name: string
   available: boolean
