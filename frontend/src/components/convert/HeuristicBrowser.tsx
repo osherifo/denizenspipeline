@@ -171,7 +171,7 @@ export function HeuristicBrowser() {
 
   useEffect(() => { loadHeuristics() }, [])
 
-  const hasEditor = editorCode.length > 0 || editorLoading
+  const hasEditor = editorName.length > 0 || editorLoading
 
   return (
     <div style={containerStyle}>
