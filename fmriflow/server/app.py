@@ -78,6 +78,7 @@ def create_app(
     from fmriflow.server.routes.preproc import router as preproc_router
     from fmriflow.server.routes.convert import router as convert_router
     from fmriflow.server.routes.errors import router as errors_router
+    from fmriflow.server.routes.autoflatten import router as autoflatten_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before plugin_router so that
@@ -91,6 +92,7 @@ def create_app(
     app.include_router(preproc_router, prefix="/api")
     app.include_router(convert_router, prefix="/api")
     app.include_router(errors_router, prefix="/api")
+    app.include_router(autoflatten_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

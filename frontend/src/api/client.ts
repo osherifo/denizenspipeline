@@ -464,3 +464,57 @@ export async function saveConvertBatchConfig(params: {
 export async function deleteSavedConvertConfig(filename: string): Promise<{ deleted: boolean }> {
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
 }
+
+// ── Autoflatten ────────────────────────────────────────────────────────
+
+export async function fetchAutoflattenDoctor(): Promise<{ tools: { name: string; available: boolean; detail: string }[] }> {
+  return json(`${BASE}/autoflatten/doctor`)
+}
+
+export async function fetchAutoflattenStatus(params: {
+  subjects_dir: string; subject: string
+}): Promise<{
+  subject: string
+  subject_dir_exists: boolean
+  has_surfaces: boolean
+  surfaces: Record<string, boolean>
+  flat_patches: Record<string, string>
+  has_flat_patches: boolean
+  pycortex_surface: string | null
+}> {
+  return json(`${BASE}/autoflatten/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function runAutoflatten(params: {
+  subjects_dir: string
+  subject: string
+  hemispheres?: string
+  backend?: string
+  parallel?: boolean
+  overwrite?: boolean
+  import_to_pycortex?: boolean
+  pycortex_surface_name?: string
+  flat_patch_lh?: string
+  flat_patch_rh?: string
+}): Promise<{
+  result: {
+    subject: string
+    source: string
+    hemispheres: string[]
+    flat_patches: Record<string, string>
+    visualizations: Record<string, string>
+    pycortex_surface: string | null
+    elapsed_s: number
+  }
+  record: Record<string, unknown>
+}> {
+  return json(`${BASE}/autoflatten/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}

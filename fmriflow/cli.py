@@ -139,12 +139,16 @@ def main(argv: list[str] | None = None) -> int:
     from fmriflow.convert.cli import add_convert_subcommands
     add_convert_subcommands(subparsers)
 
+    # ── autoflatten ──
+    from fmriflow.preproc.autoflatten_cli import add_autoflatten_subcommands
+    add_autoflatten_subcommands(subparsers)
+
     args = parser.parse_args(argv)
 
     # Set up logging — suppress standard log format, let rich handle output.
     # Always show logs for preproc commands (they are long-running).
     level = logging.DEBUG if args.verbose else logging.INFO
-    show_logs = args.verbose or args.command in ('preproc', 'convert')
+    show_logs = args.verbose or args.command in ('preproc', 'convert', 'autoflatten')
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -158,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
         args.command = 'preproc'
     if args.command is None and getattr(args, 'convert_command', None):
         args.command = 'convert'
+    if args.command is None and getattr(args, 'autoflatten_command', None):
+        args.command = 'autoflatten'
 
     if args.command == 'run':
         return _cmd_run(args)
@@ -177,6 +183,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == 'convert':
         from fmriflow.convert.cli import dispatch_convert
         return dispatch_convert(args)
+    elif args.command == 'autoflatten':
+        from fmriflow.preproc.autoflatten_cli import dispatch_autoflatten
+        return dispatch_autoflatten(args)
     else:
         parser.print_help()
         return 1

@@ -83,6 +83,7 @@ const groups = [
     items: [
       { key: 'convert', label: 'DICOM \u2192 BIDS', hash: '#convert' },
       { key: 'preproc', label: 'Preproc', hash: '#preproc' },
+      { key: 'autoflatten', label: 'Autoflatten', hash: '#autoflatten' },
     ],
   },
   {
