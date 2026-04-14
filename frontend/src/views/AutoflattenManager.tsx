@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useAutoflattenStore } from '../stores/autoflatten-store'
 import { AutoflattenProgress } from '../components/autoflatten/AutoflattenProgress'
+import { FlatmapPreview } from '../components/autoflatten/FlatmapPreview'
+import { fetchAutoflattenVisualizations } from '../api/client'
 
 const pageTitle: CSSProperties = {
   fontSize: 20, fontWeight: 800, color: 'var(--text-primary)',
@@ -72,6 +74,30 @@ const TABS = [
   { key: 'import' as const, label: 'Import' },
 ]
 
+/** Resolve flatmap PNGs: use the result's visualizations if present,
+ *  otherwise scan the subject's surf/ dir on disk. */
+function useResolvedVisualizations(
+  runVisualizations: Record<string, string> | undefined,
+  subjectsDir: string,
+  subject: string,
+): Record<string, string> {
+  const [scanned, setScanned] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const hasRunViz = runVisualizations && Object.keys(runVisualizations).length > 0
+    if (hasRunViz || !subjectsDir || !subject) {
+      setScanned({})
+      return
+    }
+    fetchAutoflattenVisualizations(subjectsDir, subject)
+      .then((r) => setScanned(r.images))
+      .catch(() => setScanned({}))
+  }, [runVisualizations, subjectsDir, subject])
+
+  const hasRunViz = runVisualizations && Object.keys(runVisualizations).length > 0
+  return hasRunViz ? runVisualizations! : scanned
+}
+
 // ── Status Tab ──────────────────────────────────────────────────────────
 
 function StatusTab() {
@@ -80,6 +106,12 @@ function StatusTab() {
   const [subject, setSubject] = useState('')
 
   useEffect(() => { loadTools() }, [])
+
+  const previewImages = useResolvedVisualizations(
+    undefined,
+    subjectStatus?.subject_dir_exists ? subjectsDir : '',
+    subjectStatus?.subject ?? '',
+  )
 
   const handleCheck = () => {
     if (subjectsDir && subject) checkStatus(subjectsDir, subject)
@@ -155,6 +187,10 @@ function StatusTab() {
             </div>
           </div>
         )}
+
+        {subjectStatus?.has_flat_patches && (
+          <FlatmapPreview images={previewImages} patches={subjectStatus.flat_patches} />
+        )}
       </div>
     </>
   )
@@ -172,6 +208,12 @@ function RunTab() {
   const [overwrite, setOverwrite] = useState(false)
   const [importPycortex, setImportPycortex] = useState(true)
   const [pycortexSurface, setPycortexSurface] = useState('')
+
+  const previewImages = useResolvedVisualizations(
+    runResult?.visualizations,
+    subjectsDir,
+    runResult?.subject ?? subject,
+  )
 
   const handleRun = () => {
     const params: Record<string, unknown> = {
@@ -252,19 +294,22 @@ function RunTab() {
       )}
 
       {runResult && !running && (
-        <div style={resultBox}>
-          <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--accent-green)' }}>
-            Summary
+        <>
+          <div style={resultBox}>
+            <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--accent-green)' }}>
+              Summary
+            </div>
+            <div>Subject: {runResult.subject}</div>
+            <div>Source: {runResult.source}</div>
+            <div>Hemispheres: {runResult.hemispheres.join(', ')}</div>
+            {Object.entries(runResult.flat_patches).map(([h, p]) => (
+              <div key={h}>{h} patch: {p}</div>
+            ))}
+            {runResult.pycortex_surface && <div>pycortex: {runResult.pycortex_surface}</div>}
+            <div>Elapsed: {runResult.elapsed_s.toFixed(1)}s</div>
           </div>
-          <div>Subject: {runResult.subject}</div>
-          <div>Source: {runResult.source}</div>
-          <div>Hemispheres: {runResult.hemispheres.join(', ')}</div>
-          {Object.entries(runResult.flat_patches).map(([h, p]) => (
-            <div key={h}>{h} patch: {p}</div>
-          ))}
-          {runResult.pycortex_surface && <div>pycortex: {runResult.pycortex_surface}</div>}
-          <div>Elapsed: {runResult.elapsed_s.toFixed(1)}s</div>
-        </div>
+          <FlatmapPreview images={previewImages} patches={runResult.flat_patches} />
+        </>
       )}
     </div>
   )
@@ -280,6 +325,12 @@ function ImportTab() {
   const [flatPatchLh, setFlatPatchLh] = useState('')
   const [flatPatchRh, setFlatPatchRh] = useState('')
   const [pycortexSurface, setPycortexSurface] = useState('')
+
+  const previewImages = useResolvedVisualizations(
+    runResult?.visualizations,
+    subjectsDir,
+    runResult?.subject ?? subject,
+  )
 
   const handleImport = () => {
     startRun({
@@ -343,13 +394,16 @@ function ImportTab() {
       )}
 
       {runResult && !running && (
-        <div style={resultBox}>
-          <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--accent-green)' }}>
-            Summary
+        <>
+          <div style={resultBox}>
+            <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--accent-green)' }}>
+              Summary
+            </div>
+            <div>Source: {runResult.source}</div>
+            {runResult.pycortex_surface && <div>pycortex surface: {runResult.pycortex_surface}</div>}
           </div>
-          <div>Source: {runResult.source}</div>
-          {runResult.pycortex_surface && <div>pycortex surface: {runResult.pycortex_surface}</div>}
-        </div>
+          <FlatmapPreview images={previewImages} patches={runResult.flat_patches} />
+        </>
       )}
     </div>
   )

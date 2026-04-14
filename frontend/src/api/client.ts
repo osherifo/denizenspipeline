@@ -543,3 +543,14 @@ export function connectAutoflattenWs(runId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return new WebSocket(`${proto}//${window.location.host}/ws/autoflatten/${runId}`)
 }
+
+export function autoflattenImageUrl(path: string): string {
+  return `${BASE}/autoflatten/image?path=${encodeURIComponent(path)}`
+}
+
+export async function fetchAutoflattenVisualizations(
+  subjects_dir: string, subject: string,
+): Promise<{ images: Record<string, string> }> {
+  const qs = new URLSearchParams({ subjects_dir, subject }).toString()
+  return json(`${BASE}/autoflatten/visualizations?${qs}`)
+}

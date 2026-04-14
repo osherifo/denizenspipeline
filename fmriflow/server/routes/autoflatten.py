@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 router = APIRouter(tags=["autoflatten"])
@@ -139,3 +142,56 @@ async def get_autoflatten_run(request: Request, run_id: str):
         "finished_at": handle.finished_at,
         "events": handle.events,
     }
+
+
+@router.get("/autoflatten/image")
+async def get_autoflatten_image(path: str):
+    """Serve an autoflatten-generated PNG (flatmap visualization).
+
+    Only PNG files are served. Paths are resolved and checked for existence.
+    """
+    if not path:
+        raise HTTPException(status_code=400, detail="path query parameter required")
+
+    resolved = Path(path).expanduser().resolve()
+
+    if not resolved.is_file():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    if resolved.suffix.lower() not in (".png", ".jpg", ".jpeg"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only PNG/JPEG images are served, got: {resolved.suffix}",
+        )
+
+    return FileResponse(
+        str(resolved),
+        media_type="image/png" if resolved.suffix.lower() == ".png" else "image/jpeg",
+    )
+
+
+@router.get("/autoflatten/visualizations")
+async def list_autoflatten_visualizations(
+    subjects_dir: str, subject: str,
+):
+    """List flatmap PNG files for a subject's surf/ directory.
+
+    Useful after autoflatten has been run, or when pre-existing visualizations
+    are already on disk.
+    """
+    surf_dir = Path(subjects_dir).expanduser().resolve() / subject / "surf"
+    if not surf_dir.is_dir():
+        return {"images": {}}
+
+    images: dict[str, str] = {}
+    for hemi in ("lh", "rh"):
+        for pattern in (
+            f"{hemi}.autoflatten.flat.patch.png",
+            f"{hemi}.full.flat.patch.png",
+            f"{hemi}.flat.patch.png",
+        ):
+            candidate = surf_dir / pattern
+            if candidate.is_file():
+                images[hemi] = str(candidate)
+                break
+    return {"images": images}
