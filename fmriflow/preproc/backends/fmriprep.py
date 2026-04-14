@@ -189,7 +189,16 @@ class FmriprepBackend:
     def _find_fmriprep(self, params: FmriprepParams) -> bool:
         """Check if fmriprep is available."""
         if params.container:
-            return Path(params.container).exists()
+            if params.container_type == "docker":
+                # Docker image — either already pulled or will be pulled on run
+                return shutil.which("docker") is not None
+            if params.container_type == "singularity":
+                # Could be a .sif path OR a docker://... URI
+                if params.container.startswith(("docker://", "library://", "shub://")):
+                    return shutil.which("singularity") is not None or shutil.which("apptainer") is not None
+                return Path(params.container).exists()
+            # bare
+            return True
         return shutil.which("fmriprep") is not None
 
     def _build_command(
