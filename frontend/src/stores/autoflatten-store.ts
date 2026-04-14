@@ -3,7 +3,9 @@ import { create } from 'zustand'
 import {
   fetchAutoflattenDoctor,
   fetchAutoflattenStatus,
-  runAutoflatten,
+  startAutoflatten,
+  fetchAutoflattenRun,
+  connectAutoflattenWs,
 } from '../api/client'
 
 type Tab = 'status' | 'run' | 'import'
@@ -34,6 +36,17 @@ interface RunResult {
   elapsed_s: number
 }
 
+export interface AutoflattenEvent {
+  event: string
+  level?: string
+  message?: string
+  error?: string
+  timestamp?: number
+  source?: string
+  pycortex_surface?: string | null
+  elapsed?: number
+}
+
 interface AutoflattenState {
   tab: Tab
 
@@ -47,20 +60,23 @@ interface AutoflattenState {
   statusError: string | null
 
   // Run
+  runId: string | null
   running: boolean
   runResult: RunResult | null
   runError: string | null
+  runEvents: AutoflattenEvent[]
+  runStartTime: number | null
 
   // Actions
   setTab: (tab: Tab) => void
   loadTools: () => Promise<void>
   checkStatus: (subjectsDir: string, subject: string) => Promise<void>
-  startRun: (params: Parameters<typeof runAutoflatten>[0]) => Promise<void>
+  startRun: (params: Parameters<typeof startAutoflatten>[0]) => Promise<void>
   clearRun: () => void
   clearStatus: () => void
 }
 
-export const useAutoflattenStore = create<AutoflattenState>((set) => ({
+export const useAutoflattenStore = create<AutoflattenState>((set, get) => ({
   tab: 'status',
 
   tools: [],
@@ -70,9 +86,12 @@ export const useAutoflattenStore = create<AutoflattenState>((set) => ({
   statusLoading: false,
   statusError: null,
 
+  runId: null,
   running: false,
   runResult: null,
   runError: null,
+  runEvents: [],
+  runStartTime: null,
 
   setTab: (tab) => set({ tab }),
 
@@ -97,15 +116,77 @@ export const useAutoflattenStore = create<AutoflattenState>((set) => ({
   },
 
   startRun: async (params) => {
-    set({ running: true, runError: null, runResult: null })
+    set({
+      running: true,
+      runError: null,
+      runResult: null,
+      runEvents: [],
+      runStartTime: Date.now(),
+      runId: null,
+    })
     try {
-      const data = await runAutoflatten(params)
-      set({ runResult: data.result, running: false })
+      const { run_id } = await startAutoflatten(params)
+      set({ runId: run_id })
+
+      // Open WebSocket for live log streaming
+      const ws = connectAutoflattenWs(run_id)
+      ws.onmessage = (msg) => {
+        const event: AutoflattenEvent = JSON.parse(msg.data)
+        set((s) => ({ runEvents: [...s.runEvents, event] }))
+
+        if (event.event === 'done' || event.event === 'failed') {
+          // Fetch final result to populate runResult
+          fetchAutoflattenRun(run_id)
+            .then((data) => {
+              set({
+                running: false,
+                runResult: data.result?.result ?? null,
+                runError: event.event === 'failed' ? (event.error ?? 'failed') : null,
+              })
+            })
+            .catch(() => {
+              set({
+                running: false,
+                runError: event.event === 'failed' ? (event.error ?? 'failed') : null,
+              })
+            })
+          ws.close()
+        }
+      }
+      ws.onerror = () => {
+        // WebSocket errored — fall back to polling the REST endpoint
+        const poll = async () => {
+          try {
+            const data = await fetchAutoflattenRun(run_id)
+            set({ runEvents: data.events as AutoflattenEvent[] })
+            if (data.status !== 'running') {
+              set({
+                running: false,
+                runResult: data.result?.result ?? null,
+                runError: data.status === 'failed' ? (data.error ?? 'failed') : null,
+              })
+              return
+            }
+          } catch {
+            set({ running: false, runError: 'Connection lost' })
+            return
+          }
+          setTimeout(poll, 1000)
+        }
+        poll()
+      }
     } catch (e) {
       set({ runError: String(e), running: false })
     }
   },
 
-  clearRun: () => set({ runResult: null, runError: null, running: false }),
+  clearRun: () => set({
+    runId: null,
+    runResult: null,
+    runError: null,
+    runEvents: [],
+    runStartTime: null,
+    running: false,
+  }),
   clearStatus: () => set({ subjectStatus: null, statusError: null }),
 }))

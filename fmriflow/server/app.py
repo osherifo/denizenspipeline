@@ -17,6 +17,7 @@ from fmriflow.server.services.config_store import ConfigStore
 from fmriflow.server.services.preproc_manager import PreprocManager
 from fmriflow.server.services.convert_manager import ConvertManager
 from fmriflow.server.services.convert_config_store import ConvertConfigStore
+from fmriflow.server.services.autoflatten_manager import AutoflattenManager
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ def create_app(
     preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
     convert_config_store = ConvertConfigStore()
+    autoflatten_manager = AutoflattenManager()
 
     app.state.registry = registry
     app.state.run_store = run_store
@@ -67,6 +69,7 @@ def create_app(
     app.state.preproc_manager = preproc_manager
     app.state.convert_manager = convert_manager
     app.state.convert_config_store = convert_config_store
+    app.state.autoflatten_manager = autoflatten_manager
 
     # API routes
     from fmriflow.server.routes.plugins import router as plugin_router

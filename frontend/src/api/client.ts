@@ -489,7 +489,7 @@ export async function fetchAutoflattenStatus(params: {
   })
 }
 
-export async function runAutoflatten(params: {
+export async function startAutoflatten(params: {
   subjects_dir: string
   subject: string
   hemispheres?: string
@@ -500,21 +500,46 @@ export async function runAutoflatten(params: {
   pycortex_surface_name?: string
   flat_patch_lh?: string
   flat_patch_rh?: string
-}): Promise<{
-  result: {
-    subject: string
-    source: string
-    hemispheres: string[]
-    flat_patches: Record<string, string>
-    visualizations: Record<string, string>
-    pycortex_surface: string | null
-    elapsed_s: number
-  }
-  record: Record<string, unknown>
-}> {
+}): Promise<{ run_id: string; status: string }> {
   return json(`${BASE}/autoflatten/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   })
+}
+
+export async function fetchAutoflattenRun(runId: string): Promise<{
+  run_id: string
+  subject: string
+  status: string
+  result: {
+    result: {
+      subject: string
+      source: string
+      hemispheres: string[]
+      flat_patches: Record<string, string>
+      visualizations: Record<string, string>
+      pycortex_surface: string | null
+      elapsed_s: number
+    }
+    record: Record<string, unknown>
+  } | null
+  error: string | null
+  started_at: number
+  finished_at: number
+  events: Array<{
+    event: string
+    level?: string
+    message?: string
+    error?: string
+    timestamp?: number
+    [key: string]: unknown
+  }>
+}> {
+  return json(`${BASE}/autoflatten/runs/${runId}`)
+}
+
+export function connectAutoflattenWs(runId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return new WebSocket(`${proto}//${window.location.host}/ws/autoflatten/${runId}`)
 }

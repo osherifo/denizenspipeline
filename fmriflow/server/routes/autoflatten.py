@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 router = APIRouter(tags=["autoflatten"])
@@ -107,47 +107,35 @@ async def status(body: StatusBody):
 
 
 @router.post("/autoflatten/run")
-async def run_autoflatten(body: RunBody):
-    """Run autoflatten (or import pre-computed patches)."""
-    from fmriflow.preproc.autoflatten import (
-        AutoflattenConfig,
-        AutoflattenRecord,
-        run_autoflatten as _run,
-    )
+async def start_autoflatten(request: Request, body: RunBody):
+    """Start an autoflatten run in the background. Returns a run_id.
 
-    config = AutoflattenConfig(
-        subjects_dir=body.subjects_dir,
-        subject=body.subject,
-        hemispheres=body.hemispheres,
-        backend=body.backend,
-        parallel=body.parallel,
-        overwrite=body.overwrite,
-        template_file=body.template_file,
-        output_dir=body.output_dir,
-        import_to_pycortex=body.import_to_pycortex,
-        pycortex_surface_name=body.pycortex_surface_name,
-        flat_patch_lh=body.flat_patch_lh,
-        flat_patch_rh=body.flat_patch_rh,
-    )
-
-    errors = config.validate()
-    if errors:
-        raise HTTPException(status_code=400, detail="; ".join(errors))
-
+    Subscribe to ``/ws/autoflatten/{run_id}`` for live log streaming.
+    Poll ``/autoflatten/runs/{run_id}`` for status + final result.
+    """
+    mgr = request.app.state.autoflatten_manager
     try:
-        result = _run(config)
-        record = AutoflattenRecord.from_result(result, config)
-        return {
-            "result": {
-                "subject": result.subject,
-                "source": result.source,
-                "hemispheres": result.hemispheres,
-                "flat_patches": result.flat_patches,
-                "visualizations": result.visualizations,
-                "pycortex_surface": result.pycortex_surface,
-                "elapsed_s": result.elapsed_s,
-            },
-            "record": record.to_dict(),
-        }
+        run_id = mgr.start_run(body.model_dump(exclude_none=True))
+        return {"run_id": run_id, "status": "started"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/autoflatten/runs/{run_id}")
+async def get_autoflatten_run(request: Request, run_id: str):
+    """Get status and (if complete) result for an autoflatten run."""
+    mgr = request.app.state.autoflatten_manager
+    handle = mgr.active_runs.get(run_id)
+    if handle is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+    return {
+        "run_id": handle.run_id,
+        "subject": handle.subject,
+        "status": handle.status,
+        "result": handle.result,
+        "error": handle.error,
+        "started_at": handle.started_at,
+        "finished_at": handle.finished_at,
+        "events": handle.events,
+    }

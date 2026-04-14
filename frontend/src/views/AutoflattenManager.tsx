@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useAutoflattenStore } from '../stores/autoflatten-store'
+import { AutoflattenProgress } from '../components/autoflatten/AutoflattenProgress'
 
 const pageTitle: CSSProperties = {
   fontSize: 20, fontWeight: 800, color: 'var(--text-primary)',
@@ -162,7 +163,7 @@ function StatusTab() {
 // ── Run Tab ─────────────────────────────────────────────────────────────
 
 function RunTab() {
-  const { running, runResult, runError, startRun, clearRun } = useAutoflattenStore()
+  const { running, runResult, runError, runEvents, runStartTime, startRun, clearRun } = useAutoflattenStore()
 
   const [subjectsDir, setSubjectsDir] = useState('')
   const [subject, setSubject] = useState('')
@@ -238,17 +239,22 @@ function RunTab() {
         <button style={btnPrimary} onClick={handleRun} disabled={!subjectsDir || !subject || running}>
           {running ? 'Running...' : 'Run'}
         </button>
-        {(runResult || runError) && (
-          <button style={btnSecondary} onClick={clearRun}>Clear</button>
-        )}
       </div>
 
-      {runError && <div style={{ ...resultBox, color: 'var(--accent-red)' }}>{runError}</div>}
+      {(running || runEvents.length > 0 || runError) && (
+        <AutoflattenProgress
+          events={runEvents}
+          startTime={runStartTime}
+          running={running}
+          error={runError}
+          onDismiss={clearRun}
+        />
+      )}
 
-      {runResult && (
+      {runResult && !running && (
         <div style={resultBox}>
           <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--accent-green)' }}>
-            Autoflatten complete
+            Summary
           </div>
           <div>Subject: {runResult.subject}</div>
           <div>Source: {runResult.source}</div>
@@ -267,7 +273,7 @@ function RunTab() {
 // ── Import Tab ──────────────────────────────────────────────────────────
 
 function ImportTab() {
-  const { running, runResult, runError, startRun, clearRun } = useAutoflattenStore()
+  const { running, runResult, runError, runEvents, runStartTime, startRun, clearRun } = useAutoflattenStore()
 
   const [subjectsDir, setSubjectsDir] = useState('')
   const [subject, setSubject] = useState('')
@@ -324,17 +330,22 @@ function ImportTab() {
           disabled={!subjectsDir || !subject || !flatPatchLh || !flatPatchRh || running}>
           {running ? 'Importing...' : 'Import'}
         </button>
-        {(runResult || runError) && (
-          <button style={btnSecondary} onClick={clearRun}>Clear</button>
-        )}
       </div>
 
-      {runError && <div style={{ ...resultBox, color: 'var(--accent-red)' }}>{runError}</div>}
+      {(running || runEvents.length > 0 || runError) && (
+        <AutoflattenProgress
+          events={runEvents}
+          startTime={runStartTime}
+          running={running}
+          error={runError}
+          onDismiss={clearRun}
+        />
+      )}
 
-      {runResult && (
+      {runResult && !running && (
         <div style={resultBox}>
           <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--accent-green)' }}>
-            Import complete
+            Summary
           </div>
           <div>Source: {runResult.source}</div>
           {runResult.pycortex_surface && <div>pycortex surface: {runResult.pycortex_surface}</div>}
