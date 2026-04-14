@@ -11,6 +11,7 @@ import {
   MarkerType,
 } from '@xyflow/react'
 import dagre from 'dagre'
+import yaml from 'js-yaml'
 
 // ── Handle / data types ─────────────────────────────────────────────────
 
@@ -210,6 +211,78 @@ export const TEMPLATES: GraphTemplate[] = [
   },
 ]
 
+// ── Graph <-> YAML serialization ────────────────────────────────────────
+
+interface GraphYaml {
+  workflow?: string
+  nodes: Record<string, { type: StageType; label?: string; config?: Record<string, unknown> }>
+  edges: Array<{ from: string; out: string; to: string; in: string }>
+}
+
+export function graphToYaml(nodes: Node[], edges: Edge[], workflowName?: string): string {
+  const doc: GraphYaml = {
+    ...(workflowName ? { workflow: workflowName } : {}),
+    nodes: {},
+    edges: [],
+  }
+  for (const n of nodes) {
+    const data = n.data as StageNodeData
+    const cfg = data.config || {}
+    doc.nodes[n.id] = {
+      type: data.stageType,
+      ...(data.label && data.label !== data.stageType ? { label: data.label } : {}),
+      ...(Object.keys(cfg).length > 0 ? { config: cfg } : {}),
+    }
+  }
+  for (const e of edges) {
+    doc.edges.push({
+      from: e.source,
+      out: (e.sourceHandle || '').replace('output-', ''),
+      to: e.target,
+      in: (e.targetHandle || '').replace('input-', ''),
+    })
+  }
+  return yaml.dump(doc, { indent: 2, lineWidth: 100, noRefs: true, sortKeys: false })
+}
+
+export function yamlToGraph(
+  yamlString: string,
+): { nodes: Node[]; edges: Edge[]; workflow?: string } {
+  const doc = yaml.load(yamlString) as GraphYaml | null
+  if (!doc || typeof doc !== 'object') {
+    throw new Error('YAML root must be an object')
+  }
+  if (!doc.nodes || typeof doc.nodes !== 'object') {
+    throw new Error("YAML must contain a 'nodes' mapping")
+  }
+
+  const nodes: Node[] = Object.entries(doc.nodes).map(([id, spec]) => {
+    const stageType = spec.type as StageType
+    const label = spec.label || stageType
+    const config = spec.config || {}
+    return {
+      id,
+      type: 'stage',
+      position: { x: 0, y: 0 },
+      data: {
+        stageType,
+        label,
+        status: 'pending',
+        config,
+        summary: [],
+      },
+    }
+  })
+
+  const edges: Edge[] = (doc.edges || []).map((e, i) => {
+    const sourceHandle = `output-${e.out}`
+    const targetHandle = `input-${e.in}`
+    return makeEdge(`e-${e.from}-${e.to}-${i}`, e.from, sourceHandle, e.to, targetHandle)
+  })
+
+  return { nodes: autoLayout(nodes, edges), edges, workflow: doc.workflow }
+}
+
 // ── Store ───────────────────────────────────────────────────────────────
 
 interface GraphState {
@@ -217,6 +290,12 @@ interface GraphState {
   edges: Edge[]
   selectedNodeId: string | null
   detailOpen: boolean
+
+  // YAML panel
+  yamlString: string
+  yamlErrors: string[]
+  yamlEditing: boolean
+  workflowName: string
 
   // Actions
   onNodesChange: (changes: NodeChange[]) => void
@@ -230,6 +309,12 @@ interface GraphState {
   relayout: () => void
   addNode: (stageType: StageType, label: string) => void
   removeNode: (id: string) => void
+
+  // YAML sync
+  syncYamlFromGraph: () => void
+  setYamlDirect: (yaml: string) => void
+  applyYaml: () => void
+  setWorkflowName: (name: string) => void
 }
 
 let nodeCounter = 100
@@ -240,12 +325,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   selectedNodeId: null,
   detailOpen: false,
 
+  yamlString: '',
+  yamlErrors: [],
+  yamlEditing: false,
+  workflowName: '',
+
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) })
+    get().syncYamlFromGraph()
   },
 
   onEdgesChange: (changes) => {
     set({ edges: applyEdgeChanges(changes, get().edges) })
+    get().syncYamlFromGraph()
   },
 
   onConnect: (connection) => {
@@ -259,6 +351,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       connection.targetHandle!,
     )
     set({ edges: [...get().edges, edge] })
+    get().syncYamlFromGraph()
   },
 
   selectNode: (id) => {
@@ -275,6 +368,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         n.id === id ? { ...n, data: { ...n.data, config } } : n,
       ),
     })
+    get().syncYamlFromGraph()
   },
 
   updateNodeSummary: (id, summary) => {
@@ -289,7 +383,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const tmpl = TEMPLATES.find((t) => t.name === name)
     if (!tmpl) return
     const { nodes, edges } = tmpl.build()
-    set({ nodes, edges, selectedNodeId: null, detailOpen: false })
+    set({ nodes, edges, selectedNodeId: null, detailOpen: false, yamlErrors: [] })
+    get().syncYamlFromGraph()
   },
 
   relayout: () => {
@@ -304,6 +399,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const maxY = get().nodes.reduce((max, n) => Math.max(max, n.position.y), 0)
     node.position = { x: 200, y: maxY + 160 }
     set({ nodes: [...get().nodes, node] })
+    get().syncYamlFromGraph()
   },
 
   removeNode: (id) => {
@@ -313,5 +409,41 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
       detailOpen: get().selectedNodeId === id ? false : get().detailOpen,
     })
+    get().syncYamlFromGraph()
+  },
+
+  syncYamlFromGraph: () => {
+    const { nodes, edges, workflowName, yamlEditing } = get()
+    if (yamlEditing) return
+    try {
+      const yamlString = graphToYaml(nodes, edges, workflowName || undefined)
+      set({ yamlString, yamlErrors: [] })
+    } catch (e) {
+      set({ yamlErrors: [String(e)] })
+    }
+  },
+
+  setYamlDirect: (yamlString) => {
+    set({ yamlString, yamlEditing: true })
+  },
+
+  applyYaml: () => {
+    try {
+      const { nodes, edges, workflow } = yamlToGraph(get().yamlString)
+      set({
+        nodes,
+        edges,
+        workflowName: workflow ?? get().workflowName,
+        yamlErrors: [],
+        yamlEditing: false,
+      })
+    } catch (e) {
+      set({ yamlErrors: [String(e)] })
+    }
+  },
+
+  setWorkflowName: (name) => {
+    set({ workflowName: name })
+    get().syncYamlFromGraph()
   },
 }))
