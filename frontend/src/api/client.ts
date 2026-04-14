@@ -143,6 +143,16 @@ export async function validateConfigFile(filename: string): Promise<ValidationRe
   return json(`${BASE}/configs/${encodeURIComponent(filename)}/validate`, { method: 'POST' })
 }
 
+export async function saveConfigFile(
+  filename: string, yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
 export async function startRunFromConfig(
   configPath: string,
   overrides?: Record<string, unknown>,

@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(tags=["configs"])
+
+
+class SaveConfigBody(BaseModel):
+    yaml_string: str
 
 
 @router.get("/configs")
@@ -66,3 +71,13 @@ async def validate_config_file(request: Request, filename: str):
     """Validate a config file."""
     store = request.app.state.config_store
     return store.validate_config(filename)
+
+
+@router.put("/configs/{filename}")
+async def save_config(request: Request, filename: str, body: SaveConfigBody):
+    """Overwrite (or create) a config file with raw YAML content."""
+    store = request.app.state.config_store
+    result = store.save_config(filename, body.yaml_string)
+    if not result['saved']:
+        raise HTTPException(status_code=400, detail="; ".join(result['errors']))
+    return result

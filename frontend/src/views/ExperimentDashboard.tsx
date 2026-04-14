@@ -58,9 +58,13 @@ export function ExperimentDashboard() {
     }
   }
 
-  const handleEditInComposer = () => {
-    // Navigate to composer — the config store can be loaded separately
-    window.location.hash = '#composer'
+  const handleSaved = () => {
+    // Re-fetch the selected config after a save so the parsed summary
+    // and raw YAML reflect the new content.
+    if (store.selectedFilename) {
+      store.selectConfig(store.selectedFilename)
+    }
+    store.rescan()
   }
 
   return (
@@ -84,7 +88,7 @@ export function ExperimentDashboard() {
               validating={store.validating}
               onRun={handleRun}
               onValidate={handleValidate}
-              onEditInComposer={handleEditInComposer}
+              onSaved={handleSaved}
               isRunning={store.liveRunId !== null}
             />
 

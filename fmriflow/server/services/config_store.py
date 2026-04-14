@@ -188,6 +188,42 @@ class ConfigStore:
         elif isinstance(obj, str):
             buckets.setdefault(prefix, set()).add(obj)
 
+    def save_config(self, filename: str, yaml_string: str) -> dict[str, Any]:
+        """Overwrite (or create) a config file with raw YAML.
+
+        Validates the YAML parses before writing. Rejects paths that
+        would escape ``configs_dir`` (no directory components allowed).
+
+        Returns dict with keys: saved (bool), path, errors (list[str]).
+        """
+        # Disallow directory components — filename only.
+        if '/' in filename or '\\' in filename or filename in ('.', '..'):
+            return {'saved': False, 'path': '', 'errors': [
+                f"Invalid filename: {filename!r}",
+            ]}
+        if not filename.endswith(('.yaml', '.yml')):
+            return {'saved': False, 'path': '', 'errors': [
+                "Config filename must end in .yaml or .yml",
+            ]}
+
+        # Ensure YAML parses before writing.
+        try:
+            yaml.safe_load(yaml_string)
+        except yaml.YAMLError as e:
+            return {'saved': False, 'path': '', 'errors': [f'YAML parse error: {e}']}
+
+        path = self.configs_dir / filename
+        try:
+            self.configs_dir.mkdir(parents=True, exist_ok=True)
+            path.write_text(yaml_string)
+        except OSError as e:
+            return {'saved': False, 'path': str(path), 'errors': [f'Write failed: {e}']}
+
+        # Invalidate cache so next list_configs() re-scans.
+        self._last_scan = 0.0
+
+        return {'saved': True, 'path': str(path.resolve()), 'errors': []}
+
     def validate_config(self, filename: str) -> dict[str, Any]:
         """Run full validation on a config file.
 
