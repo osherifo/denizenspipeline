@@ -123,6 +123,14 @@ export function artifactUrl(runId: string, artifactName: string): string {
   return `${BASE}/runs/${runId}/artifacts/${artifactName}`
 }
 
+export async function deleteArtifact(
+  runId: string, artifactName: string,
+): Promise<{ deleted: boolean; path: string }> {
+  return json(`${BASE}/runs/${runId}/artifacts/${artifactName}`, {
+    method: 'DELETE',
+  })
+}
+
 // ── Experiment Configs ──
 
 export async function fetchConfigs(): Promise<ConfigSummary[]> {

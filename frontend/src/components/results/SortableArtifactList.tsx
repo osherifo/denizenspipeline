@@ -26,10 +26,13 @@ import { CSS } from '@dnd-kit/utilities'
 
 import type { ArtifactInfo } from '../../api/types'
 import { ArtifactViewer } from './ArtifactViewer'
+import { deleteArtifact } from '../../api/client'
 
 interface Props {
   artifacts: ArtifactInfo[]
   runId: string
+  /** Called after a successful delete so the parent can refresh. */
+  onArtifactDeleted?: (name: string) => void
 }
 
 const STORAGE_PREFIX = 'artifactOrder:'
@@ -79,25 +82,43 @@ const itemRow = (dragging: boolean): CSSProperties => ({
   opacity: dragging ? 0.5 : 1,
 })
 
-const handle: CSSProperties = {
-  width: 16,
+const handleColumn: CSSProperties = {
+  width: 18,
   flexShrink: 0,
-  cursor: 'grab',
   display: 'flex',
   flexDirection: 'column',
-  justifyContent: 'center',
   alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingTop: 8,
+  paddingBottom: 8,
+  gap: 6,
+}
+
+const handle: CSSProperties = {
+  cursor: 'grab',
   fontSize: 14,
   lineHeight: 1,
   color: 'var(--text-secondary)',
   userSelect: 'none',
-  borderRadius: 4,
 }
 
 const handleDragging: CSSProperties = {
   ...handle,
   cursor: 'grabbing',
   color: 'var(--accent-cyan)',
+}
+
+const deleteBtn: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  fontSize: 12,
+  lineHeight: 1,
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  opacity: 0.6,
+  transition: 'opacity 0.15s, color 0.15s',
 }
 
 const content: CSSProperties = {
@@ -108,9 +129,11 @@ const content: CSSProperties = {
 interface ItemProps {
   artifact: ArtifactInfo
   runId: string
+  onDelete: (name: string) => void
+  deleting: boolean
 }
 
-function SortableItem({ artifact, runId }: ItemProps) {
+function SortableItem({ artifact, runId, onDelete, deleting }: ItemProps) {
   const {
     attributes,
     listeners,
@@ -129,14 +152,31 @@ function SortableItem({ artifact, runId }: ItemProps) {
 
   return (
     <div ref={setNodeRef} style={style}>
-      <div
-        ref={setActivatorNodeRef}
-        style={isDragging ? handleDragging : handle}
-        title="Drag to reorder"
-        {...attributes}
-        {...listeners}
-      >
-        {'\u22EE\u22EE'}
+      <div style={handleColumn}>
+        <span
+          ref={setActivatorNodeRef}
+          style={isDragging ? handleDragging : handle}
+          title="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          {'\u22EE\u22EE'}
+        </span>
+        <button
+          type="button"
+          style={{
+            ...deleteBtn,
+            opacity: deleting ? 0.3 : 0.6,
+            color: deleting ? 'var(--text-secondary)' : 'var(--accent-red)',
+          }}
+          title="Delete artifact"
+          disabled={deleting}
+          onClick={() => onDelete(artifact.name)}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1' }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = deleting ? '0.3' : '0.6' }}
+        >
+          {'\u2715'}
+        </button>
       </div>
       <div style={content}>
         <ArtifactViewer artifact={artifact} runId={runId} />
@@ -145,7 +185,7 @@ function SortableItem({ artifact, runId }: ItemProps) {
   )
 }
 
-export function SortableArtifactList({ artifacts, runId }: Props) {
+export function SortableArtifactList({ artifacts, runId, onArtifactDeleted }: Props) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -155,6 +195,7 @@ export function SortableArtifactList({ artifacts, runId }: Props) {
   const [order, setOrder] = useState<string[]>(() =>
     reconcileOrder(loadOrder(runId), available),
   )
+  const [deletingName, setDeletingName] = useState<string | null>(null)
 
   // Reconcile when the run or its artifact set changes.
   useEffect(() => {
@@ -177,12 +218,36 @@ export function SortableArtifactList({ artifacts, runId }: Props) {
     saveOrder(runId, next)
   }
 
+  const handleDelete = async (name: string) => {
+    if (deletingName) return
+    if (!window.confirm(`Delete '${name}'? This removes the file from disk and cannot be undone.`)) return
+    setDeletingName(name)
+    try {
+      await deleteArtifact(runId, name)
+      // Remove from saved order so the next reconciliation doesn't try to find it.
+      const next = order.filter((n) => n !== name)
+      setOrder(next)
+      saveOrder(runId, next)
+      onArtifactDeleted?.(name)
+    } catch (e) {
+      window.alert(`Delete failed: ${e}`)
+    } finally {
+      setDeletingName(null)
+    }
+  }
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={order} strategy={verticalListSortingStrategy}>
         <div style={wrapper}>
           {ordered.map((art) => (
-            <SortableItem key={art.name} artifact={art} runId={runId} />
+            <SortableItem
+              key={art.name}
+              artifact={art}
+              runId={runId}
+              onDelete={handleDelete}
+              deleting={deletingName === art.name}
+            />
           ))}
         </div>
       </SortableContext>

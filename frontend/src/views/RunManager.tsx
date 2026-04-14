@@ -214,7 +214,13 @@ function formatScore(score: number | null): string {
 
 // ── Detail View ──
 
-function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
+function RunDetail({
+  run, onClose, onRefresh,
+}: {
+  run: RunSummary
+  onClose: () => void
+  onRefresh: () => void
+}) {
   const artifacts = run.artifacts ? Object.values(run.artifacts) : []
 
   return (
@@ -272,7 +278,11 @@ function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
       {artifacts.length > 0 && (
         <>
           <div style={sectionLabel}>Results ({artifacts.length})</div>
-          <SortableArtifactList artifacts={artifacts} runId={run.run_id} />
+          <SortableArtifactList
+            artifacts={artifacts}
+            runId={run.run_id}
+            onArtifactDeleted={onRefresh}
+          />
         </>
       )}
 
@@ -387,7 +397,13 @@ export function RunManager() {
       )}
 
       {/* Detail panel */}
-      {selectedRun && <RunDetail run={selectedRun} onClose={clearSelection} />}
+      {selectedRun && (
+        <RunDetail
+          run={selectedRun}
+          onClose={clearSelection}
+          onRefresh={() => selectRun(selectedRun.run_id)}
+        />
+      )}
     </div>
   )
 }
