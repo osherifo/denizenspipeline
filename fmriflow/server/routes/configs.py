@@ -35,7 +35,7 @@ async def list_configs(request: Request):
             'features': cfg.features,
             'output_dir': cfg.output_dir,
             'group': cfg.group,
-            'preprocessing_type': cfg.preprocessing_type,
+            'preparation_type': cfg.preparation_type,
             'stimulus_loader': cfg.stimulus_loader,
             'response_loader': cfg.response_loader,
             'n_runs': run_counts.get(key, 0),
