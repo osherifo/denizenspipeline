@@ -69,10 +69,6 @@ class PreparationState:
         )
 
 
-# Backward-compat alias — will be removed in a future release.
-PreprocessingState = PreparationState
-
-
 # ─── Stimulus Containers ──────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -281,10 +277,6 @@ class Preparer(Protocol):
     def validate_config(self, config: dict) -> list[str]: ...
 
 
-# Backward-compat alias — will be removed in a future release.
-Preprocessor = Preparer
-
-
 @runtime_checkable
 class Model(Protocol):
     """Fits a voxelwise encoding model."""
@@ -320,10 +312,6 @@ class PreparationStep(Protocol):
 
     def apply(self, state: PreparationState, params: dict) -> None: ...
     def validate_params(self, params: dict) -> list[str]: ...
-
-
-# Backward-compat alias — will be removed in a future release.
-PreprocessingStep = PreparationStep
 
 
 # ─── Analysis Results ────────────────────────────────────────

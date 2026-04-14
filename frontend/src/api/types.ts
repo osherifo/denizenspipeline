@@ -78,12 +78,6 @@ export interface PipelineConfig {
     steps?: StepConfig[]
     [key: string]: unknown
   }
-  /** @deprecated Use `preparation` instead. */
-  preprocessing?: {
-    type?: string
-    steps?: StepConfig[]
-    [key: string]: unknown
-  }
   model?: {
     type?: string
     params?: Record<string, unknown>

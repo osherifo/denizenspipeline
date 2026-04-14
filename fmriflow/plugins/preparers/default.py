@@ -35,7 +35,7 @@ class DefaultPreparer:
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
-        prep_cfg = config.get('preparation', config.get('preprocessing', {}))
+        prep_cfg = config.get('preparation', {})
         split_cfg = config['split']
 
         trim_start = prep_cfg.get('trim_start', 5)

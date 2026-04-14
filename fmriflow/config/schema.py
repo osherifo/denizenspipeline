@@ -98,8 +98,8 @@ def validate_config(config: dict) -> list[str]:
     if "test_runs" not in split:
         errors.append("'split.test_runs' is required")
 
-    # Preparation validation (accepts legacy 'preprocessing' key)
-    prep = config.get("preparation", config.get("preprocessing", {}))
+    # Preparation validation
+    prep = config.get("preparation", {})
     prep_type = prep.get("type", "default")
 
     if prep_type == "pipeline":

@@ -53,6 +53,6 @@ ctx = pipeline.run(
 | 1. Load Stimuli | `StimulusLoader` | Config | `StimulusData` |
 | 2. Load Responses | `ResponseLoader` | Config | `ResponseData` |
 | 3. Load/Extract Features | `FeatureSource` + `FeatureExtractor` | `StimulusData` | `FeatureData` |
-| 4. Preprocess | `Preprocessor` | `ResponseData` + `FeatureData` | `PreparedData` |
+| 4. Prepare | `Preparer` | `ResponseData` + `FeatureData` | `PreparedData` |
 | 5. Fit Model | `Model` | `PreparedData` | `ModelResult` |
 | 6. Report | `Reporter` | `ModelResult` | Artifacts (files) |

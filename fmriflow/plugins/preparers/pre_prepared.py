@@ -34,9 +34,7 @@ class PreparedDataLoader:
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
-        prep = config.get('preparation', config.get('preprocessing'))
-        if prep is None:
-            raise KeyError("config.preparation (or config.preprocessing) is required")
+        prep = config['preparation']
         source = prep.get('source', 'local')
         delays = prep.get('delays', [1, 2, 3, 4])
         do_zscore = prep.get('do_zscore', True)
@@ -85,7 +83,7 @@ class PreparedDataLoader:
 
     def validate_config(self, config: dict) -> list[str]:
         errors = []
-        prep = config.get('preparation', config.get('preprocessing', {}))
+        prep = config.get('preparation', {})
         source = prep.get('source', 'local')
         if source == 'local':
             for key in ('Y_path', 'X_path'):

@@ -133,7 +133,7 @@ export function ConfigDetail({
   const subject = cfg.subject || '-'
   const modelType = cfg.model?.type || '-'
   const features = (cfg.features || []).map((f: any) => f.name).join(', ') || '-'
-  const prepCfg = cfg.preparation || cfg.preprocessing
+  const prepCfg = cfg.preparation
   const prepType = prepCfg?.type || 'default'
   const outputDir = cfg.reporting?.output_dir || '-'
   const stimLoader = cfg.stimulus?.loader || '-'

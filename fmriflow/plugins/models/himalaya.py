@@ -421,7 +421,7 @@ class MultipleKernelRidgeModel:
         if not isinstance(cv, int) or cv < 2:
             errors.append(f"cv must be an integer >= 2, got {cv}")
 
-        prep_cfg = config.get('preparation', config.get('preprocessing', {}))
+        prep_cfg = config.get('preparation', {})
         prep_type = prep_cfg.get('type', 'default')
         if prep_type == 'default':
             apply_delays = prep_cfg.get('apply_delays', True)

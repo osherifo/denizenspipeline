@@ -84,8 +84,8 @@ class ConfigStore:
             if isinstance(f, dict) and 'name' in f:
                 features.append(f['name'])
 
-        # Preparation type (accept legacy 'preprocessing' key)
-        prep = config.get('preparation', config.get('preprocessing', {}))
+        # Preparation type
+        prep = config.get('preparation', {})
         prep_type = prep.get('type', 'default') if isinstance(prep, dict) else 'default'
 
         return ConfigSummary(

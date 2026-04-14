@@ -63,8 +63,6 @@ async def get_plugin(request: Request, category: str, name: str):
         'feature_sources': 'features',
         'preparers': 'prepare',
         'preparation_steps': 'prepare',
-        'preprocessors': 'prepare',        # legacy
-        'preprocessing_steps': 'prepare',  # legacy
         'analyzers': 'analyze',
         'models': 'model',
         'reporters': 'report',

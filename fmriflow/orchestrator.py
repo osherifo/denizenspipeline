@@ -19,23 +19,6 @@ logger = logging.getLogger(__name__)
 
 ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
 
-# Backward-compat: old stage name was "preprocess"
-_STAGE_ALIASES = {'preprocess': 'prepare'}
-
-
-def _prep_cfg(cfg: dict) -> dict:
-    """Get the preparation section from a config, with legacy fallback.
-
-    Accepts either ``preparation:`` (new) or ``preprocessing:`` (legacy).
-    """
-    prep = cfg.get('preparation')
-    if prep is not None:
-        return prep
-    legacy = cfg.get('preprocessing')
-    if legacy is not None:
-        return legacy
-    return {}
-
 
 class PipelineOrchestrator:
     """Coordinates plugin execution across pipeline stages."""
@@ -66,8 +49,6 @@ class PipelineOrchestrator:
             self.ctx = context
 
         stages_to_run = stages or ALL_STAGES
-        # Normalize legacy stage names
-        stages_to_run = [_STAGE_ALIASES.get(s, s) for s in stages_to_run]
 
         # Resolve plugins
         plugins = self._resolve_plugins()
@@ -133,9 +114,9 @@ class PipelineOrchestrator:
                 stages=records,
                 config_snapshot={
                     'model_type': cfg.get('model', {}).get('type', ''),
-                    'preparation_type': _prep_cfg(cfg).get('type', ''),
+                    'preparation_type': cfg.get('preparation', {}).get('type', ''),
                     'features': [f.get('name', '') for f in cfg.get('features', [])],
-                    'split': _prep_cfg(cfg).get('split', {}),
+                    'split': cfg.get('preparation', {}).get('split', {}),
                 },
             )
 
@@ -151,7 +132,7 @@ class PipelineOrchestrator:
                 cfg.get('response', {}).get('loader', 'cloud')),
             'feature_sources': self._resolve_feature_sources(),
             'preparer': self.registry.get_preparer(
-                _prep_cfg(cfg).get('type', 'default')),
+                cfg.get('preparation', {}).get('type', 'default')),
             'analyzers': self._resolve_analyzers(),
             'model': self.registry.get_model(
                 cfg.get('model', {}).get('type', 'bootstrap_ridge')),

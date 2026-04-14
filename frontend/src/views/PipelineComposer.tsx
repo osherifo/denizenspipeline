@@ -578,7 +578,7 @@ function PreparationSection() {
   const setField = useConfigStore((s) => s.setField)
   const { addStep, removeStep, updateStep } = useConfigStore()
 
-  const prep = config.preparation || config.preprocessing || {}
+  const prep = config.preparation || {}
   const prepType = (prep.type as string) || 'default'
   const steps = prep.steps || []
   const stepPlugins = getPluginsForCategories(plugins, ['preparation_steps'])

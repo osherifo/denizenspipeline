@@ -63,9 +63,6 @@ class PluginRegistry:
             'fmriflow.feature_sources': self._feature_sources,
             'fmriflow.preparers': self._preparers,
             'fmriflow.preparation_steps': self._preparation_steps,
-            # Backward-compat entry-point groups
-            'fmriflow.preprocessors': self._preparers,
-            'fmriflow.preprocessing_steps': self._preparation_steps,
             'fmriflow.analyzers': self._analyzers,
             'fmriflow.models': self._models,
             'fmriflow.reporters': self._reporters,
@@ -139,10 +136,6 @@ class PluginRegistry:
             return cls
         return wrapper
 
-    # Backward-compat aliases
-    preprocessor = preparer
-    preprocessing_step = preparation_step
-
     def analyzer(self, name: str):
         """Decorator to register an analyzer."""
         def wrapper(cls):
@@ -215,10 +208,6 @@ class PluginRegistry:
                 f"Available: {list(self._preparation_steps.keys())}")
         return self._preparation_steps[name]()
 
-    # Backward-compat aliases
-    get_preprocessor = get_preparer
-    get_preprocessing_step = get_preparation_step
-
     def get_analyzer(self, name: str):
         if name not in self._analyzers:
             raise PluginNotFoundError(
@@ -267,9 +256,6 @@ class PluginRegistry:
             'feature_sources': self._feature_sources,
             'preparers': self._preparers,
             'preparation_steps': self._preparation_steps,
-            # Backward-compat aliases
-            'preprocessors': self._preparers,
-            'preprocessing_steps': self._preparation_steps,
             'analyzers': self._analyzers,
             'models': self._models,
             'reporters': self._reporters,

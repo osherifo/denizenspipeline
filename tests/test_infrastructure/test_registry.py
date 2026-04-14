@@ -117,10 +117,10 @@ class TestPluginRegistryGetters:
     def test_each_call_returns_new_instance(self):
         reg = PluginRegistry()
 
-        @reg.preprocessor("test_prep")
+        @reg.preparer("test_prep")
         class TestPrep:
             name = "test_prep"
 
-        inst1 = reg.get_preprocessor("test_prep")
-        inst2 = reg.get_preprocessor("test_prep")
+        inst1 = reg.get_preparer("test_prep")
+        inst2 = reg.get_preparer("test_prep")
         assert inst1 is not inst2

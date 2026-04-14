@@ -40,7 +40,7 @@ class PipelinePreparer:
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
-        prep_cfg = config.get("preparation", config.get("preprocessing", {}))
+        prep_cfg = config.get("preparation", {})
         steps_cfg = prep_cfg.get("steps", [])
 
         # Build initial state from raw data
@@ -67,7 +67,7 @@ class PipelinePreparer:
 
     def validate_config(self, config: dict) -> list[str]:
         errors = []
-        prep_cfg = config.get("preparation", config.get("preprocessing", {}))
+        prep_cfg = config.get("preparation", {})
         steps_cfg = prep_cfg.get("steps")
 
         if steps_cfg is None:
