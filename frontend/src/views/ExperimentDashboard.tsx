@@ -67,6 +67,12 @@ export function ExperimentDashboard() {
     store.rescan()
   }
 
+  const handleCopied = async (newFilename: string) => {
+    // Refresh the list, then select the new config.
+    await store.rescan()
+    store.selectConfig(newFilename)
+  }
+
   return (
     <div style={containerStyle}>
       <style>{pulseKeyframes}</style>
@@ -89,6 +95,7 @@ export function ExperimentDashboard() {
               onRun={handleRun}
               onValidate={handleValidate}
               onSaved={handleSaved}
+              onCopied={handleCopied}
               isRunning={store.liveRunId !== null}
             />
 

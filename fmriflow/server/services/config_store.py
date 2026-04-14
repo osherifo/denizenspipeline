@@ -224,6 +224,42 @@ class ConfigStore:
 
         return {'saved': True, 'path': str(path.resolve()), 'errors': []}
 
+    def copy_config(self, source: str, new_filename: str) -> dict[str, Any]:
+        """Duplicate an existing config under a new filename.
+
+        Refuses to overwrite an existing file — pick a name that doesn't
+        collide. Returns dict with keys: saved, path, errors.
+        """
+        if '/' in new_filename or '\\' in new_filename or new_filename in ('.', '..'):
+            return {'saved': False, 'path': '', 'errors': [
+                f"Invalid filename: {new_filename!r}",
+            ]}
+        if not new_filename.endswith(('.yaml', '.yml')):
+            return {'saved': False, 'path': '', 'errors': [
+                "Config filename must end in .yaml or .yml",
+            ]}
+
+        src = self.configs_dir / source
+        if not src.is_file():
+            return {'saved': False, 'path': '', 'errors': [
+                f"Source config not found: {source}",
+            ]}
+
+        dest = self.configs_dir / new_filename
+        if dest.exists():
+            return {'saved': False, 'path': str(dest), 'errors': [
+                f"Destination already exists: {new_filename}",
+            ]}
+
+        try:
+            dest.write_text(src.read_text())
+        except OSError as e:
+            return {'saved': False, 'path': str(dest), 'errors': [f'Write failed: {e}']}
+
+        self._last_scan = 0.0
+
+        return {'saved': True, 'path': str(dest.resolve()), 'errors': []}
+
     def validate_config(self, filename: str) -> dict[str, Any]:
         """Run full validation on a config file.
 

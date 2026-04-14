@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConfigDetail as ConfigDetailType } from '../../api/types'
-import { saveConfigFile } from '../../api/client'
+import { saveConfigFile, copyConfigFile } from '../../api/client'
 
 interface ConfigDetailProps {
   config: ConfigDetailType
@@ -11,6 +11,7 @@ interface ConfigDetailProps {
   onRun: () => void
   onValidate: () => void
   onSaved?: () => void
+  onCopied?: (newFilename: string) => void
   isRunning: boolean
 }
 
@@ -156,6 +157,7 @@ export function ConfigDetail({
   onRun,
   onValidate,
   onSaved,
+  onCopied,
   isRunning,
 }: ConfigDetailProps) {
   const [showYaml, setShowYaml] = useState(false)
@@ -163,6 +165,7 @@ export function ConfigDetail({
   const [yamlDraft, setYamlDraft] = useState(config.yaml_string)
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [copying, setCopying] = useState(false)
 
   // Reset the draft whenever a different config is selected or reloaded.
   useEffect(() => {
@@ -189,6 +192,24 @@ export function ConfigDetail({
     setYamlDraft(config.yaml_string)
     setEditing(false)
     setSaveErr(null)
+  }
+
+  const handleCopy = async () => {
+    const base = config.filename.replace(/\.(yaml|yml)$/, '')
+    const ext = config.filename.match(/\.(yaml|yml)$/)?.[0] ?? '.yaml'
+    const suggested = `${base}_copy${ext}`
+    const name = window.prompt('New filename:', suggested)
+    if (!name) return
+
+    setCopying(true)
+    try {
+      const result = await copyConfigFile(config.filename, name)
+      if (result.saved) onCopied?.(result.filename)
+    } catch (e) {
+      window.alert(`Copy failed: ${e}`)
+    } finally {
+      setCopying(false)
+    }
   }
 
   const cfg = config.config as Record<string, any>
@@ -305,6 +326,9 @@ export function ConfigDetail({
             Edit YAML
           </button>
         )}
+        <button style={btnStyle('default')} onClick={handleCopy} disabled={copying || editing}>
+          {copying ? 'Copying...' : 'Duplicate'}
+        </button>
       </div>
 
       {/* Validation results */}

@@ -12,6 +12,10 @@ class SaveConfigBody(BaseModel):
     yaml_string: str
 
 
+class CopyConfigBody(BaseModel):
+    new_filename: str
+
+
 @router.get("/configs")
 async def list_configs(request: Request):
     """List all experiment configs with metadata."""
@@ -81,3 +85,14 @@ async def save_config(request: Request, filename: str, body: SaveConfigBody):
     if not result['saved']:
         raise HTTPException(status_code=400, detail="; ".join(result['errors']))
     return result
+
+
+@router.post("/configs/{filename}/copy")
+async def copy_config(request: Request, filename: str, body: CopyConfigBody):
+    """Duplicate an existing config under a new filename."""
+    store = request.app.state.config_store
+    result = store.copy_config(filename, body.new_filename)
+    if not result['saved']:
+        status = 409 if any('already exists' in e for e in result['errors']) else 400
+        raise HTTPException(status_code=status, detail="; ".join(result['errors']))
+    return {**result, 'filename': body.new_filename}

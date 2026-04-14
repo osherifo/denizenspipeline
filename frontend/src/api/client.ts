@@ -153,6 +153,16 @@ export async function saveConfigFile(
   })
 }
 
+export async function copyConfigFile(
+  source: string, newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
+  })
+}
+
 export async function startRunFromConfig(
   configPath: string,
   overrides?: Record<string, unknown>,
