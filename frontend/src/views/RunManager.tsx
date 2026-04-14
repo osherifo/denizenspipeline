@@ -2,8 +2,8 @@ import { useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
-import { ArtifactViewer } from '../components/results/ArtifactViewer'
-import type { RunSummary, ArtifactInfo } from '../api/types'
+import { SortableArtifactList } from '../components/results/SortableArtifactList'
+import type { RunSummary } from '../api/types'
 
 // ── Styles ──
 
@@ -272,11 +272,7 @@ function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
       {artifacts.length > 0 && (
         <>
           <div style={sectionLabel}>Results ({artifacts.length})</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {artifacts.map((art: ArtifactInfo) => (
-              <ArtifactViewer key={art.name} artifact={art} runId={run.run_id} />
-            ))}
-          </div>
+          <SortableArtifactList artifacts={artifacts} runId={run.run_id} />
         </>
       )}
 
