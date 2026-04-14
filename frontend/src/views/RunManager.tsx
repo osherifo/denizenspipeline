@@ -2,7 +2,7 @@ import { useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
-import { artifactUrl } from '../api/client'
+import { ArtifactViewer } from '../components/results/ArtifactViewer'
 import type { RunSummary, ArtifactInfo } from '../api/types'
 
 // ── Styles ──
@@ -138,28 +138,6 @@ const summaryValue: CSSProperties = {
   color: 'var(--text-primary)',
 }
 
-const artifactList: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-}
-
-const artifactRow: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '8px 12px',
-  backgroundColor: 'var(--bg-secondary)',
-  borderRadius: 4,
-  fontSize: 12,
-}
-
-const artifactLink: CSSProperties = {
-  color: 'var(--accent-cyan)',
-  textDecoration: 'none',
-  fontSize: 11,
-  fontWeight: 600,
-}
 
 const loadingStyle: CSSProperties = {
   color: 'var(--text-secondary)',
@@ -234,12 +212,6 @@ function formatScore(score: number | null): string {
   return score.toFixed(4)
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 // ── Detail View ──
 
 function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
@@ -299,34 +271,10 @@ function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
       {/* Artifacts */}
       {artifacts.length > 0 && (
         <>
-          <div style={sectionLabel}>Artifacts ({artifacts.length})</div>
-          <div style={artifactList}>
+          <div style={sectionLabel}>Results ({artifacts.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {artifacts.map((art: ArtifactInfo) => (
-              <div key={art.name} style={artifactRow}>
-                <div>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{art.name}</span>
-                  <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
-                    {art.type} / {formatSize(art.size)}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <a
-                    href={artifactUrl(run.run_id, art.name)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={artifactLink}
-                  >
-                    View
-                  </a>
-                  <a
-                    href={artifactUrl(run.run_id, art.name)}
-                    download
-                    style={artifactLink}
-                  >
-                    Download
-                  </a>
-                </div>
-              </div>
+              <ArtifactViewer key={art.name} artifact={art} runId={run.run_id} />
             ))}
           </div>
         </>
