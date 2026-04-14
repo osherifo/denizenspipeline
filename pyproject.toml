@@ -65,9 +65,9 @@ compute = "fmriflow.plugins.feature_sources.compute:ComputeSource"
 filesystem = "fmriflow.plugins.feature_sources.filesystem:FilesystemSource"
 cloud = "fmriflow.plugins.feature_sources.cloud:CloudSource"
 
-[project.entry-points."fmriflow.preprocessors"]
-default = "fmriflow.plugins.preprocessors.default:DefaultPreprocessor"
-pre_prepared = "fmriflow.plugins.preprocessors.pre_prepared:PreparedDataLoader"
+[project.entry-points."fmriflow.preparers"]
+default = "fmriflow.plugins.preparers.default:DefaultPreparer"
+pre_prepared = "fmriflow.plugins.preparers.pre_prepared:PreparedDataLoader"
 
 [project.entry-points."fmriflow.models"]
 bootstrap_ridge = "fmriflow.plugins.models.ridge:BootstrapRidgeModel"

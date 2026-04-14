@@ -382,7 +382,7 @@ def _cmd_list(args) -> int:
         'stimuli': ['stimulus_loaders'],
         'responses': ['response_loaders', 'response_readers'],
         'features': ['feature_extractors', 'feature_sources'],
-        'preprocess': ['preprocessors', 'preprocessing_steps'],
+        'prepare': ['preparers', 'preparation_steps'],
         'model': ['models'],
         'analyze': ['analyzers'],
         'report': ['reporters'],

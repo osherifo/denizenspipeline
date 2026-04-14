@@ -78,7 +78,7 @@ class MockFeatureSource:
         return []
 
 
-class MockPreprocessor:
+class MockPreparer:
     name = "mock_prep"
 
     def prepare(self, responses, features, config):
@@ -140,7 +140,7 @@ def _make_registry():
     reg._stimulus_loaders["mock_stim"] = MockStimulusLoader
     reg._response_loaders["mock_resp"] = MockResponseLoader
     reg._feature_sources["mock_source"] = MockFeatureSource
-    reg._preprocessors["mock_prep"] = MockPreprocessor
+    reg._preparers["mock_prep"] = MockPreparer
     reg._models["mock_model"] = MockModel
     reg._reporters["mock_report"] = MockReporter
     return reg
@@ -155,7 +155,7 @@ def _make_config():
         "features": [
             {"name": "mock_feat", "source": "mock_source"},
         ],
-        "preprocessing": {"type": "mock_prep"},
+        "preparation": {"type": "mock_prep"},
         "model": {"type": "mock_model", "params": {}},
         "split": {"test_runs": ["story3"]},
         "reporting": {"formats": ["mock_report"], "output_dir": "/tmp/test_results"},

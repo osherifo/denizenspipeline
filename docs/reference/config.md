@@ -13,7 +13,7 @@ Full schema for fMRIflow experiment YAML configs.
 | `stimulus` | object | no | Stimulus loading configuration |
 | `response` | object | no | Brain response loading configuration |
 | `features` | list | yes | Feature definitions (at least one required) |
-| `preprocessing` | object | no | Preprocessing parameters |
+| `preparation` | object | no | Analysis-stage data preparation parameters (trim, zscore, delay) |
 | `split` | object | yes | Train/test split definition |
 | `model` | object | no | Model type and parameters |
 | `reporting` | object | no | Output formats and paths |
@@ -55,11 +55,17 @@ Full schema for fMRIflow experiment YAML configs.
 | `format` | string | File format: `npz`, `npy`, `hdf5` |
 | `save_to` | object | Save computed features for future reuse |
 
-## `preprocessing`
+## `preparation`
+
+Analysis-stage data preparation — applied to already-preprocessed BOLD data
+before model fitting. **Not** the same as fMRI preprocessing (fmriprep); that
+is managed via the Preproc module.
+
+The legacy key `preprocessing:` is still accepted (with a deprecation warning).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | `default` | Preprocessor plugin: `default`, `pre_prepared`, `pipeline` |
+| `type` | string | `default` | Preparer plugin: `default`, `pre_prepared`, `pipeline` |
 | `trim_start` | int | `5` | TRs to trim from start of each run |
 | `trim_end` | int | `5` | TRs to trim from end of each run |
 | `delays` | list[int] | `[1,2,3,4]` | FIR delay taps |

@@ -254,7 +254,7 @@ function FeaturesConfig({ config, onChange }: { config: Record<string, unknown>;
   )
 }
 
-function PreprocessConfig({ config, onChange }: { config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void }) {
+function PrepareConfig({ config, onChange }: { config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void }) {
   return (
     <>
       <div style={fieldRow}>
@@ -324,7 +324,7 @@ const CONFIG_FORMS: Record<StageType, React.FC<{ config: Record<string, unknown>
   autoflatten: AutoflattenConfig,
   response_loader: ResponseLoaderConfig,
   features: FeaturesConfig,
-  preprocess: PreprocessConfig,
+  prepare: PrepareConfig,
   model: ModelConfig,
   report: ReportConfig,
 }
@@ -385,7 +385,7 @@ function buildSummary(stageType: StageType, config: Record<string, unknown>): st
         ? [feats.map((f) => f.name).join(', ')]
         : ['(add features)']
     }
-    case 'preprocess':
+    case 'prepare':
       return [config.steps_str as string || 'trim, zscore, concat']
     case 'model':
       return [`type: ${config.type || 'bootstrap_ridge'}`]

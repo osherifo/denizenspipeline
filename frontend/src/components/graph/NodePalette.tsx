@@ -9,7 +9,7 @@ const PALETTE_ITEMS: { type: StageType; label: string; icon: string }[] = [
   { type: 'autoflatten', label: 'Autoflatten', icon: '\u{1F9E0}' },
   { type: 'response_loader', label: 'Responses', icon: '\u{1F4E5}' },
   { type: 'features', label: 'Features', icon: '\u{2728}' },
-  { type: 'preprocess', label: 'Preprocess', icon: '\u{1F527}' },
+  { type: 'prepare', label: 'Prepare', icon: '\u{1F527}' },
   { type: 'model', label: 'Model', icon: '\u{1F4CA}' },
   { type: 'report', label: 'Report', icon: '\u{1F4DD}' },
 ]

@@ -91,8 +91,10 @@ const stageBadge = (stage: string): CSSProperties => {
     stimuli: '#00e5ff',
     responses: '#e040fb',
     features: '#ffd600',
-    preprocess: '#00e676',
-    preprocessing: '#00e676',
+    prepare: '#00e676',
+    preprocess: '#00e676',       // legacy alias
+    preparation: '#00e676',       // legacy alias
+    preprocessing: '#00e676',     // legacy alias
     model: '#448aff',
     analyze: '#ff1744',
     report: '#ffffff',

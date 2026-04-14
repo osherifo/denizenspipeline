@@ -43,15 +43,17 @@ Run `fmriflow list plugins` for the full list with descriptions. Summary by cate
 | `bids` | Load from BIDS-formatted dataset |
 | `preproc` | Load from a PreprocManifest (fmriprep outputs) |
 
-## Preprocessors
+## Preparers
+
+Analysis-stage data preparation (distinct from fMRI preprocessing / fmriprep).
 
 | Plugin | Description |
 |--------|-------------|
-| `default` | Standard preprocessing pipeline (trim, zscore, delay, concatenate) |
+| `default` | Standard preparation pipeline (trim, zscore, delay, concatenate) |
 | `pre_prepared` | Load pre-prepared X/Y matrices |
-| `pipeline` | Composable preprocessing steps |
+| `pipeline` | Composable preparation steps |
 
-## Preprocessing Steps
+## Preparation Steps
 
 For use with `type: pipeline`:
 

@@ -24,7 +24,7 @@ class ConfigSummary:
     features: list[str]
     output_dir: str
     group: str
-    preprocessing_type: str
+    preparation_type: str
     stimulus_loader: str
     response_loader: str
 
@@ -84,8 +84,8 @@ class ConfigStore:
             if isinstance(f, dict) and 'name' in f:
                 features.append(f['name'])
 
-        # Preprocessing type
-        prep = config.get('preprocessing', {})
+        # Preparation type (accept legacy 'preprocessing' key)
+        prep = config.get('preparation', config.get('preprocessing', {}))
         prep_type = prep.get('type', 'default') if isinstance(prep, dict) else 'default'
 
         return ConfigSummary(
@@ -97,7 +97,7 @@ class ConfigStore:
             features=features,
             output_dir=config.get('reporting', {}).get('output_dir', '') if isinstance(config.get('reporting'), dict) else '',
             group=group,
-            preprocessing_type=prep_type,
+            preparation_type=prep_type,
             stimulus_loader=config.get('stimulus', {}).get('loader', '') if isinstance(config.get('stimulus'), dict) else '',
             response_loader=config.get('response', {}).get('loader', '') if isinstance(config.get('response'), dict) else '',
         )

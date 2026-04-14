@@ -53,7 +53,7 @@ const STAGE_META: Record<StageType, StageMeta> = {
     inputs: [],
     outputs: [{ id: 'output-features', label: 'Features' }],
   },
-  preprocess: {
+  prepare: {
     color: '#f97316',
     icon: '\u{1F527}',
     inputs: [

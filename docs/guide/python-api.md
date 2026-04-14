@@ -41,7 +41,7 @@ features = ctx.get("features", FeatureData)
 
 # Continue with model fitting
 ctx = pipeline.run(
-    stages=["preprocess", "model", "report"],
+    stages=["prepare", "model", "report"],
     context=ctx,
 )
 ```

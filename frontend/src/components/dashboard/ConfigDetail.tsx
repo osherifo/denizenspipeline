@@ -133,16 +133,17 @@ export function ConfigDetail({
   const subject = cfg.subject || '-'
   const modelType = cfg.model?.type || '-'
   const features = (cfg.features || []).map((f: any) => f.name).join(', ') || '-'
-  const prepType = cfg.preprocessing?.type || 'default'
+  const prepCfg = cfg.preparation || cfg.preprocessing
+  const prepType = prepCfg?.type || 'default'
   const outputDir = cfg.reporting?.output_dir || '-'
   const stimLoader = cfg.stimulus?.loader || '-'
   const respLoader = cfg.response?.loader || '-'
   const formats = (cfg.reporting?.formats || []).join(', ') || '-'
 
-  // Preprocessing steps summary
+  // Preparation steps summary
   let prepSummary = prepType
-  if (prepType === 'pipeline' && cfg.preprocessing?.steps) {
-    prepSummary = cfg.preprocessing.steps.map((s: any) => s.name).join(' \u2192 ')
+  if (prepType === 'pipeline' && prepCfg?.steps) {
+    prepSummary = prepCfg.steps.map((s: any) => s.name).join(' \u2192 ')
   }
 
   return (

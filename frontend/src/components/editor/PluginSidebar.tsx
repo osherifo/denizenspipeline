@@ -79,7 +79,7 @@ const newBtnStyle: CSSProperties = {
 
 const CATEGORY_LABELS: Record<string, string> = {
   feature_extractors: 'Feature Extractor',
-  preprocessing_steps: 'Preprocessing Step',
+  preparation_steps: 'Preparation Step',
   reporters: 'Reporter',
   analyzers: 'Analyzer',
   stimulus_loaders: 'Stimulus Loader',

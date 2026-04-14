@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from fmriflow.core.types import PreprocessingState
-from fmriflow.plugins._decorators import preprocessing_step
+from fmriflow.core.types import PreparationState
+from fmriflow.plugins._decorators import preparation_step
 
 
-@preprocessing_step("split")
+@preparation_step("split")
 class SplitStep:
     """Sets train_runs / test_runs on state from config split section."""
 
@@ -16,7 +16,7 @@ class SplitStep:
         "train_runs": {"type": "list[string]", "description": "Train run names (auto-computed if omitted)"},
     }
 
-    def apply(self, state: PreprocessingState, params: dict) -> None:
+    def apply(self, state: PreparationState, params: dict) -> None:
         config = params.get("_config", {})
         split_cfg = config.get("split", {})
         test_runs = split_cfg.get("test_runs", params.get("test_runs", []))

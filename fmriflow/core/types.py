@@ -11,18 +11,18 @@ import numpy as np
 T = TypeVar("T")
 
 
-# ─── Preprocessing State (mutable, internal to preprocessing) ────
+# ─── Preparation State (mutable, internal to the prepare stage) ─────
 
 @dataclass
-class PreprocessingState:
-    """Mutable state passed between preprocessing steps.
+class PreparationState:
+    """Mutable state passed between preparation steps.
 
     Holds per-run dicts (before concatenation) AND/OR concatenated
     matrices (after).  Steps mutate this in place.  Only lives inside
-    the preprocessing stage — not part of the public inter-stage protocol.
+    the prepare stage — not part of the public inter-stage protocol.
     """
 
-    # Per-run data (before concatenation)
+    # ── Per-run data (before concatenation) ──
     responses: dict[str, np.ndarray] = field(default_factory=dict)
     features: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
 
@@ -67,6 +67,10 @@ class PreprocessingState:
             test_runs=self.test_runs,
             metadata=self.metadata,
         )
+
+
+# Backward-compat alias — will be removed in a future release.
+PreprocessingState = PreparationState
 
 
 # ─── Stimulus Containers ──────────────────────────────────────
@@ -268,13 +272,17 @@ class FeatureExtractor(Protocol):
 
 
 @runtime_checkable
-class Preprocessor(Protocol):
+class Preparer(Protocol):
     """Aligns, normalizes, and splits data for model fitting."""
     name: str
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData: ...
     def validate_config(self, config: dict) -> list[str]: ...
+
+
+# Backward-compat alias — will be removed in a future release.
+Preprocessor = Preparer
 
 
 @runtime_checkable
@@ -306,12 +314,16 @@ class Analyzer(Protocol):
 
 
 @runtime_checkable
-class PreprocessingStep(Protocol):
-    """A single composable preprocessing step for the pipeline preprocessor."""
+class PreparationStep(Protocol):
+    """A single composable preparation step for the pipeline preparer."""
     name: str
 
-    def apply(self, state: PreprocessingState, params: dict) -> None: ...
+    def apply(self, state: PreparationState, params: dict) -> None: ...
     def validate_params(self, params: dict) -> list[str]: ...
+
+
+# Backward-compat alias — will be removed in a future release.
+PreprocessingStep = PreparationStep
 
 
 # ─── Analysis Results ────────────────────────────────────────

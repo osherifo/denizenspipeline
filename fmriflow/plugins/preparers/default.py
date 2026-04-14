@@ -1,4 +1,4 @@
-"""DefaultPreprocessor — trim, z-score, concatenate, delay."""
+"""DefaultPreparer — trim, z-score, concatenate, delay."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from fmriflow.core.array_utils import make_delayed, zscore
 from fmriflow.core.types import (
     FeatureData, PreparedData, ResponseData,
 )
-from fmriflow.plugins._decorators import preprocessor
+from fmriflow.plugins._decorators import preparer
 
 
-@preprocessor("default")
-class DefaultPreprocessor:
-    """Standard preprocessing: trim -> z-score -> concatenate -> delay.
+@preparer("default")
+class DefaultPreparer:
+    """Default data preparation: trim -> z-score -> concatenate -> delay.
 
     Wraps the Setup class from v1 interpretation/analysis.py.
     """
@@ -35,7 +35,7 @@ class DefaultPreprocessor:
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
-        prep_cfg = config.get('preprocessing', {})
+        prep_cfg = config.get('preparation', config.get('preprocessing', {}))
         split_cfg = config['split']
 
         trim_start = prep_cfg.get('trim_start', 5)

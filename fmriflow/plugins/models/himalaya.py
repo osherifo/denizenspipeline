@@ -323,7 +323,7 @@ class BandedRidgeModel:
 class MultipleKernelRidgeModel:
     """Multiple kernel ridge regression via himalaya.
 
-    Requires un-delayed data (``preprocessing.apply_delays: false``).
+    Requires un-delayed data (``preparation.apply_delays: false``).
     Builds a pipeline with ``ColumnKernelizer`` that applies delays and
     kernelization per feature group, then fits ``MultipleKernelRidgeCV``
     with precomputed kernels.
@@ -421,21 +421,21 @@ class MultipleKernelRidgeModel:
         if not isinstance(cv, int) or cv < 2:
             errors.append(f"cv must be an integer >= 2, got {cv}")
 
-        prep_cfg = config.get('preprocessing', {})
+        prep_cfg = config.get('preparation', config.get('preprocessing', {}))
         prep_type = prep_cfg.get('type', 'default')
         if prep_type == 'default':
             apply_delays = prep_cfg.get('apply_delays', True)
             if apply_delays:
                 errors.append(
-                    "multiple_kernel_ridge requires preprocessing.apply_delays: false"
+                    "multiple_kernel_ridge requires preparation.apply_delays: false"
                 )
         elif prep_type == 'pipeline':
-            # Pipeline preprocessor: ensure no delay step is included
+            # Pipeline preparer: ensure no delay step is included
             # (delays are applied per-group inside ColumnKernelizer)
             step_names = [s.get('name') for s in prep_cfg.get('steps', [])]
             if 'delay' in step_names:
                 errors.append(
                     "multiple_kernel_ridge applies delays internally; "
-                    "remove the 'delay' step from preprocessing"
+                    "remove the 'delay' step from preparation"
                 )
         return errors

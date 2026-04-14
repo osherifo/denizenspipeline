@@ -6,20 +6,20 @@ import logging
 
 import numpy as np
 
-from fmriflow.core.types import PreprocessingState
-from fmriflow.plugins._decorators import preprocessing_step
+from fmriflow.core.types import PreparationState
+from fmriflow.plugins._decorators import preparation_step
 
 logger = logging.getLogger(__name__)
 
 
-@preprocessing_step("concatenate")
+@preparation_step("concatenate")
 class ConcatenateStep:
     """Horizontally stacks features, vertically stacks runs, splits train/test."""
 
     name = "concatenate"
     PARAM_SCHEMA = {}
 
-    def apply(self, state: PreprocessingState, params: dict) -> None:
+    def apply(self, state: PreparationState, params: dict) -> None:
         if state.is_concatenated:
             return  # Already concatenated
 

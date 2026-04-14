@@ -29,7 +29,7 @@ features:                          # feature extraction
     params:
       embedding_path: ${FMRIFLOW_DATA_DIR}/embeddings/word2vec_en.bin
 
-preprocessing:                     # data preprocessing (optional)
+preparation:                       # analysis-stage data prep (optional)
   trim_start: 5
   trim_end: 5
   delays: [1, 2, 3, 4]

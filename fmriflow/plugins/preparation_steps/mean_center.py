@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from fmriflow.core.array_utils import mean_center
-from fmriflow.core.types import PreprocessingState
-from fmriflow.plugins._decorators import preprocessing_step
+from fmriflow.core.types import PreparationState
+from fmriflow.plugins._decorators import preparation_step
 
 
-@preprocessing_step("mean_center")
+@preparation_step("mean_center")
 class MeanCenterStep:
     """Mean-centers responses and/or features (per-run or concatenated)."""
 
@@ -16,7 +16,7 @@ class MeanCenterStep:
         "targets": {"type": "list[string]", "default": ["responses", "features"], "enum": ["responses", "features"], "description": "Which data to mean-center"},
     }
 
-    def apply(self, state: PreprocessingState, params: dict) -> None:
+    def apply(self, state: PreparationState, params: dict) -> None:
         targets = params.get("targets", ["responses", "features"])
 
         if state.is_concatenated:

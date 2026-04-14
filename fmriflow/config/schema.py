@@ -30,7 +30,7 @@ CONFIG_SCHEMA = {
             "save_to": {"type": "dict"},
         },
     },
-    "preprocessing": {
+    "preparation": {
         "trim_start": {"type": "int", "default": 5, "min": 0},
         "trim_end": {"type": "int", "default": 5, "min": 0},
         "delays": {"type": "list[int]", "default": [1, 2, 3, 4]},
@@ -98,31 +98,31 @@ def validate_config(config: dict) -> list[str]:
     if "test_runs" not in split:
         errors.append("'split.test_runs' is required")
 
-    # Preprocessing validation
-    prep = config.get("preprocessing", {})
+    # Preparation validation (accepts legacy 'preprocessing' key)
+    prep = config.get("preparation", config.get("preprocessing", {}))
     prep_type = prep.get("type", "default")
 
     if prep_type == "pipeline":
-        # Pipeline preprocessor: validate steps list
+        # Pipeline preparer: validate steps list
         steps = prep.get("steps")
         if steps is None:
-            errors.append("pipeline preprocessor requires 'preprocessing.steps'")
+            errors.append("pipeline preparer requires 'preparation.steps'")
         elif not isinstance(steps, list):
-            errors.append("'preprocessing.steps' must be a list")
+            errors.append("'preparation.steps' must be a list")
         else:
             for i, step in enumerate(steps):
                 if not isinstance(step, dict):
-                    errors.append(f"preprocessing.steps[{i}] must be a dict")
+                    errors.append(f"preparation.steps[{i}] must be a dict")
                 elif "name" not in step:
-                    errors.append(f"preprocessing.steps[{i}] missing 'name'")
+                    errors.append(f"preparation.steps[{i}] missing 'name'")
     else:
-        # Default / other preprocessor types: validate trim params
+        # Default / other preparer types: validate trim params
         trim_start = prep.get("trim_start", 5)
         trim_end = prep.get("trim_end", 5)
         if not isinstance(trim_start, int) or trim_start < 0:
-            errors.append(f"preprocessing.trim_start must be non-negative int, got {trim_start}")
+            errors.append(f"preparation.trim_start must be non-negative int, got {trim_start}")
         if not isinstance(trim_end, int) or trim_end < 0:
-            errors.append(f"preprocessing.trim_end must be non-negative int, got {trim_end}")
+            errors.append(f"preparation.trim_end must be non-negative int, got {trim_end}")
 
     # Analysis validation (optional)
     analysis = config.get("analysis")

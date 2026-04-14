@@ -34,7 +34,7 @@ export type StageType =
   | 'autoflatten'
   | 'response_loader'
   | 'features'
-  | 'preprocess'
+  | 'prepare'
   | 'model'
   | 'report'
 
@@ -152,7 +152,7 @@ export const TEMPLATES: GraphTemplate[] = [
         makeNode('autoflatten', 'autoflatten', 'Autoflatten', ['backend: pyflatten']),
         makeNode('response', 'response_loader', 'Response Loader', ['loader: preproc']),
         makeNode('features', 'features', 'Features', ['(add features)']),
-        makeNode('preprocess', 'preprocess', 'Preprocess', ['trim → zscore → concat']),
+        makeNode('prepare', 'prepare', 'Prepare', ['trim → zscore → concat']),
         makeNode('model', 'model', 'Model', ['type: bootstrap_ridge']),
         makeNode('report', 'report', 'Report', ['flatmap, metrics']),
       ]
@@ -162,9 +162,9 @@ export const TEMPLATES: GraphTemplate[] = [
         makeEdge('e-pre-af', 'preproc', 'output-freesurfer', 'autoflatten', 'input-freesurfer'),
         makeEdge('e-pre-rsp', 'preproc', 'output-manifest', 'response', 'input-manifest'),
         makeEdge('e-af-mod', 'autoflatten', 'output-surface', 'model', 'input-surface'),
-        makeEdge('e-rsp-pp', 'response', 'output-responses', 'preprocess', 'input-responses'),
-        makeEdge('e-feat-pp', 'features', 'output-features', 'preprocess', 'input-features'),
-        makeEdge('e-pp-mod', 'preprocess', 'output-prepared', 'model', 'input-prepared'),
+        makeEdge('e-rsp-pp', 'response', 'output-responses', 'prepare', 'input-responses'),
+        makeEdge('e-feat-pp', 'features', 'output-features', 'prepare', 'input-features'),
+        makeEdge('e-pp-mod', 'prepare', 'output-prepared', 'model', 'input-prepared'),
         makeEdge('e-mod-rpt', 'model', 'output-results', 'report', 'input-results'),
       ]
       return { nodes: autoLayout(nodes, edges), edges }
@@ -177,14 +177,14 @@ export const TEMPLATES: GraphTemplate[] = [
       const nodes = [
         makeNode('response', 'response_loader', 'Response Loader', ['loader: preproc']),
         makeNode('features', 'features', 'Features', ['(add features)']),
-        makeNode('preprocess', 'preprocess', 'Preprocess', ['trim → zscore → concat']),
+        makeNode('prepare', 'prepare', 'Prepare', ['trim → zscore → concat']),
         makeNode('model', 'model', 'Model', ['type: bootstrap_ridge']),
         makeNode('report', 'report', 'Report', ['flatmap, metrics']),
       ]
       const edges = [
-        makeEdge('e-rsp-pp', 'response', 'output-responses', 'preprocess', 'input-responses'),
-        makeEdge('e-feat-pp', 'features', 'output-features', 'preprocess', 'input-features'),
-        makeEdge('e-pp-mod', 'preprocess', 'output-prepared', 'model', 'input-prepared'),
+        makeEdge('e-rsp-pp', 'response', 'output-responses', 'prepare', 'input-responses'),
+        makeEdge('e-feat-pp', 'features', 'output-features', 'prepare', 'input-features'),
+        makeEdge('e-pp-mod', 'prepare', 'output-prepared', 'model', 'input-prepared'),
         makeEdge('e-mod-rpt', 'model', 'output-results', 'report', 'input-results'),
       ]
       return { nodes: autoLayout(nodes, edges), edges }

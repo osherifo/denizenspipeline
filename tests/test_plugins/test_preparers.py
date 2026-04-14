@@ -1,4 +1,4 @@
-"""Tests for DefaultPreprocessor."""
+"""Tests for DefaultPreparer."""
 
 import numpy as np
 import pytest
@@ -9,7 +9,7 @@ from fmriflow.core.types import (
     PreparedData,
     ResponseData,
 )
-from fmriflow.plugins.preprocessors.default import DefaultPreprocessor
+from fmriflow.plugins.preparers.default import DefaultPreparer
 from tests.conftest import N_FEATURES, N_TRS, N_VOXELS, RUN_NAMES
 
 
@@ -17,7 +17,7 @@ from tests.conftest import N_FEATURES, N_TRS, N_VOXELS, RUN_NAMES
 def prep_config():
     return {
         "split": {"test_runs": ["story3"]},
-        "preprocessing": {
+        "preparation": {
             "trim_start": 5,
             "trim_end": 5,
             "delays": [1, 2, 3, 4],
@@ -51,14 +51,14 @@ def prep_features():
     return FeatureData(features={"feat": fs})
 
 
-class TestDefaultPreprocessor:
+class TestDefaultPreparer:
     def test_output_type(self, prep_responses, prep_features, prep_config):
-        prep = DefaultPreprocessor()
+        prep = DefaultPreparer()
         result = prep.prepare(prep_responses, prep_features, prep_config)
         assert isinstance(result, PreparedData)
 
     def test_output_shapes(self, prep_responses, prep_features, prep_config):
-        prep = DefaultPreprocessor()
+        prep = DefaultPreparer()
         result = prep.prepare(prep_responses, prep_features, prep_config)
 
         trim_start = 5
@@ -75,7 +75,7 @@ class TestDefaultPreprocessor:
         assert result.Y_test.shape == (n_test_runs * trs_per_run, N_VOXELS)
 
     def test_train_test_split(self, prep_responses, prep_features, prep_config):
-        prep = DefaultPreprocessor()
+        prep = DefaultPreparer()
         result = prep.prepare(prep_responses, prep_features, prep_config)
         assert "story3" in result.test_runs
         assert "story3" not in result.train_runs
@@ -83,25 +83,25 @@ class TestDefaultPreprocessor:
         assert "story2" in result.train_runs
 
     def test_no_trimming(self, prep_responses, prep_features, prep_config):
-        prep_config["preprocessing"]["trim_start"] = 0
-        prep_config["preprocessing"]["trim_end"] = 0
-        prep = DefaultPreprocessor()
+        prep_config["preparation"]["trim_start"] = 0
+        prep_config["preparation"]["trim_end"] = 0
+        prep = DefaultPreparer()
         result = prep.prepare(prep_responses, prep_features, prep_config)
         n_train_runs = 2
         assert result.Y_train.shape[0] == n_train_runs * N_TRS
 
     def test_validate_config_missing_test_runs(self):
-        prep = DefaultPreprocessor()
+        prep = DefaultPreparer()
         errors = prep.validate_config({})
         assert any("test_runs" in e for e in errors)
 
     def test_validate_config_valid(self, prep_config):
-        prep = DefaultPreprocessor()
+        prep = DefaultPreparer()
         errors = prep.validate_config(prep_config)
         assert errors == []
 
     def test_feature_metadata_preserved(self, prep_responses, prep_features, prep_config):
-        prep = DefaultPreprocessor()
+        prep = DefaultPreparer()
         result = prep.prepare(prep_responses, prep_features, prep_config)
         assert result.feature_names == ["feat"]
         assert result.feature_dims == [N_FEATURES]
@@ -132,6 +132,6 @@ class TestDefaultPreprocessor:
         )
         features = FeatureData(features={"feat": fs})
 
-        prep = DefaultPreprocessor()
+        prep = DefaultPreparer()
         with pytest.raises(ValueError, match="Row mismatch in run 'story1'"):
             prep.prepare(responses, features, prep_config)

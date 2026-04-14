@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import os
 import re
 from pathlib import Path
@@ -13,6 +14,8 @@ from fmriflow.config.defaults import DEFAULT_CONFIG
 from fmriflow.config.schema import validate_config
 from fmriflow.core.subject_db import resolve_subject_config
 from fmriflow.exceptions import ConfigError
+
+logger = logging.getLogger(__name__)
 
 
 def load_config(path: str | Path) -> dict:
@@ -47,6 +50,9 @@ def load_config(path: str | Path) -> dict:
     with open(path) as f:
         config = yaml.safe_load(f) or {}
 
+    # Migrate legacy keys
+    config = _migrate_legacy_keys(config)
+
     # Resolve inheritance
     config = load_config_with_inheritance(config, path.parent)
 
@@ -64,6 +70,26 @@ def load_config(path: str | Path) -> dict:
     if errors:
         raise ConfigError(errors)
 
+    return config
+
+
+def _migrate_legacy_keys(config: dict) -> dict:
+    """Migrate legacy config keys to their new names.
+
+    - ``preprocessing:`` → ``preparation:`` (with deprecation warning).
+      The analysis-stage ``preprocessing`` was renamed to ``preparation``
+      to avoid confusion with fMRI preprocessing (fmriprep).
+    """
+    if not isinstance(config, dict):
+        return config
+    if "preprocessing" in config and "preparation" not in config:
+        logger.warning(
+            "Config key 'preprocessing:' is deprecated — rename to 'preparation:'. "
+            "It refers to analysis-stage data prep (trim/zscore/delay), not "
+            "fMRI preprocessing. Accepting legacy key for now."
+        )
+        config = dict(config)
+        config["preparation"] = config.pop("preprocessing")
     return config
 
 
