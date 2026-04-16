@@ -1,6 +1,6 @@
 /** N-way side-by-side comparison of pipeline runs.
  *
- * Sections (one column per selected run, up to COMPARE_MAX):
+ * Sections (one column per selected run):
  *  - Header strip: experiment / subject / status / timestamp per run
  *  - Quick stats: mean_score, total_elapsed_s, status, with best/worst
  *    cell highlighted per row
@@ -430,6 +430,17 @@ function fmtTimestamp(iso: string): string {
   } catch {
     return iso
   }
+}
+
+// Spreadsheet-style column labels: 0→A, 25→Z, 26→AA, 27→AB, ...
+function colLetter(index: number): string {
+  let n = index
+  let label = ''
+  do {
+    label = String.fromCharCode('A'.charCodeAt(0) + (n % 26)) + label
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return label
 }
 
 function imageNames(artifacts: Record<string, ArtifactInfo> | undefined): string[] {
@@ -870,8 +881,7 @@ export function RunComparison({ runs, onClose }: Props) {
 // ── Sub-components ──────────────────────────────────────────────────────
 
 function RunHeaderCard({ index, run }: { index: number; run: RunSummary }) {
-  // Letter labels A, B, C, ... up to F (we cap at COMPARE_MAX = 6).
-  const letter = String.fromCharCode('A'.charCodeAt(0) + index)
+  const letter = colLetter(index)
   return (
     <div style={sideCard}>
       <span style={sideLabel}>Run {letter}</span>

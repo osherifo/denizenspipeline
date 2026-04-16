@@ -3,10 +3,6 @@ import { create } from 'zustand'
 import type { RunSummary, RunEvent, PipelineConfig } from '../api/types'
 import { fetchRuns, fetchRun, startRun, connectRunWs } from '../api/client'
 
-/** Hard cap on the comparison size. Beyond ~6 the wide-table layout
- *  becomes unreadable on a normal screen. */
-export const COMPARE_MAX = 6
-
 interface RunState {
   runs: RunSummary[]
   selectedRun: RunSummary | null
@@ -15,7 +11,7 @@ interface RunState {
   loading: boolean
   error: string | null
 
-  // Comparison: 0 to COMPARE_MAX runs selected via checkboxes.
+  // Comparison: any number of runs selected via checkboxes.
   compareIds: string[]
   compareSelection: RunSummary[] | null
   comparing: boolean
@@ -96,8 +92,6 @@ export const useRunStore = create<RunState>((set, get) => ({
       set({ compareIds: current.filter((id) => id !== runId) })
       return
     }
-    // Cap at COMPARE_MAX — silently refuse beyond that.
-    if (current.length >= COMPARE_MAX) return
     set({ compareIds: [...current, runId] })
   },
 

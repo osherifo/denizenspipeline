@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
-import { useRunStore, COMPARE_MAX } from '../stores/run-store'
+import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
 import { SortableArtifactList } from '../components/results/SortableArtifactList'
 import { RunComparison } from '../components/runs/RunComparison'
@@ -342,7 +342,7 @@ export function RunManager() {
           {compareIds.length > 0 && (
             <>
               <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                {compareIds.length}/{COMPARE_MAX} selected
+                {compareIds.length} selected
                 {compareIds.length < 2 && ' (need 2+)'}
               </span>
               <button
