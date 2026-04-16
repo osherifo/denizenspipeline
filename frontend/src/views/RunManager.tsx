@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
-import { useRunStore } from '../stores/run-store'
+import { useRunStore, COMPARE_MAX } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
 import { SortableArtifactList } from '../components/results/SortableArtifactList'
 import { RunComparison } from '../components/runs/RunComparison'
@@ -318,7 +318,7 @@ function RunDetail({
 export function RunManager() {
   const {
     runs, selectedRun, loading, error, loadRuns, selectRun, clearSelection,
-    compareIds, comparePair, comparing, toggleCompare, clearCompare,
+    compareIds, compareSelection, comparing, toggleCompare, clearCompare,
     openComparison, closeComparison,
   } = useRunStore()
 
@@ -342,7 +342,8 @@ export function RunManager() {
           {compareIds.length > 0 && (
             <>
               <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                {compareIds.length === 2 ? '2 runs selected' : `${compareIds.length}/2 selected`}
+                {compareIds.length}/{COMPARE_MAX} selected
+                {compareIds.length < 2 && ' (need 2+)'}
               </span>
               <button
                 style={{
@@ -352,15 +353,15 @@ export function RunManager() {
                   fontFamily: 'inherit',
                   borderRadius: 6,
                   border: 'none',
-                  cursor: compareIds.length === 2 ? 'pointer' : 'not-allowed',
-                  backgroundColor: compareIds.length === 2 ? 'var(--accent-cyan)' : 'var(--bg-input)',
-                  color: compareIds.length === 2 ? '#000' : 'var(--text-secondary)',
+                  cursor: compareIds.length >= 2 ? 'pointer' : 'not-allowed',
+                  backgroundColor: compareIds.length >= 2 ? 'var(--accent-cyan)' : 'var(--bg-input)',
+                  color: compareIds.length >= 2 ? '#000' : 'var(--text-secondary)',
                   opacity: comparing ? 0.6 : 1,
                 }}
-                disabled={compareIds.length !== 2 || comparing}
+                disabled={compareIds.length < 2 || comparing}
                 onClick={openComparison}
               >
-                {comparing ? 'Loading...' : 'Compare'}
+                {comparing ? 'Loading...' : `Compare (${compareIds.length})`}
               </button>
               <button style={refreshBtn} onClick={clearCompare}>
                 Clear
@@ -451,8 +452,8 @@ export function RunManager() {
       )}
 
       {/* Comparison overlay */}
-      {comparePair && (
-        <RunComparison pair={comparePair} onClose={closeComparison} />
+      {compareSelection && (
+        <RunComparison runs={compareSelection} onClose={closeComparison} />
       )}
     </div>
   )

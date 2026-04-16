@@ -1,11 +1,15 @@
-/** Side-by-side comparison of two runs.
+/** N-way side-by-side comparison of pipeline runs.
  *
- * Sections:
- *  - Header: experiment / subject / status / timestamp per side
- *  - Quick stats: mean_score, total_elapsed_s, status with delta
- *  - Metrics: fetch each run's metrics.json and show A / B / Δ for each score
- *  - Config diff: YAML diff of config_snapshot
- *  - Artifacts: side-by-side common image artifacts (e.g. flatmaps, histograms)
+ * Sections (one column per selected run, up to COMPARE_MAX):
+ *  - Header strip: experiment / subject / status / timestamp per run
+ *  - Quick stats: mean_score, total_elapsed_s, status, with best/worst
+ *    cell highlighted per row
+ *  - Metrics: per-key from each run's metrics.json, best/worst highlighted
+ *  - Config diff: union of flattened config_snapshot keys, one column
+ *    per run, cells that differ from the row's mode are highlighted
+ *  - Image artifacts: rows of N image panes, drag to reorder, dropdown
+ *    per cell to override the auto-aligned filename, scroll horizontally
+ *    when N is wide
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -29,13 +33,44 @@ import { CSS } from '@dnd-kit/utilities'
 
 import type { ArtifactInfo, RunSummary } from '../../api/types'
 import { artifactUrl } from '../../api/client'
-import { diffStats, diffYaml, dumpYaml, type DiffLine } from './yamlDiff'
-import { autoAlign, type PairRow } from './similarity'
+import { autoAlignN, type PairRow } from './similarity'
 
 interface Props {
-  pair: [RunSummary, RunSummary]
+  runs: RunSummary[]
   onClose: () => void
 }
+
+// ── Constants ───────────────────────────────────────────────────────────
+
+/** Minimum readable width per run column in tables / image strips. */
+const RUN_COL_MIN = 180
+
+interface MetricsJson {
+  mean_score?: number
+  median_score?: number
+  max_score?: number
+  min_score?: number
+  n_voxels?: number
+  n_significant?: number
+  [key: string]: unknown
+}
+
+type Direction = 'higher_better' | 'lower_better' | 'neutral'
+
+const METRIC_FIELDS: {
+  key: keyof MetricsJson
+  label: string
+  digits?: number
+  integer?: boolean
+  direction?: Direction
+}[] = [
+  { key: 'mean_score', label: 'Mean score', digits: 4, direction: 'higher_better' },
+  { key: 'median_score', label: 'Median score', digits: 4, direction: 'higher_better' },
+  { key: 'max_score', label: 'Max score', digits: 4, direction: 'higher_better' },
+  { key: 'min_score', label: 'Min score', digits: 4, direction: 'higher_better' },
+  { key: 'n_voxels', label: 'Voxels', integer: true, direction: 'neutral' },
+  { key: 'n_significant', label: 'Significant', integer: true, direction: 'higher_better' },
+]
 
 // ── Styles ──────────────────────────────────────────────────────────────
 
@@ -52,7 +87,7 @@ const overlay: CSSProperties = {
 
 const panel: CSSProperties = {
   width: '100%',
-  maxWidth: 1400,
+  maxWidth: 1600,
   maxHeight: '92vh',
   display: 'flex',
   flexDirection: 'column',
@@ -105,13 +140,49 @@ const sectionLabel: CSSProperties = {
   marginBottom: 8,
 }
 
-const grid2: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 12,
+const sectionLabelRow: CSSProperties = {
+  ...sectionLabel,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
 }
 
-const sideHeader: CSSProperties = {
+const subtleHint: CSSProperties = {
+  marginLeft: 12,
+  fontSize: 10,
+  color: 'var(--text-secondary)',
+  textTransform: 'none',
+  letterSpacing: 0,
+  fontWeight: 400,
+}
+
+/** Column template for a wide table: fixed label column + N run columns. */
+function tableCols(n: number, labelW = 160): string {
+  return `${labelW}px repeat(${n}, minmax(${RUN_COL_MIN}px, 1fr))`
+}
+
+/** Outer scroll container so wide tables get a horizontal scrollbar
+ *  instead of overflowing the modal. */
+const tableScroll: CSSProperties = {
+  overflowX: 'auto',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  backgroundColor: 'var(--bg-secondary)',
+}
+
+const headerCardsScroll: CSSProperties = {
+  overflowX: 'auto',
+  paddingBottom: 4,
+}
+
+const headerCardsGrid = (n: number): CSSProperties => ({
+  display: 'grid',
+  gridTemplateColumns: `repeat(${n}, minmax(220px, 1fr))`,
+  gap: 10,
+  minWidth: n * 220,
+})
+
+const sideCard: CSSProperties = {
   padding: '10px 14px',
   backgroundColor: 'var(--bg-input)',
   borderRadius: 6,
@@ -121,6 +192,7 @@ const sideHeader: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
+  minWidth: 0,
 }
 
 const sideLabel: CSSProperties = {
@@ -136,84 +208,65 @@ const fadeText: CSSProperties = {
   color: 'var(--text-secondary)',
 }
 
-const statRow: CSSProperties = {
+const tableRow = (n: number, labelW = 160): CSSProperties => ({
   display: 'grid',
-  gridTemplateColumns: '180px 1fr 1fr 120px',
-  gap: 12,
-  padding: '8px 12px',
+  gridTemplateColumns: tableCols(n, labelW),
   borderBottom: '1px solid var(--border)',
   alignItems: 'center',
   fontSize: 12,
-}
+  minWidth: labelW + n * RUN_COL_MIN,
+})
 
-const statLabel: CSSProperties = {
+const labelCell: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: 'var(--text-secondary)',
   textTransform: 'uppercase',
   letterSpacing: 0.5,
+  padding: '8px 12px',
+  borderRight: '1px solid var(--border)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 }
 
-const statValue: CSSProperties = {
+const baseValueCell: CSSProperties = {
   fontFamily: 'monospace',
   color: 'var(--text-primary)',
+  padding: '8px 12px',
+  borderRight: '1px solid var(--border)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 }
 
-const deltaCell = (sign: number): CSSProperties => ({
-  fontFamily: 'monospace',
-  fontWeight: 700,
-  color: sign > 0 ? 'var(--accent-green)' : sign < 0 ? 'var(--accent-red)' : 'var(--text-secondary)',
-  textAlign: 'right',
-})
-
-const diffPre: CSSProperties = {
-  margin: 0,
-  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-  fontSize: 11,
-  lineHeight: 1.5,
-  backgroundColor: 'var(--bg-secondary)',
-  borderRadius: 6,
-  border: '1px solid var(--border)',
-  overflow: 'auto',
-  maxHeight: 420,
-}
-
-const diffRow: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 0,
-}
-
-function diffCell(kind: DiffLine['kind'], side: 'left' | 'right'): CSSProperties {
-  let bg = 'transparent'
-  if (kind === 'changed') bg = 'rgba(255, 214, 0, 0.10)'
-  else if (kind === 'removed' && side === 'left') bg = 'rgba(255, 23, 68, 0.12)'
-  else if (kind === 'added' && side === 'right') bg = 'rgba(0, 230, 118, 0.12)'
-  return {
-    padding: '1px 10px',
-    backgroundColor: bg,
-    color: 'var(--text-primary)',
-    borderRight: side === 'left' ? '1px solid var(--border)' : 'none',
-    whiteSpace: 'pre',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+function valueCell(highlight: 'best' | 'worst' | null): CSSProperties {
+  if (highlight === 'best') {
+    return {
+      ...baseValueCell,
+      backgroundColor: 'rgba(0, 230, 118, 0.10)',
+      color: 'var(--accent-green)',
+      fontWeight: 700,
+    }
   }
+  if (highlight === 'worst') {
+    return {
+      ...baseValueCell,
+      backgroundColor: 'rgba(255, 23, 68, 0.07)',
+      color: 'var(--accent-red)',
+    }
+  }
+  return baseValueCell
 }
 
-const imgFrame: CSSProperties = {
-  backgroundColor: '#000',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  padding: 6,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}
-
-const imgStyle: CSSProperties = {
-  maxWidth: '100%',
-  maxHeight: 320,
-  objectFit: 'contain',
+/** Config-diff cell: dim if matches the row mode, faintly highlighted if
+ *  different. */
+function configCell(matchesMode: boolean): CSSProperties {
+  return {
+    ...baseValueCell,
+    backgroundColor: matchesMode ? 'transparent' : 'rgba(255, 214, 0, 0.10)',
+    color: matchesMode ? 'var(--text-secondary)' : 'var(--text-primary)',
+  }
 }
 
 const noticeBox: CSSProperties = {
@@ -250,6 +303,24 @@ const rowContent: CSSProperties = {
   minWidth: 0,
 }
 
+const imageStripScroll: CSSProperties = {
+  overflowX: 'auto',
+}
+
+const imageStripGrid = (n: number): CSSProperties => ({
+  display: 'grid',
+  gridTemplateColumns: `repeat(${n}, minmax(${RUN_COL_MIN + 40}px, 1fr))`,
+  gap: 8,
+  minWidth: n * (RUN_COL_MIN + 40),
+})
+
+const imageCell: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  minWidth: 0,
+}
+
 const cellHeader: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -270,7 +341,7 @@ const nameSelect: CSSProperties = {
   appearance: 'auto' as const,
 }
 
-const removeBtn: CSSProperties = {
+const removeRowBtn: CSSProperties = {
   background: 'none',
   border: 'none',
   fontSize: 12,
@@ -279,11 +350,28 @@ const removeBtn: CSSProperties = {
   padding: '0 4px',
   fontFamily: 'inherit',
   opacity: 0.6,
+  flexShrink: 0,
+}
+
+const imgFrame: CSSProperties = {
+  backgroundColor: '#000',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: 6,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+const imgStyle: CSSProperties = {
+  maxWidth: '100%',
+  maxHeight: 280,
+  objectFit: 'contain',
 }
 
 const emptyImg: CSSProperties = {
   ...imgFrame,
-  minHeight: 220,
+  minHeight: 200,
   color: 'var(--text-secondary)',
   fontSize: 11,
   fontStyle: 'italic',
@@ -303,26 +391,20 @@ const addRowBtn: CSSProperties = {
   marginTop: 4,
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-interface MetricsJson {
-  mean_score?: number
-  median_score?: number
-  max_score?: number
-  min_score?: number
-  n_voxels?: number
-  n_significant?: number
-  [key: string]: unknown
+const resetBtn: CSSProperties = {
+  background: 'none',
+  border: '1px solid var(--border)',
+  padding: '4px 10px',
+  borderRadius: 4,
+  fontSize: 10,
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  textTransform: 'uppercase',
+  letterSpacing: 1,
 }
 
-const METRIC_FIELDS: { key: keyof MetricsJson; label: string; digits?: number; integer?: boolean }[] = [
-  { key: 'mean_score', label: 'Mean score', digits: 4 },
-  { key: 'median_score', label: 'Median score', digits: 4 },
-  { key: 'max_score', label: 'Max score', digits: 4 },
-  { key: 'min_score', label: 'Min score', digits: 4 },
-  { key: 'n_voxels', label: 'Voxels', integer: true },
-  { key: 'n_significant', label: 'Significant', integer: true },
-]
+// ── Helpers ─────────────────────────────────────────────────────────────
 
 function fmt(n: number | undefined, digits = 4): string {
   if (n === undefined || n === null || Number.isNaN(n)) return '—'
@@ -334,24 +416,8 @@ function fmtInt(n: number | undefined): string {
   return n.toLocaleString()
 }
 
-function fmtDelta(a: number | undefined, b: number | undefined, digits = 4, integer = false): {
-  text: string
-  sign: number
-} {
-  if (a === undefined || b === undefined || a === null || b === null) {
-    return { text: '—', sign: 0 }
-  }
-  const d = b - a
-  const sign = d > 0 ? 1 : d < 0 ? -1 : 0
-  const prefix = d > 0 ? '+' : ''
-  return {
-    text: integer ? `${prefix}${d.toLocaleString()}` : `${prefix}${d.toFixed(digits)}`,
-    sign,
-  }
-}
-
-function fmtDuration(seconds: number): string {
-  if (!seconds && seconds !== 0) return '—'
+function fmtDuration(seconds: number | undefined): string {
+  if (seconds === undefined || seconds === null) return '—'
   const m = Math.floor(seconds / 60)
   const s = Math.round(seconds % 60)
   return m > 0 ? `${m}m ${s}s` : `${s}s`
@@ -366,7 +432,6 @@ function fmtTimestamp(iso: string): string {
   }
 }
 
-/** Image artifacts (filenames) on a side, sorted alphabetically. */
 function imageNames(artifacts: Record<string, ArtifactInfo> | undefined): string[] {
   if (!artifacts) return []
   return Object.values(artifacts)
@@ -375,110 +440,205 @@ function imageNames(artifacts: Record<string, ArtifactInfo> | undefined): string
     .sort()
 }
 
-// ── Per-pair row layout (localStorage) ──────────────────────────────────
+/** Find the best (max or min) numeric value among `values`, ignoring nulls.
+ *  Returns the index, or -1 if there's no clear winner (all equal or all null). */
+function bestIndex(values: (number | null | undefined)[], direction: Direction): number {
+  if (direction === 'neutral') return -1
+  let bestIdx = -1
+  let bestVal: number | null = null
+  let allEqual = true
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]
+    if (v == null || Number.isNaN(v)) continue
+    if (bestVal === null) {
+      bestVal = v
+      bestIdx = i
+      continue
+    }
+    if (v !== bestVal) allEqual = false
+    if (direction === 'higher_better' && v > bestVal) {
+      bestVal = v
+      bestIdx = i
+    } else if (direction === 'lower_better' && v < bestVal) {
+      bestVal = v
+      bestIdx = i
+    }
+  }
+  return allEqual ? -1 : bestIdx
+}
+
+function worstIndex(values: (number | null | undefined)[], direction: Direction): number {
+  if (direction === 'neutral') return -1
+  // Worst = best in the opposite direction.
+  return bestIndex(values, direction === 'higher_better' ? 'lower_better' : 'higher_better')
+}
+
+/** Highlight category for value at index given best/worst indices. */
+function cellMark(i: number, best: number, worst: number): 'best' | 'worst' | null {
+  if (i === best && best !== -1) return 'best'
+  if (i === worst && worst !== -1 && worst !== best) return 'worst'
+  return null
+}
+
+/** Flatten an arbitrary config object to a Record<dotted_key, string>. */
+function flattenConfig(obj: unknown, prefix = ''): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (obj === null || obj === undefined) {
+    if (prefix) out[prefix] = String(obj)
+    return out
+  }
+  if (typeof obj !== 'object') {
+    out[prefix] = String(obj)
+    return out
+  }
+  if (Array.isArray(obj)) {
+    out[prefix] = JSON.stringify(obj)
+    return out
+  }
+  for (const [k, v] of Object.entries(obj)) {
+    const key = prefix ? `${prefix}.${k}` : k
+    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+      Object.assign(out, flattenConfig(v, key))
+    } else {
+      out[key] = v == null
+        ? String(v)
+        : Array.isArray(v) ? JSON.stringify(v) : String(v)
+    }
+  }
+  return out
+}
+
+function modeOf(values: (string | undefined)[]): string | undefined {
+  const counts = new Map<string, number>()
+  for (const v of values) {
+    if (v === undefined) continue
+    counts.set(v, (counts.get(v) ?? 0) + 1)
+  }
+  let best: string | undefined
+  let bestCount = 0
+  for (const [v, c] of counts) {
+    if (c > bestCount) {
+      bestCount = c
+      best = v
+    }
+  }
+  return best
+}
+
+// ── Per-comparison row layout (localStorage) ────────────────────────────
 
 const ROWS_PREFIX = 'compareImageRows:'
 
-function rowsKey(aId: string, bId: string): string {
-  // Stable key: sort the two IDs so order(A, B) == order(B, A).
-  const sorted = [aId, bId].sort().join(':')
+function rowsKey(runIds: string[]): string {
+  // Stable key: sort the IDs so the same selection in any order shares storage.
+  const sorted = [...runIds].sort().join(':')
   return ROWS_PREFIX + sorted
 }
 
-function loadRows(aId: string, bId: string): PairRow[] | null {
+function loadRows(runIds: string[]): PairRow[] | null {
   try {
-    const raw = localStorage.getItem(rowsKey(aId, bId))
+    const raw = localStorage.getItem(rowsKey(runIds))
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return null
     return parsed.filter((r) =>
       r && typeof r.id === 'string'
-      && (r.leftName === null || typeof r.leftName === 'string')
-      && (r.rightName === null || typeof r.rightName === 'string'),
+      && r.perRun && typeof r.perRun === 'object',
     )
   } catch {
     return null
   }
 }
 
-function saveRows(aId: string, bId: string, rows: PairRow[]): void {
+function saveRows(runIds: string[], rows: PairRow[]): void {
   try {
-    localStorage.setItem(rowsKey(aId, bId), JSON.stringify(rows))
+    localStorage.setItem(rowsKey(runIds), JSON.stringify(rows))
   } catch {
     // ignore quota errors
   }
 }
 
-/** Drop saved rows that reference filenames that no longer exist. */
-function reconcileRows(saved: PairRow[], leftAvail: string[], rightAvail: string[]): PairRow[] {
-  const ls = new Set(leftAvail)
-  const rs = new Set(rightAvail)
+/** Drop saved rows that reference filenames no longer present, and clear
+ *  per-run entries for runs not in the current selection. */
+function reconcileRows(
+  saved: PairRow[],
+  runIds: string[],
+  namesByRun: Record<string, string[]>,
+): PairRow[] {
+  const setsByRun: Record<string, Set<string>> = {}
+  for (const rid of runIds) setsByRun[rid] = new Set(namesByRun[rid] || [])
+
   return saved
-    .map((r) => ({
-      ...r,
-      leftName: r.leftName && ls.has(r.leftName) ? r.leftName : null,
-      rightName: r.rightName && rs.has(r.rightName) ? r.rightName : null,
-    }))
-    .filter((r) => r.leftName !== null || r.rightName !== null)
+    .map((r) => {
+      const perRun: Record<string, string | null> = {}
+      let any = false
+      for (const rid of runIds) {
+        const v = r.perRun?.[rid] ?? null
+        if (v && setsByRun[rid].has(v)) {
+          perRun[rid] = v
+          any = true
+        } else {
+          perRun[rid] = null
+        }
+      }
+      return { id: r.id, perRun, _hasAny: any }
+    })
+    .filter((r) => r._hasAny)
+    .map(({ id, perRun }) => ({ id, perRun }))
 }
 
 // ── Component ───────────────────────────────────────────────────────────
 
-export function RunComparison({ pair, onClose }: Props) {
-  const [a, b] = pair
+export function RunComparison({ runs, onClose }: Props) {
+  const n = runs.length
+  const runIds = useMemo(() => runs.map((r) => r.run_id), [runs])
 
-  // Config diff (from config_snapshot).
-  const diffLines = useMemo(() => {
-    const left = dumpYaml(a.config_snapshot ?? {})
-    const right = dumpYaml(b.config_snapshot ?? {})
-    return diffYaml(left, right)
-  }, [a.config_snapshot, b.config_snapshot])
-  const stats = diffStats(diffLines)
+  // Image artifact names per run.
+  const namesByRun = useMemo(() => {
+    const m: Record<string, string[]> = {}
+    for (const r of runs) m[r.run_id] = imageNames(r.artifacts)
+    return m
+  }, [runs])
 
-  // Available image artifact names per side.
-  const leftNames = useMemo(() => imageNames(a.artifacts), [a.artifacts])
-  const rightNames = useMemo(() => imageNames(b.artifacts), [b.artifacts])
-
-  // Pair-row layout: load saved arrangement if present, otherwise auto-align.
+  // Auto-aligned (or saved) image-row layout.
   const [rows, setRowsState] = useState<PairRow[]>(() => {
-    const saved = loadRows(a.run_id, b.run_id)
-    if (saved && saved.length > 0) {
-      return reconcileRows(saved, leftNames, rightNames)
-    }
-    return autoAlign(leftNames, rightNames)
+    const saved = loadRows(runIds)
+    if (saved && saved.length > 0) return reconcileRows(saved, runIds, namesByRun)
+    return autoAlignN(runIds, namesByRun)
   })
 
-  // Re-reconcile when run pair changes (open a different pair).
   useEffect(() => {
-    const saved = loadRows(a.run_id, b.run_id)
+    const saved = loadRows(runIds)
     if (saved && saved.length > 0) {
-      setRowsState(reconcileRows(saved, leftNames, rightNames))
+      setRowsState(reconcileRows(saved, runIds, namesByRun))
     } else {
-      setRowsState(autoAlign(leftNames, rightNames))
+      setRowsState(autoAlignN(runIds, namesByRun))
     }
-    // Intentionally only on run id change; manual edits are preserved.
+    // Re-run when the set of selected runs changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [a.run_id, b.run_id])
+  }, [runIds.join('|')])
 
   const setRows = (next: PairRow[]) => {
     setRowsState(next)
-    saveRows(a.run_id, b.run_id, next)
+    saveRows(runIds, next)
   }
 
-  const updateRow = (id: string, patch: Partial<PairRow>) => {
-    setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  const updateRow = (id: string, runId: string, name: string | null) => {
+    setRows(rows.map((r) => (
+      r.id === id ? { ...r, perRun: { ...r.perRun, [runId]: name } } : r
+    )))
   }
 
-  const removeRow = (id: string) => {
-    setRows(rows.filter((r) => r.id !== id))
-  }
+  const removeRow = (id: string) => setRows(rows.filter((r) => r.id !== id))
 
   const addRow = () => {
     const id = `pair-${Date.now()}`
-    setRows([...rows, { id, leftName: null, rightName: null }])
+    const perRun: Record<string, string | null> = {}
+    for (const rid of runIds) perRun[rid] = null
+    setRows([...rows, { id, perRun }])
   }
 
-  const resetAlignment = () => setRows(autoAlign(leftNames, rightNames))
+  const resetAlignment = () => setRows(autoAlignN(runIds, namesByRun))
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -494,134 +654,180 @@ export function RunComparison({ pair, onClose }: Props) {
     setRows(arrayMove(rows, oldIdx, newIdx))
   }
 
-  const hasAnyImages = leftNames.length > 0 || rightNames.length > 0
+  const hasAnyImages = Object.values(namesByRun).some((arr) => arr.length > 0)
 
-  // Lazy-load each run's metrics.json (if present).
-  const [metricsA, setMetricsA] = useState<MetricsJson | null>(null)
-  const [metricsB, setMetricsB] = useState<MetricsJson | null>(null)
+  // Lazy-load each run's metrics.json (in parallel).
+  const [metricsByRun, setMetricsByRun] = useState<Record<string, MetricsJson | null>>({})
   const [metricsErr, setMetricsErr] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    async function load(run: RunSummary, set: (m: MetricsJson | null) => void) {
-      const has = run.artifacts && Object.keys(run.artifacts).some((n) => n === 'metrics.json' || n.endsWith('/metrics.json'))
-      if (!has) {
-        set(null)
-        return
-      }
-      try {
-        const r = await fetch(artifactUrl(run.run_id, 'metrics.json'))
-        if (!r.ok) throw new Error(String(r.status))
-        const j = (await r.json()) as MetricsJson
-        if (!cancelled) set(j)
-      } catch (e) {
-        if (!cancelled) setMetricsErr(String(e))
-      }
-    }
     setMetricsErr(null)
-    load(a, setMetricsA)
-    load(b, setMetricsB)
-    return () => {
-      cancelled = true
-    }
-  }, [a.run_id, b.run_id])
+    setMetricsByRun({})
+    Promise.all(
+      runs.map(async (run) => {
+        const has = run.artifacts && Object.keys(run.artifacts).some((nm) =>
+          nm === 'metrics.json' || nm.endsWith('/metrics.json'),
+        )
+        if (!has) return [run.run_id, null] as const
+        try {
+          const r = await fetch(artifactUrl(run.run_id, 'metrics.json'))
+          if (!r.ok) throw new Error(String(r.status))
+          return [run.run_id, (await r.json()) as MetricsJson] as const
+        } catch (e) {
+          if (!cancelled) setMetricsErr(String(e))
+          return [run.run_id, null] as const
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return
+      const next: Record<string, MetricsJson | null> = {}
+      for (const [rid, m] of entries) next[rid] = m
+      setMetricsByRun(next)
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runIds.join('|')])
+
+  // Flattened configs for the diff matrix.
+  const flatConfigs = useMemo(
+    () => runs.map((r) => flattenConfig(r.config_snapshot ?? {})),
+    [runs],
+  )
+  const allConfigKeys = useMemo(() => {
+    const s = new Set<string>()
+    for (const c of flatConfigs) for (const k of Object.keys(c)) s.add(k)
+    return [...s].sort()
+  }, [flatConfigs])
+
+  // Only show rows where at least 2 runs differ.
+  const differingKeys = useMemo(
+    () => allConfigKeys.filter((k) => {
+      const vs = flatConfigs.map((c) => c[k])
+      const set = new Set(vs)
+      return set.size > 1
+    }),
+    [allConfigKeys, flatConfigs],
+  )
+
+  const haveAnyMetrics = Object.values(metricsByRun).some((m) => m != null)
 
   return (
     <div style={overlay} onClick={onClose}>
       <div style={panel} onClick={(e) => e.stopPropagation()}>
         <div style={header}>
-          <div style={titleStyle}>Compare runs</div>
+          <div style={titleStyle}>Compare {n} runs</div>
           <button style={closeBtn} onClick={onClose}>Close</button>
         </div>
 
         <div style={body}>
-          {/* Side headers */}
-          <div style={grid2}>
-            <RunHeader label="A" run={a} />
-            <RunHeader label="B" run={b} />
+          {/* Run header cards */}
+          <div style={headerCardsScroll}>
+            <div style={headerCardsGrid(n)}>
+              {runs.map((run, i) => (
+                <RunHeaderCard key={run.run_id} index={i} run={run} />
+              ))}
+            </div>
           </div>
 
-          {/* Quick stats from RunSummary */}
+          {/* Quick stats */}
           <div style={sectionLabel}>Quick stats</div>
-          <div>
-            <StatRow label="Mean score (top-level)"
-              a={a.mean_score ?? undefined} b={b.mean_score ?? undefined} digits={4} />
-            <StatRow label="Total elapsed (s)"
-              a={a.total_elapsed_s} b={b.total_elapsed_s} digits={2}
-              fmtFn={fmtDuration} />
-            <div style={{ ...statRow, color: 'var(--text-primary)' }}>
-              <span style={statLabel}>Status</span>
-              <span style={statValue}>{a.status || '—'}</span>
-              <span style={statValue}>{b.status || '—'}</span>
-              <span style={fadeText}>{a.status === b.status ? 'same' : 'differs'}</span>
-            </div>
+          <div style={tableScroll}>
+            <NumericRow
+              n={n}
+              label="Mean score (top-level)"
+              values={runs.map((r) => r.mean_score ?? null)}
+              direction="higher_better"
+              format={(v) => fmt(v ?? undefined, 4)}
+            />
+            <NumericRow
+              n={n}
+              label="Total elapsed"
+              values={runs.map((r) => r.total_elapsed_s ?? null)}
+              direction="lower_better"
+              format={(v) => fmtDuration(v ?? undefined)}
+            />
+            <StringRow n={n} label="Status" values={runs.map((r) => r.status || '—')} />
           </div>
 
           {/* Metrics from metrics.json */}
           <div style={sectionLabel}>Metrics (metrics.json)</div>
           {metricsErr && (
             <div style={{ ...noticeBox, color: 'var(--accent-red)' }}>
-              Could not load metrics.json: {metricsErr}
+              Could not load some metrics.json: {metricsErr}
             </div>
           )}
-          {!metricsA && !metricsB && !metricsErr && (
-            <div style={noticeBox}>Neither run has a metrics.json artifact.</div>
+          {!haveAnyMetrics && !metricsErr && (
+            <div style={noticeBox}>No metrics.json artifact in any selected run.</div>
           )}
-          {(metricsA || metricsB) && (
-            <div>
-              {METRIC_FIELDS.map(({ key, label, digits, integer }) => {
-                const av = metricsA?.[key] as number | undefined
-                const bv = metricsB?.[key] as number | undefined
-                const delta = fmtDelta(av, bv, digits, integer)
-                const fmtFn = integer ? fmtInt : (n: number | undefined) => fmt(n, digits)
+          {haveAnyMetrics && (
+            <div style={tableScroll}>
+              {METRIC_FIELDS.map(({ key, label, digits, integer, direction }) => {
+                const values = runs.map((r) => {
+                  const v = metricsByRun[r.run_id]?.[key]
+                  return typeof v === 'number' ? v : null
+                })
                 return (
-                  <div key={String(key)} style={statRow}>
-                    <span style={statLabel}>{label}</span>
-                    <span style={statValue}>{fmtFn(av)}</span>
-                    <span style={statValue}>{fmtFn(bv)}</span>
-                    <span style={deltaCell(delta.sign)}>{delta.text}</span>
+                  <NumericRow
+                    key={String(key)}
+                    n={n}
+                    label={label}
+                    values={values}
+                    direction={direction ?? 'higher_better'}
+                    format={integer ? (v) => fmtInt(v ?? undefined) : (v) => fmt(v ?? undefined, digits ?? 4)}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {/* Config diff matrix */}
+          <div style={sectionLabelRow}>
+            <span>
+              Config diff
+              <span style={subtleHint}>
+                {differingKeys.length > 0
+                  ? `${differingKeys.length} differing key(s) — cells highlighted where they differ from the row's mode`
+                  : 'all keys identical across selected runs'}
+              </span>
+            </span>
+          </div>
+          {differingKeys.length === 0 ? (
+            <div style={noticeBox}>Config snapshots are identical.</div>
+          ) : (
+            <div style={tableScroll}>
+              {differingKeys.map((key) => {
+                const values = flatConfigs.map((c) => c[key])
+                const mode = modeOf(values)
+                return (
+                  <div key={key} style={tableRow(n, 220)}>
+                    <span style={labelCell} title={key}>{key}</span>
+                    {values.map((v, i) => (
+                      <span
+                        key={`${key}-${i}`}
+                        style={configCell(v === mode)}
+                        title={v ?? '(absent)'}
+                      >
+                        {v ?? '—'}
+                      </span>
+                    ))}
                   </div>
                 )
               })}
             </div>
           )}
 
-          {/* Config diff */}
-          <div style={sectionLabel}>
-            Config diff
-            <span style={{ marginLeft: 12, fontSize: 10, color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: 0 }}>
-              {stats.changed} changed · +{stats.added} · −{stats.removed}
-            </span>
-          </div>
-          {stats.changed === 0 && stats.added === 0 && stats.removed === 0 ? (
-            <div style={noticeBox}>Config snapshots are identical.</div>
-          ) : (
-            <pre style={diffPre}>
-              {diffLines.map((line, i) => (
-                <div key={i} style={diffRow}>
-                  <span style={diffCell(line.kind, 'left')}>{line.left || '\u00A0'}</span>
-                  <span style={diffCell(line.kind, 'right')}>{line.right || '\u00A0'}</span>
-                </div>
-              ))}
-            </pre>
-          )}
-
-          {/* Side-by-side images */}
-          <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* Image artifacts as N-pane horizontal strips */}
+          <div style={sectionLabelRow}>
             <span>
               Image artifacts ({rows.length})
-              <span style={{ marginLeft: 12, fontSize: 10, color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: 0 }}>
-                auto-aligned by filename similarity — change either side or drag to reorder
+              <span style={subtleHint}>
+                auto-aligned by filename similarity — change any cell or drag to reorder
               </span>
             </span>
             <button
               type="button"
-              style={{
-                background: 'none', border: '1px solid var(--border)',
-                padding: '4px 10px', borderRadius: 4, fontSize: 10,
-                color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
-                textTransform: 'uppercase', letterSpacing: 1,
-              }}
+              style={resetBtn}
               onClick={resetAlignment}
               title="Discard manual edits and re-run auto-alignment"
             >
@@ -629,7 +835,7 @@ export function RunComparison({ pair, onClose }: Props) {
             </button>
           </div>
           {!hasAnyImages ? (
-            <div style={noticeBox}>Neither run has image artifacts.</div>
+            <div style={noticeBox}>No image artifacts in any selected run.</div>
           ) : (
             <DndContext
               sensors={sensors}
@@ -642,12 +848,9 @@ export function RunComparison({ pair, onClose }: Props) {
                     <SortableImageRow
                       key={row.id}
                       row={row}
-                      leftNames={leftNames}
-                      rightNames={rightNames}
-                      leftSrc={row.leftName ? artifactUrl(a.run_id, row.leftName) : null}
-                      rightSrc={row.rightName ? artifactUrl(b.run_id, row.rightName) : null}
-                      onChangeLeft={(name) => updateRow(row.id, { leftName: name })}
-                      onChangeRight={(name) => updateRow(row.id, { rightName: name })}
+                      runs={runs}
+                      namesByRun={namesByRun}
+                      onChange={(rid, name) => updateRow(row.id, rid, name)}
                       onRemove={() => removeRow(row.id)}
                     />
                   ))}
@@ -666,46 +869,62 @@ export function RunComparison({ pair, onClose }: Props) {
 
 // ── Sub-components ──────────────────────────────────────────────────────
 
-function RunHeader({ label, run }: { label: string; run: RunSummary }) {
+function RunHeaderCard({ index, run }: { index: number; run: RunSummary }) {
+  // Letter labels A, B, C, ... up to F (we cap at COMPARE_MAX = 6).
+  const letter = String.fromCharCode('A'.charCodeAt(0) + index)
   return (
-    <div style={sideHeader}>
-      <span style={sideLabel}>Run {label}</span>
-      <span style={{ fontWeight: 600 }}>{run.experiment || '—'} · {run.subject || '—'}</span>
+    <div style={sideCard}>
+      <span style={sideLabel}>Run {letter}</span>
+      <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {run.experiment || '—'} · {run.subject || '—'}
+      </span>
       <span style={fadeText}>{fmtTimestamp(run.started_at)}</span>
-      <span style={{ ...fadeText, fontFamily: 'monospace' }}>{run.run_id}</span>
+      <span style={{ ...fadeText, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {run.run_id}
+      </span>
     </div>
   )
 }
 
-function StatRow({
-  label, a, b, digits = 4, fmtFn,
+function NumericRow({
+  n, label, values, direction, format,
 }: {
+  n: number
   label: string
-  a: number | undefined
-  b: number | undefined
-  digits?: number
-  fmtFn?: (n: number) => string
+  values: (number | null)[]
+  direction: Direction
+  format: (v: number | null) => string
 }) {
-  const delta = fmtDelta(a, b, digits)
-  const formatter = fmtFn ?? ((n: number) => fmt(n, digits))
+  const best = bestIndex(values, direction)
+  const worst = worstIndex(values, direction)
   return (
-    <div style={statRow}>
-      <span style={statLabel}>{label}</span>
-      <span style={statValue}>{a == null ? '—' : formatter(a)}</span>
-      <span style={statValue}>{b == null ? '—' : formatter(b)}</span>
-      <span style={deltaCell(delta.sign)}>{delta.text}</span>
+    <div style={tableRow(n)}>
+      <span style={labelCell}>{label}</span>
+      {values.map((v, i) => (
+        <span key={i} style={valueCell(cellMark(i, best, worst))}>
+          {format(v)}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function StringRow({ n, label, values }: { n: number; label: string; values: string[] }) {
+  return (
+    <div style={tableRow(n)}>
+      <span style={labelCell}>{label}</span>
+      {values.map((v, i) => (
+        <span key={i} style={baseValueCell}>{v}</span>
+      ))}
     </div>
   )
 }
 
 interface SortableImageRowProps {
   row: PairRow
-  leftNames: string[]
-  rightNames: string[]
-  leftSrc: string | null
-  rightSrc: string | null
-  onChangeLeft: (name: string | null) => void
-  onChangeRight: (name: string | null) => void
+  runs: RunSummary[]
+  namesByRun: Record<string, string[]>
+  onChange: (runId: string, name: string | null) => void
   onRemove: () => void
 }
 
@@ -731,8 +950,7 @@ function NameSelect({
 }
 
 function SortableImageRow({
-  row, leftNames, rightNames, leftSrc, rightSrc,
-  onChangeLeft, onChangeRight, onRemove,
+  row, runs, namesByRun, onChange, onRemove,
 }: SortableImageRowProps) {
   const {
     attributes, listeners, setNodeRef, setActivatorNodeRef,
@@ -757,38 +975,44 @@ function SortableImageRow({
         {'\u22EE\u22EE'}
       </div>
       <div style={rowContent}>
-        <div style={grid2}>
-          <div>
-            <div style={cellHeader}>
-              <NameSelect value={row.leftName} options={leftNames} onChange={onChangeLeft} />
-            </div>
-            {leftSrc ? (
-              <div style={imgFrame}>
-                <img src={leftSrc} alt={`${row.leftName} (A)`} style={imgStyle} />
-              </div>
-            ) : (
-              <div style={emptyImg}>no image selected for A</div>
-            )}
-          </div>
-          <div>
-            <div style={cellHeader}>
-              <NameSelect value={row.rightName} options={rightNames} onChange={onChangeRight} />
-              <button
-                type="button"
-                style={removeBtn}
-                title="Remove this row"
-                onClick={onRemove}
-              >
-                {'\u2715'}
-              </button>
-            </div>
-            {rightSrc ? (
-              <div style={imgFrame}>
-                <img src={rightSrc} alt={`${row.rightName} (B)`} style={imgStyle} />
-              </div>
-            ) : (
-              <div style={emptyImg}>no image selected for B</div>
-            )}
+        <div style={imageStripScroll}>
+          <div style={imageStripGrid(runs.length)}>
+            {runs.map((run, idx) => {
+              const name = row.perRun[run.run_id] ?? null
+              const isLast = idx === runs.length - 1
+              return (
+                <div key={run.run_id} style={imageCell}>
+                  <div style={cellHeader}>
+                    <NameSelect
+                      value={name}
+                      options={namesByRun[run.run_id] || []}
+                      onChange={(next) => onChange(run.run_id, next)}
+                    />
+                    {isLast && (
+                      <button
+                        type="button"
+                        style={removeRowBtn}
+                        title="Remove this row"
+                        onClick={onRemove}
+                      >
+                        {'\u2715'}
+                      </button>
+                    )}
+                  </div>
+                  {name ? (
+                    <div style={imgFrame}>
+                      <img
+                        src={artifactUrl(run.run_id, name)}
+                        alt={`${name} (run ${idx + 1})`}
+                        style={imgStyle}
+                      />
+                    </div>
+                  ) : (
+                    <div style={emptyImg}>no image selected</div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
