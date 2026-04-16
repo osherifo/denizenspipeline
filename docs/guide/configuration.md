@@ -111,4 +111,4 @@ Validate a config without running:
 fmriflow validate experiment.yaml
 ```
 
-This checks: required fields, plugin availability, file paths, parameter types, and split/run consistency.
+This checks: required fields, module availability, file paths, parameter types, and split/run consistency.

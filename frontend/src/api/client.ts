@@ -1,16 +1,16 @@
 /** Typed API client for the fMRIflow backend. */
 
 import type {
-  PluginMetadata,
-  PluginInfo,
+  ModuleMetadata,
+  ModuleInfo,
   StageInfo,
   PipelineConfig,
   ValidationResult,
   RunSummary,
   ParamSchema,
   CodeValidationResult,
-  SavePluginResult,
-  UserPlugin,
+  SaveModuleResult,
+  UserModule,
   TemplateResult,
   ConfigSummary,
   ConfigDetail,
@@ -42,14 +42,14 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
-// ── Plugins ──
+// ── Modules ──
 
-export async function fetchPlugins(): Promise<PluginMetadata> {
-  return json(`${BASE}/plugins`)
+export async function fetchModules(): Promise<ModuleMetadata> {
+  return json(`${BASE}/modules`)
 }
 
-export async function fetchPlugin(category: string, name: string): Promise<PluginInfo> {
-  return json(`${BASE}/plugins/${category}/${name}`)
+export async function fetchModule(category: string, name: string): Promise<ModuleInfo> {
+  return json(`${BASE}/modules/${category}/${name}`)
 }
 
 export async function fetchStages(): Promise<StageInfo[]> {
@@ -84,11 +84,11 @@ export async function configToYaml(config: PipelineConfig): Promise<string> {
   return res.text()
 }
 
-export async function fetchDefaults(category: string, plugin: string): Promise<{ params: Record<string, unknown> }> {
+export async function fetchDefaults(category: string, module: string): Promise<{ params: Record<string, unknown> }> {
   return json(`${BASE}/config/defaults`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category, plugin }),
+    body: JSON.stringify({ category, module }),
   })
 }
 
@@ -182,38 +182,38 @@ export async function startRunFromConfig(
   })
 }
 
-// ── Plugin Editor ──
+// ── Module Editor ──
 
-export async function validatePluginCode(code: string, category?: string): Promise<CodeValidationResult> {
-  return json(`${BASE}/plugins/validate-code`, {
+export async function validateModuleCode(code: string, category?: string): Promise<CodeValidationResult> {
+  return json(`${BASE}/modules/validate-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, category: category ?? null }),
   })
 }
 
-export async function savePlugin(code: string, name: string, category: string): Promise<SavePluginResult> {
-  return json(`${BASE}/plugins/save`, {
+export async function saveModule(code: string, name: string, category: string): Promise<SaveModuleResult> {
+  return json(`${BASE}/modules/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, name, category }),
   })
 }
 
-export async function fetchUserPlugins(): Promise<UserPlugin[]> {
-  return json(`${BASE}/plugins/user`)
+export async function fetchUserModules(): Promise<UserModule[]> {
+  return json(`${BASE}/modules/user`)
 }
 
-export async function fetchUserPluginCode(name: string): Promise<{ name: string; code: string }> {
-  return json(`${BASE}/plugins/user/${name}`)
+export async function fetchUserModuleCode(name: string): Promise<{ name: string; code: string }> {
+  return json(`${BASE}/modules/user/${name}`)
 }
 
-export async function deleteUserPlugin(name: string): Promise<{ deleted: boolean; name: string }> {
-  return json(`${BASE}/plugins/user/${name}`, { method: 'DELETE' })
+export async function deleteUserModule(name: string): Promise<{ deleted: boolean; name: string }> {
+  return json(`${BASE}/modules/user/${name}`, { method: 'DELETE' })
 }
 
 export async function fetchTemplate(category: string, name: string): Promise<TemplateResult> {
-  return json(`${BASE}/plugins/template`, {
+  return json(`${BASE}/modules/template`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ category, name }),
@@ -221,7 +221,7 @@ export async function fetchTemplate(category: string, name: string): Promise<Tem
 }
 
 export async function fetchTemplateCategories(): Promise<string[]> {
-  return json(`${BASE}/plugins/template-categories`)
+  return json(`${BASE}/modules/template-categories`)
 }
 
 // ── Preprocessing ──

@@ -16,8 +16,8 @@ class ConfigError(FmriflowError):
         super().__init__("\n".join(f"  - {e}" for e in errors))
 
 
-class PluginNotFoundError(FmriflowError):
-    """Plugin name not in registry."""
+class ModuleLookupError(FmriflowError):
+    """A pipeline module name was not found in the registry."""
     pass
 
 

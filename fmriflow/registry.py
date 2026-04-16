@@ -1,12 +1,19 @@
-"""Plugin registry: discovers, registers, and resolves plugins."""
+"""Module registry: discovers, registers, and resolves pipeline modules.
+
+A "module" here is an internal implementation of a pipeline stage —
+a stimulus loader, response loader, feature extractor, preparer,
+preparation step, analyzer, model, or reporter. The term is reserved
+distinct from "plugin", which is intended for downloadable third-party
+extensions in the future.
+"""
 
 from __future__ import annotations
 
 import logging
 from importlib.metadata import entry_points
 
-from fmriflow.exceptions import PluginNotFoundError
-from fmriflow.plugins._decorators import (
+from fmriflow.exceptions import ModuleLookupError
+from fmriflow.modules._decorators import (
     _stimulus_loaders,
     _response_loaders,
     _response_readers,
@@ -22,11 +29,11 @@ from fmriflow.plugins._decorators import (
 logger = logging.getLogger(__name__)
 
 
-class PluginRegistry:
-    """Discovers and manages plugins by type.
+class ModuleRegistry:
+    """Discovers and manages modules by type.
 
-    Plugins are registered as classes (not instances).  The backing dicts
-    live in :mod:`fmriflow.plugins._decorators` so that the
+    Modules are registered as classes (not instances).  The backing dicts
+    live in :mod:`fmriflow.modules._decorators` so that the
     ``@decorator`` on each class and the registry share a single source
     of truth.  Instances are created on demand via the ``get_*`` methods.
     """
@@ -44,17 +51,17 @@ class PluginRegistry:
         self._reporters = _reporters
 
     def discover(self) -> None:
-        """Discover plugins from builtins and entry_points."""
+        """Discover modules from builtins and entry_points."""
         self._register_builtins()
         self._discover_entry_points()
 
     def _register_builtins(self) -> None:
-        """Register the built-in plugins that ship with fmriflow."""
-        from fmriflow.plugins import register_builtins
+        """Register the built-in modules that ship with fmriflow."""
+        from fmriflow.modules import register_builtins
         register_builtins(self)
 
     def _discover_entry_points(self) -> None:
-        """Load plugins from installed packages via entry_points."""
+        """Load modules from installed packages via entry_points."""
         groups = {
             'fmriflow.stimulus_loaders': self._stimulus_loaders,
             'fmriflow.response_loaders': self._response_loaders,
@@ -80,10 +87,10 @@ class PluginRegistry:
                     try:
                         cls = ep.load()
                         registry_dict[ep.name] = cls
-                        logger.debug(f"Discovered plugin: {group}/{ep.name}")
+                        logger.debug(f"Discovered module: {group}/{ep.name}")
                     except Exception as e:
                         logger.warning(
-                            f"Failed to load plugin {group}/{ep.name}: {e}")
+                            f"Failed to load module {group}/{ep.name}: {e}")
 
     # ─── Decorator API ──────────────────────────────────────────
 
@@ -161,78 +168,78 @@ class PluginRegistry:
 
     def get_stimulus_loader(self, name: str):
         if name not in self._stimulus_loaders:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Stimulus loader '{name}' not found. "
                 f"Available: {list(self._stimulus_loaders.keys())}")
         return self._stimulus_loaders[name]()
 
     def get_response_loader(self, name: str):
         if name not in self._response_loaders:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Response loader '{name}' not found. "
                 f"Available: {list(self._response_loaders.keys())}")
         return self._response_loaders[name]()
 
     def get_response_reader(self, name: str):
         if name not in self._response_readers:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Response reader '{name}' not found. "
                 f"Available: {list(self._response_readers.keys())}")
         return self._response_readers[name]()
 
     def get_feature_extractor(self, name: str):
         if name not in self._feature_extractors:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Feature extractor '{name}' not found. "
                 f"Available: {list(self._feature_extractors.keys())}")
         return self._feature_extractors[name]()
 
     def get_feature_source(self, name: str):
         if name not in self._feature_sources:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Feature source '{name}' not found. "
                 f"Available: {list(self._feature_sources.keys())}")
         return self._feature_sources[name]()
 
     def get_preparer(self, name: str):
         if name not in self._preparers:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Preparer '{name}' not found. "
                 f"Available: {list(self._preparers.keys())}")
         return self._preparers[name]()
 
     def get_preparation_step(self, name: str):
         if name not in self._preparation_steps:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Preparation step '{name}' not found. "
                 f"Available: {list(self._preparation_steps.keys())}")
         return self._preparation_steps[name]()
 
     def get_analyzer(self, name: str):
         if name not in self._analyzers:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Analyzer '{name}' not found. "
                 f"Available: {list(self._analyzers.keys())}")
         return self._analyzers[name]()
 
     def get_model(self, name: str):
         if name not in self._models:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Model '{name}' not found. "
                 f"Available: {list(self._models.keys())}")
         return self._models[name]()
 
     def get_reporter(self, name: str):
         if name not in self._reporters:
-            raise PluginNotFoundError(
+            raise ModuleLookupError(
                 f"Reporter '{name}' not found. "
                 f"Available: {list(self._reporters.keys())}")
         return self._reporters[name]()
 
     # ─── Introspection ──────────────────────────────────────────
 
-    def list_plugins(self) -> dict[str, list[str]]:
-        """List all registered plugins by type."""
+    def list_modules(self) -> dict[str, list[str]]:
+        """List all registered modules by type."""
         return {
             'stimulus_loaders': sorted(self._stimulus_loaders.keys()),
             'response_loaders': sorted(self._response_loaders.keys()),
@@ -246,8 +253,8 @@ class PluginRegistry:
             'reporters': sorted(self._reporters.keys()),
         }
 
-    def get_plugin_class(self, category: str, name: str) -> type:
-        """Return the raw class (not an instance) for a plugin."""
+    def get_module_class(self, category: str, name: str) -> type:
+        """Return the raw class (not an instance) for a module."""
         registry_map = {
             'stimulus_loaders': self._stimulus_loaders,
             'response_loaders': self._response_loaders,
@@ -261,21 +268,21 @@ class PluginRegistry:
             'reporters': self._reporters,
         }
         if category not in registry_map:
-            raise PluginNotFoundError(f"Unknown category '{category}'")
-        plugins = registry_map[category]
-        if name not in plugins:
-            raise PluginNotFoundError(
-                f"Plugin '{name}' not found in '{category}'. "
-                f"Available: {sorted(plugins.keys())}")
-        return plugins[name]
+            raise ModuleLookupError(f"Unknown category '{category}'")
+        modules = registry_map[category]
+        if name not in modules:
+            raise ModuleLookupError(
+                f"Module '{name}' not found in '{category}'. "
+                f"Available: {sorted(modules.keys())}")
+        return modules[name]
 
-    def plugin_metadata(self) -> dict[str, list[dict]]:
-        """Return full plugin metadata for all categories.
+    def module_metadata(self) -> dict[str, list[dict]]:
+        """Return full module metadata for all categories.
 
         Each entry includes name, docstring, category, stage, n_dims
         (for extractors), and PARAM_SCHEMA.
         """
-        from fmriflow.plugins._schema import extract_schema
+        from fmriflow.modules._schema import extract_schema
 
         CATEGORY_TO_STAGE = {
             'stimulus_loaders': 'stimuli',
@@ -291,10 +298,10 @@ class PluginRegistry:
         }
 
         result = {}
-        for category, names in self.list_plugins().items():
+        for category, names in self.list_modules().items():
             result[category] = []
             for name in names:
-                cls = self.get_plugin_class(category, name)
+                cls = self.get_module_class(category, name)
                 doc = (cls.__doc__ or '').strip()
                 entry = {
                     'name': name,

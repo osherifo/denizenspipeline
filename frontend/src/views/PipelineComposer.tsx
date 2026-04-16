@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { usePluginStore } from '../stores/plugin-store'
+import { useModuleStore } from '../stores/module-store'
 import { useConfigStore } from '../stores/config-store'
 import { ParamForm } from '../components/composer/ParamForm'
-import type { PluginInfo, FeatureConfig, StepConfig, AnalyzerConfig, ParamSchema } from '../api/types'
+import type { ModuleInfo, FeatureConfig, StepConfig, AnalyzerConfig, ParamSchema } from '../api/types'
 import type { FieldValues } from '../api/client'
 
 /**
@@ -261,21 +261,21 @@ const STAGE_DEFS = [
 
 const REPORTER_FORMATS = ['metrics', 'flatmap', 'flatmap_mapped', 'summary', 'weights', 'html']
 
-// ── Helper to find plugin by name across categories ──
+// ── Helper to find a module by name across categories ──
 
-function findPlugin(plugins: Record<string, PluginInfo[]>, categories: string[], name: string): PluginInfo | undefined {
+function findModule(modules: Record<string, ModuleInfo[]>, categories: string[], name: string): ModuleInfo | undefined {
   for (const cat of categories) {
-    const list = plugins[cat] || []
+    const list = modules[cat] || []
     const found = list.find((p) => p.name === name)
     if (found) return found
   }
   return undefined
 }
 
-function getPluginsForCategories(plugins: Record<string, PluginInfo[]>, categories: string[]): PluginInfo[] {
-  const result: PluginInfo[] = []
+function getModulesForCategories(modules: Record<string, ModuleInfo[]>, categories: string[]): ModuleInfo[] {
+  const result: ModuleInfo[] = []
   for (const cat of categories) {
-    result.push(...(plugins[cat] || []))
+    result.push(...(modules[cat] || []))
   }
   return result
 }
@@ -283,14 +283,14 @@ function getPluginsForCategories(plugins: Record<string, PluginInfo[]>, categori
 // ── Section Components ──
 
 function StimulusSection() {
-  const plugins = usePluginStore((s) => s.plugins)
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const modules = useModuleStore((s) => s.modules)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
-  const available = getPluginsForCategories(plugins, ['stimulus_loaders'])
+  const available = getModulesForCategories(modules, ['stimulus_loaders'])
   const selected = config.stimulus?.loader || ''
-  const plugin = findPlugin(plugins, ['stimulus_loaders'], selected)
+  const module = findModule(modules, ['stimulus_loaders'], selected)
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'stimulus'), [fieldValues])
 
   return (
@@ -305,9 +305,9 @@ function StimulusSection() {
           <option key={p.name} value={p.name}>{p.name}</option>
         ))}
       </select>
-      {plugin && (
+      {module && (
         <ParamForm
-          schema={plugin.params}
+          schema={module?.params}
           values={config.stimulus || {}}
           onChange={(key, val) => setField(`stimulus.${key}`, val)}
           suggestions={hints}
@@ -318,20 +318,20 @@ function StimulusSection() {
 }
 
 function ResponseSection() {
-  const plugins = usePluginStore((s) => s.plugins)
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const modules = useModuleStore((s) => s.modules)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
-  const loaders = getPluginsForCategories(plugins, ['response_loaders'])
+  const loaders = getModulesForCategories(modules, ['response_loaders'])
   const selected = config.response?.loader || ''
-  const plugin = findPlugin(plugins, ['response_loaders'], selected)
+  const module = findModule(modules, ['response_loaders'], selected)
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'response'), [fieldValues])
 
   // When loader is "local" and a reader is selected, show the reader's params too
   const readerName = config.response?.reader as string | undefined
-  const readerPlugin = readerName && readerName !== 'auto'
-    ? findPlugin(plugins, ['response_readers'], readerName)
+  const readerModule = readerName && readerName !== 'auto'
+    ? findModule(modules, ['response_readers'], readerName)
     : null
 
   return (
@@ -346,21 +346,21 @@ function ResponseSection() {
           <option key={p.name} value={p.name}>{p.name}</option>
         ))}
       </select>
-      {plugin && (
+      {module && (
         <ParamForm
-          schema={plugin.params}
+          schema={module?.params}
           values={config.response || {}}
           onChange={(key, val) => setField(`response.${key}`, val)}
           suggestions={hints}
         />
       )}
-      {readerPlugin && (
+      {readerModule && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
             {readerName} reader params
           </div>
           <ParamForm
-            schema={readerPlugin.params}
+            schema={readerModule.params}
             values={config.response || {}}
             onChange={(key, val) => setField(`response.${key}`, val)}
             suggestions={hints}
@@ -372,20 +372,20 @@ function ResponseSection() {
 }
 
 function FeatureCard({ feat, index }: { feat: FeatureConfig; index: number }) {
-  const plugins = usePluginStore((s) => s.plugins)
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const modules = useModuleStore((s) => s.modules)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const { removeFeature, updateFeature } = useConfigStore()
 
-  const extractors = getPluginsForCategories(plugins, ['feature_extractors'])
-  const sources = getPluginsForCategories(plugins, ['feature_sources'])
+  const extractors = getModulesForCategories(modules, ['feature_extractors'])
+  const sources = getModulesForCategories(modules, ['feature_sources'])
 
   const source = feat.source || 'compute'
   const isCompute = source === 'compute'
   const extractorName = feat.extractor || (isCompute ? feat.name : '')
 
-  const sourcePlugin = findPlugin(plugins, ['feature_sources'], source)
-  const extractorPlugin = isCompute
-    ? findPlugin(plugins, ['feature_extractors'], extractorName)
+  const sourceModule = findModule(modules, ['feature_sources'], source)
+  const extractorModule = isCompute
+    ? findModule(modules, ['feature_extractors'], extractorName)
     : null
 
   const featureHints = useMemo(() => suggestionsForPrefix(fieldValues, 'features'), [fieldValues])
@@ -449,9 +449,9 @@ function FeatureCard({ feat, index }: { feat: FeatureConfig; index: number }) {
               ))}
             </select>
           </div>
-          {extractorPlugin && Object.keys(extractorPlugin.params).length > 0 && (
+          {extractorModule && Object.keys(extractorModule.params).length > 0 && (
             <ParamForm
-              schema={extractorPlugin.params}
+              schema={extractorModule.params}
               values={feat.params || {}}
               onChange={(key, val) => {
                 const updated = { ...feat, params: { ...(feat.params || {}), [key]: val } }
@@ -463,9 +463,9 @@ function FeatureCard({ feat, index }: { feat: FeatureConfig; index: number }) {
       )}
 
       {/* Non-compute source: show source params (written to feature top level) */}
-      {!isCompute && sourcePlugin && Object.keys(sourcePlugin.params).length > 0 && (
+      {!isCompute && sourceModule && Object.keys(sourceModule.params).length > 0 && (
         <ParamForm
-          schema={sourcePlugin.params}
+          schema={sourceModule.params}
           values={feat}
           onChange={(key, val) => {
             const updated = { ...feat, [key]: val }
@@ -479,12 +479,12 @@ function FeatureCard({ feat, index }: { feat: FeatureConfig; index: number }) {
 }
 
 function FeatureSection() {
-  const plugins = usePluginStore((s) => s.plugins)
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const modules = useModuleStore((s) => s.modules)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const { addFeature } = useConfigStore()
 
-  const extractors = getPluginsForCategories(plugins, ['feature_extractors'])
+  const extractors = getModulesForCategories(modules, ['feature_extractors'])
   const features = config.features || []
 
   const [adding, setAdding] = useState(false)
@@ -544,7 +544,7 @@ function FeatureSection() {
               value={addSource}
               onChange={(e) => setAddSource(e.target.value)}
             >
-              {getPluginsForCategories(plugins, ['feature_sources']).map((s) => (
+              {getModulesForCategories(modules, ['feature_sources']).map((s) => (
                 <option key={s.name} value={s.name}>{s.name}</option>
               ))}
             </select>
@@ -572,8 +572,8 @@ function FeatureSection() {
 }
 
 function PreparationSection() {
-  const plugins = usePluginStore((s) => s.plugins)
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const modules = useModuleStore((s) => s.modules)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
   const { addStep, removeStep, updateStep } = useConfigStore()
@@ -581,8 +581,8 @@ function PreparationSection() {
   const prep = config.preparation || {}
   const prepType = (prep.type as string) || 'default'
   const steps = prep.steps || []
-  const stepPlugins = getPluginsForCategories(plugins, ['preparation_steps'])
-  const preparerPlugins = getPluginsForCategories(plugins, ['preparers'])
+  const stepModules = getModulesForCategories(modules, ['preparation_steps'])
+  const preparerModules = getModulesForCategories(modules, ['preparers'])
 
   const [adding, setAdding] = useState(false)
 
@@ -601,16 +601,16 @@ function PreparationSection() {
           </select>
         </div>
         {steps.map((step: StepConfig, i: number) => {
-          const plugin = findPlugin(plugins, ['preparation_steps'], step.name)
+          const module = findModule(modules, ['preparation_steps'], step.name)
           return (
             <div key={i} style={miniCardStyle}>
               <div style={miniCardHeader}>
                 <span style={miniCardName}>{i + 1}. {step.name}</span>
                 <button style={removeBtn} onClick={() => removeStep(i)}>x</button>
               </div>
-              {plugin && (
+              {module && (
                 <ParamForm
-                  schema={plugin.params}
+                  schema={module?.params}
                   values={step.params || {}}
                   onChange={(key, val) => {
                     const updated = { ...step, params: { ...(step.params || {}), [key]: val } }
@@ -635,7 +635,7 @@ function PreparationSection() {
               }}
             >
               <option value="">-- select step --</option>
-              {stepPlugins.map((p) => (
+              {stepModules.map((p) => (
                 <option key={p.name} value={p.name}>{p.name}</option>
               ))}
             </select>
@@ -651,7 +651,7 @@ function PreparationSection() {
   }
 
   // Default preparation mode
-  const selectedPreparer = preparerPlugins.length > 0 ? preparerPlugins[0] : null
+  const selectedPreparer = preparerModules.length > 0 ? preparerModules[0] : null
 
   return (
     <div>
@@ -679,14 +679,14 @@ function PreparationSection() {
 }
 
 function ModelSection() {
-  const plugins = usePluginStore((s) => s.plugins)
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const modules = useModuleStore((s) => s.modules)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
-  const available = getPluginsForCategories(plugins, ['models'])
+  const available = getModulesForCategories(modules, ['models'])
   const selected = config.model?.type || ''
-  const plugin = findPlugin(plugins, ['models'], selected)
+  const module = findModule(modules, ['models'], selected)
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'model.params'), [fieldValues])
 
   return (
@@ -701,9 +701,9 @@ function ModelSection() {
           <option key={p.name} value={p.name}>{p.name}</option>
         ))}
       </select>
-      {plugin && (
+      {module && (
         <ParamForm
-          schema={plugin.params}
+          schema={module?.params}
           values={config.model?.params || {}}
           onChange={(key, val) => setField(`model.params.${key}`, val)}
           suggestions={hints}
@@ -714,27 +714,27 @@ function ModelSection() {
 }
 
 function AnalysisSection() {
-  const plugins = usePluginStore((s) => s.plugins)
+  const modules = useModuleStore((s) => s.modules)
   const config = useConfigStore((s) => s.config)
   const { addAnalyzer, removeAnalyzer, updateAnalyzer } = useConfigStore()
 
-  const available = getPluginsForCategories(plugins, ['analyzers'])
+  const available = getModulesForCategories(modules, ['analyzers'])
   const analyzers = config.analysis || []
   const [adding, setAdding] = useState(false)
 
   return (
     <div>
       {analyzers.map((a: AnalyzerConfig, i: number) => {
-        const plugin = findPlugin(plugins, ['analyzers'], a.name)
+        const module = findModule(modules, ['analyzers'], a.name)
         return (
           <div key={i} style={miniCardStyle}>
             <div style={miniCardHeader}>
               <span style={miniCardName}>{a.name}</span>
               <button style={removeBtn} onClick={() => removeAnalyzer(i)}>x</button>
             </div>
-            {plugin && (
+            {module && (
               <ParamForm
-                schema={plugin.params}
+                schema={module?.params}
                 values={a.params || {}}
                 onChange={(key, val) => {
                   const updated = { ...a, params: { ...(a.params || {}), [key]: val } }
@@ -774,7 +774,7 @@ function AnalysisSection() {
 }
 
 function ReportingSection() {
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const toggleReporter = useConfigStore((s) => s.toggleReporter)
   const setField = useConfigStore((s) => s.setField)
@@ -849,8 +849,8 @@ export function PipelineComposer() {
   const setYamlDirect = useConfigStore((s) => s.setYamlDirect)
   const applyYaml = useConfigStore((s) => s.applyYaml)
   const reset = useConfigStore((s) => s.reset)
-  const loaded = usePluginStore((s) => s.loaded)
-  const fieldValues = usePluginStore((s) => s.fieldValues)
+  const loaded = useModuleStore((s) => s.loaded)
+  const fieldValues = useModuleStore((s) => s.fieldValues)
   const yamlApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sync YAML preview when config changes (only if user isn't editing YAML)
@@ -884,7 +884,7 @@ export function PipelineComposer() {
   if (!loaded) {
     return (
       <div style={{ color: 'var(--text-secondary)', fontSize: 14, padding: '60px 0', textAlign: 'center' }}>
-        Loading plugin metadata...
+        Loading module metadata...
       </div>
     )
   }

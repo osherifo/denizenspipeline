@@ -15,7 +15,7 @@ from fmriflow.core.types import (
     StimRun,
 )
 from fmriflow.pipeline import Pipeline
-from fmriflow.registry import PluginRegistry
+from fmriflow.registry import ModuleRegistry
 from tests.conftest import (
     MockTextGrid,
     MockTRFile,
@@ -136,7 +136,7 @@ class MockReporter:
 
 def _make_registry():
     """Create a registry with only mock plugins."""
-    reg = PluginRegistry()
+    reg = ModuleRegistry()
     reg._stimulus_loaders["mock_stim"] = MockStimulusLoader
     reg._response_loaders["mock_resp"] = MockResponseLoader
     reg._feature_sources["mock_source"] = MockFeatureSource

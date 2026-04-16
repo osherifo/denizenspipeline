@@ -1,4 +1,4 @@
-"""Plugin skeleton templates for each category."""
+"""Module skeleton templates for each category."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ TEMPLATES: dict[str, str] = {
 
 import numpy as np
 from fmriflow.core.types import FeatureSet, StimulusData
-from fmriflow.plugins._decorators import feature_extractor
+from fmriflow.modules._decorators import feature_extractor
 
 
 @feature_extractor("{name}")
@@ -52,7 +52,7 @@ class {class_name}:
 
 import numpy as np
 from fmriflow.core.types import PreparationState
-from fmriflow.plugins._decorators import preparation_step
+from fmriflow.modules._decorators import preparation_step
 
 
 @preparation_step("{name}")
@@ -88,7 +88,7 @@ class {class_name}:
 import json
 from pathlib import Path
 from fmriflow.core.types import ModelResult
-from fmriflow.plugins._decorators import reporter
+from fmriflow.modules._decorators import reporter
 
 
 @reporter("{name}")
@@ -122,7 +122,7 @@ class {class_name}:
 
 import numpy as np
 from fmriflow.core.types import ModelResult
-from fmriflow.plugins._decorators import analyzer
+from fmriflow.modules._decorators import analyzer
 
 
 @analyzer("{name}")
@@ -156,7 +156,7 @@ class {class_name}:
 
 from pathlib import Path
 from fmriflow.core.types import StimulusData
-from fmriflow.plugins._decorators import stimulus_loader
+from fmriflow.modules._decorators import stimulus_loader
 
 
 @stimulus_loader("{name}")
@@ -181,7 +181,7 @@ class {class_name}:
 
 from pathlib import Path
 from fmriflow.core.types import ResponseData
-from fmriflow.plugins._decorators import response_loader
+from fmriflow.modules._decorators import response_loader
 
 
 @response_loader("{name}")
@@ -206,7 +206,7 @@ class {class_name}:
 
 import numpy as np
 from fmriflow.core.types import ModelResult
-from fmriflow.plugins._decorators import model
+from fmriflow.modules._decorators import model
 
 
 @model("{name}")
@@ -217,12 +217,12 @@ class {class_name}:
         # Add parameters here
     }}
 
-    def fit_predict(self, X_train, Y_train, X_test, Y_test, config: dict) -> ModelResult:
+    def fit(self, data: PreparedData, config: dict) -> ModelResult:
         params = config.get('model', {{}}).get('params', {{}})
 
         # YOUR LOGIC HERE
-        # X_train, Y_train: training data
-        # X_test, Y_test: test data
+        # data.X_train, data.Y_train: training data
+        # data.X_test, data.Y_test: test data
         # Return a ModelResult with scores and weights
 
         raise NotImplementedError("Implement your model logic here")
@@ -233,9 +233,9 @@ class {class_name}:
 }
 
 
-def _to_class_name(plugin_name: str) -> str:
-    """Convert a snake_case plugin name to PascalCase class name."""
-    return ''.join(word.capitalize() for word in plugin_name.split('_'))
+def _to_class_name(module_name: str) -> str:
+    """Convert a snake_case module name to PascalCase class name."""
+    return ''.join(word.capitalize() for word in module_name.split('_'))
 
 
 def render_template(category: str, name: str) -> str:

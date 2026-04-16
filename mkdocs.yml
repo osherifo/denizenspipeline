@@ -1,5 +1,5 @@
 site_name: fMRIflow
-site_description: Plugin-based pipeline for voxelwise encoding models
+site_description: Module-based pipeline for voxelwise encoding models
 repo_url: https://github.com/denizens/fmriflow
 repo_name: denizens/fmriflow
 
@@ -48,13 +48,13 @@ nav:
     - Configuration: guide/configuration.md
     - CLI Reference: guide/cli.md
     - Python API: guide/python-api.md
-    - Writing Plugins: guide/plugins.md
+    - Writing Modules: guide/modules.md
     - Preprocessing: guide/preprocessing.md
     - DICOM to BIDS: guide/dicom-to-bids.md
     - Autoflatten: guide/autoflatten.md
     - Pipeline Graph: guide/pipeline-graph.md
     - Web UI: guide/web-ui.md
   - Reference:
-    - Built-in Plugins: reference/plugins.md
+    - Built-in Modules: reference/modules.md
     - Config Reference: reference/config.md
     - Defaults: reference/defaults.md
