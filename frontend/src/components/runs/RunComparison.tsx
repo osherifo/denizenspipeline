@@ -30,6 +30,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import yaml from 'js-yaml'
 
 import type { ArtifactInfo, RunSummary } from '../../api/types'
 import { artifactUrl } from '../../api/client'
@@ -404,6 +405,43 @@ const resetBtn: CSSProperties = {
   letterSpacing: 1,
 }
 
+const viewYamlBtn: CSSProperties = {
+  ...resetBtn,
+  marginTop: 6,
+  alignSelf: 'flex-start',
+  color: 'var(--accent-cyan)',
+  borderColor: 'var(--accent-cyan)',
+}
+
+const yamlPanel: CSSProperties = {
+  position: 'relative',
+  width: 'min(900px, 90vw)',
+  maxHeight: '85vh',
+  display: 'flex',
+  flexDirection: 'column',
+  backgroundColor: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: 16,
+  gap: 12,
+  boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+}
+
+const yamlPre: CSSProperties = {
+  margin: 0,
+  flex: 1,
+  overflow: 'auto',
+  padding: 12,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: 'var(--text-primary)',
+  backgroundColor: 'var(--bg-secondary)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  whiteSpace: 'pre',
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 function fmt(n: number | undefined, digits = 4): string {
@@ -671,6 +709,10 @@ export function RunComparison({ runs, onClose }: Props) {
   const [metricsByRun, setMetricsByRun] = useState<Record<string, MetricsJson | null>>({})
   const [metricsErr, setMetricsErr] = useState<string | null>(null)
 
+  // Config-section UI state.
+  const [showAllConfigKeys, setShowAllConfigKeys] = useState(false)
+  const [yamlForRun, setYamlForRun] = useState<RunSummary | null>(null)
+
   useEffect(() => {
     let cancelled = false
     setMetricsErr(null)
@@ -736,7 +778,12 @@ export function RunComparison({ runs, onClose }: Props) {
           <div style={headerCardsScroll}>
             <div style={headerCardsGrid(n)}>
               {runs.map((run, i) => (
-                <RunHeaderCard key={run.run_id} index={i} run={run} />
+                <RunHeaderCard
+                  key={run.run_id}
+                  index={i}
+                  run={run}
+                  onViewYaml={() => setYamlForRun(run)}
+                />
               ))}
             </div>
           </div>
@@ -792,41 +839,63 @@ export function RunComparison({ runs, onClose }: Props) {
             </div>
           )}
 
-          {/* Config diff matrix */}
-          <div style={sectionLabelRow}>
-            <span>
-              Config diff
-              <span style={subtleHint}>
-                {differingKeys.length > 0
-                  ? `${differingKeys.length} differing key(s) — cells highlighted where they differ from the row's mode`
-                  : 'all keys identical across selected runs'}
-              </span>
-            </span>
-          </div>
-          {differingKeys.length === 0 ? (
-            <div style={noticeBox}>Config snapshots are identical.</div>
-          ) : (
-            <div style={tableScroll}>
-              {differingKeys.map((key) => {
-                const values = flatConfigs.map((c) => c[key])
-                const mode = modeOf(values)
-                return (
-                  <div key={key} style={tableRow(n, 220)}>
-                    <span style={labelCell} title={key}>{key}</span>
-                    {values.map((v, i) => (
-                      <span
-                        key={`${key}-${i}`}
-                        style={configCell(v === mode)}
-                        title={v ?? '(absent)'}
-                      >
-                        {v ?? '—'}
-                      </span>
-                    ))}
+          {/* Config matrix — diff-only by default, full union when toggled. */}
+          {(() => {
+            const visibleKeys = showAllConfigKeys ? allConfigKeys : differingKeys
+            const hint = showAllConfigKeys
+              ? `${allConfigKeys.length} key(s) — cells highlighted where they differ from the row's mode`
+              : differingKeys.length > 0
+                ? `${differingKeys.length} differing key(s) — cells highlighted where they differ from the row's mode`
+                : 'all keys identical across selected runs'
+            return (
+              <>
+                <div style={sectionLabelRow}>
+                  <span>
+                    Config {showAllConfigKeys ? '(all keys)' : 'diff'}
+                    <span style={subtleHint}>{hint}</span>
+                  </span>
+                  <button
+                    type="button"
+                    style={resetBtn}
+                    onClick={() => setShowAllConfigKeys((v) => !v)}
+                    title={showAllConfigKeys
+                      ? 'Show only keys that differ across selected runs'
+                      : 'Show every key in the union of selected runs'}
+                  >
+                    {showAllConfigKeys ? 'Show diff only' : 'Show all keys'}
+                  </button>
+                </div>
+                {visibleKeys.length === 0 ? (
+                  <div style={noticeBox}>
+                    {showAllConfigKeys
+                      ? 'No config snapshots in any selected run.'
+                      : 'Config snapshots are identical.'}
                   </div>
-                )
-              })}
-            </div>
-          )}
+                ) : (
+                  <div style={tableScroll}>
+                    {visibleKeys.map((key) => {
+                      const values = flatConfigs.map((c) => c[key])
+                      const mode = modeOf(values)
+                      return (
+                        <div key={key} style={tableRow(n, 220)}>
+                          <span style={labelCell} title={key}>{key}</span>
+                          {values.map((v, i) => (
+                            <span
+                              key={`${key}-${i}`}
+                              style={configCell(v === mode)}
+                              title={v ?? '(absent)'}
+                            >
+                              {v ?? '—'}
+                            </span>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )
+          })()}
 
           {/* Image artifacts as N-pane horizontal strips */}
           <div style={sectionLabelRow}>
@@ -874,13 +943,25 @@ export function RunComparison({ runs, onClose }: Props) {
           )}
         </div>
       </div>
+      {yamlForRun && (
+        <YamlViewerModal
+          run={yamlForRun}
+          onClose={() => setYamlForRun(null)}
+        />
+      )}
     </div>
   )
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────
 
-function RunHeaderCard({ index, run }: { index: number; run: RunSummary }) {
+function RunHeaderCard({
+  index, run, onViewYaml,
+}: {
+  index: number
+  run: RunSummary
+  onViewYaml: () => void
+}) {
   const letter = colLetter(index)
   return (
     <div style={sideCard}>
@@ -892,6 +973,51 @@ function RunHeaderCard({ index, run }: { index: number; run: RunSummary }) {
       <span style={{ ...fadeText, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {run.run_id}
       </span>
+      <button
+        type="button"
+        style={viewYamlBtn}
+        onClick={onViewYaml}
+        title="Open this run's full config snapshot as YAML"
+      >
+        View YAML
+      </button>
+    </div>
+  )
+}
+
+function YamlViewerModal({ run, onClose }: { run: RunSummary; onClose: () => void }) {
+  const text = useMemo(() => {
+    const snap = run.config_snapshot ?? {}
+    try {
+      return yaml.dump(snap, { lineWidth: 100, noRefs: true, sortKeys: true })
+    } catch (e) {
+      return `# Failed to serialize config_snapshot: ${String(e)}\n`
+    }
+  }, [run])
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={yamlPanel} onClick={(e) => e.stopPropagation()}>
+        <div style={header}>
+          <div style={titleStyle}>
+            Config — {run.experiment || '—'} · {run.subject || '—'}
+            <span style={{ ...fadeText, marginLeft: 10, fontFamily: 'monospace' }}>
+              {run.run_id}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              style={resetBtn}
+              onClick={() => navigator.clipboard?.writeText(text)}
+              title="Copy YAML to clipboard"
+            >
+              Copy
+            </button>
+            <button style={closeBtn} onClick={onClose}>Close</button>
+          </div>
+        </div>
+        <pre style={yamlPre}>{text}</pre>
+      </div>
     </div>
   )
 }
