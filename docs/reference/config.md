@@ -61,7 +61,8 @@ Analysis-stage data preparation — applied to already-preprocessed BOLD data
 before model fitting. **Not** the same as fMRI preprocessing (fmriprep); that
 is managed via the Preproc module.
 
-The legacy key `preprocessing:` is still accepted (with a deprecation warning).
+Use the top-level key `preparation:`. Older configs that use
+`preprocessing:` should be updated to `preparation:`.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
