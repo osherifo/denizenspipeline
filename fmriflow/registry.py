@@ -12,8 +12,8 @@ from fmriflow.plugins._decorators import (
     _response_readers,
     _feature_extractors,
     _feature_sources,
-    _preprocessors,
-    _preprocessing_steps,
+    _preparers,
+    _preparation_steps,
     _analyzers,
     _models,
     _reporters,
@@ -37,8 +37,8 @@ class PluginRegistry:
         self._response_readers = _response_readers
         self._feature_extractors = _feature_extractors
         self._feature_sources = _feature_sources
-        self._preprocessors = _preprocessors
-        self._preprocessing_steps = _preprocessing_steps
+        self._preparers = _preparers
+        self._preparation_steps = _preparation_steps
         self._analyzers = _analyzers
         self._models = _models
         self._reporters = _reporters
@@ -61,8 +61,8 @@ class PluginRegistry:
             'fmriflow.response_readers': self._response_readers,
             'fmriflow.feature_extractors': self._feature_extractors,
             'fmriflow.feature_sources': self._feature_sources,
-            'fmriflow.preprocessors': self._preprocessors,
-            'fmriflow.preprocessing_steps': self._preprocessing_steps,
+            'fmriflow.preparers': self._preparers,
+            'fmriflow.preparation_steps': self._preparation_steps,
             'fmriflow.analyzers': self._analyzers,
             'fmriflow.models': self._models,
             'fmriflow.reporters': self._reporters,
@@ -122,17 +122,17 @@ class PluginRegistry:
             return cls
         return wrapper
 
-    def preprocessor(self, name: str):
-        """Decorator to register a preprocessor."""
+    def preparer(self, name: str):
+        """Decorator to register a preparer (analysis-stage data preparation)."""
         def wrapper(cls):
-            self._preprocessors[name] = cls
+            self._preparers[name] = cls
             return cls
         return wrapper
 
-    def preprocessing_step(self, name: str):
-        """Decorator to register a preprocessing step."""
+    def preparation_step(self, name: str):
+        """Decorator to register a preparation step."""
         def wrapper(cls):
-            self._preprocessing_steps[name] = cls
+            self._preparation_steps[name] = cls
             return cls
         return wrapper
 
@@ -194,19 +194,19 @@ class PluginRegistry:
                 f"Available: {list(self._feature_sources.keys())}")
         return self._feature_sources[name]()
 
-    def get_preprocessor(self, name: str):
-        if name not in self._preprocessors:
+    def get_preparer(self, name: str):
+        if name not in self._preparers:
             raise PluginNotFoundError(
-                f"Preprocessor '{name}' not found. "
-                f"Available: {list(self._preprocessors.keys())}")
-        return self._preprocessors[name]()
+                f"Preparer '{name}' not found. "
+                f"Available: {list(self._preparers.keys())}")
+        return self._preparers[name]()
 
-    def get_preprocessing_step(self, name: str):
-        if name not in self._preprocessing_steps:
+    def get_preparation_step(self, name: str):
+        if name not in self._preparation_steps:
             raise PluginNotFoundError(
-                f"Preprocessing step '{name}' not found. "
-                f"Available: {list(self._preprocessing_steps.keys())}")
-        return self._preprocessing_steps[name]()
+                f"Preparation step '{name}' not found. "
+                f"Available: {list(self._preparation_steps.keys())}")
+        return self._preparation_steps[name]()
 
     def get_analyzer(self, name: str):
         if name not in self._analyzers:
@@ -239,8 +239,8 @@ class PluginRegistry:
             'response_readers': sorted(self._response_readers.keys()),
             'feature_extractors': sorted(self._feature_extractors.keys()),
             'feature_sources': sorted(self._feature_sources.keys()),
-            'preprocessors': sorted(self._preprocessors.keys()),
-            'preprocessing_steps': sorted(self._preprocessing_steps.keys()),
+            'preparers': sorted(self._preparers.keys()),
+            'preparation_steps': sorted(self._preparation_steps.keys()),
             'analyzers': sorted(self._analyzers.keys()),
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
@@ -254,8 +254,8 @@ class PluginRegistry:
             'response_readers': self._response_readers,
             'feature_extractors': self._feature_extractors,
             'feature_sources': self._feature_sources,
-            'preprocessors': self._preprocessors,
-            'preprocessing_steps': self._preprocessing_steps,
+            'preparers': self._preparers,
+            'preparation_steps': self._preparation_steps,
             'analyzers': self._analyzers,
             'models': self._models,
             'reporters': self._reporters,
@@ -283,8 +283,8 @@ class PluginRegistry:
             'response_readers': 'responses',
             'feature_extractors': 'features',
             'feature_sources': 'features',
-            'preprocessors': 'preprocess',
-            'preprocessing_steps': 'preprocess',
+            'preparers': 'prepare',
+            'preparation_steps': 'prepare',
             'analyzers': 'analyze',
             'models': 'model',
             'reporters': 'report',

@@ -10,10 +10,10 @@ from fmriflow.core.array_utils import zscore
 from fmriflow.core.types import (
     FeatureData, PreparedData, ResponseData,
 )
-from fmriflow.plugins._decorators import preprocessor
+from fmriflow.plugins._decorators import preparer
 
 
-@preprocessor("pre_prepared")
+@preparer("pre_prepared")
 class PreparedDataLoader:
     """Load pre-saved train/test matrices directly, skipping stages 1-4.
 
@@ -34,7 +34,7 @@ class PreparedDataLoader:
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
-        prep = config['preprocessing']
+        prep = config['preparation']
         source = prep.get('source', 'local')
         delays = prep.get('delays', [1, 2, 3, 4])
         do_zscore = prep.get('do_zscore', True)
@@ -83,12 +83,12 @@ class PreparedDataLoader:
 
     def validate_config(self, config: dict) -> list[str]:
         errors = []
-        prep = config.get('preprocessing', {})
+        prep = config.get('preparation', {})
         source = prep.get('source', 'local')
         if source == 'local':
             for key in ('Y_path', 'X_path'):
                 if key not in prep:
-                    errors.append(f"pre_prepared requires preprocessing.{key}")
+                    errors.append(f"pre_prepared requires preparation.{key}")
                 elif not Path(prep[key]).exists():
                     errors.append(f"File not found: {prep[key]}")
         elif source == 'cloud':
@@ -96,5 +96,5 @@ class PreparedDataLoader:
                         'X_train_path', 'X_test_path'):
                 if key not in prep:
                     errors.append(
-                        f"pre_prepared cloud requires preprocessing.{key}")
+                        f"pre_prepared cloud requires preparation.{key}")
         return errors

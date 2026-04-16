@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 
-from fmriflow.core.types import PreprocessingState
-from fmriflow.plugins._decorators import preprocessing_step
+from fmriflow.core.types import PreparationState
+from fmriflow.plugins._decorators import preparation_step
 
 logger = logging.getLogger(__name__)
 
 
-@preprocessing_step("trim")
+@preparation_step("trim")
 class TrimStep:
     """Trims start/end TRs from responses and/or features (per-run).
 
@@ -27,7 +27,7 @@ class TrimStep:
         "targets": {"type": "list[string]", "default": ["responses", "features"], "enum": ["responses", "features"], "description": "Which data to trim"},
     }
 
-    def apply(self, state: PreprocessingState, params: dict) -> None:
+    def apply(self, state: PreparationState, params: dict) -> None:
         from fmriflow import ui
 
         trim_start = params.get("trim_start", 5)

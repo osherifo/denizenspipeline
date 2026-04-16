@@ -38,17 +38,17 @@ def register_builtins(registry):
     import fmriflow.plugins.feature_sources.cloud  # noqa: F401
     import fmriflow.plugins.feature_sources.grouped_hdf  # noqa: F401
 
-    import fmriflow.plugins.preprocessors.default  # noqa: F401
-    import fmriflow.plugins.preprocessors.pre_prepared  # noqa: F401
-    import fmriflow.plugins.preprocessors.pipeline  # noqa: F401
+    import fmriflow.plugins.preparers.default  # noqa: F401
+    import fmriflow.plugins.preparers.pre_prepared  # noqa: F401
+    import fmriflow.plugins.preparers.pipeline  # noqa: F401
 
-    # Preprocessing steps (for pipeline preprocessor)
-    import fmriflow.plugins.preprocessing_steps.split  # noqa: F401
-    import fmriflow.plugins.preprocessing_steps.trim  # noqa: F401
-    import fmriflow.plugins.preprocessing_steps.zscore  # noqa: F401
-    import fmriflow.plugins.preprocessing_steps.concatenate  # noqa: F401
-    import fmriflow.plugins.preprocessing_steps.delay  # noqa: F401
-    import fmriflow.plugins.preprocessing_steps.mean_center  # noqa: F401
+    # Preparation steps (for pipeline preparer)
+    import fmriflow.plugins.preparation_steps.split  # noqa: F401
+    import fmriflow.plugins.preparation_steps.trim  # noqa: F401
+    import fmriflow.plugins.preparation_steps.zscore  # noqa: F401
+    import fmriflow.plugins.preparation_steps.concatenate  # noqa: F401
+    import fmriflow.plugins.preparation_steps.delay  # noqa: F401
+    import fmriflow.plugins.preparation_steps.mean_center  # noqa: F401
 
     # Analyzers
     import fmriflow.plugins.analyzers.weight_analysis  # noqa: F401

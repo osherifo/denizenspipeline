@@ -51,6 +51,8 @@ nav:
     - Writing Plugins: guide/plugins.md
     - Preprocessing: guide/preprocessing.md
     - DICOM to BIDS: guide/dicom-to-bids.md
+    - Autoflatten: guide/autoflatten.md
+    - Pipeline Graph: guide/pipeline-graph.md
     - Web UI: guide/web-ui.md
   - Reference:
     - Built-in Plugins: reference/plugins.md

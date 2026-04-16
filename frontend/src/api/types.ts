@@ -73,7 +73,7 @@ export interface PipelineConfig {
     test_runs?: string[]
     train_runs?: string[] | 'auto'
   }
-  preprocessing?: {
+  preparation?: {
     type?: string
     steps?: StepConfig[]
     [key: string]: unknown
@@ -181,7 +181,7 @@ export interface ConfigSummary {
   features: string[]
   output_dir: string
   group: string
-  preprocessing_type: string
+  preparation_type: string
   stimulus_loader: string
   response_loader: string
   n_runs: number

@@ -7,8 +7,8 @@ import logging
 import numpy as np
 
 from fmriflow.core.array_utils import zscore
-from fmriflow.core.types import PreprocessingState
-from fmriflow.plugins._decorators import preprocessing_step
+from fmriflow.core.types import PreparationState
+from fmriflow.plugins._decorators import preparation_step
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def _nan_report(arr: np.ndarray, label: str) -> None:
                        label, n_nan, n_inf, arr.shape)
 
 
-@preprocessing_step("zscore")
+@preparation_step("zscore")
 class ZscoreStep:
     """Z-scores responses and/or features (per-run or concatenated)."""
 
@@ -31,7 +31,7 @@ class ZscoreStep:
         "targets": {"type": "list[string]", "default": ["responses", "features"], "enum": ["responses", "features"], "description": "Which data to z-score"},
     }
 
-    def apply(self, state: PreprocessingState, params: dict) -> None:
+    def apply(self, state: PreparationState, params: dict) -> None:
         targets = params.get("targets", ["responses", "features"])
 
         if state.is_concatenated:

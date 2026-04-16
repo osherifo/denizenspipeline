@@ -123,6 +123,14 @@ export function artifactUrl(runId: string, artifactName: string): string {
   return `${BASE}/runs/${runId}/artifacts/${artifactName}`
 }
 
+export async function deleteArtifact(
+  runId: string, artifactName: string,
+): Promise<{ deleted: boolean; path: string }> {
+  return json(`${BASE}/runs/${runId}/artifacts/${artifactName}`, {
+    method: 'DELETE',
+  })
+}
+
 // ── Experiment Configs ──
 
 export async function fetchConfigs(): Promise<ConfigSummary[]> {
@@ -141,6 +149,26 @@ export async function fetchConfigDetail(filename: string): Promise<ConfigDetail>
 
 export async function validateConfigFile(filename: string): Promise<ValidationResult> {
   return json(`${BASE}/configs/${encodeURIComponent(filename)}/validate`, { method: 'POST' })
+}
+
+export async function saveConfigFile(
+  filename: string, yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
+export async function copyConfigFile(
+  source: string, newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
+  })
 }
 
 export async function startRunFromConfig(
@@ -463,4 +491,94 @@ export async function saveConvertBatchConfig(params: {
 
 export async function deleteSavedConvertConfig(filename: string): Promise<{ deleted: boolean }> {
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+}
+
+// ── Autoflatten ────────────────────────────────────────────────────────
+
+export async function fetchAutoflattenDoctor(): Promise<{ tools: { name: string; available: boolean; detail: string }[] }> {
+  return json(`${BASE}/autoflatten/doctor`)
+}
+
+export async function fetchAutoflattenStatus(params: {
+  subjects_dir: string; subject: string
+}): Promise<{
+  subject: string
+  subject_dir_exists: boolean
+  has_surfaces: boolean
+  surfaces: Record<string, boolean>
+  flat_patches: Record<string, string>
+  has_flat_patches: boolean
+  pycortex_surface: string | null
+}> {
+  return json(`${BASE}/autoflatten/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function startAutoflatten(params: {
+  subjects_dir: string
+  subject: string
+  hemispheres?: string
+  backend?: string
+  parallel?: boolean
+  overwrite?: boolean
+  import_to_pycortex?: boolean
+  pycortex_surface_name?: string
+  flat_patch_lh?: string
+  flat_patch_rh?: string
+}): Promise<{ run_id: string; status: string }> {
+  return json(`${BASE}/autoflatten/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function fetchAutoflattenRun(runId: string): Promise<{
+  run_id: string
+  subject: string
+  status: string
+  result: {
+    result: {
+      subject: string
+      source: string
+      hemispheres: string[]
+      flat_patches: Record<string, string>
+      visualizations: Record<string, string>
+      pycortex_surface: string | null
+      elapsed_s: number
+    }
+    record: Record<string, unknown>
+  } | null
+  error: string | null
+  started_at: number
+  finished_at: number
+  events: Array<{
+    event: string
+    level?: string
+    message?: string
+    error?: string
+    timestamp?: number
+    [key: string]: unknown
+  }>
+}> {
+  return json(`${BASE}/autoflatten/runs/${runId}`)
+}
+
+export function connectAutoflattenWs(runId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return new WebSocket(`${proto}//${window.location.host}/ws/autoflatten/${runId}`)
+}
+
+export function autoflattenImageUrl(path: string): string {
+  return `${BASE}/autoflatten/image?path=${encodeURIComponent(path)}`
+}
+
+export async function fetchAutoflattenVisualizations(
+  subjects_dir: string, subject: string,
+): Promise<{ images: Record<string, string> }> {
+  const qs = new URLSearchParams({ subjects_dir, subject }).toString()
+  return json(`${BASE}/autoflatten/visualizations?${qs}`)
 }

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
 
 from fmriflow.preproc.backends import register_backend
+from fmriflow.preproc.backends.fmriprep_params import FmriprepParams
 from fmriflow.preproc.errors import BackendRunError
 from fmriflow.preproc.manifest import (
     PreprocConfig,
@@ -30,6 +30,11 @@ def _parse_bids_entities(filename: str) -> dict[str, str]:
     return dict(_ENTITY_RE.findall(Path(filename).stem))
 
 
+def _parse_params(config: PreprocConfig) -> FmriprepParams:
+    """Build FmriprepParams from a PreprocConfig's backend_params."""
+    return FmriprepParams.from_dict(config.backend_params)
+
+
 @register_backend("fmriprep")
 class FmriprepBackend:
     """Wraps fmriprep for preprocessing fMRI data.
@@ -42,28 +47,23 @@ class FmriprepBackend:
     name = "fmriprep"
 
     def validate(self, config: PreprocConfig) -> list[str]:
-        errors = []
+        params = _parse_params(config)
+        errors = params.validate()
 
-        if not self._find_fmriprep(config):
+        if not self._find_fmriprep(params):
             errors.append(
                 "fmriprep not found. Install via pip, or set "
-                "preproc.backend_params.container to a Singularity/Docker image."
+                "container to a Singularity/Docker image."
             )
 
         if not config.bids_dir or not Path(config.bids_dir).is_dir():
             errors.append(f"BIDS directory not found: {config.bids_dir}")
 
-        fs_license = config.backend_params.get("fs_license_file")
-        if not fs_license and not os.environ.get("FS_LICENSE"):
-            errors.append(
-                "FreeSurfer license not found. "
-                "Set fs_license_file or FS_LICENSE env var."
-            )
-
         return errors
 
     def run(self, config: PreprocConfig) -> PreprocManifest:
-        cmd = self._build_command(config)
+        params = _parse_params(config)
+        cmd = self._build_command(config, params)
         logger.info("Running fmriprep: %s", " ".join(cmd))
 
         proc = subprocess.Popen(
@@ -108,6 +108,7 @@ class FmriprepBackend:
 
     def collect(self, config: PreprocConfig) -> PreprocManifest:
         """Build manifest from existing fmriprep derivative outputs."""
+        params = _parse_params(config)
         output_dir = Path(config.output_dir)
         sub_dir = output_dir / f"sub-{config.subject}"
 
@@ -121,9 +122,9 @@ class FmriprepBackend:
                 )
 
         runs = []
-        space = config.backend_params.get("output_spaces", ["T1w"])
-        if isinstance(space, list):
-            space = space[0] if space else "T1w"
+        space = params.output_spaces[0] if params.output_spaces else "T1w"
+        # Strip resolution/density suffixes for matching (e.g. "MNI152NLin2009cAsym:res-2" → "MNI152NLin2009cAsym")
+        space_base = space.split(":")[0]
 
         # Find all preprocessed BOLD files
         for nii in sorted(sub_dir.rglob("*_desc-preproc_bold.nii.gz")):
@@ -131,7 +132,7 @@ class FmriprepBackend:
 
             # Filter by space if specified
             nii_space = entities.get("space", "")
-            if nii_space and nii_space != space:
+            if nii_space and nii_space != space_base:
                 continue
 
             # Resolve run name
@@ -166,17 +167,17 @@ class FmriprepBackend:
             sessions=config.sessions or [],
             runs=runs,
             backend="fmriprep",
-            backend_version=self._get_version(config),
-            parameters=config.backend_params,
-            space=space,
-            resolution=config.backend_params.get("resolution", "native"),
+            backend_version=self._get_version(params),
+            parameters=params.to_dict(),
+            space=space_base,
+            resolution=self._resolve_resolution(space),
             confounds_applied=[],
-            additional_steps=[],
+            additional_steps=self._resolve_steps(params),
             output_dir=str(output_dir),
-            output_format="nifti",
+            output_format="cifti" if params.cifti_output else "nifti",
             file_pattern=(
                 "sub-{subject}_ses-{session}_task-{task}_run-{run}"
-                f"_space-{space}_desc-preproc_bold.nii.gz"
+                f"_space-{space_base}_desc-preproc_bold.nii.gz"
             ),
             created=now_iso(),
             pipeline_version=None,
@@ -185,51 +186,30 @@ class FmriprepBackend:
 
     # ── Private helpers ──────────────────────────────────────────
 
-    def _find_fmriprep(self, config: PreprocConfig) -> bool:
+    def _find_fmriprep(self, params: FmriprepParams) -> bool:
         """Check if fmriprep is available."""
-        container = config.backend_params.get("container")
-        if container:
-            return Path(container).exists()
+        if params.container:
+            if params.container_type == "docker":
+                # Docker image — either already pulled or will be pulled on run
+                return shutil.which("docker") is not None
+            if params.container_type == "singularity":
+                # Could be a .sif path OR a docker://... URI
+                if params.container.startswith(("docker://", "library://", "shub://")):
+                    return shutil.which("singularity") is not None or shutil.which("apptainer") is not None
+                return Path(params.container).exists()
+            # bare
+            return True
         return shutil.which("fmriprep") is not None
 
-    def _build_command(self, config: PreprocConfig) -> list[str]:
+    def _build_command(
+        self,
+        config: PreprocConfig,
+        params: FmriprepParams,
+    ) -> list[str]:
         """Build the fmriprep CLI command."""
-        container = config.backend_params.get("container")
-        container_type = config.backend_params.get("container_type", "singularity")
-
-        if container:
-            if container_type == "singularity":
-                cmd = [
-                    "singularity", "run", "--cleanenv",
-                    "-B", f"{config.bids_dir}:/data:ro",
-                    "-B", f"{config.output_dir}:/out",
-                ]
-                if config.work_dir:
-                    cmd += ["-B", f"{config.work_dir}:/work"]
-                cmd += [
-                    container,
-                    "/data", "/out", "participant",
-                    "--participant-label", config.subject,
-                ]
-                if config.work_dir:
-                    cmd += ["-w", "/work"]
-            elif container_type == "docker":
-                cmd = [
-                    "docker", "run", "--rm",
-                    "-v", f"{config.bids_dir}:/data:ro",
-                    "-v", f"{config.output_dir}:/out",
-                ]
-                if config.work_dir:
-                    cmd += ["-v", f"{config.work_dir}:/work"]
-                cmd += [
-                    container,
-                    "/data", "/out", "participant",
-                    "--participant-label", config.subject,
-                ]
-                if config.work_dir:
-                    cmd += ["-w", "/work"]
-            else:
-                raise ValueError(f"Unknown container_type: {container_type}")
+        # Base command: container or bare
+        if params.container:
+            cmd = self._build_container_prefix(config, params)
         else:
             cmd = [
                 "fmriprep",
@@ -240,22 +220,49 @@ class FmriprepBackend:
             if config.work_dir:
                 cmd += ["-w", config.work_dir]
 
-        # Output spaces
-        spaces = config.backend_params.get("output_spaces", [])
-        if spaces:
-            cmd += ["--output-spaces"] + (
-                spaces if isinstance(spaces, list) else [spaces]
-            )
+        # All structured flags
+        cmd += params.to_command_args()
 
-        # FreeSurfer license
-        fs_license = config.backend_params.get("fs_license_file")
-        if fs_license:
-            cmd += ["--fs-license-file", str(fs_license)]
+        return cmd
 
-        # Extra args
-        extra = config.backend_params.get("extra_args", [])
-        if extra:
-            cmd += extra
+    def _build_container_prefix(
+        self,
+        config: PreprocConfig,
+        params: FmriprepParams,
+    ) -> list[str]:
+        """Build the container invocation prefix."""
+        if params.container_type == "singularity":
+            cmd = [
+                "singularity", "run", "--cleanenv",
+                "-B", f"{config.bids_dir}:/data:ro",
+                "-B", f"{config.output_dir}:/out",
+            ]
+            if config.work_dir:
+                cmd += ["-B", f"{config.work_dir}:/work"]
+            cmd += [
+                params.container,
+                "/data", "/out", "participant",
+                "--participant-label", config.subject,
+            ]
+            if config.work_dir:
+                cmd += ["-w", "/work"]
+        elif params.container_type == "docker":
+            cmd = [
+                "docker", "run", "--rm",
+                "-v", f"{config.bids_dir}:/data:ro",
+                "-v", f"{config.output_dir}:/out",
+            ]
+            if config.work_dir:
+                cmd += ["-v", f"{config.work_dir}:/work"]
+            cmd += [
+                params.container,
+                "/data", "/out", "participant",
+                "--participant-label", config.subject,
+            ]
+            if config.work_dir:
+                cmd += ["-w", "/work"]
+        else:
+            raise ValueError(f"Unknown container_type: {params.container_type}")
 
         return cmd
 
@@ -265,7 +272,6 @@ class FmriprepBackend:
         run_map: dict[str, str] | None,
     ) -> str:
         """Derive a pipeline run name from BIDS entities."""
-        # Build a key from session + run
         parts = []
         if "ses" in entities:
             parts.append(f"ses-{entities['ses']}")
@@ -279,7 +285,6 @@ class FmriprepBackend:
 
     def _find_confounds(self, bold_path: Path) -> Path | None:
         """Find the confounds TSV matching a preprocessed BOLD file."""
-        # Replace _desc-preproc_bold.nii.gz with _desc-confounds_timeseries.tsv
         confounds_name = bold_path.name.replace(
             "_desc-preproc_bold.nii.gz",
             "_desc-confounds_timeseries.tsv",
@@ -343,7 +348,7 @@ class FmriprepBackend:
 
         return str(Path(*parts) / "_".join(name_parts))
 
-    def _get_version(self, config: PreprocConfig) -> str:
+    def _get_version(self, params: FmriprepParams) -> str:
         """Get the fmriprep version."""
         try:
             result = subprocess.run(
@@ -352,4 +357,23 @@ class FmriprepBackend:
             )
             return result.stdout.strip()
         except Exception:
-            return config.backend_params.get("version", "unknown")
+            return "unknown"
+
+    def _resolve_resolution(self, space: str) -> str:
+        """Extract resolution from a space string like 'MNI152NLin2009cAsym:res-2'."""
+        if ":" in space:
+            for part in space.split(":")[1:]:
+                if part.startswith("res-"):
+                    return part.replace("res-", "") + "mm"
+                if part.startswith("den-"):
+                    return part
+        return "native"
+
+    def _resolve_steps(self, params: FmriprepParams) -> list[str]:
+        """Build the additional_steps list from params."""
+        steps = []
+        if params.use_aroma:
+            steps.append("ica_aroma")
+        if params.use_syn_sdc:
+            steps.append("syn_sdc")
+        return steps

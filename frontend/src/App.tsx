@@ -9,9 +9,11 @@ import { ExperimentDashboard } from './views/ExperimentDashboard'
 import { PreprocManager } from './views/PreprocManager'
 import { DicomBidsConverter } from './views/DicomBidsConverter'
 import { ErrorBrowser } from './views/ErrorBrowser'
+import { AutoflattenManager } from './views/AutoflattenManager'
+import { PipelineGraph } from './views/PipelineGraph'
 import { usePluginStore } from './stores/plugin-store'
 
-type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'errors'
+type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'autoflatten' | 'graph' | 'errors'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
@@ -22,6 +24,8 @@ function getRoute(): Route {
   if (hash === 'dashboard') return 'dashboard'
   if (hash === 'preproc') return 'preproc'
   if (hash === 'convert') return 'convert'
+  if (hash === 'autoflatten') return 'autoflatten'
+  if (hash === 'graph') return 'graph'
   if (hash === 'errors') return 'errors'
   return 'dashboard'
 }
@@ -119,6 +123,8 @@ export function App() {
         {route === 'dashboard' && <ExperimentDashboard />}
         {route === 'preproc' && <PreprocManager />}
         {route === 'convert' && <DicomBidsConverter />}
+        {route === 'autoflatten' && <AutoflattenManager />}
+        {route === 'graph' && <PipelineGraph />}
         {route === 'errors' && <ErrorBrowser />}
       </div>
     </div>

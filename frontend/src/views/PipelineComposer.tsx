@@ -253,7 +253,7 @@ const STAGE_DEFS = [
   { num: 1, key: 'stimulus', name: 'Stimuli', color: '#00e5ff', categories: ['stimulus_loaders'] },
   { num: 2, key: 'response', name: 'Responses', color: '#00e676', categories: ['response_loaders', 'response_readers'] },
   { num: 3, key: 'features', name: 'Features', color: '#ffd600', categories: ['feature_extractors', 'feature_sources'] },
-  { num: 4, key: 'preprocessing', name: 'Preprocessing', color: '#ff9100', categories: ['preprocessing_steps', 'preprocessors'] },
+  { num: 4, key: 'preparation', name: 'Preparation', color: '#ff9100', categories: ['preparation_steps', 'preparers'] },
   { num: 5, key: 'model', name: 'Model', color: '#e040fb', categories: ['models'] },
   { num: 6, key: 'analysis', name: 'Analysis', color: '#448aff', categories: ['analyzers'] },
   { num: 7, key: 'reporting', name: 'Report', color: '#69f0ae', categories: ['reporters'] },
@@ -571,18 +571,18 @@ function FeatureSection() {
   )
 }
 
-function PreprocessingSection() {
+function PreparationSection() {
   const plugins = usePluginStore((s) => s.plugins)
   const fieldValues = usePluginStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
   const { addStep, removeStep, updateStep } = useConfigStore()
 
-  const prep = config.preprocessing || {}
+  const prep = config.preparation || {}
   const prepType = (prep.type as string) || 'default'
   const steps = prep.steps || []
-  const stepPlugins = getPluginsForCategories(plugins, ['preprocessing_steps'])
-  const preprocessorPlugins = getPluginsForCategories(plugins, ['preprocessors'])
+  const stepPlugins = getPluginsForCategories(plugins, ['preparation_steps'])
+  const preparerPlugins = getPluginsForCategories(plugins, ['preparers'])
 
   const [adding, setAdding] = useState(false)
 
@@ -594,14 +594,14 @@ function PreprocessingSection() {
           <select
             style={selectStyle}
             value={prepType}
-            onChange={(e) => setField('preprocessing.type', e.target.value)}
+            onChange={(e) => setField('preparation.type', e.target.value)}
           >
             <option value="default">default</option>
             <option value="pipeline">pipeline (stackable steps)</option>
           </select>
         </div>
         {steps.map((step: StepConfig, i: number) => {
-          const plugin = findPlugin(plugins, ['preprocessing_steps'], step.name)
+          const plugin = findPlugin(plugins, ['preparation_steps'], step.name)
           return (
             <div key={i} style={miniCardStyle}>
               <div style={miniCardHeader}>
@@ -650,8 +650,8 @@ function PreprocessingSection() {
     )
   }
 
-  // Default preprocessing mode
-  const selectedPreprocessor = preprocessorPlugins.length > 0 ? preprocessorPlugins[0] : null
+  // Default preparation mode
+  const selectedPreparer = preparerPlugins.length > 0 ? preparerPlugins[0] : null
 
   return (
     <div>
@@ -660,18 +660,18 @@ function PreprocessingSection() {
         <select
           style={selectStyle}
           value={prepType}
-          onChange={(e) => setField('preprocessing.type', e.target.value)}
+          onChange={(e) => setField('preparation.type', e.target.value)}
         >
           <option value="default">default</option>
           <option value="pipeline">pipeline (stackable steps)</option>
         </select>
       </div>
-      {selectedPreprocessor && (
+      {selectedPreparer && (
         <ParamForm
-          schema={selectedPreprocessor.params}
+          schema={selectedPreparer.params}
           values={prep}
-          onChange={(key, val) => setField(`preprocessing.${key}`, val)}
-          suggestions={suggestionsForPrefix(fieldValues, 'preprocessing')}
+          onChange={(key, val) => setField(`preparation.${key}`, val)}
+          suggestions={suggestionsForPrefix(fieldValues, 'preparation')}
         />
       )}
     </div>
@@ -825,7 +825,7 @@ function getStageContent(stageKey: string) {
     case 'stimulus': return <StimulusSection />
     case 'response': return <ResponseSection />
     case 'features': return <FeatureSection />
-    case 'preprocessing': return <PreprocessingSection />
+    case 'preparation': return <PreparationSection />
     case 'model': return <ModelSection />
     case 'analysis': return <AnalysisSection />
     case 'reporting': return <ReportingSection />

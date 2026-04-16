@@ -264,7 +264,7 @@ class TestMultipleKernelRidgeModel:
     def test_fit_returns_model_result(self, undelayed_prepared_data):
         model = MultipleKernelRidgeModel()
         config = {
-            "preprocessing": {"apply_delays": False},
+            "preparation": {"apply_delays": False},
             "model": {
                 "params": {
                     "alphas": "logspace(0,3,3)",
@@ -279,7 +279,7 @@ class TestMultipleKernelRidgeModel:
     def test_output_shapes(self, undelayed_prepared_data):
         model = MultipleKernelRidgeModel()
         config = {
-            "preprocessing": {"apply_delays": False},
+            "preparation": {"apply_delays": False},
             "model": {
                 "params": {
                     "alphas": "logspace(0,3,3)",
@@ -298,7 +298,7 @@ class TestMultipleKernelRidgeModel:
     def test_metadata_has_deltas_and_is_dual(self, undelayed_prepared_data):
         model = MultipleKernelRidgeModel()
         config = {
-            "preprocessing": {"apply_delays": False},
+            "preparation": {"apply_delays": False},
             "model": {
                 "params": {"cv": 3, "n_iter": 5},
             },
@@ -316,7 +316,7 @@ class TestMultipleKernelRidgeModel:
     def test_validate_config_ok_with_no_delays(self):
         model = MultipleKernelRidgeModel()
         errors = model.validate_config({
-            "preprocessing": {"apply_delays": False},
+            "preparation": {"apply_delays": False},
             "model": {"params": {}},
         })
         delay_errors = [e for e in errors if "apply_delays" in e]

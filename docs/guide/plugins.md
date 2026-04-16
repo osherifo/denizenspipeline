@@ -60,7 +60,7 @@ The Plugin Editor in the web UI lets you write, validate, and register plugins d
 | Type | Decorator | Required methods |
 |------|-----------|-----------------|
 | Feature Extractor | `@feature_extractor` | `extract(stimuli, run_names, config)` |
-| Preprocessing Step | `@preprocessing_step` | `apply(state, params)` |
+| Preparation Step | `@preparation_step` | `apply(state, params)` |
 | Analyzer | `@analyzer` | `analyze(context, config)` |
 | Reporter | `@reporter` | `report(result, context, config)` |
 | Stimulus Loader | `@stimulus_loader` | `load(config)` |

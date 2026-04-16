@@ -22,7 +22,7 @@ const EMPTY_CONFIG: PipelineConfig = {
   response: { loader: 'local' },
   features: [],
   split: { test_runs: [] },
-  preprocessing: { type: 'default', trim_start: 5, trim_end: 5, delays: [1, 2, 3, 4], zscore: true },
+  preparation: { type: 'default', trim_start: 5, trim_end: 5, delays: [1, 2, 3, 4], zscore: true },
   model: { type: 'bootstrap_ridge', params: {} },
   reporting: { formats: ['metrics'], output_dir: './results' },
 }
@@ -113,38 +113,38 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
   addStep: (step) => {
     const config = { ...get().config }
-    const prep = { ...(config.preprocessing || {}), type: 'pipeline' }
+    const prep = { ...(config.preparation || {}), type: 'pipeline' }
     prep.steps = [...(prep.steps || []), step]
-    config.preprocessing = prep
+    config.preparation = prep
     set({ config, isDirty: true })
   },
 
   removeStep: (index) => {
     const config = { ...get().config }
-    const prep = { ...(config.preprocessing || {}) }
+    const prep = { ...(config.preparation || {}) }
     prep.steps = (prep.steps || []).filter((_, i) => i !== index)
-    config.preprocessing = prep
+    config.preparation = prep
     set({ config, isDirty: true })
   },
 
   updateStep: (index, step) => {
     const config = { ...get().config }
-    const prep = { ...(config.preprocessing || {}) }
+    const prep = { ...(config.preparation || {}) }
     const steps = [...(prep.steps || [])]
     steps[index] = step
     prep.steps = steps
-    config.preprocessing = prep
+    config.preparation = prep
     set({ config, isDirty: true })
   },
 
   reorderSteps: (from, to) => {
     const config = { ...get().config }
-    const prep = { ...(config.preprocessing || {}) }
+    const prep = { ...(config.preparation || {}) }
     const steps = [...(prep.steps || [])]
     const [item] = steps.splice(from, 1)
     steps.splice(to, 0, item)
     prep.steps = steps
-    config.preprocessing = prep
+    config.preparation = prep
     set({ config, isDirty: true })
   },
 

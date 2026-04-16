@@ -47,15 +47,15 @@ class {class_name}:
         return []
 ''',
 
-    'preprocessing_steps': '''\
-"""Custom preprocessing step: {name}."""
+    'preparation_steps': '''\
+"""Custom preparation step: {name}."""
 
 import numpy as np
-from fmriflow.core.types import PreprocessingState
-from fmriflow.plugins._decorators import preprocessing_step
+from fmriflow.core.types import PreparationState
+from fmriflow.plugins._decorators import preparation_step
 
 
-@preprocessing_step("{name}")
+@preparation_step("{name}")
 class {class_name}:
     name = "{name}"
 
@@ -63,7 +63,7 @@ class {class_name}:
         # Add parameters here
     }}
 
-    def apply(self, state: PreprocessingState, params: dict) -> None:
+    def apply(self, state: PreparationState, params: dict) -> None:
         # state.responses: dict[run_name -> np.ndarray]  (before concatenation)
         # state.features: dict[feat_name -> dict[run_name -> np.ndarray]]
         # state.X_train, state.Y_train, etc.  (after concatenation)

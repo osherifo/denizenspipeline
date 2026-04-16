@@ -80,6 +80,9 @@ class PreprocManifest:
     pipeline_version: str | None = None
     checksum: str | None = None
 
+    # Post-step outputs
+    autoflatten: dict[str, Any] | None = None
+
     # Schema
     manifest_version: int = 1
 
@@ -162,12 +165,16 @@ class PreprocConfig:
     # Post-processing
     confounds: ConfoundsConfig | None = None
 
+    # Post-steps
+    post_steps: dict[str, Any] | None = None
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PreprocConfig:
         """Build from a dict (e.g. YAML config section)."""
         confounds_data = data.pop("confounds", None)
         confounds = ConfoundsConfig(**confounds_data) if confounds_data else None
-        return cls(confounds=confounds, **data)
+        post_steps = data.pop("post_steps", None)
+        return cls(confounds=confounds, post_steps=post_steps, **data)
 
 
 # ── PreprocStatus ────────────────────────────────────────────────────────

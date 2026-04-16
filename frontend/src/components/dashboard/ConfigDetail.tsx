@@ -1,7 +1,8 @@
-/** Config summary + YAML viewer + action buttons. */
-import { useState } from 'react'
+/** Config summary + inline YAML viewer/editor + action buttons. */
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConfigDetail as ConfigDetailType } from '../../api/types'
+import { saveConfigFile, copyConfigFile } from '../../api/client'
 
 interface ConfigDetailProps {
   config: ConfigDetailType
@@ -9,7 +10,8 @@ interface ConfigDetailProps {
   validating: boolean
   onRun: () => void
   onValidate: () => void
-  onEditInComposer: () => void
+  onSaved?: () => void
+  onCopied?: (newFilename: string) => void
   isRunning: boolean
 }
 
@@ -84,6 +86,37 @@ const yamlPre: CSSProperties = {
   maxHeight: 300,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-all',
+  margin: 0,
+}
+
+const yamlTextarea = (hasError: boolean): CSSProperties => ({
+  width: '100%',
+  minHeight: 280,
+  maxHeight: 520,
+  padding: '12px 14px',
+  borderRadius: 6,
+  fontSize: 11,
+  lineHeight: 1.6,
+  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+  backgroundColor: 'var(--bg-secondary)',
+  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-cyan)'}`,
+  color: 'var(--text-primary)',
+  outline: 'none',
+  resize: 'vertical',
+  tabSize: 2,
+})
+
+const editBar: CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  marginTop: 8,
+  alignItems: 'center',
+}
+
+const saveError: CSSProperties = {
+  fontSize: 11,
+  color: 'var(--accent-red)',
+  fontFamily: 'monospace',
 }
 
 const actionBar: CSSProperties = {
@@ -123,26 +156,79 @@ export function ConfigDetail({
   validating,
   onRun,
   onValidate,
-  onEditInComposer,
+  onSaved,
+  onCopied,
   isRunning,
 }: ConfigDetailProps) {
   const [showYaml, setShowYaml] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [yamlDraft, setYamlDraft] = useState(config.yaml_string)
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [copying, setCopying] = useState(false)
+
+  // Reset the draft whenever a different config is selected or reloaded.
+  useEffect(() => {
+    setYamlDraft(config.yaml_string)
+    setEditing(false)
+    setSaveErr(null)
+  }, [config.filename, config.yaml_string])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveErr(null)
+    try {
+      await saveConfigFile(config.filename, yamlDraft)
+      setEditing(false)
+      onSaved?.()
+    } catch (e) {
+      setSaveErr(String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setYamlDraft(config.yaml_string)
+    setEditing(false)
+    setSaveErr(null)
+  }
+
+  const handleCopy = async () => {
+    const base = config.filename.replace(/\.(yaml|yml)$/, '')
+    const ext = config.filename.match(/\.(yaml|yml)$/)?.[0] ?? '.yaml'
+    const suggested = `${base}_copy${ext}`
+    const name = window.prompt('New filename:', suggested)
+    if (!name) return
+
+    setCopying(true)
+    try {
+      const result = await copyConfigFile(config.filename, name)
+      if (result.saved) onCopied?.(result.filename)
+    } catch (e) {
+      window.alert(`Copy failed: ${e}`)
+    } finally {
+      setCopying(false)
+    }
+  }
+
   const cfg = config.config as Record<string, any>
 
   const experiment = cfg.experiment || '-'
   const subject = cfg.subject || '-'
   const modelType = cfg.model?.type || '-'
   const features = (cfg.features || []).map((f: any) => f.name).join(', ') || '-'
-  const prepType = cfg.preprocessing?.type || 'default'
+  const prepCfg = cfg.preparation
+  const prepType = prepCfg?.type || 'default'
   const outputDir = cfg.reporting?.output_dir || '-'
   const stimLoader = cfg.stimulus?.loader || '-'
   const respLoader = cfg.response?.loader || '-'
   const formats = (cfg.reporting?.formats || []).join(', ') || '-'
 
-  // Preprocessing steps summary
+  // Preparation steps summary
   let prepSummary = prepType
-  if (prepType === 'pipeline' && cfg.preprocessing?.steps) {
-    prepSummary = cfg.preprocessing.steps.map((s: any) => s.name).join(' \u2192 ')
+  if (prepType === 'pipeline' && prepCfg?.steps) {
+    prepSummary = prepCfg.steps.map((s: any) => s.name).join(' \u2192 ')
   }
 
   return (
@@ -191,11 +277,37 @@ export function ConfigDetail({
         </div>
       </div>
 
-      {/* YAML viewer */}
+      {/* YAML viewer / editor */}
       <button style={yamlToggle} onClick={() => setShowYaml(!showYaml)}>
         {showYaml ? '\u25BC Hide YAML' : '\u25B6 Show YAML'}
       </button>
-      {showYaml && <pre style={yamlPre}>{config.yaml_string}</pre>}
+      {showYaml && (
+        editing ? (
+          <>
+            <textarea
+              style={yamlTextarea(saveErr !== null)}
+              value={yamlDraft}
+              onChange={(e) => setYamlDraft(e.target.value)}
+              spellCheck={false}
+            />
+            <div style={editBar}>
+              <button
+                style={btnStyle('primary')}
+                onClick={handleSave}
+                disabled={saving || yamlDraft === config.yaml_string}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button style={btnStyle('default')} onClick={handleCancel} disabled={saving}>
+                Cancel
+              </button>
+              {saveErr && <span style={saveError}>{saveErr}</span>}
+            </div>
+          </>
+        ) : (
+          <pre style={yamlPre}>{config.yaml_string}</pre>
+        )
+      )}
 
       {/* Action buttons */}
       <div style={actionBar}>
@@ -209,8 +321,13 @@ export function ConfigDetail({
         <button style={btnStyle('secondary')} onClick={onValidate} disabled={validating}>
           {validating ? 'Validating...' : 'Validate'}
         </button>
-        <button style={btnStyle('default')} onClick={onEditInComposer}>
-          Edit in Composer
+        {showYaml && !editing && (
+          <button style={btnStyle('default')} onClick={() => setEditing(true)}>
+            Edit YAML
+          </button>
+        )}
+        <button style={btnStyle('default')} onClick={handleCopy} disabled={copying || editing}>
+          {copying ? 'Copying...' : 'Duplicate'}
         </button>
       </div>
 

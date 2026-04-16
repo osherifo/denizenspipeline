@@ -5,7 +5,7 @@ from fmriflow.config.defaults import DEFAULT_CONFIG
 
 class TestDefaultConfig:
     def test_has_expected_top_level_keys(self):
-        expected_keys = {"stimulus", "response", "preprocessing", "model", "reporting"}
+        expected_keys = {"stimulus", "response", "preparation", "model", "reporting"}
         assert expected_keys.issubset(set(DEFAULT_CONFIG.keys()))
 
     def test_stimulus_defaults(self):
@@ -20,8 +20,8 @@ class TestDefaultConfig:
         assert isinstance(resp, dict)
         assert resp["loader"] == "cloud"
 
-    def test_preprocessing_defaults(self):
-        prep = DEFAULT_CONFIG["preprocessing"]
+    def test_preparation_defaults(self):
+        prep = DEFAULT_CONFIG["preparation"]
         assert isinstance(prep, dict)
         assert isinstance(prep["trim_start"], int)
         assert isinstance(prep["trim_end"], int)

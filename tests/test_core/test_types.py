@@ -11,7 +11,7 @@ from fmriflow.core.types import (
     LanguageStim,
     Model,
     ModelResult,
-    Preprocessor,
+    Preparer,
     PreparedData,
     Reporter,
     ResponseData,
@@ -134,7 +134,7 @@ class _FakeFeatureExtractor:
     def extract(self, stimuli, run_names, config): ...
     def validate_config(self, config): ...
 
-class _FakePreprocessor:
+class _FakePreparer:
     name = "fake"
     def prepare(self, responses, features, config): ...
     def validate_config(self, config): ...
@@ -163,8 +163,8 @@ class TestProtocols:
     def test_feature_extractor_protocol(self):
         assert isinstance(_FakeFeatureExtractor(), FeatureExtractor)
 
-    def test_preprocessor_protocol(self):
-        assert isinstance(_FakePreprocessor(), Preprocessor)
+    def test_preparer_protocol(self):
+        assert isinstance(_FakePreparer(), Preparer)
 
     def test_model_protocol(self):
         assert isinstance(_FakeModel(), Model)

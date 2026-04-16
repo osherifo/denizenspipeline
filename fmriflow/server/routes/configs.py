@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(tags=["configs"])
+
+
+class SaveConfigBody(BaseModel):
+    yaml_string: str
+
+
+class CopyConfigBody(BaseModel):
+    new_filename: str
 
 
 @router.get("/configs")
@@ -35,7 +44,7 @@ async def list_configs(request: Request):
             'features': cfg.features,
             'output_dir': cfg.output_dir,
             'group': cfg.group,
-            'preprocessing_type': cfg.preprocessing_type,
+            'preparation_type': cfg.preparation_type,
             'stimulus_loader': cfg.stimulus_loader,
             'response_loader': cfg.response_loader,
             'n_runs': run_counts.get(key, 0),
@@ -66,3 +75,24 @@ async def validate_config_file(request: Request, filename: str):
     """Validate a config file."""
     store = request.app.state.config_store
     return store.validate_config(filename)
+
+
+@router.put("/configs/{filename}")
+async def save_config(request: Request, filename: str, body: SaveConfigBody):
+    """Overwrite (or create) a config file with raw YAML content."""
+    store = request.app.state.config_store
+    result = store.save_config(filename, body.yaml_string)
+    if not result['saved']:
+        raise HTTPException(status_code=400, detail="; ".join(result['errors']))
+    return result
+
+
+@router.post("/configs/{filename}/copy")
+async def copy_config(request: Request, filename: str, body: CopyConfigBody):
+    """Duplicate an existing config under a new filename."""
+    store = request.app.state.config_store
+    result = store.copy_config(filename, body.new_filename)
+    if not result['saved']:
+        status = 409 if any('already exists' in e for e in result['errors']) else 400
+        raise HTTPException(status_code=status, detail="; ".join(result['errors']))
+    return {**result, 'filename': body.new_filename}

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from fmriflow.core.array_utils import make_delayed
-from fmriflow.core.types import PreprocessingState
-from fmriflow.plugins._decorators import preprocessing_step
+from fmriflow.core.types import PreparationState
+from fmriflow.plugins._decorators import preparation_step
 
 
-@preprocessing_step("delay")
+@preparation_step("delay")
 class DelayStep:
     """Applies temporal delays to X_train and X_test."""
 
@@ -16,7 +16,7 @@ class DelayStep:
         "delays": {"type": "list[int]", "default": [1, 2, 3, 4], "description": "Delay values in TRs"},
     }
 
-    def apply(self, state: PreprocessingState, params: dict) -> None:
+    def apply(self, state: PreparationState, params: dict) -> None:
         delays = params.get("delays", [1, 2, 3, 4])
         state.delays = delays
         state.X_train = make_delayed(state.X_train, delays)

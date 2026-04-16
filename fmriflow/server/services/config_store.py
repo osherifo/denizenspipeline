@@ -24,7 +24,7 @@ class ConfigSummary:
     features: list[str]
     output_dir: str
     group: str
-    preprocessing_type: str
+    preparation_type: str
     stimulus_loader: str
     response_loader: str
 
@@ -84,8 +84,8 @@ class ConfigStore:
             if isinstance(f, dict) and 'name' in f:
                 features.append(f['name'])
 
-        # Preprocessing type
-        prep = config.get('preprocessing', {})
+        # Preparation type
+        prep = config.get('preparation', {})
         prep_type = prep.get('type', 'default') if isinstance(prep, dict) else 'default'
 
         return ConfigSummary(
@@ -97,7 +97,7 @@ class ConfigStore:
             features=features,
             output_dir=config.get('reporting', {}).get('output_dir', '') if isinstance(config.get('reporting'), dict) else '',
             group=group,
-            preprocessing_type=prep_type,
+            preparation_type=prep_type,
             stimulus_loader=config.get('stimulus', {}).get('loader', '') if isinstance(config.get('stimulus'), dict) else '',
             response_loader=config.get('response', {}).get('loader', '') if isinstance(config.get('response'), dict) else '',
         )
@@ -187,6 +187,78 @@ class ConfigStore:
                     buckets.setdefault(prefix, set()).add(item)
         elif isinstance(obj, str):
             buckets.setdefault(prefix, set()).add(obj)
+
+    def save_config(self, filename: str, yaml_string: str) -> dict[str, Any]:
+        """Overwrite (or create) a config file with raw YAML.
+
+        Validates the YAML parses before writing. Rejects paths that
+        would escape ``configs_dir`` (no directory components allowed).
+
+        Returns dict with keys: saved (bool), path, errors (list[str]).
+        """
+        # Disallow directory components — filename only.
+        if '/' in filename or '\\' in filename or filename in ('.', '..'):
+            return {'saved': False, 'path': '', 'errors': [
+                f"Invalid filename: {filename!r}",
+            ]}
+        if not filename.endswith(('.yaml', '.yml')):
+            return {'saved': False, 'path': '', 'errors': [
+                "Config filename must end in .yaml or .yml",
+            ]}
+
+        # Ensure YAML parses before writing.
+        try:
+            yaml.safe_load(yaml_string)
+        except yaml.YAMLError as e:
+            return {'saved': False, 'path': '', 'errors': [f'YAML parse error: {e}']}
+
+        path = self.configs_dir / filename
+        try:
+            self.configs_dir.mkdir(parents=True, exist_ok=True)
+            path.write_text(yaml_string)
+        except OSError as e:
+            return {'saved': False, 'path': str(path), 'errors': [f'Write failed: {e}']}
+
+        # Invalidate cache so next list_configs() re-scans.
+        self._last_scan = 0.0
+
+        return {'saved': True, 'path': str(path.resolve()), 'errors': []}
+
+    def copy_config(self, source: str, new_filename: str) -> dict[str, Any]:
+        """Duplicate an existing config under a new filename.
+
+        Refuses to overwrite an existing file — pick a name that doesn't
+        collide. Returns dict with keys: saved, path, errors.
+        """
+        if '/' in new_filename or '\\' in new_filename or new_filename in ('.', '..'):
+            return {'saved': False, 'path': '', 'errors': [
+                f"Invalid filename: {new_filename!r}",
+            ]}
+        if not new_filename.endswith(('.yaml', '.yml')):
+            return {'saved': False, 'path': '', 'errors': [
+                "Config filename must end in .yaml or .yml",
+            ]}
+
+        src = self.configs_dir / source
+        if not src.is_file():
+            return {'saved': False, 'path': '', 'errors': [
+                f"Source config not found: {source}",
+            ]}
+
+        dest = self.configs_dir / new_filename
+        if dest.exists():
+            return {'saved': False, 'path': str(dest), 'errors': [
+                f"Destination already exists: {new_filename}",
+            ]}
+
+        try:
+            dest.write_text(src.read_text())
+        except OSError as e:
+            return {'saved': False, 'path': str(dest), 'errors': [f'Write failed: {e}']}
+
+        self._last_scan = 0.0
+
+        return {'saved': True, 'path': str(dest.resolve()), 'errors': []}
 
     def validate_config(self, filename: str) -> dict[str, Any]:
         """Run full validation on a config file.

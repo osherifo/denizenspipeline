@@ -13,8 +13,8 @@ EXPECTED_CATEGORIES = {
     "response_readers",
     "feature_extractors",
     "feature_sources",
-    "preprocessors",
-    "preprocessing_steps",
+    "preparers",
+    "preparation_steps",
     "analyzers",
     "models",
     "reporters",
@@ -45,7 +45,7 @@ class TestPluginRegistryDiscover:
         assert "local" in plugins["response_loaders"]
         assert "auto" in plugins["response_readers"]
         assert "numwords" in plugins["feature_extractors"]
-        assert "default" in plugins["preprocessors"]
+        assert "default" in plugins["preparers"]
         assert "flatmap" in plugins["reporters"]
 
     def test_get_feature_extractor(self, registry):
@@ -117,10 +117,10 @@ class TestPluginRegistryGetters:
     def test_each_call_returns_new_instance(self):
         reg = PluginRegistry()
 
-        @reg.preprocessor("test_prep")
+        @reg.preparer("test_prep")
         class TestPrep:
             name = "test_prep"
 
-        inst1 = reg.get_preprocessor("test_prep")
-        inst2 = reg.get_preprocessor("test_prep")
+        inst1 = reg.get_preparer("test_prep")
+        inst2 = reg.get_preparer("test_prep")
         assert inst1 is not inst2

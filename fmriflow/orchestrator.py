@@ -17,7 +17,7 @@ from fmriflow.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
-ALL_STAGES = ['stimuli', 'responses', 'features', 'preprocess', 'model', 'analyze', 'report']
+ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
 
 
 class PipelineOrchestrator:
@@ -114,9 +114,9 @@ class PipelineOrchestrator:
                 stages=records,
                 config_snapshot={
                     'model_type': cfg.get('model', {}).get('type', ''),
-                    'preprocessing_type': cfg.get('preprocessing', {}).get('type', ''),
+                    'preparation_type': cfg.get('preparation', {}).get('type', ''),
                     'features': [f.get('name', '') for f in cfg.get('features', [])],
-                    'split': cfg.get('preprocessing', {}).get('split', {}),
+                    'split': cfg.get('split', {}),
                 },
             )
 
@@ -131,8 +131,8 @@ class PipelineOrchestrator:
             'response_loader': self.registry.get_response_loader(
                 cfg.get('response', {}).get('loader', 'cloud')),
             'feature_sources': self._resolve_feature_sources(),
-            'preprocessor': self.registry.get_preprocessor(
-                cfg.get('preprocessing', {}).get('type', 'default')),
+            'preparer': self.registry.get_preparer(
+                cfg.get('preparation', {}).get('type', 'default')),
             'analyzers': self._resolve_analyzers(),
             'model': self.registry.get_model(
                 cfg.get('model', {}).get('type', 'bootstrap_ridge')),
@@ -179,7 +179,7 @@ class PipelineOrchestrator:
         """Run validate_config on all resolved plugins."""
         errors = []
 
-        for name in ('stimulus_loader', 'response_loader', 'preprocessor', 'model'):
+        for name in ('stimulus_loader', 'response_loader', 'preparer', 'model'):
             plugin = plugins[name]
             plugin_errors = plugin.validate_config(self.config)
             for e in plugin_errors:
@@ -251,10 +251,10 @@ class PipelineOrchestrator:
             self.ctx.put('features', FeatureData(features=feature_sets))
             return f"{len(feature_sets)} feature(s)"
 
-        elif stage_name == 'preprocess':
+        elif stage_name == 'prepare':
             responses = self.ctx.get('responses', ResponseData)
             features = self.ctx.get('features', FeatureData)
-            prepared = plugins['preprocessor'].prepare(
+            prepared = plugins['preparer'].prepare(
                 responses, features, self.config)
             self.ctx.put('prepared', prepared)
             return (f"train={prepared.X_train.shape[0]} "

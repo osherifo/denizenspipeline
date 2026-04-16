@@ -23,10 +23,12 @@ fmriflow run experiment.yaml
 ## Key features
 
 - **Config-driven** — one YAML file defines the entire experiment
-- **Plugin architecture** — feature extractors, preprocessors, models, and reporters are all swappable
+- **Plugin architecture** — feature extractors, preparers, models, and reporters are all swappable
 - **Web UI** — browser-based pipeline composer, DICOM-to-BIDS conversion, run manager
 - **DICOM to BIDS** — heudiconv integration with heuristic registry and batch conversion
 - **fMRI preprocessing** — fmriprep wrapper with manifest-based provenance tracking
+- **Surface flattening** — autoflatten integration with pycortex import
+- **Visual workflow builder** — node-based pipeline graph with bidirectional YAML sync
 - **Incremental runs** — run stages independently, resume from checkpoints
 
 ## Quick install
@@ -47,3 +49,5 @@ pip install -e ".[all]"      # everything
 - [Quickstart](guide/quickstart.md) — write your first experiment config and run it
 - [CLI Reference](guide/cli.md) — all available commands
 - [Writing Plugins](guide/plugins.md) — extend the pipeline with custom extractors, models, and reporters
+- [Autoflatten](guide/autoflatten.md) — cortical surface flattening + pycortex import
+- [Pipeline Graph](guide/pipeline-graph.md) — visual workflow builder with YAML sync

@@ -57,7 +57,7 @@ split:
   test_runs: [story01]
 ```
 
-Everything else (preprocessing params, model type, response loader, etc.) uses sensible defaults.
+Everything else (preparation params, model type, response loader, etc.) uses sensible defaults.
 
 ## Config inheritance
 
@@ -126,7 +126,7 @@ If you already have saved X/Y train/test matrices:
 ```yaml
 experiment: precomputed_run
 subject: sub01
-preprocessing:
+preparation:
   type: pre_prepared
   source: local
   Y_path: /data/sub01_Y.npz

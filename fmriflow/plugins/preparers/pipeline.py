@@ -1,26 +1,26 @@
-"""PipelinePreprocessor — stackable, config-driven preprocessing."""
+"""PipelinePreparer — stackable, config-driven data preparation."""
 
 from __future__ import annotations
 
 import logging
 
 from fmriflow.core.types import (
-    FeatureData, PreparedData, PreprocessingState, ResponseData,
+    FeatureData, PreparedData, PreparationState, ResponseData,
 )
 from fmriflow.plugins._decorators import (
-    _preprocessing_steps, preprocessor,
+    _preparation_steps, preparer,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@preprocessor("pipeline")
-class PipelinePreprocessor:
-    """Chains individually registered preprocessing steps from YAML config.
+@preparer("pipeline")
+class PipelinePreparer:
+    """Chains individually registered preparation steps from YAML config.
 
     Config example::
 
-        preprocessing:
+        preparation:
           type: pipeline
           steps:
             - name: split
@@ -35,12 +35,12 @@ class PipelinePreprocessor:
 
     name = "pipeline"
     PARAM_SCHEMA = {
-        "steps": {"type": "list[dict]", "required": True, "description": "Ordered list of preprocessing steps ({name, params})"},
+        "steps": {"type": "list[dict]", "required": True, "description": "Ordered list of preparation steps ({name, params})"},
     }
 
     def prepare(self, responses: ResponseData, features: FeatureData,
                 config: dict) -> PreparedData:
-        prep_cfg = config.get("preprocessing", {})
+        prep_cfg = config.get("preparation", {})
         steps_cfg = prep_cfg.get("steps", [])
 
         # Build initial state from raw data
@@ -53,52 +53,52 @@ class PipelinePreprocessor:
             # Inject full config so steps like split can access config.split
             params["_config"] = config
 
-            step_cls = _preprocessing_steps.get(step_name)
+            step_cls = _preparation_steps.get(step_name)
             if step_cls is None:
                 raise ValueError(
-                    f"Unknown preprocessing step '{step_name}'. "
-                    f"Available: {sorted(_preprocessing_steps.keys())}")
+                    f"Unknown preparation step '{step_name}'. "
+                    f"Available: {sorted(_preparation_steps.keys())}")
 
             step = step_cls()
-            logger.debug("Running preprocessing step: %s", step_name)
+            logger.debug("Running preparation step: %s", step_name)
             step.apply(state, params)
 
         return state.to_prepared_data()
 
     def validate_config(self, config: dict) -> list[str]:
         errors = []
-        prep_cfg = config.get("preprocessing", {})
+        prep_cfg = config.get("preparation", {})
         steps_cfg = prep_cfg.get("steps")
 
         if steps_cfg is None:
             errors.append(
-                "pipeline preprocessor requires 'preprocessing.steps'")
+                "pipeline preparer requires 'preparation.steps'")
             return errors
 
         if not isinstance(steps_cfg, list):
-            errors.append("'preprocessing.steps' must be a list")
+            errors.append("'preparation.steps' must be a list")
             return errors
 
         seen_names = []
         for i, step_cfg in enumerate(steps_cfg):
             if not isinstance(step_cfg, dict):
-                errors.append(f"preprocessing.steps[{i}] must be a dict")
+                errors.append(f"preparation.steps[{i}] must be a dict")
                 continue
             if "name" not in step_cfg:
-                errors.append(f"preprocessing.steps[{i}] missing 'name'")
+                errors.append(f"preparation.steps[{i}] missing 'name'")
                 continue
 
             step_name = step_cfg["name"]
             seen_names.append(step_name)
 
-            if step_name not in _preprocessing_steps:
+            if step_name not in _preparation_steps:
                 errors.append(
-                    f"preprocessing.steps[{i}]: unknown step '{step_name}'. "
-                    f"Available: {sorted(_preprocessing_steps.keys())}")
+                    f"preparation.steps[{i}]: unknown step '{step_name}'. "
+                    f"Available: {sorted(_preparation_steps.keys())}")
                 continue
 
             # Validate step-specific params
-            step = _preprocessing_steps[step_name]()
+            step = _preparation_steps[step_name]()
             step_errors = step.validate_params(step_cfg.get("params", {}))
             errors.extend(step_errors)
 
@@ -106,8 +106,8 @@ class PipelinePreprocessor:
 
     @staticmethod
     def _build_state(responses: ResponseData,
-                     features: FeatureData) -> PreprocessingState:
-        """Build initial PreprocessingState from pipeline stage inputs."""
+                     features: FeatureData) -> PreparationState:
+        """Build initial PreparationState from pipeline stage inputs."""
         # Copy per-run response arrays
         resp_dict = {run: arr.copy()
                      for run, arr in responses.responses.items()}
@@ -122,7 +122,7 @@ class PipelinePreprocessor:
                 run: arr.copy() for run, arr in fs.data.items()}
             feature_dims.append(fs.n_dims)
 
-        return PreprocessingState(
+        return PreparationState(
             responses=resp_dict,
             features=feat_dict,
             feature_names=feature_names,

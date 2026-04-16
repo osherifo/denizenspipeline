@@ -25,8 +25,9 @@ nlp = ["transformers>=4.28", "gensim>=4.3"]
 audio = ["librosa>=0.10", "soundfile>=0.12"]
 video = ["opencv-python>=4.7"]
 bids = ["nibabel>=5.0"]
+flatten = ["autoflatten>=0.1.0"]
 frontend = ["fastapi>=0.109", "uvicorn>=0.27", "websockets>=12.0"]
-all = ["fmriflow[cloud,viz,ml,nlp,himalaya,audio,video,bids,frontend]"]
+all = ["fmriflow[cloud,viz,ml,nlp,himalaya,audio,video,bids,frontend,flatten]"]
 dev = ["fmriflow[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
 
 [project.scripts]
@@ -64,9 +65,9 @@ compute = "fmriflow.plugins.feature_sources.compute:ComputeSource"
 filesystem = "fmriflow.plugins.feature_sources.filesystem:FilesystemSource"
 cloud = "fmriflow.plugins.feature_sources.cloud:CloudSource"
 
-[project.entry-points."fmriflow.preprocessors"]
-default = "fmriflow.plugins.preprocessors.default:DefaultPreprocessor"
-pre_prepared = "fmriflow.plugins.preprocessors.pre_prepared:PreparedDataLoader"
+[project.entry-points."fmriflow.preparers"]
+default = "fmriflow.plugins.preparers.default:DefaultPreparer"
+pre_prepared = "fmriflow.plugins.preparers.pre_prepared:PreparedDataLoader"
 
 [project.entry-points."fmriflow.models"]
 bootstrap_ridge = "fmriflow.plugins.models.ridge:BootstrapRidgeModel"
