@@ -116,7 +116,7 @@ class PipelineOrchestrator:
                     'model_type': cfg.get('model', {}).get('type', ''),
                     'preparation_type': cfg.get('preparation', {}).get('type', ''),
                     'features': [f.get('name', '') for f in cfg.get('features', [])],
-                    'split': cfg.get('preparation', {}).get('split', {}),
+                    'split': cfg.get('split', {}),
                 },
             )
 
