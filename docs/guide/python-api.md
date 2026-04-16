@@ -48,7 +48,7 @@ ctx = pipeline.run(
 
 ## Pipeline stages
 
-| Stage | Plugin type | Input | Output |
+| Stage | Module type | Input | Output |
 |-------|-------------|-------|--------|
 | 1. Load Stimuli | `StimulusLoader` | Config | `StimulusData` |
 | 2. Load Responses | `ResponseLoader` | Config | `ResponseData` |

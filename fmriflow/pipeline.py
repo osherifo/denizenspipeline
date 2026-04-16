@@ -7,7 +7,7 @@ from pathlib import Path
 from fmriflow.config.loader import load_config
 from fmriflow.context import PipelineContext
 from fmriflow.orchestrator import PipelineOrchestrator
-from fmriflow.registry import PluginRegistry
+from fmriflow.registry import ModuleRegistry
 
 
 class Pipeline:
@@ -22,22 +22,22 @@ class Pipeline:
     >>> result = pipeline.run(stages=["features", "preprocess"])
     """
 
-    def __init__(self, config: dict, registry: PluginRegistry | None = None):
+    def __init__(self, config: dict, registry: ModuleRegistry | None = None):
         self.config = config
-        self.registry = registry or PluginRegistry()
+        self.registry = registry or ModuleRegistry()
         self.registry.discover()
         self.last_context: PipelineContext | None = None
 
     @classmethod
     def from_yaml(cls, path: str | Path,
-                  registry: PluginRegistry | None = None) -> Pipeline:
+                  registry: ModuleRegistry | None = None) -> Pipeline:
         """Create a Pipeline from a YAML config file.
 
         Parameters
         ----------
         path : str or Path
             Path to experiment YAML config.
-        registry : PluginRegistry, optional
+        registry : ModuleRegistry, optional
             Custom registry. If None, uses default with auto-discovery.
 
         Returns

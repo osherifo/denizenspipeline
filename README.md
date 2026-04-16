@@ -4,7 +4,7 @@
 ![Python](https://img.shields.io/badge/python-≥3.10-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
-Plugin-based pipeline for voxelwise encoding models. Config-driven, modular architecture for fMRI experiments — from DICOM conversion through feature extraction, model fitting, and reporting.
+Module-based pipeline for voxelwise encoding models. Config-driven, modular architecture for fMRI experiments — from DICOM conversion through feature extraction, model fitting, and reporting.
 
 ## Install
 
@@ -37,10 +37,10 @@ fmriflow run experiments/my_experiment.yaml
 - [Configuration](docs/guide/configuration.md) — config format, inheritance, env vars
 - [CLI Reference](docs/guide/cli.md) — all commands
 - [Python API](docs/guide/python-api.md) — programmatic usage and notebooks
-- [Writing Plugins](docs/guide/plugins.md) — custom extractors, models, reporters
+- [Writing Modules](docs/guide/modules.md) — custom extractors, models, reporters
 - [Preprocessing](docs/guide/preprocessing.md) — fmriprep integration and manifests
 - [DICOM to BIDS](docs/guide/dicom-to-bids.md) — conversion and batch processing
-- [Built-in Plugins](docs/reference/plugins.md) — full plugin list
+- [Built-in Modules](docs/reference/modules.md) — full module list
 - [Config Reference](docs/reference/config.md) — complete config schema
 - [Defaults](docs/reference/defaults.md) — default values for all settings
 

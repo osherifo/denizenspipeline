@@ -1,12 +1,12 @@
-/** Plugin editor store. */
+/** Module editor store. */
 import { create } from 'zustand'
-import type { CodeValidationResult, UserPlugin, ParamSchema } from '../api/types'
+import type { CodeValidationResult, UserModule, ParamSchema } from '../api/types'
 import {
-  validatePluginCode,
-  savePlugin,
-  fetchUserPlugins,
-  fetchUserPluginCode,
-  deleteUserPlugin,
+  validateModuleCode,
+  saveModule,
+  fetchUserModules,
+  fetchUserModuleCode,
+  deleteUserModule,
   fetchTemplate,
   fetchTemplateCategories,
 } from '../api/client'
@@ -22,9 +22,9 @@ interface EditorState {
   validation: CodeValidationResult | null
   validating: boolean
 
-  // User plugins
-  userPlugins: UserPlugin[]
-  loadingPlugins: boolean
+  // User modules
+  userModules: UserModule[]
+  loadingModules: boolean
 
   // Templates
   templateCategories: string[]
@@ -35,9 +35,9 @@ interface EditorState {
   setCategory: (category: string) => void
   validate: () => Promise<CodeValidationResult>
   save: () => Promise<void>
-  loadUserPlugins: () => Promise<void>
-  openPlugin: (name: string) => Promise<void>
-  deletePlugin: (name: string) => Promise<void>
+  loadUserModules: () => Promise<void>
+  openModule: (name: string) => Promise<void>
+  deleteModule: (name: string) => Promise<void>
   newFromTemplate: (category: string, name: string) => Promise<void>
   loadTemplateCategories: () => Promise<void>
   reset: () => void
@@ -54,8 +54,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isDirty: false,
   validation: null,
   validating: false,
-  userPlugins: [],
-  loadingPlugins: false,
+  userModules: [],
+  loadingModules: false,
   templateCategories: [],
   saveError: null,
   saveSuccess: false,
@@ -75,7 +75,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   validate: async () => {
     set({ validating: true })
     try {
-      const result = await validatePluginCode(get().code, get().currentCategory ?? undefined)
+      const result = await validateModuleCode(get().code, get().currentCategory ?? undefined)
       set({ validation: result, validating: false })
       return result
     } catch (e) {
@@ -83,7 +83,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         valid: false,
         errors: [String(e)],
         warnings: [],
-        plugin_name: null,
+        module_name: null,
         class_name: null,
         category: null,
         params: null,
@@ -98,44 +98,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ saveError: null, saveSuccess: false })
 
     if (!currentName) {
-      set({ saveError: 'Plugin name is required' })
+      set({ saveError: 'Module name is required' })
       return
     }
     if (!currentCategory) {
-      set({ saveError: 'Plugin category is required' })
+      set({ saveError: 'Module category is required' })
       return
     }
 
     try {
-      await savePlugin(code, currentName, currentCategory)
+      await saveModule(code, currentName, currentCategory)
       set({ saveSuccess: true, isDirty: false })
       // Refresh list
-      get().loadUserPlugins()
+      get().loadUserModules()
     } catch (e: any) {
       const detail = e?.message || String(e)
       set({ saveError: detail })
     }
   },
 
-  loadUserPlugins: async () => {
-    set({ loadingPlugins: true })
+  loadUserModules: async () => {
+    set({ loadingModules: true })
     try {
-      const plugins = await fetchUserPlugins()
-      set({ userPlugins: plugins, loadingPlugins: false })
+      const userMods = await fetchUserModules()
+      set({ userModules: userMods, loadingModules: false })
     } catch {
-      set({ loadingPlugins: false })
+      set({ loadingModules: false })
     }
   },
 
-  openPlugin: async (name) => {
+  openModule: async (name) => {
     try {
-      const { code } = await fetchUserPluginCode(name)
-      // Find the plugin to get category
-      const plugin = get().userPlugins.find((p) => p.name === name)
+      const { code } = await fetchUserModuleCode(name)
+      // Find the module to get category
+      const module = get().userModules.find((p) => p.name === name)
       set({
         code,
         currentName: name,
-        currentCategory: plugin?.category ?? null,
+        currentCategory: module?.category ?? null,
         isDirty: false,
         validation: null,
         saveError: null,
@@ -146,14 +146,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  deletePlugin: async (name) => {
+  deleteModule: async (name) => {
     try {
-      await deleteUserPlugin(name)
+      await deleteUserModule(name)
       const { currentName } = get()
       if (currentName === name) {
         set({ code: '', currentName: '', currentCategory: null, isDirty: false, validation: null })
       }
-      get().loadUserPlugins()
+      get().loadUserModules()
     } catch (e) {
       set({ saveError: String(e) })
     }

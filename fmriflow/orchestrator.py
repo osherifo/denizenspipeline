@@ -1,4 +1,4 @@
-"""PipelineOrchestrator — coordinates plugin execution across stages."""
+"""PipelineOrchestrator — coordinates module execution across stages."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from fmriflow.core.types import (
     FeatureData, ModelResult, PreparedData, ResponseData, StimulusData,
 )
 from fmriflow.exceptions import ConfigError, StageError
-from fmriflow.registry import PluginRegistry
+from fmriflow.registry import ModuleRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +21,9 @@ ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze',
 
 
 class PipelineOrchestrator:
-    """Coordinates plugin execution across pipeline stages."""
+    """Coordinates module execution across pipeline stages."""
 
-    def __init__(self, config: dict, registry: PluginRegistry):
+    def __init__(self, config: dict, registry: ModuleRegistry):
         self.config = config
         self.registry = registry
         self.ctx = PipelineContext(config)
@@ -50,11 +50,11 @@ class PipelineOrchestrator:
 
         stages_to_run = stages or ALL_STAGES
 
-        # Resolve plugins
-        plugins = self._resolve_plugins()
+        # Resolve modules
+        modules = self._resolve_modules()
 
         # Validate upfront
-        errors = self._validate_all(plugins)
+        errors = self._validate_all(modules)
         if errors:
             ui.config_error(errors)
             raise ConfigError(errors)
@@ -71,7 +71,7 @@ class PipelineOrchestrator:
 
                 t0 = ui.stage_start(stage_name)
                 try:
-                    detail = self._run_stage(stage_name, plugins)
+                    detail = self._run_stage(stage_name, modules)
                     elapsed = time.time() - t0
                     if stage_name == 'report' and self._reporter_errors:
                         ui.stage_warn(stage_name, t0, detail)
@@ -122,8 +122,8 @@ class PipelineOrchestrator:
 
         return self.ctx
 
-    def _resolve_plugins(self) -> dict:
-        """Map config to concrete plugin instances."""
+    def _resolve_modules(self) -> dict:
+        """Map config to concrete module instances."""
         cfg = self.config
         return {
             'stimulus_loader': self.registry.get_stimulus_loader(
@@ -163,7 +163,7 @@ class PipelineOrchestrator:
         return sources
 
     def _resolve_analyzers(self) -> dict[str, object]:
-        """Resolve analyzer plugins from config."""
+        """Resolve analyzer modules from config."""
         analyzers: dict[str, object] = {}
         for acfg in self.config.get('analysis', []):
             name = acfg['name']
@@ -175,48 +175,48 @@ class PipelineOrchestrator:
             analyzers[name] = self.registry.get_analyzer(name)
         return analyzers
 
-    def _validate_all(self, plugins: dict) -> list[str]:
-        """Run validate_config on all resolved plugins."""
+    def _validate_all(self, modules: dict) -> list[str]:
+        """Run validate_config on all resolved modules."""
         errors = []
 
         for name in ('stimulus_loader', 'response_loader', 'preparer', 'model'):
-            plugin = plugins[name]
-            plugin_errors = plugin.validate_config(self.config)
-            for e in plugin_errors:
-                errors.append(f"{plugin.name}: {e}")
+            module = modules[name]
+            module_errors = module.validate_config(self.config)
+            for e in module_errors:
+                errors.append(f"{module.name}: {e}")
 
-        for feat_cfg, source in plugins['feature_sources']:
+        for feat_cfg, source in modules['feature_sources']:
             source_errors = source.validate_config(feat_cfg)
             for e in source_errors:
                 errors.append(f"feature '{feat_cfg.get('name', '?')}': {e}")
 
-        for aname, analyzer in plugins['analyzers'].items():
+        for aname, analyzer in modules['analyzers'].items():
             analyzer_errors = analyzer.validate_config(self.config)
             for e in analyzer_errors:
                 errors.append(f"analyzer '{aname}': {e}")
 
-        for reporter in plugins['reporters']:
+        for reporter in modules['reporters']:
             reporter_errors = reporter.validate_config(self.config)
             for e in reporter_errors:
                 errors.append(f"reporter '{reporter.name}': {e}")
 
         return errors
 
-    def _run_stage(self, stage_name: str, plugins: dict) -> str:
+    def _run_stage(self, stage_name: str, modules: dict) -> str:
         """Execute a single pipeline stage.
 
         Returns a short detail string for the status line.
         """
 
         if stage_name == 'stimuli':
-            stimuli = plugins['stimulus_loader'].load(self.config)
+            stimuli = modules["stimulus_loader"].load(self.config)
             self.ctx.put('stimuli', stimuli)
             n = len(stimuli.runs)
             loader = self.config.get('stimulus', {}).get('loader', 'textgrid')
             return f"{n} runs" if n else f"skipped ({loader})"
 
         elif stage_name == 'responses':
-            responses = plugins['response_loader'].load(self.config)
+            responses = modules["response_loader"].load(self.config)
             self.ctx.put('responses', responses)
             n = len(responses.responses)
             return f"{n} runs loaded"
@@ -233,7 +233,7 @@ class PipelineOrchestrator:
 
             feature_sets = {}
 
-            for feat_cfg, source in plugins['feature_sources']:
+            for feat_cfg, source in modules['feature_sources']:
                 feature_name = feat_cfg['name']
 
                 if feat_cfg.get('source', 'compute') == 'compute':
@@ -254,7 +254,7 @@ class PipelineOrchestrator:
         elif stage_name == 'prepare':
             responses = self.ctx.get('responses', ResponseData)
             features = self.ctx.get('features', FeatureData)
-            prepared = plugins['preparer'].prepare(
+            prepared = modules["preparer"].prepare(
                 responses, features, self.config)
             self.ctx.put('prepared', prepared)
             return (f"train={prepared.X_train.shape[0]} "
@@ -263,7 +263,7 @@ class PipelineOrchestrator:
         elif stage_name == 'model':
             prepared = self.ctx.get('prepared', PreparedData)
             with ui.model_live():
-                result = plugins['model'].fit(prepared, self.config)
+                result = modules["model"].fit(prepared, self.config)
             self.ctx.put('result', result)
             return (f"mean={result.scores.mean():.4f} "
                     f"max={result.scores.max():.4f}")
@@ -274,14 +274,14 @@ class PipelineOrchestrator:
                 return "skipped (none configured)"
             for acfg in analysis_cfg:
                 aname = acfg['name']
-                analyzer = plugins['analyzers'][aname]
+                analyzer = modules["analyzers"][aname]
                 analyzer.analyze(self.ctx, self.config)
             return f"{len(analysis_cfg)} analyzer(s)"
 
         elif stage_name == 'report':
             result = self.ctx.get('result', ModelResult)
             self._reporter_errors = []
-            for reporter in plugins['reporters']:
+            for reporter in modules['reporters']:
                 try:
                     artifacts = reporter.report(result, self.ctx, self.config)
                     self.ctx.add_artifacts(reporter.name, artifacts)

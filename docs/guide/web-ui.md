@@ -94,17 +94,17 @@ The main control center for running experiments.
 - Columns: date, experiment, subject, model, mean score, status
 - Click to expand: summary metrics, stage timeline, artifacts, log tail
 
-### Plugin Browser
+### Module Browser
 
-Discover and inspect all available plugins, organized by processing stage (stimuli, responses, features, preprocessing, model, analysis, reporting).
+Discover and inspect all available modules, organized by processing stage (stimuli, responses, features, preprocessing, model, analysis, reporting).
 
-- Search plugins by name or description
+- Search modules by name or description
 - Each card shows: name, category badge, dimension count, parameter count
 - Expand a card to see its full parameter table (name, type, default, required, description)
 
 ### Pipeline Composer
 
-Visually build analysis pipelines by selecting and configuring plugins.
+Visually build analysis pipelines by selecting and configuring modules.
 
 **Config builder** (left panel) — sections for each pipeline stage:
 
@@ -114,7 +114,7 @@ Visually build analysis pipelines by selecting and configuring plugins.
 - **Preprocessing**: choose type (default or custom pipeline), add/remove/reorder steps
 - **Split**: configure test runs
 - **Model**: select model type and parameters
-- **Analysis**: optional analysis plugins
+- **Analysis**: optional analysis modules
 - **Reporting**: toggle output formats
 
 **Sidebar** (right panel):
@@ -131,19 +131,19 @@ Browse historical pipeline executions.
 - **Expanded detail**: summary cards, stage timeline visualization, artifact list with view/download links, log tail (last 300 lines)
 - Refresh to reload
 
-### Plugin Editor
+### Module Editor
 
-Write, validate, and register custom plugins directly in the browser.
+Write, validate, and register custom modules directly in the browser.
 
-**Sidebar**: list of user-created plugins, template categories (feature extractor, preprocessing step, reporter, analyzer, stimulus loader, response loader), new plugin button.
+**Sidebar**: list of user-created modules, template categories (feature extractor, preparation step, reporter, analyzer, stimulus loader, response loader), new module button.
 
 **Code editor**: full Python editing with syntax highlighting. Live validation runs as you type (~1 second debounce), checking syntax, method signatures, and protocol compliance.
 
 **Status panel**: validation results, save/delete buttons, success/error messages.
 
-**Workflow**: pick a template (or start blank) → write code → auto-validates → name and save → plugin is immediately available in the Composer and Plugin Browser.
+**Workflow**: pick a template (or start blank) → write code → auto-validates → name and save → module is immediately available in the Composer and Module Browser.
 
-Saved plugins go to `~/.fmriflow/plugins/` and are auto-loaded on server startup.
+Saved modules go to `~/.fmriflow/modules/` and are auto-loaded on server startup.
 
 ---
 

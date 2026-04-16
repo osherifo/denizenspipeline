@@ -96,7 +96,7 @@ const groups = [
     label: 'Analysis',
     items: [
       { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
-      { key: 'plugins', label: 'Plugins', hash: '#plugins' },
+      { key: 'modules', label: 'Modules', hash: '#modules' },
       { key: 'composer', label: 'Composer', hash: '#composer' },
       { key: 'runs', label: 'Runs', hash: '#runs' },
       { key: 'editor', label: 'Editor', hash: '#editor' },

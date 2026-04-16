@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { NavBar } from './components/layout/NavBar'
-import { PluginBrowser } from './views/PluginBrowser'
+import { ModuleBrowser } from './views/ModuleBrowser'
 import { PipelineComposer } from './views/PipelineComposer'
 import { RunManager } from './views/RunManager'
-import { PluginEditor } from './views/PluginEditor'
+import { ModuleEditor } from './views/ModuleEditor'
 import { ExperimentDashboard } from './views/ExperimentDashboard'
 import { PreprocManager } from './views/PreprocManager'
 import { DicomBidsConverter } from './views/DicomBidsConverter'
 import { ErrorBrowser } from './views/ErrorBrowser'
 import { AutoflattenManager } from './views/AutoflattenManager'
 import { PipelineGraph } from './views/PipelineGraph'
-import { usePluginStore } from './stores/plugin-store'
+import { useModuleStore } from './stores/module-store'
 
-type Route = 'plugins' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'autoflatten' | 'graph' | 'errors'
+type Route = 'modules' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'autoflatten' | 'graph' | 'errors'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
-  if (hash === 'plugins') return 'plugins'
+  if (hash === 'modules') return 'modules'
   if (hash === 'composer') return 'composer'
   if (hash === 'runs') return 'runs'
   if (hash === 'editor') return 'editor'
@@ -99,7 +99,7 @@ const contentStyle: CSSProperties = {
 
 export function App() {
   const [route, setRoute] = useState<Route>(getRoute)
-  const load = usePluginStore((s) => s.load)
+  const load = useModuleStore((s) => s.load)
 
   useEffect(() => {
     load()
@@ -116,10 +116,10 @@ export function App() {
       <style>{cssVars}</style>
       <NavBar currentRoute={route} />
       <div style={contentStyle}>
-        {route === 'plugins' && <PluginBrowser />}
+        {route === 'modules' && <ModuleBrowser />}
         {route === 'composer' && <PipelineComposer />}
         {route === 'runs' && <RunManager />}
-        {route === 'editor' && <PluginEditor />}
+        {route === 'editor' && <ModuleEditor />}
         {route === 'dashboard' && <ExperimentDashboard />}
         {route === 'preproc' && <PreprocManager />}
         {route === 'convert' && <DicomBidsConverter />}

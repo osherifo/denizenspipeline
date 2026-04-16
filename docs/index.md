@@ -1,6 +1,6 @@
 # fMRIflow
 
-Plugin-based pipeline for voxelwise encoding models. Config-driven, modular architecture.
+Module-based pipeline for voxelwise encoding models. Config-driven, modular architecture.
 
 ## What it does
 
@@ -23,7 +23,7 @@ fmriflow run experiment.yaml
 ## Key features
 
 - **Config-driven** — one YAML file defines the entire experiment
-- **Plugin architecture** — feature extractors, preparers, models, and reporters are all swappable
+- **Module architecture** — feature extractors, preparers, models, and reporters are all swappable
 - **Web UI** — browser-based pipeline composer, DICOM-to-BIDS conversion, run manager
 - **DICOM to BIDS** — heudiconv integration with heuristic registry and batch conversion
 - **fMRI preprocessing** — fmriprep wrapper with manifest-based provenance tracking
@@ -48,6 +48,6 @@ pip install -e ".[all]"      # everything
 - [Installation](guide/installation.md) — full install options and environment setup
 - [Quickstart](guide/quickstart.md) — write your first experiment config and run it
 - [CLI Reference](guide/cli.md) — all available commands
-- [Writing Plugins](guide/plugins.md) — extend the pipeline with custom extractors, models, and reporters
+- [Writing Modules](guide/modules.md) — extend the pipeline with custom extractors, models, and reporters
 - [Autoflatten](guide/autoflatten.md) — cortical surface flattening + pycortex import
 - [Pipeline Graph](guide/pipeline-graph.md) — visual workflow builder with YAML sync

@@ -9,10 +9,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from fmriflow.registry import PluginRegistry
+from fmriflow.registry import ModuleRegistry
 from fmriflow.server.services.run_store import RunStore
 from fmriflow.server.services.run_manager import RunManager
-from fmriflow.server.services.plugin_loader import discover_user_plugins
+from fmriflow.server.services.module_loader import discover_user_modules
 from fmriflow.server.services.config_store import ConfigStore
 from fmriflow.server.services.preproc_manager import PreprocManager
 from fmriflow.server.services.convert_manager import ConvertManager
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def create_app(
     results_dir: str = './results',
-    plugins_dir: str | None = None,
+    modules_dir: str | None = None,
     configs_dir: str = './experiments',
     derivatives_dir: str = './derivatives',
 ) -> FastAPI:
@@ -45,14 +45,14 @@ def create_app(
     )
 
     # Shared state
-    registry = PluginRegistry()
+    registry = ModuleRegistry()
     registry.discover()
 
-    # Load user plugins from ~/.fmriflow/plugins/ (or custom dir)
-    pdir = Path(plugins_dir) if plugins_dir else None
-    n_user = discover_user_plugins(pdir)
+    # Load user modules from ~/.fmriflow/modules/ (or custom dir)
+    mdir = Path(modules_dir) if modules_dir else None
+    n_user = discover_user_modules(mdir)
     if n_user:
-        logger.info("Loaded %d user plugin(s)", n_user)
+        logger.info("Loaded %d user module(s)", n_user)
 
     run_store = RunStore(Path(results_dir))
     run_manager = RunManager()
@@ -72,7 +72,7 @@ def create_app(
     app.state.autoflatten_manager = autoflatten_manager
 
     # API routes
-    from fmriflow.server.routes.plugins import router as plugin_router
+    from fmriflow.server.routes.modules import router as module_router
     from fmriflow.server.routes.config import router as config_router
     from fmriflow.server.routes.runs import router as run_router
     from fmriflow.server.routes.artifacts import router as artifact_router
@@ -84,10 +84,10 @@ def create_app(
     from fmriflow.server.routes.autoflatten import router as autoflatten_router
     from fmriflow.server.ws import router as ws_router
 
-    # Editor routes must come before plugin_router so that
-    # /plugins/user/{name} is matched before /plugins/{category}/{name}
+    # Editor routes must come before module_router so that
+    # /modules/user/{name} is matched before /modules/{category}/{name}
     app.include_router(editor_router, prefix="/api")
-    app.include_router(plugin_router, prefix="/api")
+    app.include_router(module_router, prefix="/api")
     app.include_router(config_router, prefix="/api")
     app.include_router(run_router, prefix="/api")
     app.include_router(artifact_router, prefix="/api")

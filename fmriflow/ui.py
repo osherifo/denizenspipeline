@@ -244,8 +244,8 @@ def validate_line(ok: bool, message: str):
         console.print(f"  [bold red]!![/]  {message}", highlight=False)
 
 
-def plugins_table(plugins: dict, title: str = "Available Plugins"):
-    """Print plugin listing as a styled table."""
+def modules_table(modules: dict, title: str = "Available Modules"):
+    """Print module listing as a styled table."""
     labels = {
         'stimulus_loaders': 'Stimulus Loaders',
         'response_loaders': 'Response Loaders',
@@ -260,12 +260,12 @@ def plugins_table(plugins: dict, title: str = "Available Plugins"):
     }
     table = Table(title=f"[bold]{title}[/]", border_style="bright_cyan")
     table.add_column("Category", style="bold cyan")
-    table.add_column("Plugins")
+    table.add_column("Modules")
 
-    for key, names in plugins.items():
+    for key, names in modules.items():
         label = labels.get(key, key)
-        plugin_str = ", ".join(names) if names else "[dim](none)[/]"
-        table.add_row(label, plugin_str)
+        modules_str = ", ".join(names) if names else "[dim](none)[/]"
+        table.add_row(label, modules_str)
 
     console.print(table)
 

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from fmriflow.config.schema import validate_config
-from fmriflow.plugins._schema import extract_schema, schema_defaults
+from fmriflow.modules._schema import extract_schema, schema_defaults
 from fmriflow.server.routes import _registry
 
 router = APIRouter(tags=["config"])
@@ -17,9 +17,9 @@ class ConfigBody(BaseModel):
     config: dict
 
 
-class PluginDefaultsBody(BaseModel):
+class ModuleDefaultsBody(BaseModel):
     category: str
-    plugin: str
+    module: str
 
 
 @router.post("/config/validate")
@@ -27,10 +27,10 @@ async def validate(request: Request, body: ConfigBody):
     """Validate a pipeline config dict."""
     errors = validate_config(body.config)
 
-    # Also run plugin-level validation
+    # Also run module-level validation
     registry = _registry(request)
-    plugin_errors = _validate_plugins(registry, body.config)
-    errors.extend(plugin_errors)
+    module_errors = _validate_modules(registry, body.config)
+    errors.extend(module_errors)
 
     return {"valid": len(errors) == 0, "errors": errors}
 
@@ -64,16 +64,16 @@ async def to_yaml(body: ConfigBody):
 
 
 @router.post("/config/defaults")
-async def get_defaults(request: Request, body: PluginDefaultsBody):
-    """Return default parameter values for a plugin."""
+async def get_defaults(request: Request, body: ModuleDefaultsBody):
+    """Return default parameter values for a module."""
     registry = _registry(request)
-    cls = registry.get_plugin_class(body.category, body.plugin)
+    cls = registry.get_module_class(body.category, body.module)
     schema = extract_schema(cls)
     return {"params": schema_defaults(schema)}
 
 
-def _validate_plugins(registry, config: dict) -> list[str]:
-    """Run plugin-level validate_config where possible."""
+def _validate_modules(registry, config: dict) -> list[str]:
+    """Run module-level validate_config where possible."""
     errors = []
 
     # Stimulus loader
