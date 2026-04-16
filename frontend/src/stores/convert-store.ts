@@ -16,6 +16,10 @@ import type {
 import {
   fetchConvertTools,
   fetchConvertHeuristics,
+  fetchHeuristicCode,
+  saveHeuristic,
+  fetchHeuristicTemplate,
+  deleteHeuristic,
   fetchConvertManifests,
   rescanConvertManifests,
   fetchConvertManifestDetail,
@@ -46,6 +50,15 @@ interface ConvertState {
   // Heuristics
   heuristics: HeuristicInfo[]
   heuristicsLoading: boolean
+
+  // Heuristic editor
+  editorCode: string
+  editorName: string
+  editorDirty: boolean
+  editorLoading: boolean
+  editorSaving: boolean
+  editorError: string | null
+  editorSaveSuccess: boolean
 
   // Manifests
   manifests: ConvertManifestSummary[]
@@ -97,6 +110,13 @@ interface ConvertState {
   setTab: (tab: Tab) => void
   loadTools: () => Promise<void>
   loadHeuristics: () => Promise<void>
+  openHeuristic: (name: string) => Promise<void>
+  newHeuristic: (name: string) => Promise<void>
+  setEditorCode: (code: string) => void
+  setEditorName: (name: string) => void
+  saveHeuristic: () => Promise<void>
+  deleteHeuristic: (name: string) => Promise<void>
+  closeEditor: () => void
   loadManifests: () => Promise<void>
   rescan: () => Promise<void>
   selectManifest: (subject: string) => Promise<void>
@@ -135,6 +155,14 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
 
   heuristics: [],
   heuristicsLoading: false,
+
+  editorCode: '',
+  editorName: '',
+  editorDirty: false,
+  editorLoading: false,
+  editorSaving: false,
+  editorError: null,
+  editorSaveSuccess: false,
 
   manifests: [],
   manifestsLoading: false,
@@ -198,6 +226,71 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     } catch {
       set({ heuristicsLoading: false })
     }
+  },
+
+  openHeuristic: async (name: string) => {
+    set({ editorLoading: true, editorError: null, editorSaveSuccess: false })
+    try {
+      const code = await fetchHeuristicCode(name)
+      set({ editorCode: code, editorName: name, editorDirty: false, editorLoading: false })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ editorLoading: false, editorError: msg })
+    }
+  },
+
+  newHeuristic: async (name: string) => {
+    set({ editorLoading: true, editorError: null, editorSaveSuccess: false })
+    try {
+      const result = await fetchHeuristicTemplate(name)
+      set({ editorCode: result.code, editorName: name, editorDirty: true, editorLoading: false })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ editorLoading: false, editorError: msg })
+    }
+  },
+
+  setEditorCode: (code: string) => {
+    set({ editorCode: code, editorDirty: true, editorSaveSuccess: false })
+  },
+
+  setEditorName: (name: string) => {
+    set({ editorName: name, editorDirty: true })
+  },
+
+  saveHeuristic: async () => {
+    const { editorCode, editorName } = get()
+    set({ editorSaving: true, editorError: null, editorSaveSuccess: false })
+    if (!editorName.trim()) {
+      set({ editorSaving: false, editorError: 'Heuristic name is required' })
+      return
+    }
+    try {
+      await saveHeuristic({ name: editorName, code: editorCode })
+      set({ editorSaving: false, editorDirty: false, editorSaveSuccess: true })
+      get().loadHeuristics()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ editorSaving: false, editorError: msg })
+    }
+  },
+
+  deleteHeuristic: async (name: string) => {
+    try {
+      await deleteHeuristic(name)
+      const { editorName } = get()
+      if (editorName === name) {
+        set({ editorCode: '', editorName: '', editorDirty: false, editorError: null, editorSaveSuccess: false })
+      }
+      get().loadHeuristics()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ editorError: msg })
+    }
+  },
+
+  closeEditor: () => {
+    set({ editorCode: '', editorName: '', editorDirty: false, editorError: null, editorSaveSuccess: false })
   },
 
   loadManifests: async () => {

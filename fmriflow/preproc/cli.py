@@ -45,26 +45,124 @@ def add_preproc_subcommands(subparsers: argparse._SubParsersAction) -> None:
         "--run-map", type=str, default=None,
         help='JSON dict mapping backend run names to pipeline run names',
     )
-    run_p.add_argument(
-        "--command", type=str, default=None,
-        help="Shell command template (for custom backend)",
-    )
+
+    # Container
     run_p.add_argument(
         "--container", type=str, default=None,
         help="Container image (for fmriprep/bids_app backends)",
     )
     run_p.add_argument(
-        "--container-type", type=str, default="singularity",
+        "--container-type", type=str, default=None,
         choices=["singularity", "docker", "bare"],
     )
-    run_p.add_argument("--fs-license-file", type=str, help="FreeSurfer license")
+
+    # Mode
     run_p.add_argument(
-        "--output-spaces", type=str, nargs="*",
-        help="Output spaces (for fmriprep)",
+        "--mode", type=str, default=None,
+        choices=["full", "anat_only", "func_only", "func_precomputed_anat"],
+        help="Preprocessing mode",
     )
     run_p.add_argument(
+        "--anat-only", action="store_true", default=False,
+        help="Shortcut for --mode anat_only",
+    )
+    run_p.add_argument(
+        "--fs-no-reconall", action="store_true", default=False,
+        help="Shortcut for --mode func_only",
+    )
+
+    # Anatomical options
+    run_p.add_argument(
+        "--skull-strip", type=str, default=None,
+        choices=["auto", "force", "skip"],
+        help="Skull stripping mode (default: auto)",
+    )
+    run_p.add_argument("--skull-strip-template", type=str, default=None)
+    run_p.add_argument(
+        "--no-submm-recon", action="store_true", default=False,
+        help="Disable sub-millimeter reconstruction",
+    )
+    run_p.add_argument(
+        "--fs-subjects-dir", type=str, default=None,
+        help="Path to existing FreeSurfer subjects directory",
+    )
+    run_p.add_argument("--fs-license-file", type=str, help="FreeSurfer license")
+
+    # Functional options
+    run_p.add_argument(
+        "--bold2t1w-init", type=str, default=None,
+        choices=["register", "header"],
+    )
+    run_p.add_argument(
+        "--bold2t1w-dof", type=int, default=None,
+        choices=[6, 9, 12],
+    )
+    run_p.add_argument(
+        "--dummy-scans", type=int, default=None,
+        help="Number of non-steady-state volumes to discard",
+    )
+    run_p.add_argument(
+        "--ignore", type=str, nargs="*", default=None,
+        choices=["fieldmaps", "slicetiming", "sbref"],
+        help="Corrections to skip",
+    )
+    run_p.add_argument(
+        "--task-id", type=str, default=None,
+        help="Filter to specific BIDS task (fmriprep --task-id)",
+    )
+
+    # Fieldmaps
+    run_p.add_argument(
+        "--use-syn-sdc", action="store_true", default=False,
+        help="Use fieldmap-less distortion correction (SyN)",
+    )
+    run_p.add_argument(
+        "--force-syn", action="store_true", default=False,
+        help="Force SyN SDC even if fieldmaps exist",
+    )
+
+    # Output
+    run_p.add_argument(
+        "--output-spaces", type=str, nargs="*",
+        help="Output spaces (e.g. T1w MNI152NLin2009cAsym:res-2)",
+    )
+    run_p.add_argument(
+        "--cifti-output", type=str, default=None,
+        choices=["91k", "170k"],
+    )
+
+    # Denoising
+    run_p.add_argument(
+        "--use-aroma", action="store_true", default=False,
+        help="Enable ICA-AROMA denoising",
+    )
+    run_p.add_argument(
+        "--aroma-melodic-dim", type=int, default=None,
+        help="MELODIC dimensionality for ICA-AROMA (default: -200)",
+    )
+
+    # Resources
+    run_p.add_argument("--nthreads", type=int, default=None)
+    run_p.add_argument("--omp-nthreads", type=int, default=None)
+    run_p.add_argument("--mem-mb", type=int, default=None)
+    run_p.add_argument(
+        "--low-mem", action="store_true", default=False,
+        help="Enable low-memory mode",
+    )
+    run_p.add_argument(
+        "--stop-on-first-crash", action="store_true", default=False,
+    )
+
+    # Custom backend
+    run_p.add_argument(
+        "--command", type=str, default=None,
+        help="Shell command template (for custom backend)",
+    )
+
+    # Escape hatch
+    run_p.add_argument(
         "--extra-args", type=str, default=None,
-        help="Extra arguments passed directly to the backend, as a quoted string (e.g. '--fs-no-reconall --low-mem')",
+        help="Extra arguments passed directly to the backend, as a quoted string",
     )
 
     # ── collect ──
@@ -126,7 +224,6 @@ def dispatch_preproc(args) -> int:
 # ── Subcommand implementations ──────────────────────────────────────────
 
 def _preproc_run(args) -> int:
-    from fmriflow.preproc.manifest import PreprocConfig, ConfoundsConfig
     from fmriflow.preproc.runner import run_preprocessing
 
     config = _build_config_from_args(args)
@@ -267,11 +364,6 @@ def _preproc_doctor(args) -> int:
 
     print("\nBackend availability:\n")
 
-    # Create a minimal config for checking
-    dummy_config = PreprocConfig(
-        subject="test", backend="custom", output_dir="/tmp",
-    )
-
     backends = list_backends()
     for name in backends:
         backend = get_backend(name)
@@ -279,7 +371,6 @@ def _preproc_doctor(args) -> int:
             print(f"  {name:15s} (always available)")
             continue
 
-        # Run validate with empty config to see what's missing
         try:
             cfg = PreprocConfig(
                 subject="test", backend=name, output_dir="/tmp",
@@ -287,7 +378,6 @@ def _preproc_doctor(args) -> int:
             )
             errors = backend.validate(cfg)
             if errors:
-                # Check if it's just missing config vs missing tool
                 tool_errors = [
                     e for e in errors
                     if "not found" in e.lower() or "not installed" in e.lower()
@@ -308,7 +398,7 @@ def _preproc_doctor(args) -> int:
 
 def _build_config_from_args(args) -> "PreprocConfig | None":
     """Build a PreprocConfig from CLI args or a YAML config file."""
-    from fmriflow.preproc.manifest import PreprocConfig, ConfoundsConfig
+    from fmriflow.preproc.manifest import PreprocConfig
 
     if args.config:
         return _load_preproc_config(args.config)
@@ -325,16 +415,81 @@ def _build_config_from_args(args) -> "PreprocConfig | None":
 
     run_map = json.loads(args.run_map) if args.run_map else None
 
-    backend_params = {}
-    if args.command:
-        backend_params["command"] = args.command
+    backend_params: dict = {}
+
+    # Mode: explicit --mode takes precedence, then shortcut flags
+    if args.mode:
+        backend_params["mode"] = args.mode
+    elif args.anat_only:
+        backend_params["mode"] = "anat_only"
+    elif args.fs_no_reconall:
+        backend_params["mode"] = "func_only"
+
+    # Container
     if args.container:
         backend_params["container"] = args.container
+    if args.container_type:
         backend_params["container_type"] = args.container_type
+
+    # Anatomical
+    if args.skull_strip:
+        backend_params["skull_strip"] = args.skull_strip
+    if args.skull_strip_template:
+        backend_params["skull_strip_template"] = args.skull_strip_template
+    if args.no_submm_recon:
+        backend_params["no_submm_recon"] = True
+    if args.fs_subjects_dir:
+        backend_params["fs_subjects_dir"] = args.fs_subjects_dir
     if args.fs_license_file:
         backend_params["fs_license_file"] = args.fs_license_file
+
+    # Functional
+    if args.bold2t1w_init:
+        backend_params["bold2t1w_init"] = args.bold2t1w_init
+    if args.bold2t1w_dof is not None:
+        backend_params["bold2t1w_dof"] = args.bold2t1w_dof
+    if args.dummy_scans is not None:
+        backend_params["dummy_scans"] = args.dummy_scans
+    if args.ignore:
+        backend_params["ignore"] = args.ignore
+    if args.task_id:
+        backend_params["task_id"] = args.task_id
+
+    # Fieldmaps
+    if args.use_syn_sdc:
+        backend_params["use_syn_sdc"] = True
+    if args.force_syn:
+        backend_params["force_syn"] = True
+
+    # Output
     if args.output_spaces:
         backend_params["output_spaces"] = args.output_spaces
+    if args.cifti_output:
+        backend_params["cifti_output"] = args.cifti_output
+
+    # Denoising
+    if args.use_aroma:
+        backend_params["use_aroma"] = True
+    if args.aroma_melodic_dim is not None:
+        backend_params["aroma_melodic_dim"] = args.aroma_melodic_dim
+
+    # Resources
+    if args.nthreads is not None:
+        backend_params["nthreads"] = args.nthreads
+    if args.omp_nthreads is not None:
+        backend_params["omp_nthreads"] = args.omp_nthreads
+    if args.mem_mb is not None:
+        backend_params["mem_mb"] = args.mem_mb
+    if args.low_mem:
+        backend_params["low_mem"] = True
+    if args.stop_on_first_crash:
+        backend_params["stop_on_first_crash"] = True
+
+    # Custom backend
+    if args.command:
+        backend_params["command"] = args.command
+
+    # Escape hatch
     if args.extra_args:
         backend_params["extra_args"] = args.extra_args.split()
 

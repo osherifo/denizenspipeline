@@ -13,7 +13,7 @@ Full schema for fMRIflow experiment YAML configs.
 | `stimulus` | object | no | Stimulus loading configuration |
 | `response` | object | no | Brain response loading configuration |
 | `features` | list | yes | Feature definitions (at least one required) |
-| `preprocessing` | object | no | Preprocessing parameters |
+| `preparation` | object | no | Analysis-stage data preparation parameters (trim, zscore, delay) |
 | `split` | object | yes | Train/test split definition |
 | `model` | object | no | Model type and parameters |
 | `reporting` | object | no | Output formats and paths |
@@ -32,13 +32,13 @@ Full schema for fMRIflow experiment YAML configs.
 |-------|------|-------------|
 | `language` | string | Language code (e.g., `en`, `zh`) |
 | `modality` | string | Stimulus modality (e.g., `reading`, `listening`) |
-| `loader` | string | Stimulus loader plugin name (default: `textgrid`) |
+| `loader` | string | Stimulus loader module name (default: `textgrid`) |
 
 ## `response`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `loader` | string | Response loader plugin name (`cloud`, `local`, `bids`, `preproc`) |
+| `loader` | string | Response loader module name (`cloud`, `local`, `bids`, `preproc`) |
 | `manifest` | string | Path to PreprocManifest (for `preproc` loader) |
 | `mask_type` | string | Brain mask type (for `preproc` loader) |
 | `confounds` | object | Confound regression settings |
@@ -47,19 +47,26 @@ Full schema for fMRIflow experiment YAML configs.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Feature name (must match a registered plugin or saved feature) |
+| `name` | string | Feature name (must match a registered module or saved feature) |
 | `source` | string | Where to get the data: `compute`, `filesystem`, `cloud`, `grouped_hdf` |
-| `extractor` | string | Feature extractor plugin name (for `source: compute`) |
+| `extractor` | string | Feature extractor module name (for `source: compute`) |
 | `params` | object | Extractor-specific parameters |
 | `path` | string | Filesystem path (for `source: filesystem`) |
 | `format` | string | File format: `npz`, `npy`, `hdf5` |
 | `save_to` | object | Save computed features for future reuse |
 
-## `preprocessing`
+## `preparation`
+
+Analysis-stage data preparation — applied to already-preprocessed BOLD data
+before model fitting. **Not** the same as fMRI preprocessing (fmriprep); that
+is managed via the Preproc module.
+
+Use the top-level key `preparation:`. Older configs that use
+`preprocessing:` should be updated to `preparation:`.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | `default` | Preprocessor plugin: `default`, `pre_prepared`, `pipeline` |
+| `type` | string | `default` | Preparer module: `default`, `pre_prepared`, `pipeline` |
 | `trim_start` | int | `5` | TRs to trim from start of each run |
 | `trim_end` | int | `5` | TRs to trim from end of each run |
 | `delays` | list[int] | `[1,2,3,4]` | FIR delay taps |
@@ -75,12 +82,12 @@ Full schema for fMRIflow experiment YAML configs.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | `bootstrap_ridge` | Model plugin name |
+| `type` | string | `bootstrap_ridge` | Model module name |
 | `params` | object | (see defaults) | Model-specific parameters |
 
 ## `reporting`
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `formats` | list[str] | `[metrics]` | Reporter plugin names |
+| `formats` | list[str] | `[metrics]` | Reporter module names |
 | `output_dir` | string | `./results` | Output directory |

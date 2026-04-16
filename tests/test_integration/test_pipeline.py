@@ -7,6 +7,7 @@ from fmriflow.context import PipelineContext
 from fmriflow.core.types import (
     FeatureData,
     FeatureSet,
+    LanguageStim,
     ModelResult,
     PreparedData,
     ResponseData,
@@ -14,7 +15,7 @@ from fmriflow.core.types import (
     StimRun,
 )
 from fmriflow.pipeline import Pipeline
-from fmriflow.registry import PluginRegistry
+from fmriflow.registry import ModuleRegistry
 from tests.conftest import (
     MockTextGrid,
     MockTRFile,
@@ -35,8 +36,10 @@ class MockStimulusLoader:
         for name in RUN_NAMES:
             runs[name] = StimRun(
                 name=name,
-                textgrid=MockTextGrid(),
-                trfile=MockTRFile(),
+                stimulus=LanguageStim(
+                    textgrid=MockTextGrid(),
+                    trfile=MockTRFile(),
+                ),
             )
         return StimulusData(runs=runs)
 
@@ -75,7 +78,7 @@ class MockFeatureSource:
         return []
 
 
-class MockPreprocessor:
+class MockPreparer:
     name = "mock_prep"
 
     def prepare(self, responses, features, config):
@@ -133,11 +136,11 @@ class MockReporter:
 
 def _make_registry():
     """Create a registry with only mock plugins."""
-    reg = PluginRegistry()
+    reg = ModuleRegistry()
     reg._stimulus_loaders["mock_stim"] = MockStimulusLoader
     reg._response_loaders["mock_resp"] = MockResponseLoader
     reg._feature_sources["mock_source"] = MockFeatureSource
-    reg._preprocessors["mock_prep"] = MockPreprocessor
+    reg._preparers["mock_prep"] = MockPreparer
     reg._models["mock_model"] = MockModel
     reg._reporters["mock_report"] = MockReporter
     return reg
@@ -152,7 +155,7 @@ def _make_config():
         "features": [
             {"name": "mock_feat", "source": "mock_source"},
         ],
-        "preprocessing": {"type": "mock_prep"},
+        "preparation": {"type": "mock_prep"},
         "model": {"type": "mock_model", "params": {}},
         "split": {"test_runs": ["story3"]},
         "reporting": {"formats": ["mock_report"], "output_dir": "/tmp/test_results"},

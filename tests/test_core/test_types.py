@@ -8,9 +8,10 @@ from fmriflow.core.types import (
     FeatureExtractor,
     FeatureSet,
     FeatureSource,
+    LanguageStim,
     Model,
     ModelResult,
-    Preprocessor,
+    Preparer,
     PreparedData,
     Reporter,
     ResponseData,
@@ -25,18 +26,29 @@ from fmriflow.core.types import (
 
 class TestStimRun:
     def test_construction(self):
-        run = StimRun(name="story1", textgrid="tg", trfile="tr")
+        run = StimRun(
+            name="story1",
+            stimulus=LanguageStim(textgrid="tg", trfile="tr"),
+        )
         assert run.name == "story1"
+        # textgrid/trfile are backward-compat read properties on StimRun
+        # that delegate to the underlying LanguageStim.
         assert run.textgrid == "tg"
         assert run.trfile == "tr"
 
     def test_defaults(self):
-        run = StimRun(name="s", textgrid=None, trfile=None)
+        run = StimRun(
+            name="s",
+            stimulus=LanguageStim(textgrid=None, trfile=None),
+        )
         assert run.language == "en"
         assert run.modality == "reading"
 
     def test_frozen(self):
-        run = StimRun(name="s", textgrid=None, trfile=None)
+        run = StimRun(
+            name="s",
+            stimulus=LanguageStim(textgrid=None, trfile=None),
+        )
         with pytest.raises(AttributeError):
             run.name = "other"
 
@@ -122,7 +134,7 @@ class _FakeFeatureExtractor:
     def extract(self, stimuli, run_names, config): ...
     def validate_config(self, config): ...
 
-class _FakePreprocessor:
+class _FakePreparer:
     name = "fake"
     def prepare(self, responses, features, config): ...
     def validate_config(self, config): ...
@@ -151,8 +163,8 @@ class TestProtocols:
     def test_feature_extractor_protocol(self):
         assert isinstance(_FakeFeatureExtractor(), FeatureExtractor)
 
-    def test_preprocessor_protocol(self):
-        assert isinstance(_FakePreprocessor(), Preprocessor)
+    def test_preparer_protocol(self):
+        assert isinstance(_FakePreparer(), Preparer)
 
     def test_model_protocol(self):
         assert isinstance(_FakeModel(), Model)

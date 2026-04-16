@@ -2,8 +2,9 @@ import { useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
-import { artifactUrl } from '../api/client'
-import type { RunSummary, ArtifactInfo } from '../api/types'
+import { SortableArtifactList } from '../components/results/SortableArtifactList'
+import { RunComparison } from '../components/runs/RunComparison'
+import type { RunSummary } from '../api/types'
 
 // ── Styles ──
 
@@ -138,28 +139,6 @@ const summaryValue: CSSProperties = {
   color: 'var(--text-primary)',
 }
 
-const artifactList: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-}
-
-const artifactRow: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '8px 12px',
-  backgroundColor: 'var(--bg-secondary)',
-  borderRadius: 4,
-  fontSize: 12,
-}
-
-const artifactLink: CSSProperties = {
-  color: 'var(--accent-cyan)',
-  textDecoration: 'none',
-  fontSize: 11,
-  fontWeight: 600,
-}
 
 const loadingStyle: CSSProperties = {
   color: 'var(--text-secondary)',
@@ -234,15 +213,15 @@ function formatScore(score: number | null): string {
   return score.toFixed(4)
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 // ── Detail View ──
 
-function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
+function RunDetail({
+  run, onClose, onRefresh,
+}: {
+  run: RunSummary
+  onClose: () => void
+  onRefresh: () => void
+}) {
   const artifacts = run.artifacts ? Object.values(run.artifacts) : []
 
   return (
@@ -299,36 +278,12 @@ function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
       {/* Artifacts */}
       {artifacts.length > 0 && (
         <>
-          <div style={sectionLabel}>Artifacts ({artifacts.length})</div>
-          <div style={artifactList}>
-            {artifacts.map((art: ArtifactInfo) => (
-              <div key={art.name} style={artifactRow}>
-                <div>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{art.name}</span>
-                  <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
-                    {art.type} / {formatSize(art.size)}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <a
-                    href={artifactUrl(run.run_id, art.name)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={artifactLink}
-                  >
-                    View
-                  </a>
-                  <a
-                    href={artifactUrl(run.run_id, art.name)}
-                    download
-                    style={artifactLink}
-                  >
-                    Download
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
+          <div style={sectionLabel}>Results ({artifacts.length})</div>
+          <SortableArtifactList
+            artifacts={artifacts}
+            runId={run.run_id}
+            onArtifactDeleted={onRefresh}
+          />
         </>
       )}
 
@@ -361,7 +316,11 @@ function RunDetail({ run, onClose }: { run: RunSummary; onClose: () => void }) {
 // ── Main View ──
 
 export function RunManager() {
-  const { runs, selectedRun, loading, error, loadRuns, selectRun, clearSelection } = useRunStore()
+  const {
+    runs, selectedRun, loading, error, loadRuns, selectRun, clearSelection,
+    compareIds, compareSelection, comparing, toggleCompare, clearCompare,
+    openComparison, closeComparison,
+  } = useRunStore()
 
   useEffect(() => {
     loadRuns()
@@ -379,9 +338,40 @@ export function RunManager() {
     <div>
       <div style={headerStyle}>
         <div style={titleStyle}>Run History</div>
-        <button style={refreshBtn} onClick={handleRefresh} disabled={loading}>
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {compareIds.length > 0 && (
+            <>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {compareIds.length} selected
+                {compareIds.length < 2 && ' (need 2+)'}
+              </span>
+              <button
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: compareIds.length >= 2 ? 'pointer' : 'not-allowed',
+                  backgroundColor: compareIds.length >= 2 ? 'var(--accent-cyan)' : 'var(--bg-input)',
+                  color: compareIds.length >= 2 ? '#000' : 'var(--text-secondary)',
+                  opacity: comparing ? 0.6 : 1,
+                }}
+                disabled={compareIds.length < 2 || comparing}
+                onClick={openComparison}
+              >
+                {comparing ? 'Loading...' : `Compare (${compareIds.length})`}
+              </button>
+              <button style={refreshBtn} onClick={clearCompare}>
+                Clear
+              </button>
+            </>
+          )}
+          <button style={refreshBtn} onClick={handleRefresh} disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {loading && runs.length === 0 ? (
@@ -393,6 +383,7 @@ export function RunManager() {
           <table style={tableStyle}>
             <thead>
               <tr>
+                <th style={{ ...thStyle, width: 32 }}></th>
                 <th style={thStyle}>Date</th>
                 <th style={thStyle}>Experiment</th>
                 <th style={thStyle}>Subject</th>
@@ -404,6 +395,7 @@ export function RunManager() {
             <tbody>
               {runs.map((run) => {
                 const isSelected = selectedRun?.run_id === run.run_id
+                const isCompare = compareIds.includes(run.run_id)
                 return (
                   <tr
                     key={run.run_id}
@@ -416,6 +408,14 @@ export function RunManager() {
                       if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
                     }}
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isCompare}
+                        onChange={() => toggleCompare(run.run_id)}
+                        title="Select to compare with another run"
+                      />
+                    </td>
                     <td style={tdStyle}>{formatDate(run.started_at)}</td>
                     <td style={{ ...tdStyle, color: 'var(--accent-cyan)', fontWeight: 600 }}>
                       {run.experiment || '-'}
@@ -443,7 +443,18 @@ export function RunManager() {
       )}
 
       {/* Detail panel */}
-      {selectedRun && <RunDetail run={selectedRun} onClose={clearSelection} />}
+      {selectedRun && (
+        <RunDetail
+          run={selectedRun}
+          onClose={clearSelection}
+          onRefresh={() => selectRun(selectedRun.run_id)}
+        />
+      )}
+
+      {/* Comparison overlay */}
+      {compareSelection && (
+        <RunComparison runs={compareSelection} onClose={closeComparison} />
+      )}
     </div>
   )
 }

@@ -102,7 +102,7 @@ class TestLoadConfig:
         assert loaded["experiment"] == "test"
         assert loaded["subject"] == "subj"
         # Should have default values merged in
-        assert "preprocessing" in loaded
+        assert "preparation" in loaded
         assert "model" in loaded
 
     def test_nonexistent_file_raises(self, tmp_path):
@@ -114,7 +114,7 @@ class TestLoadConfigWithInheritance:
     def test_parent_child_chain(self, tmp_path):
         parent_config = {
             "experiment": "parent_exp",
-            "preprocessing": {"trim_start": 10},
+            "preparation": {"trim_start": 10},
         }
         parent_path = tmp_path / "parent.yaml"
         with open(parent_path, "w") as f:
@@ -123,14 +123,14 @@ class TestLoadConfigWithInheritance:
         child_config = {
             "inherit": "parent.yaml",
             "subject": "child_subj",
-            "preprocessing": {"trim_end": 3},
+            "preparation": {"trim_end": 3},
         }
 
         result = load_config_with_inheritance(child_config, tmp_path)
         assert result["experiment"] == "parent_exp"
         assert result["subject"] == "child_subj"
-        assert result["preprocessing"]["trim_start"] == 10
-        assert result["preprocessing"]["trim_end"] == 3
+        assert result["preparation"]["trim_start"] == 10
+        assert result["preparation"]["trim_end"] == 3
 
     def test_no_inherit_passthrough(self):
         config = {"experiment": "test"}

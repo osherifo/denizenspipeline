@@ -6,7 +6,7 @@ from fmriflow.exceptions import (
     ConfigError,
     FmriflowError,
     PipelineError,
-    PluginNotFoundError,
+    ModuleLookupError,
     StageError,
 )
 
@@ -51,7 +51,7 @@ class TestInheritance:
         assert issubclass(ConfigError, FmriflowError)
 
     def test_plugin_not_found_is_fmriflow_error(self):
-        assert issubclass(PluginNotFoundError, FmriflowError)
+        assert issubclass(ModuleLookupError, FmriflowError)
 
     def test_pipeline_error_is_fmriflow_error(self):
         assert issubclass(PipelineError, FmriflowError)
@@ -66,7 +66,7 @@ class TestInheritance:
         with pytest.raises(FmriflowError):
             raise ConfigError("test")
         with pytest.raises(FmriflowError):
-            raise PluginNotFoundError("test")
+            raise ModuleLookupError("test")
         with pytest.raises(FmriflowError):
             raise PipelineError("test")
         with pytest.raises(FmriflowError):

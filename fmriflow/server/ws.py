@@ -94,6 +94,42 @@ async def preproc_websocket(websocket: WebSocket, run_id: str):
             pass
 
 
+@router.websocket("/ws/autoflatten/{run_id}")
+async def autoflatten_websocket(websocket: WebSocket, run_id: str):
+    """Stream live events from a running autoflatten job."""
+    manager = websocket.app.state.autoflatten_manager
+    handle = manager.active_runs.get(run_id)
+
+    if handle is None:
+        await websocket.close(code=4004, reason=f"Autoflatten run '{run_id}' not found")
+        return
+
+    await websocket.accept()
+
+    try:
+        for event in handle.events:
+            await websocket.send_json(event)
+
+        while handle.status == 'running':
+            new_events = handle.drain_events()
+            for event in new_events:
+                await websocket.send_json(event)
+            if not new_events:
+                await asyncio.sleep(0.3)
+
+        final_events = handle.drain_events()
+        for event in final_events:
+            await websocket.send_json(event)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
 @router.websocket("/ws/convert/batch/{batch_id}")
 async def convert_batch_websocket(websocket: WebSocket, batch_id: str):
     """Stream live events from a batch DICOM-to-BIDS conversion."""

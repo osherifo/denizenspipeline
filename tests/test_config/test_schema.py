@@ -45,7 +45,7 @@ class TestValidateConfig:
         assert any("list" in e for e in errors)
 
     def test_invalid_trim_start(self, minimal_config):
-        minimal_config["preprocessing"]["trim_start"] = -1
+        minimal_config["preparation"]["trim_start"] = -1
         errors = validate_config(minimal_config)
         assert any("trim_start" in e for e in errors)
 

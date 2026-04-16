@@ -5,7 +5,7 @@ Usage:
     fmriflow run experiment.yaml --stages features,preprocess,model
     fmriflow run experiment.yaml --resume-from model
     fmriflow validate experiment.yaml
-    fmriflow plugins
+    fmriflow modules
 """
 
 from __future__ import annotations
@@ -87,17 +87,17 @@ def main(argv: list[str] | None = None) -> int:
         'validate', help='Validate a config without running')
     validate_parser.add_argument('config', help='Path to experiment YAML config')
 
-    # ── plugins ──
-    subparsers.add_parser('plugins', help='List available plugins')
+    # ── modules ──
+    subparsers.add_parser('modules', help='List available pipeline modules')
 
     # ── list ──
     list_parser = subparsers.add_parser(
-        'list', help='List stages, plugins, or plugins for a stage')
+        'list', help='List stages, modules, or modules for a stage')
     list_parser.add_argument(
         'what', nargs='?', default='stages',
         help=(
-            'What to list: "stages" (default), "plugins" (all), '
-            'or a stage name to list its plugins'
+            'What to list: "stages" (default), "modules" (all), '
+            'or a stage name to list its modules'
         ),
     )
 
@@ -112,11 +112,11 @@ def main(argv: list[str] | None = None) -> int:
         '--results-dir', type=str, default='./results',
         help='Directory to scan for run summaries')
     serve_parser.add_argument(
-        '--no-open', action='store_true',
-        help='Do not open browser automatically')
+        '--open', action='store_true',
+        help='Open the web UI in a browser after starting')
     serve_parser.add_argument(
-        '--plugins-dir', type=str, default=None,
-        help='Directory for user plugins (default: ~/.fmriflow/plugins/)')
+        '--modules-dir', type=str, default=None,
+        help='Directory for user modules (default: ~/.fmriflow/modules/)')
     serve_parser.add_argument(
         '--configs-dir', type=str, default='./experiments',
         help='Directory containing experiment YAML configs (default: ./experiments)')
@@ -139,12 +139,16 @@ def main(argv: list[str] | None = None) -> int:
     from fmriflow.convert.cli import add_convert_subcommands
     add_convert_subcommands(subparsers)
 
+    # ── autoflatten ──
+    from fmriflow.preproc.autoflatten_cli import add_autoflatten_subcommands
+    add_autoflatten_subcommands(subparsers)
+
     args = parser.parse_args(argv)
 
     # Set up logging — suppress standard log format, let rich handle output.
     # Always show logs for preproc commands (they are long-running).
     level = logging.DEBUG if args.verbose else logging.INFO
-    show_logs = args.verbose or args.command in ('preproc', 'convert')
+    show_logs = args.verbose or args.command in ('preproc', 'convert', 'autoflatten')
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -158,13 +162,15 @@ def main(argv: list[str] | None = None) -> int:
         args.command = 'preproc'
     if args.command is None and getattr(args, 'convert_command', None):
         args.command = 'convert'
+    if args.command is None and getattr(args, 'autoflatten_command', None):
+        args.command = 'autoflatten'
 
     if args.command == 'run':
         return _cmd_run(args)
     elif args.command == 'validate':
         return _cmd_validate(args)
-    elif args.command == 'plugins':
-        return _cmd_plugins(args)
+    elif args.command == 'modules':
+        return _cmd_modules(args)
     elif args.command == 'list':
         return _cmd_list(args)
     elif args.command == 'serve':
@@ -177,6 +183,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == 'convert':
         from fmriflow.convert.cli import dispatch_convert
         return dispatch_convert(args)
+    elif args.command == 'autoflatten':
+        from fmriflow.preproc.autoflatten_cli import dispatch_autoflatten
+        return dispatch_autoflatten(args)
     else:
         parser.print_help()
         return 1
@@ -274,7 +283,7 @@ def _save_run_summary(ctx, output_dir: str) -> None:
 def _cmd_validate(args) -> int:
     """Validate a config file."""
     from fmriflow.config.loader import load_config
-    from fmriflow.registry import PluginRegistry
+    from fmriflow.registry import ModuleRegistry
 
     try:
         config = load_config(args.config)
@@ -284,8 +293,8 @@ def _cmd_validate(args) -> int:
         ui.validate_line(True, f"Experiment: {config.get('experiment')}")
         ui.validate_line(True, f"Subject: {config.get('subject')}")
 
-        # Check plugins
-        registry = PluginRegistry()
+        # Check modules
+        registry = ModuleRegistry()
         registry.discover()
 
         stim_loader = config.get('stimulus', {}).get('loader', 'textgrid')
@@ -335,23 +344,23 @@ def _cmd_validate(args) -> int:
         return 1
 
 
-def _cmd_plugins(args) -> int:
-    """List available plugins."""
-    from fmriflow.registry import PluginRegistry
+def _cmd_modules(args) -> int:
+    """List available pipeline modules."""
+    from fmriflow.registry import ModuleRegistry
 
-    registry = PluginRegistry()
+    registry = ModuleRegistry()
     registry.discover()
-    plugins = registry.list_plugins()
+    modules = registry.list_modules()
 
     ui.console.print()
-    ui.plugins_table(plugins)
+    ui.modules_table(modules)
     return 0
 
 
 def _cmd_list(args) -> int:
-    """List stages, all plugins, or plugins for a specific stage."""
+    """List stages, all modules, or modules for a specific stage."""
     from fmriflow.orchestrator import ALL_STAGES
-    from fmriflow.registry import PluginRegistry
+    from fmriflow.registry import ModuleRegistry
 
     what = args.what
 
@@ -359,36 +368,36 @@ def _cmd_list(args) -> int:
         ui.stages_table(ALL_STAGES)
         return 0
 
-    registry = PluginRegistry()
+    registry = ModuleRegistry()
     registry.discover()
-    plugins = registry.list_plugins()
+    modules = registry.list_modules()
 
-    if what == 'plugins':
+    if what == 'modules':
         ui.console.print()
-        ui.plugins_table(plugins)
+        ui.modules_table(modules)
         return 0
 
-    # Treat as a stage name — show plugins for that stage
-    stage_plugin_map = {
+    # Treat as a stage name — show modules for that stage
+    stage_module_map = {
         'stimuli': ['stimulus_loaders'],
         'responses': ['response_loaders', 'response_readers'],
         'features': ['feature_extractors', 'feature_sources'],
-        'preprocess': ['preprocessors', 'preprocessing_steps'],
+        'prepare': ['preparers', 'preparation_steps'],
         'model': ['models'],
         'analyze': ['analyzers'],
         'report': ['reporters'],
     }
 
-    if what not in stage_plugin_map:
+    if what not in stage_module_map:
         ui.error_panel(
             f"Unknown stage '{what}'. "
             f"Available stages: {', '.join(ALL_STAGES)}")
         return 1
 
-    categories = stage_plugin_map[what]
-    filtered = {k: plugins[k] for k in categories if k in plugins}
+    categories = stage_module_map[what]
+    filtered = {k: modules[k] for k in categories if k in modules}
     ui.console.print()
-    ui.plugins_table(filtered, title=f"Plugins for stage: {what}")
+    ui.modules_table(filtered, title=f"Modules for stage: {what}")
     return 0
 
 
@@ -406,7 +415,7 @@ def _cmd_serve(args) -> int:
 
     app = create_app(
         results_dir=args.results_dir,
-        plugins_dir=args.plugins_dir,
+        modules_dir=args.modules_dir,
         configs_dir=args.configs_dir,
         derivatives_dir=args.derivatives_dir,
     )
@@ -416,7 +425,7 @@ def _cmd_serve(args) -> int:
         f"starting on [bold]http://{args.host}:{args.port}[/]\n"
     )
 
-    if not args.no_open:
+    if args.open:
         import webbrowser
         webbrowser.open(f"http://{args.host}:{args.port}")
 

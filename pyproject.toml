@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "fmriflow"
 version = "2.0.0a2"
-description = "fMRIflow — Plugin-based neuroscience encoding model pipeline"
+description = "fMRIflow — Module-based neuroscience encoding model pipeline"
 requires-python = ">=3.10"
 license = "MIT"
 
@@ -25,61 +25,62 @@ nlp = ["transformers>=4.28", "gensim>=4.3"]
 audio = ["librosa>=0.10", "soundfile>=0.12"]
 video = ["opencv-python>=4.7"]
 bids = ["nibabel>=5.0"]
+flatten = ["autoflatten>=0.1.0"]
 frontend = ["fastapi>=0.109", "uvicorn>=0.27", "websockets>=12.0"]
-all = ["fmriflow[cloud,viz,ml,nlp,himalaya,audio,video,bids,frontend]"]
+all = ["fmriflow[cloud,viz,ml,nlp,himalaya,audio,video,bids,frontend,flatten]"]
 dev = ["fmriflow[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
 
 [project.scripts]
 fmriflow = "fmriflow.cli:main"
 
-# Built-in plugins registered via entry points
+# Built-in modules registered via entry points
 [project.entry-points."fmriflow.stimulus_loaders"]
-textgrid = "fmriflow.plugins.stimulus_loaders.textgrid:TextGridStimulusLoader"
-audio = "fmriflow.plugins.stimulus_loaders.audio:AudioStimulusLoader"
-video = "fmriflow.plugins.stimulus_loaders.video:VideoStimulusLoader"
+textgrid = "fmriflow.modules.stimulus_loaders.textgrid:TextGridStimulusLoader"
+audio = "fmriflow.modules.stimulus_loaders.audio:AudioStimulusLoader"
+video = "fmriflow.modules.stimulus_loaders.video:VideoStimulusLoader"
 
 [project.entry-points."fmriflow.response_loaders"]
-bids = "fmriflow.plugins.response_loaders.bids:BidsResponseLoader"
-cloud = "fmriflow.plugins.response_loaders.cloud:CloudResponseLoader"
-local = "fmriflow.plugins.response_loaders.local:LocalResponseLoader"
+bids = "fmriflow.modules.response_loaders.bids:BidsResponseLoader"
+cloud = "fmriflow.modules.response_loaders.cloud:CloudResponseLoader"
+local = "fmriflow.modules.response_loaders.local:LocalResponseLoader"
 
 [project.entry-points."fmriflow.feature_extractors"]
-numwords = "fmriflow.plugins.feature_extractors.basic:NumWordsExtractor"
-numletters = "fmriflow.plugins.feature_extractors.basic:NumLettersExtractor"
-numphonemes = "fmriflow.plugins.feature_extractors.basic:NumPhonemesExtractor"
-word_length_std = "fmriflow.plugins.feature_extractors.basic:WordLengthStdExtractor"
-english1000 = "fmriflow.plugins.feature_extractors.histograms:English1000Extractor"
-letters = "fmriflow.plugins.feature_extractors.histograms:LetterHistogramExtractor"
-phonemes = "fmriflow.plugins.feature_extractors.histograms:PhonemeHistogramExtractor"
-word2vec = "fmriflow.plugins.feature_extractors.embeddings:Word2VecExtractor"
-bert = "fmriflow.plugins.feature_extractors.embeddings:BERTExtractor"
-fasttext = "fmriflow.plugins.feature_extractors.embeddings:FastTextExtractor"
-mel_spectrogram = "fmriflow.plugins.feature_extractors.audio:MelSpectrogramExtractor"
-rms_energy = "fmriflow.plugins.feature_extractors.audio:RMSEnergyExtractor"
-luminance = "fmriflow.plugins.feature_extractors.visual:LuminanceExtractor"
-motion_energy = "fmriflow.plugins.feature_extractors.visual:MotionEnergyExtractor"
+numwords = "fmriflow.modules.feature_extractors.basic:NumWordsExtractor"
+numletters = "fmriflow.modules.feature_extractors.basic:NumLettersExtractor"
+numphonemes = "fmriflow.modules.feature_extractors.basic:NumPhonemesExtractor"
+word_length_std = "fmriflow.modules.feature_extractors.basic:WordLengthStdExtractor"
+english1000 = "fmriflow.modules.feature_extractors.histograms:English1000Extractor"
+letters = "fmriflow.modules.feature_extractors.histograms:LetterHistogramExtractor"
+phonemes = "fmriflow.modules.feature_extractors.histograms:PhonemeHistogramExtractor"
+word2vec = "fmriflow.modules.feature_extractors.embeddings:Word2VecExtractor"
+bert = "fmriflow.modules.feature_extractors.embeddings:BERTExtractor"
+fasttext = "fmriflow.modules.feature_extractors.embeddings:FastTextExtractor"
+mel_spectrogram = "fmriflow.modules.feature_extractors.audio:MelSpectrogramExtractor"
+rms_energy = "fmriflow.modules.feature_extractors.audio:RMSEnergyExtractor"
+luminance = "fmriflow.modules.feature_extractors.visual:LuminanceExtractor"
+motion_energy = "fmriflow.modules.feature_extractors.visual:MotionEnergyExtractor"
 
 [project.entry-points."fmriflow.feature_sources"]
-compute = "fmriflow.plugins.feature_sources.compute:ComputeSource"
-filesystem = "fmriflow.plugins.feature_sources.filesystem:FilesystemSource"
-cloud = "fmriflow.plugins.feature_sources.cloud:CloudSource"
+compute = "fmriflow.modules.feature_sources.compute:ComputeSource"
+filesystem = "fmriflow.modules.feature_sources.filesystem:FilesystemSource"
+cloud = "fmriflow.modules.feature_sources.cloud:CloudSource"
 
-[project.entry-points."fmriflow.preprocessors"]
-default = "fmriflow.plugins.preprocessors.default:DefaultPreprocessor"
-pre_prepared = "fmriflow.plugins.preprocessors.pre_prepared:PreparedDataLoader"
+[project.entry-points."fmriflow.preparers"]
+default = "fmriflow.modules.preparers.default:DefaultPreparer"
+pre_prepared = "fmriflow.modules.preparers.pre_prepared:PreparedDataLoader"
 
 [project.entry-points."fmriflow.models"]
-bootstrap_ridge = "fmriflow.plugins.models.ridge:BootstrapRidgeModel"
-himalaya_ridge = "fmriflow.plugins.models.himalaya:HimalayaRidgeModel"
-banded_ridge = "fmriflow.plugins.models.himalaya:BandedRidgeModel"
-multiple_kernel_ridge = "fmriflow.plugins.models.himalaya:MultipleKernelRidgeModel"
+bootstrap_ridge = "fmriflow.modules.models.ridge:BootstrapRidgeModel"
+himalaya_ridge = "fmriflow.modules.models.himalaya:HimalayaRidgeModel"
+banded_ridge = "fmriflow.modules.models.himalaya:BandedRidgeModel"
+multiple_kernel_ridge = "fmriflow.modules.models.himalaya:MultipleKernelRidgeModel"
 
 [project.entry-points."fmriflow.reporters"]
-metrics = "fmriflow.plugins.reporters.metrics:MetricsReporter"
-flatmap = "fmriflow.plugins.reporters.flatmap:FlatmapReporter"
-weights = "fmriflow.plugins.reporters.weights:WeightsReporter"
-histogram = "fmriflow.plugins.reporters.histogram:HistogramReporter"
-webgl = "fmriflow.plugins.reporters.webgl:WebGLReporter"
+metrics = "fmriflow.modules.reporters.metrics:MetricsReporter"
+flatmap = "fmriflow.modules.reporters.flatmap:FlatmapReporter"
+weights = "fmriflow.modules.reporters.weights:WeightsReporter"
+histogram = "fmriflow.modules.reporters.histogram:HistogramReporter"
+webgl = "fmriflow.modules.reporters.webgl:WebGLReporter"
 
 [tool.hatch.build.targets.wheel]
 packages = ["fmriflow"]

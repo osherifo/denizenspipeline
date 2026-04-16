@@ -14,7 +14,7 @@ DEFAULT_CONFIG = {
         "multiseries": "mean",
     },
 
-    "preprocessing": {
+    "preparation": {
         "type": "default",
         "trim_start": 5,
         "trim_end": 5,

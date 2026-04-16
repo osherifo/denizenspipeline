@@ -43,6 +43,18 @@ class RegisterHeuristicBody(BaseModel):
     description: str | None = None
 
 
+class SaveHeuristicBody(BaseModel):
+    name: str
+    code: str
+    description: str | None = None
+    scanner_pattern: str | None = None
+    tasks: list[str] | None = None
+
+
+class HeuristicTemplateBody(BaseModel):
+    name: str = "my_study"
+
+
 class BatchJobBody(BaseModel):
     subject: str
     source_dir: str
@@ -190,6 +202,72 @@ async def register_heuristic(request: Request, body: RegisterHeuristicBody):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/convert/heuristics/save")
+async def save_heuristic(request: Request, body: SaveHeuristicBody):
+    """Save heuristic code to disk (create or overwrite)."""
+    from fmriflow.convert.heuristics import save_heuristic_code
+
+    try:
+        info = save_heuristic_code(body.name, body.code)
+
+        # Update YAML sidecar metadata if provided
+        if body.description or body.scanner_pattern or body.tasks:
+            import yaml
+            sidecar_path = info.path.with_suffix(".yaml")
+            sidecar_data: dict = {}
+            if sidecar_path.is_file():
+                sidecar_data = yaml.safe_load(sidecar_path.read_text()) or {}
+            sidecar_data["name"] = body.name
+            if body.description is not None:
+                sidecar_data["description"] = body.description
+            if body.scanner_pattern is not None:
+                sidecar_data["scanner_pattern"] = body.scanner_pattern
+            if body.tasks is not None:
+                sidecar_data["tasks"] = body.tasks
+            sidecar_path.write_text(yaml.dump(sidecar_data, default_flow_style=False))
+
+        return {
+            "saved": True,
+            "name": info.name,
+            "path": str(info.path),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/convert/heuristics/template")
+async def get_heuristic_template(request: Request, body: HeuristicTemplateBody):
+    """Return the skeleton heudiconv template."""
+    from fmriflow.convert.heuristics import get_heuristic_template as _template
+
+    code = _template(name=body.name)
+    return {"code": code, "name": body.name}
+
+
+@router.delete("/convert/heuristics/{name}")
+async def delete_heuristic(request: Request, name: str):
+    """Remove a heuristic from the registry."""
+    from fmriflow.convert.heuristics import remove_heuristic
+
+    try:
+        remove_heuristic(name)
+        return {"deleted": True, "name": name}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/convert/heuristics/{name}/code")
+async def get_heuristic_code(request: Request, name: str):
+    """Return the Python source code of a registered heuristic."""
+    from fmriflow.convert.heuristics import read_heuristic_source
+
+    try:
+        code = read_heuristic_source(name)
+        return {"name": name, "code": code}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # ── Batch conversion ──────────────────────────────────────────────────────

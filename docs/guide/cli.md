@@ -19,13 +19,13 @@ fmriflow run experiment.yaml --dry-run
 fmriflow validate experiment.yaml
 ```
 
-## Plugins
+## Modules
 
 ```bash
-# List all plugins (by category)
-fmriflow list plugins
+# List all modules (by category)
+fmriflow list modules
 
-# List plugins for a specific stage
+# List modules for a specific stage
 fmriflow list preprocess
 fmriflow list features
 fmriflow list model

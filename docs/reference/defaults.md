@@ -2,10 +2,15 @@
 
 These values apply unless overridden in your config:
 
-## Preprocessing
+## Preparation
+
+The analysis-stage preparation (trim / zscore / delay / concatenate). This is
+the step that runs on already-preprocessed BOLD data before model fitting —
+it is distinct from the fMRI preprocessing step (fmriprep) that produces the
+BOLD data in the first place.
 
 ```yaml
-preprocessing:
+preparation:
   trim_start: 5
   trim_end: 5
   delays: [1, 2, 3, 4]

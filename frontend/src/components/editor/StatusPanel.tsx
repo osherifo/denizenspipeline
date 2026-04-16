@@ -11,7 +11,7 @@ interface StatusPanelProps {
   onValidate: () => void
   onSave: () => void
   onDelete: () => void
-  hasPlugin: boolean
+  hasModule: boolean
 }
 
 const panelStyle: CSSProperties = {
@@ -61,7 +61,7 @@ export function StatusPanel({
   onValidate,
   onSave,
   onDelete,
-  hasPlugin,
+  hasModule,
 }: StatusPanelProps) {
   const v = validation
 
@@ -83,16 +83,16 @@ export function StatusPanel({
               {v.valid ? '\u2713' : '\u2717'}
             </span>
             <span>
-              {v.valid ? 'Valid plugin' : `${v.errors.length} error(s)`}
+              {v.valid ? 'Valid module' : `${v.errors.length} error(s)`}
             </span>
           </div>
 
-          {/* Plugin name + category */}
-          {v.plugin_name && (
+          {/* Module name + category */}
+          {v.module_name && (
             <div style={statusRow}>
               <span style={{ color: 'var(--accent-cyan)' }}>\u2713</span>
               <span>
-                Registered as <strong>{v.category}</strong> / <strong>{v.plugin_name}</strong>
+                Registered as <strong>{v.category}</strong> / <strong>{v.module_name}</strong>
               </span>
             </div>
           )}
@@ -162,7 +162,7 @@ export function StatusPanel({
         <button style={btnStyle('primary')} onClick={onSave}>
           Save & Register
         </button>
-        {hasPlugin && (
+        {hasModule && (
           <button style={btnStyle('danger')} onClick={onDelete}>
             Delete
           </button>

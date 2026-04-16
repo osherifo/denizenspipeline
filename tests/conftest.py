@@ -72,6 +72,12 @@ class MockTRFile:
     def get_reltriggertimes(self):
         return np.linspace(0, self._duration, self._n_trs)
 
+    @property
+    def avgtr(self):
+        if self._n_trs < 2:
+            return 0.0
+        return self._duration / (self._n_trs - 1)
+
 
 # ── Fixtures ──────────────────────────────────────────────────────
 
@@ -188,7 +194,7 @@ def minimal_config():
         "split": {
             "test_runs": ["story3"],
         },
-        "preprocessing": {
+        "preparation": {
             "trim_start": 5,
             "trim_end": 5,
             "delays": [1, 2, 3, 4],

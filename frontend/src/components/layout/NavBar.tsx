@@ -79,17 +79,24 @@ function linkStyle(active: boolean): CSSProperties {
 
 const groups = [
   {
+    label: 'Pipeline',
+    items: [
+      { key: 'graph', label: 'Pipeline Graph', hash: '#graph' },
+    ],
+  },
+  {
     label: 'Preprocessing',
     items: [
       { key: 'convert', label: 'DICOM \u2192 BIDS', hash: '#convert' },
       { key: 'preproc', label: 'Preproc', hash: '#preproc' },
+      { key: 'autoflatten', label: 'Autoflatten', hash: '#autoflatten' },
     ],
   },
   {
     label: 'Analysis',
     items: [
       { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
-      { key: 'plugins', label: 'Plugins', hash: '#plugins' },
+      { key: 'modules', label: 'Modules', hash: '#modules' },
       { key: 'composer', label: 'Composer', hash: '#composer' },
       { key: 'runs', label: 'Runs', hash: '#runs' },
       { key: 'editor', label: 'Editor', hash: '#editor' },

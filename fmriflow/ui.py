@@ -34,7 +34,7 @@ STAGE_COLORS = {
     'stimuli': 'bright_cyan',
     'responses': 'bright_magenta',
     'features': 'bright_yellow',
-    'preprocess': 'bright_green',
+    'prepare': 'bright_green',
     'model': 'bright_blue',
     'analyze': 'bright_red',
     'report': 'bright_white',
@@ -244,28 +244,28 @@ def validate_line(ok: bool, message: str):
         console.print(f"  [bold red]!![/]  {message}", highlight=False)
 
 
-def plugins_table(plugins: dict, title: str = "Available Plugins"):
-    """Print plugin listing as a styled table."""
+def modules_table(modules: dict, title: str = "Available Modules"):
+    """Print module listing as a styled table."""
     labels = {
         'stimulus_loaders': 'Stimulus Loaders',
         'response_loaders': 'Response Loaders',
         'response_readers': 'Response Readers',
         'feature_extractors': 'Feature Extractors',
         'feature_sources': 'Feature Sources',
-        'preprocessors': 'Preprocessors',
-        'preprocessing_steps': 'Preprocessing Steps',
+        'preparers': 'Preparers',
+        'preparation_steps': 'Preparation Steps',
         'analyzers': 'Analyzers',
         'models': 'Models',
         'reporters': 'Reporters',
     }
     table = Table(title=f"[bold]{title}[/]", border_style="bright_cyan")
     table.add_column("Category", style="bold cyan")
-    table.add_column("Plugins")
+    table.add_column("Modules")
 
-    for key, names in plugins.items():
+    for key, names in modules.items():
         label = labels.get(key, key)
-        plugin_str = ", ".join(names) if names else "[dim](none)[/]"
-        table.add_row(label, plugin_str)
+        modules_str = ", ".join(names) if names else "[dim](none)[/]"
+        table.add_row(label, modules_str)
 
     console.print(table)
 
@@ -276,7 +276,7 @@ def stages_table(stages: list[str]):
         'stimuli': 'Load stimulus timing data (TextGrids, TRFiles)',
         'responses': 'Load fMRI response data',
         'features': 'Extract or load features from stimuli',
-        'preprocess': 'Trim, normalize, concatenate, delay',
+        'prepare': 'Trim, normalize, concatenate, delay',
         'model': 'Fit voxelwise encoding model',
         'analyze': 'Postprocessing analysis (variance partition, weights, etc.)',
         'report': 'Generate output artifacts (flatmaps, metrics, etc.)',

@@ -1,16 +1,16 @@
 /** Typed API client for the fMRIflow backend. */
 
 import type {
-  PluginMetadata,
-  PluginInfo,
+  ModuleMetadata,
+  ModuleInfo,
   StageInfo,
   PipelineConfig,
   ValidationResult,
   RunSummary,
   ParamSchema,
   CodeValidationResult,
-  SavePluginResult,
-  UserPlugin,
+  SaveModuleResult,
+  UserModule,
   TemplateResult,
   ConfigSummary,
   ConfigDetail,
@@ -20,6 +20,7 @@ import type {
   CollectResult,
   ErrorEntry,
   HeuristicInfo,
+  SaveHeuristicParams,
   ToolStatus,
   ConvertManifestSummary,
   ConvertManifestDetail,
@@ -41,14 +42,14 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
-// ── Plugins ──
+// ── Modules ──
 
-export async function fetchPlugins(): Promise<PluginMetadata> {
-  return json(`${BASE}/plugins`)
+export async function fetchModules(): Promise<ModuleMetadata> {
+  return json(`${BASE}/modules`)
 }
 
-export async function fetchPlugin(category: string, name: string): Promise<PluginInfo> {
-  return json(`${BASE}/plugins/${category}/${name}`)
+export async function fetchModule(category: string, name: string): Promise<ModuleInfo> {
+  return json(`${BASE}/modules/${category}/${name}`)
 }
 
 export async function fetchStages(): Promise<StageInfo[]> {
@@ -83,11 +84,11 @@ export async function configToYaml(config: PipelineConfig): Promise<string> {
   return res.text()
 }
 
-export async function fetchDefaults(category: string, plugin: string): Promise<{ params: Record<string, unknown> }> {
+export async function fetchDefaults(category: string, module: string): Promise<{ params: Record<string, unknown> }> {
   return json(`${BASE}/config/defaults`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category, plugin }),
+    body: JSON.stringify({ category, module }),
   })
 }
 
@@ -122,6 +123,14 @@ export function artifactUrl(runId: string, artifactName: string): string {
   return `${BASE}/runs/${runId}/artifacts/${artifactName}`
 }
 
+export async function deleteArtifact(
+  runId: string, artifactName: string,
+): Promise<{ deleted: boolean; path: string }> {
+  return json(`${BASE}/runs/${runId}/artifacts/${artifactName}`, {
+    method: 'DELETE',
+  })
+}
+
 // ── Experiment Configs ──
 
 export async function fetchConfigs(): Promise<ConfigSummary[]> {
@@ -142,6 +151,26 @@ export async function validateConfigFile(filename: string): Promise<ValidationRe
   return json(`${BASE}/configs/${encodeURIComponent(filename)}/validate`, { method: 'POST' })
 }
 
+export async function saveConfigFile(
+  filename: string, yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
+export async function copyConfigFile(
+  source: string, newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
+  })
+}
+
 export async function startRunFromConfig(
   configPath: string,
   overrides?: Record<string, unknown>,
@@ -153,38 +182,38 @@ export async function startRunFromConfig(
   })
 }
 
-// ── Plugin Editor ──
+// ── Module Editor ──
 
-export async function validatePluginCode(code: string, category?: string): Promise<CodeValidationResult> {
-  return json(`${BASE}/plugins/validate-code`, {
+export async function validateModuleCode(code: string, category?: string): Promise<CodeValidationResult> {
+  return json(`${BASE}/modules/validate-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, category: category ?? null }),
   })
 }
 
-export async function savePlugin(code: string, name: string, category: string): Promise<SavePluginResult> {
-  return json(`${BASE}/plugins/save`, {
+export async function saveModule(code: string, name: string, category: string): Promise<SaveModuleResult> {
+  return json(`${BASE}/modules/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, name, category }),
   })
 }
 
-export async function fetchUserPlugins(): Promise<UserPlugin[]> {
-  return json(`${BASE}/plugins/user`)
+export async function fetchUserModules(): Promise<UserModule[]> {
+  return json(`${BASE}/modules/user`)
 }
 
-export async function fetchUserPluginCode(name: string): Promise<{ name: string; code: string }> {
-  return json(`${BASE}/plugins/user/${name}`)
+export async function fetchUserModuleCode(name: string): Promise<{ name: string; code: string }> {
+  return json(`${BASE}/modules/user/${name}`)
 }
 
-export async function deleteUserPlugin(name: string): Promise<{ deleted: boolean; name: string }> {
-  return json(`${BASE}/plugins/user/${name}`, { method: 'DELETE' })
+export async function deleteUserModule(name: string): Promise<{ deleted: boolean; name: string }> {
+  return json(`${BASE}/modules/user/${name}`, { method: 'DELETE' })
 }
 
 export async function fetchTemplate(category: string, name: string): Promise<TemplateResult> {
-  return json(`${BASE}/plugins/template`, {
+  return json(`${BASE}/modules/template`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ category, name }),
@@ -192,7 +221,7 @@ export async function fetchTemplate(category: string, name: string): Promise<Tem
 }
 
 export async function fetchTemplateCategories(): Promise<string[]> {
-  return json(`${BASE}/plugins/template-categories`)
+  return json(`${BASE}/modules/template-categories`)
 }
 
 // ── Preprocessing ──
@@ -312,6 +341,31 @@ export function connectPreprocWs(runId: string): WebSocket {
 export async function fetchConvertHeuristics(): Promise<HeuristicInfo[]> {
   const r = await json<{ heuristics: HeuristicInfo[] }>(`${BASE}/convert/heuristics`)
   return r.heuristics
+}
+
+export async function fetchHeuristicCode(name: string): Promise<string> {
+  const r = await json<{ name: string; code: string }>(`${BASE}/convert/heuristics/${encodeURIComponent(name)}/code`)
+  return r.code
+}
+
+export async function saveHeuristic(params: SaveHeuristicParams): Promise<{ saved: boolean; name: string; path: string }> {
+  return json(`${BASE}/convert/heuristics/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function fetchHeuristicTemplate(name: string = 'my_study'): Promise<{ code: string; name: string }> {
+  return json(`${BASE}/convert/heuristics/template`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function deleteHeuristic(name: string): Promise<{ deleted: boolean; name: string }> {
+  return json(`${BASE}/convert/heuristics/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
 
 export async function fetchConvertTools(): Promise<ToolStatus[]> {
@@ -437,4 +491,94 @@ export async function saveConvertBatchConfig(params: {
 
 export async function deleteSavedConvertConfig(filename: string): Promise<{ deleted: boolean }> {
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+}
+
+// ── Autoflatten ────────────────────────────────────────────────────────
+
+export async function fetchAutoflattenDoctor(): Promise<{ tools: { name: string; available: boolean; detail: string }[] }> {
+  return json(`${BASE}/autoflatten/doctor`)
+}
+
+export async function fetchAutoflattenStatus(params: {
+  subjects_dir: string; subject: string
+}): Promise<{
+  subject: string
+  subject_dir_exists: boolean
+  has_surfaces: boolean
+  surfaces: Record<string, boolean>
+  flat_patches: Record<string, string>
+  has_flat_patches: boolean
+  pycortex_surface: string | null
+}> {
+  return json(`${BASE}/autoflatten/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function startAutoflatten(params: {
+  subjects_dir: string
+  subject: string
+  hemispheres?: string
+  backend?: string
+  parallel?: boolean
+  overwrite?: boolean
+  import_to_pycortex?: boolean
+  pycortex_surface_name?: string
+  flat_patch_lh?: string
+  flat_patch_rh?: string
+}): Promise<{ run_id: string; status: string }> {
+  return json(`${BASE}/autoflatten/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function fetchAutoflattenRun(runId: string): Promise<{
+  run_id: string
+  subject: string
+  status: string
+  result: {
+    result: {
+      subject: string
+      source: string
+      hemispheres: string[]
+      flat_patches: Record<string, string>
+      visualizations: Record<string, string>
+      pycortex_surface: string | null
+      elapsed_s: number
+    }
+    record: Record<string, unknown>
+  } | null
+  error: string | null
+  started_at: number
+  finished_at: number
+  events: Array<{
+    event: string
+    level?: string
+    message?: string
+    error?: string
+    timestamp?: number
+    [key: string]: unknown
+  }>
+}> {
+  return json(`${BASE}/autoflatten/runs/${runId}`)
+}
+
+export function connectAutoflattenWs(runId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return new WebSocket(`${proto}//${window.location.host}/ws/autoflatten/${runId}`)
+}
+
+export function autoflattenImageUrl(path: string): string {
+  return `${BASE}/autoflatten/image?path=${encodeURIComponent(path)}`
+}
+
+export async function fetchAutoflattenVisualizations(
+  subjects_dir: string, subject: string,
+): Promise<{ images: Record<string, string> }> {
+  const qs = new URLSearchParams({ subjects_dir, subject }).toString()
+  return json(`${BASE}/autoflatten/visualizations?${qs}`)
 }

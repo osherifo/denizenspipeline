@@ -2,7 +2,7 @@ experiments/
 **/__pycache__/**
 __pycache__/
 *.pyc
-results/
+/results/
 notebooks/
 devdocs/*
 node_modules/

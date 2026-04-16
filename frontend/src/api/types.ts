@@ -12,7 +12,7 @@ export interface ParamField {
 
 export type ParamSchema = Record<string, ParamField>
 
-export interface PluginInfo {
+export interface ModuleInfo {
   name: string
   docstring: string
   full_docstring?: string
@@ -22,13 +22,13 @@ export interface PluginInfo {
   n_dims?: number | null
 }
 
-export type PluginMetadata = Record<string, PluginInfo[]>
+export type ModuleMetadata = Record<string, ModuleInfo[]>
 
 export interface StageInfo {
   name: string
   index: number
   description: string
-  plugin_categories: string[]
+  module_categories: string[]
   color: string
 }
 
@@ -73,7 +73,7 @@ export interface PipelineConfig {
     test_runs?: string[]
     train_runs?: string[] | 'auto'
   }
-  preprocessing?: {
+  preparation?: {
     type?: string
     steps?: StepConfig[]
     [key: string]: unknown
@@ -135,28 +135,28 @@ export interface RunEvent {
   timestamp?: number
 }
 
-// ── Plugin Editor types ──
+// ── Module Editor types ──
 
 export interface CodeValidationResult {
   valid: boolean
   errors: string[]
   warnings: string[]
-  plugin_name: string | null
+  module_name: string | null
   class_name: string | null
   category: string | null
   params: ParamSchema | null
 }
 
-export interface SavePluginResult {
+export interface SaveModuleResult {
   saved: boolean
   path: string
   registered: boolean
-  plugin_name: string
+  module_name: string
   class_name: string
   category: string
 }
 
-export interface UserPlugin {
+export interface UserModule {
   name: string
   filename: string
   category: string | null
@@ -181,7 +181,7 @@ export interface ConfigSummary {
   features: string[]
   output_dir: string
   group: string
-  preprocessing_type: string
+  preparation_type: string
   stimulus_loader: string
   response_loader: string
   n_runs: number
@@ -301,6 +301,14 @@ export interface HeuristicInfo {
   version: string | null
   tasks: string[] | null
   path: string
+}
+
+export interface SaveHeuristicParams {
+  name: string
+  code: string
+  description?: string
+  scanner_pattern?: string
+  tasks?: string[]
 }
 
 export interface ToolStatus {
