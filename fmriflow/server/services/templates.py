@@ -217,12 +217,12 @@ class {class_name}:
         # Add parameters here
     }}
 
-    def fit_predict(self, X_train, Y_train, X_test, Y_test, config: dict) -> ModelResult:
+    def fit(self, data: PreparedData, config: dict) -> ModelResult:
         params = config.get('model', {{}}).get('params', {{}})
 
         # YOUR LOGIC HERE
-        # X_train, Y_train: training data
-        # X_test, Y_test: test data
+        # data.X_train, data.Y_train: training data
+        # data.X_test, data.Y_test: test data
         # Return a ModelResult with scores and weights
 
         raise NotImplementedError("Implement your model logic here")

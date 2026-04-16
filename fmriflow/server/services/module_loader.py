@@ -46,7 +46,7 @@ REQUIRED_METHODS: dict[str, list[str]] = {
     'preparers': ['prepare'],
     'preparation_steps': ['apply'],
     'analyzers': ['analyze'],
-    'models': ['fit_predict'],
+    'models': ['fit'],
     'reporters': ['report'],
 }
 
