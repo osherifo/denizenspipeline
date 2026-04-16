@@ -30,6 +30,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { ArtifactInfo, RunSummary } from '../../api/types'
 import { artifactUrl } from '../../api/client'
 import { diffStats, diffYaml, dumpYaml, type DiffLine } from './yamlDiff'
+import { autoAlign, type PairRow } from './similarity'
 
 interface Props {
   pair: [RunSummary, RunSummary]
@@ -249,6 +250,59 @@ const rowContent: CSSProperties = {
   minWidth: 0,
 }
 
+const cellHeader: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  marginBottom: 4,
+}
+
+const nameSelect: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  padding: '4px 8px',
+  fontSize: 11,
+  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+  backgroundColor: 'var(--bg-input)',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  color: 'var(--text-primary)',
+  appearance: 'auto' as const,
+}
+
+const removeBtn: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  fontSize: 12,
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  padding: '0 4px',
+  fontFamily: 'inherit',
+  opacity: 0.6,
+}
+
+const emptyImg: CSSProperties = {
+  ...imgFrame,
+  minHeight: 220,
+  color: 'var(--text-secondary)',
+  fontSize: 11,
+  fontStyle: 'italic',
+}
+
+const addRowBtn: CSSProperties = {
+  alignSelf: 'flex-start',
+  padding: '6px 14px',
+  fontSize: 11,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  borderRadius: 5,
+  cursor: 'pointer',
+  border: '1px dashed var(--border)',
+  backgroundColor: 'transparent',
+  color: 'var(--text-secondary)',
+  marginTop: 4,
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 interface MetricsJson {
@@ -312,59 +366,60 @@ function fmtTimestamp(iso: string): string {
   }
 }
 
-/** Pick artifacts that exist in BOTH runs and look comparable as images. */
-function commonImageArtifacts(
-  a: Record<string, ArtifactInfo> | undefined,
-  b: Record<string, ArtifactInfo> | undefined,
-): { name: string; left: ArtifactInfo; right: ArtifactInfo }[] {
-  if (!a || !b) return []
-  const out: { name: string; left: ArtifactInfo; right: ArtifactInfo }[] = []
-  for (const [name, leftArt] of Object.entries(a)) {
-    if (leftArt.type !== 'image') continue
-    const rightArt = b[name]
-    if (!rightArt || rightArt.type !== 'image') continue
-    out.push({ name, left: leftArt, right: rightArt })
-  }
-  return out
+/** Image artifacts (filenames) on a side, sorted alphabetically. */
+function imageNames(artifacts: Record<string, ArtifactInfo> | undefined): string[] {
+  if (!artifacts) return []
+  return Object.values(artifacts)
+    .filter((a) => a.type === 'image')
+    .map((a) => a.name)
+    .sort()
 }
 
-// ── Per-pair image row ordering (localStorage) ──────────────────────────
+// ── Per-pair row layout (localStorage) ──────────────────────────────────
 
-const ORDER_PREFIX = 'compareImageOrder:'
+const ROWS_PREFIX = 'compareImageRows:'
 
-function orderKey(aId: string, bId: string): string {
+function rowsKey(aId: string, bId: string): string {
   // Stable key: sort the two IDs so order(A, B) == order(B, A).
   const sorted = [aId, bId].sort().join(':')
-  return ORDER_PREFIX + sorted
+  return ROWS_PREFIX + sorted
 }
 
-function loadOrder(aId: string, bId: string): string[] {
+function loadRows(aId: string, bId: string): PairRow[] | null {
   try {
-    const raw = localStorage.getItem(orderKey(aId, bId))
-    if (!raw) return []
+    const raw = localStorage.getItem(rowsKey(aId, bId))
+    if (!raw) return null
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === 'string') : []
+    if (!Array.isArray(parsed)) return null
+    return parsed.filter((r) =>
+      r && typeof r.id === 'string'
+      && (r.leftName === null || typeof r.leftName === 'string')
+      && (r.rightName === null || typeof r.rightName === 'string'),
+    )
   } catch {
-    return []
+    return null
   }
 }
 
-function saveOrder(aId: string, bId: string, order: string[]): void {
+function saveRows(aId: string, bId: string, rows: PairRow[]): void {
   try {
-    localStorage.setItem(orderKey(aId, bId), JSON.stringify(order))
+    localStorage.setItem(rowsKey(aId, bId), JSON.stringify(rows))
   } catch {
     // ignore quota errors
   }
 }
 
-function reconcileOrder(saved: string[], available: string[]): string[] {
-  const set = new Set(available)
-  const ordered = saved.filter((name) => set.has(name))
-  const seen = new Set(ordered)
-  for (const name of available) {
-    if (!seen.has(name)) ordered.push(name)
-  }
-  return ordered
+/** Drop saved rows that reference filenames that no longer exist. */
+function reconcileRows(saved: PairRow[], leftAvail: string[], rightAvail: string[]): PairRow[] {
+  const ls = new Set(leftAvail)
+  const rs = new Set(rightAvail)
+  return saved
+    .map((r) => ({
+      ...r,
+      leftName: r.leftName && ls.has(r.leftName) ? r.leftName : null,
+      rightName: r.rightName && rs.has(r.rightName) ? r.rightName : null,
+    }))
+    .filter((r) => r.leftName !== null || r.rightName !== null)
 }
 
 // ── Component ───────────────────────────────────────────────────────────
@@ -380,26 +435,50 @@ export function RunComparison({ pair, onClose }: Props) {
   }, [a.config_snapshot, b.config_snapshot])
   const stats = diffStats(diffLines)
 
-  const sharedImages = useMemo(
-    () => commonImageArtifacts(a.artifacts, b.artifacts),
-    [a.artifacts, b.artifacts],
-  )
+  // Available image artifact names per side.
+  const leftNames = useMemo(() => imageNames(a.artifacts), [a.artifacts])
+  const rightNames = useMemo(() => imageNames(b.artifacts), [b.artifacts])
 
-  // Persisted ordering of the image-artifact rows for this pair.
-  const availableNames = useMemo(() => sharedImages.map((s) => s.name), [sharedImages])
-  const [order, setOrder] = useState<string[]>(() =>
-    reconcileOrder(loadOrder(a.run_id, b.run_id), availableNames),
-  )
+  // Pair-row layout: load saved arrangement if present, otherwise auto-align.
+  const [rows, setRowsState] = useState<PairRow[]>(() => {
+    const saved = loadRows(a.run_id, b.run_id)
+    if (saved && saved.length > 0) {
+      return reconcileRows(saved, leftNames, rightNames)
+    }
+    return autoAlign(leftNames, rightNames)
+  })
+
+  // Re-reconcile when run pair changes (open a different pair).
   useEffect(() => {
-    setOrder(reconcileOrder(loadOrder(a.run_id, b.run_id), availableNames))
-  }, [a.run_id, b.run_id, availableNames.join('|')])
+    const saved = loadRows(a.run_id, b.run_id)
+    if (saved && saved.length > 0) {
+      setRowsState(reconcileRows(saved, leftNames, rightNames))
+    } else {
+      setRowsState(autoAlign(leftNames, rightNames))
+    }
+    // Intentionally only on run id change; manual edits are preserved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a.run_id, b.run_id])
 
-  const orderedImages = useMemo(() => {
-    const byName = new Map(sharedImages.map((s) => [s.name, s]))
-    return order
-      .map((name) => byName.get(name))
-      .filter((x): x is { name: string; left: ArtifactInfo; right: ArtifactInfo } => Boolean(x))
-  }, [order, sharedImages])
+  const setRows = (next: PairRow[]) => {
+    setRowsState(next)
+    saveRows(a.run_id, b.run_id, next)
+  }
+
+  const updateRow = (id: string, patch: Partial<PairRow>) => {
+    setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  }
+
+  const removeRow = (id: string) => {
+    setRows(rows.filter((r) => r.id !== id))
+  }
+
+  const addRow = () => {
+    const id = `pair-${Date.now()}`
+    setRows([...rows, { id, leftName: null, rightName: null }])
+  }
+
+  const resetAlignment = () => setRows(autoAlign(leftNames, rightNames))
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -409,13 +488,13 @@ export function RunComparison({ pair, onClose }: Props) {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIdx = order.indexOf(String(active.id))
-    const newIdx = order.indexOf(String(over.id))
+    const oldIdx = rows.findIndex((r) => r.id === active.id)
+    const newIdx = rows.findIndex((r) => r.id === over.id)
     if (oldIdx < 0 || newIdx < 0) return
-    const next = arrayMove(order, oldIdx, newIdx)
-    setOrder(next)
-    saveOrder(a.run_id, b.run_id, next)
+    setRows(arrayMove(rows, oldIdx, newIdx))
   }
+
+  const hasAnyImages = leftNames.length > 0 || rightNames.length > 0
 
   // Lazy-load each run's metrics.json (if present).
   const [metricsA, setMetricsA] = useState<MetricsJson | null>(null)
@@ -528,28 +607,53 @@ export function RunComparison({ pair, onClose }: Props) {
           )}
 
           {/* Side-by-side images */}
-          <div style={sectionLabel}>Image artifacts ({sharedImages.length})</div>
-          {sharedImages.length === 0 ? (
-            <div style={noticeBox}>
-              No image artifacts shared between the two runs. (Each run keeps its own
-              artifacts; comparison only shows files with matching names in both.)
-            </div>
+          <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>
+              Image artifacts ({rows.length})
+              <span style={{ marginLeft: 12, fontSize: 10, color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: 0 }}>
+                auto-aligned by filename similarity — change either side or drag to reorder
+              </span>
+            </span>
+            <button
+              type="button"
+              style={{
+                background: 'none', border: '1px solid var(--border)',
+                padding: '4px 10px', borderRadius: 4, fontSize: 10,
+                color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
+                textTransform: 'uppercase', letterSpacing: 1,
+              }}
+              onClick={resetAlignment}
+              title="Discard manual edits and re-run auto-alignment"
+            >
+              Reset
+            </button>
+          </div>
+          {!hasAnyImages ? (
+            <div style={noticeBox}>Neither run has image artifacts.</div>
           ) : (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext items={order} strategy={verticalListSortingStrategy}>
+              <SortableContext items={rows.map((r) => r.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {orderedImages.map(({ name, left, right }) => (
+                  {rows.map((row) => (
                     <SortableImageRow
-                      key={name}
-                      name={name}
-                      leftSrc={artifactUrl(a.run_id, left.name)}
-                      rightSrc={artifactUrl(b.run_id, right.name)}
+                      key={row.id}
+                      row={row}
+                      leftNames={leftNames}
+                      rightNames={rightNames}
+                      leftSrc={row.leftName ? artifactUrl(a.run_id, row.leftName) : null}
+                      rightSrc={row.rightName ? artifactUrl(b.run_id, row.rightName) : null}
+                      onChangeLeft={(name) => updateRow(row.id, { leftName: name })}
+                      onChangeRight={(name) => updateRow(row.id, { rightName: name })}
+                      onRemove={() => removeRow(row.id)}
                     />
                   ))}
+                  <button type="button" style={addRowBtn} onClick={addRow}>
+                    + Add row
+                  </button>
                 </div>
               </SortableContext>
             </DndContext>
@@ -594,13 +698,46 @@ function StatRow({
   )
 }
 
+interface SortableImageRowProps {
+  row: PairRow
+  leftNames: string[]
+  rightNames: string[]
+  leftSrc: string | null
+  rightSrc: string | null
+  onChangeLeft: (name: string | null) => void
+  onChangeRight: (name: string | null) => void
+  onRemove: () => void
+}
+
+function NameSelect({
+  value, options, onChange,
+}: {
+  value: string | null
+  options: string[]
+  onChange: (next: string | null) => void
+}) {
+  return (
+    <select
+      style={nameSelect}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+    >
+      <option value="">— none —</option>
+      {options.map((name) => (
+        <option key={name} value={name}>{name}</option>
+      ))}
+    </select>
+  )
+}
+
 function SortableImageRow({
-  name, leftSrc, rightSrc,
-}: { name: string; leftSrc: string; rightSrc: string }) {
+  row, leftNames, rightNames, leftSrc, rightSrc,
+  onChangeLeft, onChangeRight, onRemove,
+}: SortableImageRowProps) {
   const {
     attributes, listeners, setNodeRef, setActivatorNodeRef,
     transform, transition, isDragging,
-  } = useSortable({ id: name })
+  } = useSortable({ id: row.id })
 
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -620,15 +757,38 @@ function SortableImageRow({
         {'\u22EE\u22EE'}
       </div>
       <div style={rowContent}>
-        <div style={{ ...fadeText, fontFamily: 'monospace', marginBottom: 6 }}>
-          {name}
-        </div>
         <div style={grid2}>
-          <div style={imgFrame}>
-            <img src={leftSrc} alt={`${name} (A)`} style={imgStyle} />
+          <div>
+            <div style={cellHeader}>
+              <NameSelect value={row.leftName} options={leftNames} onChange={onChangeLeft} />
+            </div>
+            {leftSrc ? (
+              <div style={imgFrame}>
+                <img src={leftSrc} alt={`${row.leftName} (A)`} style={imgStyle} />
+              </div>
+            ) : (
+              <div style={emptyImg}>no image selected for A</div>
+            )}
           </div>
-          <div style={imgFrame}>
-            <img src={rightSrc} alt={`${name} (B)`} style={imgStyle} />
+          <div>
+            <div style={cellHeader}>
+              <NameSelect value={row.rightName} options={rightNames} onChange={onChangeRight} />
+              <button
+                type="button"
+                style={removeBtn}
+                title="Remove this row"
+                onClick={onRemove}
+              >
+                {'\u2715'}
+              </button>
+            </div>
+            {rightSrc ? (
+              <div style={imgFrame}>
+                <img src={rightSrc} alt={`${row.rightName} (B)`} style={imgStyle} />
+              </div>
+            ) : (
+              <div style={emptyImg}>no image selected for B</div>
+            )}
           </div>
         </div>
       </div>
