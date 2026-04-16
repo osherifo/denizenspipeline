@@ -11,11 +11,22 @@ interface RunState {
   loading: boolean
   error: string | null
 
+  // Comparison: up to 2 runs may be selected via checkboxes.
+  compareIds: string[]
+  comparePair: [RunSummary, RunSummary] | null
+  comparing: boolean
+
   loadRuns: (opts?: { experiment?: string; subject?: string }) => Promise<void>
   selectRun: (runId: string) => Promise<void>
   clearSelection: () => void
   launchRun: (config: PipelineConfig) => Promise<string>
   subscribeLive: (runId: string) => void
+
+  // Comparison actions
+  toggleCompare: (runId: string) => void
+  clearCompare: () => void
+  openComparison: () => Promise<void>
+  closeComparison: () => void
 }
 
 export const useRunStore = create<RunState>((set, get) => ({
@@ -25,6 +36,10 @@ export const useRunStore = create<RunState>((set, get) => ({
   liveEvents: [],
   loading: false,
   error: null,
+
+  compareIds: [],
+  comparePair: null,
+  comparing: false,
 
   loadRuns: async (opts) => {
     set({ loading: true, error: null })
@@ -70,4 +85,31 @@ export const useRunStore = create<RunState>((set, get) => ({
       set({ liveRunId: null })
     }
   },
+
+  toggleCompare: (runId) => {
+    const current = get().compareIds
+    if (current.includes(runId)) {
+      set({ compareIds: current.filter((id) => id !== runId) })
+      return
+    }
+    // Cap at 2 — drop the oldest selection.
+    const next = [...current, runId].slice(-2)
+    set({ compareIds: next })
+  },
+
+  clearCompare: () => set({ compareIds: [], comparePair: null }),
+
+  openComparison: async () => {
+    const ids = get().compareIds
+    if (ids.length !== 2) return
+    set({ comparing: true })
+    try {
+      const [a, b] = await Promise.all([fetchRun(ids[0]), fetchRun(ids[1])])
+      set({ comparePair: [a, b], comparing: false })
+    } catch (e) {
+      set({ error: String(e), comparing: false })
+    }
+  },
+
+  closeComparison: () => set({ comparePair: null }),
 }))

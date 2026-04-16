@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
 import { SortableArtifactList } from '../components/results/SortableArtifactList'
+import { RunComparison } from '../components/runs/RunComparison'
 import type { RunSummary } from '../api/types'
 
 // ── Styles ──
@@ -315,7 +316,11 @@ function RunDetail({
 // ── Main View ──
 
 export function RunManager() {
-  const { runs, selectedRun, loading, error, loadRuns, selectRun, clearSelection } = useRunStore()
+  const {
+    runs, selectedRun, loading, error, loadRuns, selectRun, clearSelection,
+    compareIds, comparePair, comparing, toggleCompare, clearCompare,
+    openComparison, closeComparison,
+  } = useRunStore()
 
   useEffect(() => {
     loadRuns()
@@ -333,9 +338,39 @@ export function RunManager() {
     <div>
       <div style={headerStyle}>
         <div style={titleStyle}>Run History</div>
-        <button style={refreshBtn} onClick={handleRefresh} disabled={loading}>
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {compareIds.length > 0 && (
+            <>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {compareIds.length === 2 ? '2 runs selected' : `${compareIds.length}/2 selected`}
+              </span>
+              <button
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: compareIds.length === 2 ? 'pointer' : 'not-allowed',
+                  backgroundColor: compareIds.length === 2 ? 'var(--accent-cyan)' : 'var(--bg-input)',
+                  color: compareIds.length === 2 ? '#000' : 'var(--text-secondary)',
+                  opacity: comparing ? 0.6 : 1,
+                }}
+                disabled={compareIds.length !== 2 || comparing}
+                onClick={openComparison}
+              >
+                {comparing ? 'Loading...' : 'Compare'}
+              </button>
+              <button style={refreshBtn} onClick={clearCompare}>
+                Clear
+              </button>
+            </>
+          )}
+          <button style={refreshBtn} onClick={handleRefresh} disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {loading && runs.length === 0 ? (
@@ -347,6 +382,7 @@ export function RunManager() {
           <table style={tableStyle}>
             <thead>
               <tr>
+                <th style={{ ...thStyle, width: 32 }}></th>
                 <th style={thStyle}>Date</th>
                 <th style={thStyle}>Experiment</th>
                 <th style={thStyle}>Subject</th>
@@ -358,6 +394,7 @@ export function RunManager() {
             <tbody>
               {runs.map((run) => {
                 const isSelected = selectedRun?.run_id === run.run_id
+                const isCompare = compareIds.includes(run.run_id)
                 return (
                   <tr
                     key={run.run_id}
@@ -370,6 +407,14 @@ export function RunManager() {
                       if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
                     }}
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isCompare}
+                        onChange={() => toggleCompare(run.run_id)}
+                        title="Select to compare with another run"
+                      />
+                    </td>
                     <td style={tdStyle}>{formatDate(run.started_at)}</td>
                     <td style={{ ...tdStyle, color: 'var(--accent-cyan)', fontWeight: 600 }}>
                       {run.experiment || '-'}
@@ -403,6 +448,11 @@ export function RunManager() {
           onClose={clearSelection}
           onRefresh={() => selectRun(selectedRun.run_id)}
         />
+      )}
+
+      {/* Comparison overlay */}
+      {comparePair && (
+        <RunComparison pair={comparePair} onClose={closeComparison} />
       )}
     </div>
   )
