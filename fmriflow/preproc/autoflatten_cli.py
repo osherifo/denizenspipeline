@@ -43,8 +43,10 @@ def add_autoflatten_subcommands(subparsers: argparse._SubParsersAction) -> None:
         "--backend", type=str, default="pyflatten",
         choices=["pyflatten", "freesurfer"],
     )
-    run_p.add_argument("--parallel", action="store_true", default=True)
-    run_p.add_argument("--no-parallel", action="store_true", default=False)
+    run_p.add_argument(
+        "--no-parallel", dest="parallel", action="store_false", default=True,
+        help="Disable parallel hemisphere processing",
+    )
     run_p.add_argument("--overwrite", action="store_true", default=False)
     run_p.add_argument("--template-file", type=str, default=None)
     run_p.add_argument("--output-dir", type=str, default=None)
@@ -126,7 +128,7 @@ def _af_run(args) -> int:
         subjects_dir=args.subjects_dir,
         subject=args.subject,
         hemispheres=args.hemispheres,
-        parallel=args.parallel and not args.no_parallel,
+        parallel=args.parallel,
         backend=args.backend,
         overwrite=args.overwrite,
         template_file=args.template_file,
