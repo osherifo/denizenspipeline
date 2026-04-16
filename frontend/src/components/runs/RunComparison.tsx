@@ -9,6 +9,24 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
 import type { ArtifactInfo, RunSummary } from '../../api/types'
 import { artifactUrl } from '../../api/client'
 import { diffStats, diffYaml, dumpYaml, type DiffLine } from './yamlDiff'
@@ -207,6 +225,30 @@ const noticeBox: CSSProperties = {
   border: '1px solid var(--border)',
 }
 
+const sortableRow = (dragging: boolean): CSSProperties => ({
+  display: 'flex',
+  gap: 6,
+  alignItems: 'stretch',
+  opacity: dragging ? 0.5 : 1,
+})
+
+const dragHandle = (dragging: boolean): CSSProperties => ({
+  width: 18,
+  flexShrink: 0,
+  cursor: dragging ? 'grabbing' : 'grab',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 14,
+  color: dragging ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+  userSelect: 'none',
+})
+
+const rowContent: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 interface MetricsJson {
@@ -286,6 +328,45 @@ function commonImageArtifacts(
   return out
 }
 
+// ── Per-pair image row ordering (localStorage) ──────────────────────────
+
+const ORDER_PREFIX = 'compareImageOrder:'
+
+function orderKey(aId: string, bId: string): string {
+  // Stable key: sort the two IDs so order(A, B) == order(B, A).
+  const sorted = [aId, bId].sort().join(':')
+  return ORDER_PREFIX + sorted
+}
+
+function loadOrder(aId: string, bId: string): string[] {
+  try {
+    const raw = localStorage.getItem(orderKey(aId, bId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function saveOrder(aId: string, bId: string, order: string[]): void {
+  try {
+    localStorage.setItem(orderKey(aId, bId), JSON.stringify(order))
+  } catch {
+    // ignore quota errors
+  }
+}
+
+function reconcileOrder(saved: string[], available: string[]): string[] {
+  const set = new Set(available)
+  const ordered = saved.filter((name) => set.has(name))
+  const seen = new Set(ordered)
+  for (const name of available) {
+    if (!seen.has(name)) ordered.push(name)
+  }
+  return ordered
+}
+
 // ── Component ───────────────────────────────────────────────────────────
 
 export function RunComparison({ pair, onClose }: Props) {
@@ -303,6 +384,38 @@ export function RunComparison({ pair, onClose }: Props) {
     () => commonImageArtifacts(a.artifacts, b.artifacts),
     [a.artifacts, b.artifacts],
   )
+
+  // Persisted ordering of the image-artifact rows for this pair.
+  const availableNames = useMemo(() => sharedImages.map((s) => s.name), [sharedImages])
+  const [order, setOrder] = useState<string[]>(() =>
+    reconcileOrder(loadOrder(a.run_id, b.run_id), availableNames),
+  )
+  useEffect(() => {
+    setOrder(reconcileOrder(loadOrder(a.run_id, b.run_id), availableNames))
+  }, [a.run_id, b.run_id, availableNames.join('|')])
+
+  const orderedImages = useMemo(() => {
+    const byName = new Map(sharedImages.map((s) => [s.name, s]))
+    return order
+      .map((name) => byName.get(name))
+      .filter((x): x is { name: string; left: ArtifactInfo; right: ArtifactInfo } => Boolean(x))
+  }, [order, sharedImages])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIdx = order.indexOf(String(active.id))
+    const newIdx = order.indexOf(String(over.id))
+    if (oldIdx < 0 || newIdx < 0) return
+    const next = arrayMove(order, oldIdx, newIdx)
+    setOrder(next)
+    saveOrder(a.run_id, b.run_id, next)
+  }
 
   // Lazy-load each run's metrics.json (if present).
   const [metricsA, setMetricsA] = useState<MetricsJson | null>(null)
@@ -422,23 +535,24 @@ export function RunComparison({ pair, onClose }: Props) {
               artifacts; comparison only shows files with matching names in both.)
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {sharedImages.map(({ name, left, right }) => (
-                <div key={name}>
-                  <div style={{ ...fadeText, fontFamily: 'monospace', marginBottom: 6 }}>
-                    {name}
-                  </div>
-                  <div style={grid2}>
-                    <div style={imgFrame}>
-                      <img src={artifactUrl(a.run_id, left.name)} alt={`${name} (A)`} style={imgStyle} />
-                    </div>
-                    <div style={imgFrame}>
-                      <img src={artifactUrl(b.run_id, right.name)} alt={`${name} (B)`} style={imgStyle} />
-                    </div>
-                  </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={order} strategy={verticalListSortingStrategy}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {orderedImages.map(({ name, left, right }) => (
+                    <SortableImageRow
+                      key={name}
+                      name={name}
+                      leftSrc={artifactUrl(a.run_id, left.name)}
+                      rightSrc={artifactUrl(b.run_id, right.name)}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </div>
@@ -476,6 +590,48 @@ function StatRow({
       <span style={statValue}>{a == null ? '—' : formatter(a)}</span>
       <span style={statValue}>{b == null ? '—' : formatter(b)}</span>
       <span style={deltaCell(delta.sign)}>{delta.text}</span>
+    </div>
+  )
+}
+
+function SortableImageRow({
+  name, leftSrc, rightSrc,
+}: { name: string; leftSrc: string; rightSrc: string }) {
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef,
+    transform, transition, isDragging,
+  } = useSortable({ id: name })
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...sortableRow(isDragging),
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        ref={setActivatorNodeRef}
+        style={dragHandle(isDragging)}
+        title="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        {'\u22EE\u22EE'}
+      </div>
+      <div style={rowContent}>
+        <div style={{ ...fadeText, fontFamily: 'monospace', marginBottom: 6 }}>
+          {name}
+        </div>
+        <div style={grid2}>
+          <div style={imgFrame}>
+            <img src={leftSrc} alt={`${name} (A)`} style={imgStyle} />
+          </div>
+          <div style={imgFrame}>
+            <img src={rightSrc} alt={`${name} (B)`} style={imgStyle} />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
