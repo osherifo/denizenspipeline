@@ -7,12 +7,41 @@ Format follows [Conventional Changelog](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+---
+
+## v2.0.0-alpha.3 (2026-04-16)
+
 ### Features
-- **convert:** add saved config store for conversion presets — YAML-backed CRUD in `~/.fmriflow/convert_configs/`
-- **convert:** add batch processing for heudiconv conversions — parallel multi-subject runs with WebSocket progress
+- **fe:** visual pipeline graph builder built on React Flow
+- **fe:** YAML panel on the pipeline graph with bidirectional sync
+- **fe:** inline YAML editor in dashboard, replacing 'Edit in Composer'
+- **fe:** duplicate button on dashboard config detail
+- **fe:** side-by-side run comparison view; drag-reorder image rows; auto-align artifacts with user-overridable pairing; extend from 2 to N runs (no cap)
+- **fe:** per-type result viewer registry with drag-and-drop reordering and per-viewer delete
+- **convert:** heuristic code editor and template creator
+- **server/fe:** fmriprep structured options + autoflatten integration + preprocessing UI
+- **server:** stream autoflatten logs via WebSocket
+- **fe:** flatmap previews shown after autoflatten runs
+- **convert:** saved config store for conversion presets — YAML-backed CRUD in `~/.fmriflow/convert_configs/`
+- **convert:** batch processing for heudiconv conversions — parallel multi-subject runs with WebSocket progress
 - **convert:** initial DICOM-to-BIDS conversion module — heudiconv wrapper, heuristic registry, scan/dry-run/doctor CLI
-- **fe:** add sidebar navigation with category grouping — moved from top tabs to side nav with Preprocessing/Analysis/Reference categories
-- **fe:** add save/load/delete UI for conversion configs in BatchForm
+- **fe:** sidebar navigation with category grouping — moved from top tabs to side nav with Preprocessing/Analysis/Reference categories
+- **fe:** save/load/delete UI for conversion configs in BatchForm
+
+### Bug Fixes
+- **server:** align model validator's required method from `fit_predict` to `fit`
+- **convert:** path traversal validation + `is_relative_to()` for heuristic names
+- **server:** container existence check for docker images and `docker://` URIs
+- **cli:** drop redundant `--parallel` flag from autoflatten
+- **server:** missed `preprocessing_type` reference in configs route
+
+### Other Changes
+- **all:** rename internal `plugin` concept to `module` (user modules now live in `~/.fmriflow/modules/`)
+- **all:** rename analysis stage `preprocessing` → `preparation`, drop back-compat shims
+- **cli:** browser auto-open is now opt-in via `--open`
+- **docs:** add autoflatten and pipeline graph docs to mkdocs site
+- **infra:** re-add MIT license after history rewrite; rebuild frontend assets
+- **test:** name-based registry assertions; `StimRun` construction; `MockTRFile.avgtr` and stale `response_readers` test API
 
 ---
 
