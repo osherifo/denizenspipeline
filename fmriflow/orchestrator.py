@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import time
 from datetime import datetime, timezone
@@ -112,12 +113,7 @@ class PipelineOrchestrator:
                 finished_at=datetime.now(timezone.utc).isoformat(),
                 total_elapsed_s=round(total_elapsed, 3),
                 stages=records,
-                config_snapshot={
-                    'model_type': cfg.get('model', {}).get('type', ''),
-                    'preparation_type': cfg.get('preparation', {}).get('type', ''),
-                    'features': [f.get('name', '') for f in cfg.get('features', [])],
-                    'split': cfg.get('split', {}),
-                },
+                config_snapshot=copy.deepcopy(cfg),
             )
 
         return self.ctx
