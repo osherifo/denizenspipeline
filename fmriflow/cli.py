@@ -112,8 +112,8 @@ def main(argv: list[str] | None = None) -> int:
         '--results-dir', type=str, default='./results',
         help='Directory to scan for run summaries')
     serve_parser.add_argument(
-        '--no-open', action='store_true',
-        help='Do not open browser automatically')
+        '--open', action='store_true',
+        help='Open the web UI in a browser after starting')
     serve_parser.add_argument(
         '--modules-dir', type=str, default=None,
         help='Directory for user modules (default: ~/.fmriflow/modules/)')
@@ -425,7 +425,7 @@ def _cmd_serve(args) -> int:
         f"starting on [bold]http://{args.host}:{args.port}[/]\n"
     )
 
-    if not args.no_open:
+    if args.open:
         import webbrowser
         webbrowser.open(f"http://{args.host}:{args.port}")
 
