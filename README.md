@@ -1,6 +1,6 @@
 # fMRIflow
 
-![Version](https://img.shields.io/badge/version-2.0.0--alpha.2-blue)
+![Version](https://img.shields.io/badge/version-2.0.0--alpha.3-blue)
 ![Python](https://img.shields.io/badge/python-≥3.10-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
