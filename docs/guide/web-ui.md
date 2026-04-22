@@ -45,17 +45,20 @@ Convert raw DICOM images to BIDS format. Six tabs cover the full workflow:
 
 ### Preprocessing Manager
 
-Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Four tabs:
+Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Five tabs:
 
 **Backends** — Lists installed preprocessing backends with version and status.
 
 **Manifests** — Browse completed preprocessing outputs. Each manifest records the backend, parameters, output space, and per-run QC metrics. Validate against an analysis config to check compatibility before running the pipeline.
 
+**Configs** — Browse YAML preproc configs discovered under `./experiments/preproc/`. Each file must have a top-level `preproc:` section. Clicking a config shows a summary grid (subject, backend, container, mode, paths) and the raw YAML, with a **Run** button that launches the job and streams live fmriprep output into the progress panel below. An **In Flight** panel at the top lists running jobs (plus recent completions) with `Watch` and `Cancel` buttons — jobs launched here survive server restarts and reconnect automatically, with a `REATTACHED` tag. See [Preprocessing → Workflow 2](preprocessing.md#workflow-2-run-preprocessing-from-a-yaml-config) and [Long-running jobs](preprocessing.md#long-running-jobs--detach--reattach) for details.
+
 **Collect** — Build a manifest from existing preprocessing outputs (e.g., from a previous fmriprep run). Specify the output directory and file pattern; the tool scans and organizes the files.
 
-**Run** — Launch a preprocessing job:
+**Run** — Launch a preprocessing job from an inline form (no YAML):
 
 - Select backend, set BIDS directory, output directory, work directory, subject ID
+- Toggle options like `--skip-bids-validation` in the Advanced section
 - Click **Run** for live progress with event streaming
 - Manifest auto-refreshes on completion
 
