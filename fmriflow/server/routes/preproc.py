@@ -123,6 +123,33 @@ async def start_run(request: Request, body: RunBody):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/preproc/runs")
+async def list_preproc_runs(request: Request, include_finished: bool = True):
+    """List active (and optionally finished) preprocessing runs."""
+    mgr = request.app.state.preproc_manager
+    return {"runs": mgr.list_runs(include_finished=include_finished)}
+
+
+@router.get("/preproc/runs/{run_id}")
+async def get_preproc_run(request: Request, run_id: str):
+    """Return summary + last 200 log lines for one run."""
+    mgr = request.app.state.preproc_manager
+    result = mgr.get_run(run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    return result
+
+
+@router.post("/preproc/runs/{run_id}/cancel")
+async def cancel_preproc_run(request: Request, run_id: str):
+    """Cancel a running preprocessing job (SIGTERM then SIGKILL)."""
+    mgr = request.app.state.preproc_manager
+    result = mgr.cancel_run(run_id)
+    if not result.get("cancelled"):
+        raise HTTPException(status_code=409, detail=result.get("reason", "could not cancel"))
+    return result
+
+
 @router.get("/preproc/configs")
 async def list_preproc_configs(request: Request):
     """List preprocessing YAML configs (with a top-level preproc: section)."""
