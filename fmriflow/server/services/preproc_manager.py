@@ -174,6 +174,43 @@ class PreprocManager:
         thread.start()
         return run_id
 
+    def start_run_from_config_file(
+        self,
+        config_path: str,
+        overrides: dict | None = None,
+    ) -> str:
+        """Start a preprocessing run from a YAML config file.
+
+        The file must contain a top-level ``preproc:`` section matching the
+        :class:`fmriflow.preproc.manifest.PreprocConfig` schema. Optional
+        ``overrides`` is shallow-merged on top of the section before running.
+        """
+        import yaml as _yaml
+
+        path = Path(config_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Preproc config not found: {path}")
+
+        with open(path) as f:
+            data = _yaml.safe_load(f) or {}
+        section = data.get("preproc")
+        if not isinstance(section, dict):
+            raise ValueError(
+                f"Config '{path.name}' has no 'preproc:' section"
+            )
+
+        params: dict = dict(section)
+        if overrides:
+            params.update({k: v for k, v in overrides.items() if v is not None})
+
+        missing = [k for k in ("subject", "backend", "output_dir") if not params.get(k)]
+        if missing:
+            raise ValueError(
+                f"Preproc config missing required fields: {', '.join(missing)}"
+            )
+
+        return self.start_run(params)
+
     def _execute_run(self, handle: PreprocRunHandle, params: dict) -> None:
         """Execute preprocessing in a background thread."""
         import logging as _logging

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -63,6 +64,15 @@ class FmriprepBackend:
 
     def run(self, config: PreprocConfig) -> PreprocManifest:
         params = _parse_params(config)
+
+        # Apptainer/Singularity refuse to bind-mount a source path that does
+        # not exist on the host. Ensure output_dir and work_dir exist before
+        # launching — fmriprep would create them anyway.
+        if config.output_dir:
+            Path(config.output_dir).mkdir(parents=True, exist_ok=True)
+        if config.work_dir:
+            Path(config.work_dir).mkdir(parents=True, exist_ok=True)
+
         cmd = self._build_command(config, params)
         logger.info("Running fmriprep: %s", " ".join(cmd))
 
@@ -186,6 +196,19 @@ class FmriprepBackend:
 
     # ── Private helpers ──────────────────────────────────────────
 
+    def _singularity_binary(self) -> str | None:
+        """Resolve the Singularity-compatible runtime binary.
+
+        Resolution order:
+        1. ``$FMRIFLOW_SINGULARITY_BIN`` env var (absolute path, if set).
+        2. ``apptainer`` on PATH (modern fork, handles current OCI images).
+        3. ``singularity`` on PATH (may be stuck on an old 2.x release).
+        """
+        override = os.environ.get("FMRIFLOW_SINGULARITY_BIN")
+        if override and Path(override).exists():
+            return override
+        return shutil.which("apptainer") or shutil.which("singularity")
+
     def _find_fmriprep(self, params: FmriprepParams) -> bool:
         """Check if fmriprep is available."""
         if params.container:
@@ -193,9 +216,11 @@ class FmriprepBackend:
                 # Docker image — either already pulled or will be pulled on run
                 return shutil.which("docker") is not None
             if params.container_type == "singularity":
+                if self._singularity_binary() is None:
+                    return False
                 # Could be a .sif path OR a docker://... URI
                 if params.container.startswith(("docker://", "library://", "shub://")):
-                    return shutil.which("singularity") is not None or shutil.which("apptainer") is not None
+                    return True
                 return Path(params.container).exists()
             # bare
             return True
@@ -232,8 +257,9 @@ class FmriprepBackend:
     ) -> list[str]:
         """Build the container invocation prefix."""
         if params.container_type == "singularity":
+            binary = self._singularity_binary() or "singularity"
             cmd = [
-                "singularity", "run", "--cleanenv",
+                binary, "run", "--cleanenv",
                 "-B", f"{config.bids_dir}:/data:ro",
                 "-B", f"{config.output_dir}:/out",
             ]

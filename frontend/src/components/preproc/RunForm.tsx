@@ -328,6 +328,7 @@ export function RunForm() {
   const [memMb, setMemMb] = useState('')
   const [lowMem, setLowMem] = useState(false)
   const [stopOnFirstCrash, setStopOnFirstCrash] = useState(false)
+  const [skipBidsValidation, setSkipBidsValidation] = useState(false)
 
   // custom-specific
   const [command, setCommand] = useState('')
@@ -417,6 +418,7 @@ export function RunForm() {
       if (memMb) backendParams.mem_mb = parseInt(memMb, 10)
       if (lowMem) backendParams.low_mem = true
       if (stopOnFirstCrash) backendParams.stop_on_first_crash = true
+      if (skipBidsValidation) backendParams.skip_bids_validation = true
 
       // Extra args
       if (extraArgs.trim()) backendParams.extra_args = extraArgs.trim()
@@ -772,6 +774,12 @@ export function RunForm() {
         {/* ── Advanced ── */}
         {isFmriprep && (
           <Section title="Advanced" open={openSections.advanced} onToggle={() => toggle('advanced')}>
+            <div style={checkRow}>
+              <span style={labelStyle} />
+              <input type="checkbox" checked={skipBidsValidation}
+                onChange={(e) => setSkipBidsValidation(e.target.checked)} />
+              <span style={checkLabel}>Skip BIDS validation (--skip-bids-validation)</span>
+            </div>
             <div style={fieldRow}>
               <span style={labelStyle}>Extra Args</span>
               <input style={{ ...inputStyle, maxWidth: 500 }} value={extraArgs}

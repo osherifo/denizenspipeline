@@ -6,7 +6,7 @@ interface StageTrackerProps {
   stageStatuses: Record<string, StageStatus>
 }
 
-const ALL_STAGES = ['stimuli', 'responses', 'features', 'preprocess', 'model', 'analyze', 'report']
+const ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
 
 const containerStyle: CSSProperties = {
   display: 'flex',
