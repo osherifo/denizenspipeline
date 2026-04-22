@@ -3,10 +3,13 @@ import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { usePreprocStore } from '../../stores/preproc-store'
 import { PreprocProgress } from './PreprocProgress'
+import { InFlightRuns } from './InFlightRuns'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
-  height: 'calc(100vh - 48px - 80px)',
+  // Leave headroom for the tab bar + in-flight panel.
+  height: 'calc(100vh - 48px - 200px)',
+  minHeight: 320,
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
   borderRadius: 8,
@@ -185,6 +188,7 @@ export function PreprocConfigBrowser() {
 
   return (
     <>
+      <InFlightRuns />
       <div style={containerStyle}>
         <div style={sidebarStyle}>
           <div style={sidebarHeader}>

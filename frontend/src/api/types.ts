@@ -213,6 +213,22 @@ export interface PreprocConfigDetail {
   yaml_string: string
 }
 
+export interface PreprocRunSummary {
+  run_id: string
+  subject: string
+  backend: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  manifest_path: string | null
+  error: string | null
+  config_path: string | null
+  log_path: string | null
+  log_tail?: string
+}
+
 export interface StageStatus {
   status: 'pending' | 'running' | 'done' | 'warning' | 'failed'
   detail: string

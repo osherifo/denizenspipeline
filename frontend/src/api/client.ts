@@ -31,6 +31,7 @@ import type {
   SavedConvertConfigDetail,
   PreprocConfigSummary,
   PreprocConfigDetail,
+  PreprocRunSummary,
 } from './types'
 
 const BASE = '/api'
@@ -326,6 +327,24 @@ export async function runPreprocConfigFile(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(overrides || {}),
+  })
+}
+
+export async function fetchPreprocRuns(
+  includeFinished: boolean = true,
+): Promise<PreprocRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: PreprocRunSummary[] }>(`${BASE}/preproc/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchPreprocRun(runId: string): Promise<PreprocRunSummary> {
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelPreprocRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
   })
 }
 
