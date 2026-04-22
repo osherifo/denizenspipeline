@@ -63,6 +63,32 @@ class FmriprepBackend:
         return errors
 
     def run(self, config: PreprocConfig) -> PreprocManifest:
+        """Blocking run — spawns fmriprep and waits. Suitable for CLI use."""
+        proc = self.spawn(config, log_path=None)
+        proc.wait()
+        if proc.returncode != 0:
+            raise BackendRunError(
+                f"fmriprep exited with code {proc.returncode}",
+                backend="fmriprep",
+                subject=config.subject,
+                returncode=proc.returncode,
+            )
+        return self.collect(config)
+
+    def spawn(
+        self,
+        config: PreprocConfig,
+        log_path: Path | str | None,
+    ) -> subprocess.Popen:
+        """Spawn fmriprep as a detached subprocess and return the Popen.
+
+        When ``log_path`` is provided, stdout+stderr are redirected directly
+        to that file so the subprocess survives the server process dying
+        (``start_new_session=True`` puts it in its own process group).
+
+        Callers are responsible for ``wait()``-ing or polling on the
+        returned process.
+        """
         params = _parse_params(config)
 
         # Apptainer/Singularity refuse to bind-mount a source path that does
@@ -76,31 +102,20 @@ class FmriprepBackend:
         cmd = self._build_command(config, params)
         logger.info("Running fmriprep: %s", " ".join(cmd))
 
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
-
-        tail: list[str] = []
-        for line in proc.stdout:
-            stripped = line.rstrip()
-            logger.info("[fmriprep] %s", stripped)
-            tail.append(stripped)
-            if len(tail) > 50:
-                tail.pop(0)
-        proc.wait()
-
-        if proc.returncode != 0:
-            last_output = "\n".join(tail[-20:])
-            raise BackendRunError(
-                f"fmriprep exited with code {proc.returncode}\n"
-                f"Last output:\n{last_output}",
-                backend="fmriprep",
-                subject=config.subject,
-                returncode=proc.returncode,
-                stderr=last_output,
+        if log_path is not None:
+            log_fh = open(log_path, "w", buffering=1)  # line-buffered
+            return subprocess.Popen(
+                cmd,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True,
             )
 
-        return self.collect(config)
+        # No detach — stream stdout through the parent for CLI ergonomics.
+        return subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
 
     def status(self, config: PreprocConfig) -> PreprocStatus:
         output_dir = Path(config.output_dir)
