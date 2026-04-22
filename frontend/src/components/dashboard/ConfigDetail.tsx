@@ -256,7 +256,7 @@ export function ConfigDetail({
           <div style={{ ...fieldValue, fontSize: 11 }}>{features}</div>
         </div>
         <div style={fieldCard}>
-          <div style={fieldLabel}>Preprocessing</div>
+          <div style={fieldLabel}>Preparation</div>
           <div style={{ ...fieldValue, fontSize: 11 }}>{prepSummary}</div>
         </div>
         <div style={fieldCard}>

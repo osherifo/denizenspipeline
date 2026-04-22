@@ -11,7 +11,7 @@ import {
   connectRunWs,
 } from '../api/client'
 
-const ALL_STAGES = ['stimuli', 'responses', 'features', 'preprocess', 'model', 'analyze', 'report']
+const ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
 
 function deriveStageStatuses(events: RunEvent[]): Record<string, StageStatus> {
   const statuses: Record<string, StageStatus> = {}
