@@ -194,6 +194,25 @@ export interface ConfigDetail {
   yaml_string: string
 }
 
+export interface PreprocConfigSummary {
+  filename: string
+  path: string
+  subject: string
+  backend: string
+  bids_dir: string
+  output_dir: string
+  container: string
+  container_type: string
+  mode: string
+}
+
+export interface PreprocConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
 export interface StageStatus {
   status: 'pending' | 'running' | 'done' | 'warning' | 'failed'
   detail: string

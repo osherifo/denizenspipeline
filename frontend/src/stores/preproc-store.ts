@@ -7,6 +7,8 @@ import type {
   PreprocEvent,
   CollectResult,
   ConfigSummary,
+  PreprocConfigSummary,
+  PreprocConfigDetail,
 } from '../api/types'
 import {
   fetchPreprocBackends,
@@ -19,9 +21,12 @@ import {
   validatePreprocConfig,
   connectPreprocWs,
   fetchConfigs,
+  fetchPreprocConfigs,
+  fetchPreprocConfigDetail,
+  runPreprocConfigFile,
 } from '../api/client'
 
-type Tab = 'backends' | 'manifests' | 'collect' | 'run'
+type Tab = 'backends' | 'manifests' | 'collect' | 'run' | 'configs'
 
 interface PreprocState {
   tab: Tab
@@ -40,6 +45,12 @@ interface PreprocState {
 
   // Configs (for validate-against dropdown)
   configs: ConfigSummary[]
+
+  // Preproc configs (YAML files with preproc: section)
+  preprocConfigs: PreprocConfigSummary[]
+  preprocConfigsLoading: boolean
+  selectedPreprocConfig: PreprocConfigDetail | null
+  selectedPreprocConfigLoading: boolean
 
   // Collect
   collectResult: CollectResult | null
@@ -65,6 +76,9 @@ interface PreprocState {
   collect: (params: Parameters<typeof collectPreprocOutputs>[0]) => Promise<void>
   startRun: (params: Parameters<typeof startPreprocRun>[0]) => Promise<void>
   validateConfig: (params: Parameters<typeof validatePreprocConfig>[0]) => Promise<void>
+  loadPreprocConfigs: () => Promise<void>
+  selectPreprocConfig: (filename: string) => Promise<void>
+  runPreprocConfig: (filename: string) => Promise<void>
   clearRun: () => void
   clearCollect: () => void
 }
@@ -83,6 +97,11 @@ export const usePreprocStore = create<PreprocState>((set, get) => ({
   validating: false,
 
   configs: [],
+
+  preprocConfigs: [],
+  preprocConfigsLoading: false,
+  selectedPreprocConfig: null,
+  selectedPreprocConfigLoading: false,
 
   collectResult: null,
   collecting: false,
@@ -204,6 +223,56 @@ export const usePreprocStore = create<PreprocState>((set, get) => ({
       set({ configErrors: result.errors })
     } catch (e) {
       set({ configErrors: [String(e)] })
+    }
+  },
+
+  loadPreprocConfigs: async () => {
+    set({ preprocConfigsLoading: true })
+    try {
+      const preprocConfigs = await fetchPreprocConfigs()
+      set({ preprocConfigs, preprocConfigsLoading: false })
+    } catch {
+      set({ preprocConfigsLoading: false })
+    }
+  },
+
+  selectPreprocConfig: async (filename) => {
+    set({ selectedPreprocConfig: null, selectedPreprocConfigLoading: true })
+    try {
+      const detail = await fetchPreprocConfigDetail(filename)
+      set({ selectedPreprocConfig: detail, selectedPreprocConfigLoading: false })
+    } catch {
+      set({ selectedPreprocConfigLoading: false })
+    }
+  },
+
+  runPreprocConfig: async (filename) => {
+    set({
+      running: true, runError: null, runEvents: [],
+      runStartTime: Date.now(), runId: null, configErrors: null,
+    })
+    try {
+      const result = await runPreprocConfigFile(filename)
+      set({ runId: result.run_id })
+
+      const ws = connectPreprocWs(result.run_id)
+      ws.onmessage = (msg) => {
+        const event: PreprocEvent = JSON.parse(msg.data)
+        set((s) => ({ runEvents: [...s.runEvents, event] }))
+        if (event.event === 'done' || event.event === 'failed') {
+          ws.close()
+          set({
+            running: false,
+            runError: event.event === 'failed' ? (event.error || 'failed') : null,
+          })
+          get().rescan()
+        }
+      }
+      ws.onerror = () => {
+        set({ running: false, runError: 'WebSocket connection failed' })
+      }
+    } catch (e) {
+      set({ running: false, runError: String(e) })
     }
   },
 

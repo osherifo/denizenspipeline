@@ -29,6 +29,8 @@ import type {
   BatchSummary,
   SavedConvertConfig,
   SavedConvertConfigDetail,
+  PreprocConfigSummary,
+  PreprocConfigDetail,
 } from './types'
 
 const BASE = '/api'
@@ -305,6 +307,25 @@ export async function validatePreprocConfig(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
+  })
+}
+
+export async function fetchPreprocConfigs(): Promise<PreprocConfigSummary[]> {
+  return json(`${BASE}/preproc/configs`)
+}
+
+export async function fetchPreprocConfigDetail(filename: string): Promise<PreprocConfigDetail> {
+  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runPreprocConfigFile(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
   })
 }
 

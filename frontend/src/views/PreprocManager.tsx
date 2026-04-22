@@ -5,12 +5,14 @@ import { BackendStatus } from '../components/preproc/BackendStatus'
 import { ManifestBrowser } from '../components/preproc/ManifestBrowser'
 import { CollectForm } from '../components/preproc/CollectForm'
 import { RunForm } from '../components/preproc/RunForm'
+import { PreprocConfigBrowser } from '../components/preproc/PreprocConfigBrowser'
 
-type Tab = 'backends' | 'manifests' | 'collect' | 'run'
+type Tab = 'backends' | 'manifests' | 'collect' | 'run' | 'configs'
 
 const tabs: { key: Tab; label: string }[] = [
   { key: 'backends', label: 'Backends' },
   { key: 'manifests', label: 'Manifests' },
+  { key: 'configs', label: 'Configs' },
   { key: 'collect', label: 'Collect' },
   { key: 'run', label: 'Run' },
 ]
@@ -52,6 +54,7 @@ export function PreprocManager() {
 
       {tab === 'backends' && <BackendStatus />}
       {tab === 'manifests' && <ManifestBrowser />}
+      {tab === 'configs' && <PreprocConfigBrowser />}
       {tab === 'collect' && <CollectForm />}
       {tab === 'run' && <RunForm />}
     </div>
