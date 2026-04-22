@@ -48,6 +48,17 @@ class ValidateConfigBody(BaseModel):
     backend_params: dict | None = None
 
 
+class RunFromConfigBody(BaseModel):
+    """Overrides shallow-merged on top of the YAML's preproc section."""
+    subject: str | None = None
+    bids_dir: str | None = None
+    output_dir: str | None = None
+    work_dir: str | None = None
+    sessions: list[str] | None = None
+    task: str | None = None
+    backend_params: dict | None = None
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/preproc/backends")
@@ -110,6 +121,68 @@ async def start_run(request: Request, body: RunBody):
         return {"run_id": run_id, "status": "started"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/preproc/configs")
+async def list_preproc_configs(request: Request):
+    """List preprocessing YAML configs (with a top-level preproc: section)."""
+    store = request.app.state.preproc_config_store
+    summaries = store.list_configs()
+    return [
+        {
+            "filename": s.filename,
+            "path": s.path,
+            "subject": s.subject,
+            "backend": s.backend,
+            "bids_dir": s.bids_dir,
+            "output_dir": s.output_dir,
+            "container": s.container,
+            "container_type": s.container_type,
+            "mode": s.mode,
+        }
+        for s in summaries
+    ]
+
+
+@router.get("/preproc/configs/{filename}")
+async def get_preproc_config(request: Request, filename: str):
+    """Return full parsed config + raw YAML for one preproc config file."""
+    store = request.app.state.preproc_config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Preproc config '{filename}' not found",
+        )
+    return result
+
+
+@router.post("/preproc/configs/{filename}/run")
+async def run_preproc_config(
+    request: Request,
+    filename: str,
+    body: RunFromConfigBody | None = None,
+):
+    """Start a preprocessing run from a YAML config file's preproc: section."""
+    store = request.app.state.preproc_config_store
+    config_info = store.get_config(filename)
+    if config_info is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Preproc config '{filename}' not found",
+        )
+
+    mgr = request.app.state.preproc_manager
+    overrides = body.model_dump(exclude_none=True) if body else None
+    try:
+        run_id = mgr.start_run_from_config_file(
+            config_info["path"], overrides=overrides,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"run_id": run_id, "status": "started", "config": filename}
 
 
 @router.post("/preproc/validate-config")
