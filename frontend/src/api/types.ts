@@ -274,6 +274,22 @@ export interface AutoflattenRunSummary {
   result?: Record<string, unknown> | null
 }
 
+export interface AnalysisRunSummary {
+  run_id: string
+  experiment: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  error: string | null
+  config_path: string | null
+  output_dir: string | null
+  log_path: string | null
+  log_tail?: string
+}
+
 export interface StageStatus {
   status: 'pending' | 'running' | 'done' | 'warning' | 'failed'
   detail: string

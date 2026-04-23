@@ -36,6 +36,7 @@ import type {
   AutoflattenConfigDetail,
   ConvertRunSummary,
   AutoflattenRunSummary,
+  AnalysisRunSummary,
 } from './types'
 
 const BASE = '/api'
@@ -186,6 +187,24 @@ export async function startRunFromConfig(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ config_path: configPath, overrides: overrides ?? null }),
+  })
+}
+
+export async function fetchInFlightRuns(
+  includeFinished: boolean = true,
+): Promise<AnalysisRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: AnalysisRunSummary[] }>(`${BASE}/runs/in-flight${qs}`)
+  return r.runs
+}
+
+export async function fetchInFlightRun(runId: string): Promise<AnalysisRunSummary> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelInFlightRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
   })
 }
 
