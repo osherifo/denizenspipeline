@@ -8,7 +8,19 @@ fmriflow serve
 
 Then open `http://127.0.0.1:8000` in your browser.
 
-The sidebar organizes features into three groups: **Preprocessing**, **Analysis**, and **Reference**.
+The sidebar organizes features into four groups: **Pipeline**, **Preprocessing**, **Analysis**, and **Reference**.
+
+---
+
+## Pipeline
+
+### Workflows
+
+End-to-end orchestration across all four stages (convert, preproc, autoflatten, analysis). Each workflow is a single YAML under `./experiments/workflows/` that references existing per-stage configs. Clicking Run kicks off the stages in order, stopping on the first failure; each stage's child run inherits its own detach/reattach semantics. See the dedicated [Workflows guide](workflows.md) for the schema, orchestration semantics, and API.
+
+### Pipeline Graph
+
+Visual representation of the pipeline's stage graph. See the [Pipeline Graph](pipeline-graph.md) guide for details.
 
 ---
 

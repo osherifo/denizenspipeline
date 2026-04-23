@@ -53,6 +53,7 @@ nav:
     - DICOM to BIDS: guide/dicom-to-bids.md
     - Autoflatten: guide/autoflatten.md
     - Pipeline Graph: guide/pipeline-graph.md
+    - Workflows: guide/workflows.md
     - Web UI: guide/web-ui.md
   - Reference:
     - Built-in Modules: reference/modules.md
