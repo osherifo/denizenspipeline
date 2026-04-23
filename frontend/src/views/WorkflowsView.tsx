@@ -14,6 +14,7 @@ import {
   cancelWorkflowRun,
 } from '../api/client'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
+import { StageLogModal } from '../components/workflow/StageLogModal'
 
 // ── Styles ──────────────────────────────────────────────────────────────
 
@@ -242,6 +243,7 @@ export function WorkflowsView() {
   const [runs, setRuns] = useState<WorkflowRunSummary[]>([])
   const [runsLoading, setRunsLoading] = useState(false)
   const [selectedRun, setSelectedRun] = useState<WorkflowRunSummary | null>(null)
+  const [logStage, setLogStage] = useState<{ stage: string; runId: string; subject?: string } | null>(null)
 
   async function reloadConfigs() {
     setLoading(true)
@@ -307,6 +309,26 @@ export function WorkflowsView() {
     return () => clearInterval(id)
   }, [runs])
 
+  // Auto-select the most relevant run so the graph appears without a
+  // click. Preference order: running → most recent (by started_at).
+  useEffect(() => {
+    if (selectedRun) {
+      // Keep the user's current selection in sync with fresh data so
+      // the graph updates live after a restart / reload.
+      const refreshed = runs.find((r) => r.run_id === selectedRun.run_id)
+      if (refreshed && refreshed !== selectedRun) setSelectedRun(refreshed)
+      return
+    }
+    if (runs.length === 0) return
+    const running = runs.find((r) => r.status === 'running')
+    if (running) {
+      setSelectedRun(running)
+      return
+    }
+    // Otherwise pick the newest one (list is already sorted newest-first)
+    setSelectedRun(runs[0])
+  }, [runs])
+
   // Auto-refresh selectedRun detail when one is open and running
   useEffect(() => {
     if (!selectedRun) return
@@ -366,8 +388,24 @@ export function WorkflowsView() {
               {selectedRun.error}
             </div>
           )}
-          <WorkflowGraph stages={selectedRun.stages} height={240} />
+          <WorkflowGraph
+            stages={selectedRun.stages}
+            height={240}
+            onStageClick={(s) => {
+              if (!s.run_id) return
+              setLogStage({ stage: s.stage, runId: s.run_id })
+            }}
+          />
         </div>
+      )}
+
+      {logStage && (
+        <StageLogModal
+          stage={logStage.stage}
+          runId={logStage.runId}
+          subjectHint={logStage.subject}
+          onClose={() => setLogStage(null)}
+        />
       )}
 
       <div style={containerStyle}>

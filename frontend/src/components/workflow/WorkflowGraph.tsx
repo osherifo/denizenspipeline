@@ -118,6 +118,7 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
   const statusColor = STATUS_COLORS[data.status] ?? STATUS_COLORS.pending
   const isRunning = data.status === 'running'
 
+  const clickable = !!data.run_id
   const style: CSSProperties = {
     ...nodeBase,
     border: `1px solid ${isRunning ? statusColor : meta.color + '55'}`,
@@ -125,6 +126,7 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
       ? `0 0 18px ${statusColor}66, 0 0 4px ${statusColor}`
       : `0 1px 3px rgba(0,0,0,0.3)`,
     animation: isRunning ? 'workflow-pulse 2s ease-in-out infinite' : undefined,
+    cursor: clickable ? 'pointer' : 'default',
   }
 
   const elapsed = fmtElapsed(data)
@@ -160,6 +162,14 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
         </div>
       )}
       {data.error && <div style={errorLine}>{data.error}</div>}
+      {clickable && (
+        <div style={{
+          fontSize: 9, color: meta.color, marginTop: 6,
+          letterSpacing: 0.5, fontWeight: 600,
+        }}>
+          click for log →
+        </div>
+      )}
 
       {!data.isLast && (
         <Handle
@@ -232,9 +242,10 @@ function buildGraph(stages: WorkflowStageStatus[]): { nodes: Node[]; edges: Edge
 interface WorkflowGraphProps {
   stages: WorkflowStageStatus[]
   height?: number
+  onStageClick?: (stage: WorkflowStageStatus) => void
 }
 
-export function WorkflowGraph({ stages, height = 220 }: WorkflowGraphProps) {
+export function WorkflowGraph({ stages, height = 220, onStageClick }: WorkflowGraphProps) {
   const { nodes, edges } = useMemo(() => buildGraph(stages), [stages])
   if (!stages.length) return null
 
@@ -261,6 +272,11 @@ export function WorkflowGraph({ stages, height = 220 }: WorkflowGraphProps) {
           zoomOnPinch={false}
           zoomOnDoubleClick={false}
           preventScrolling={false}
+          onNodeClick={(_e, node) => {
+            if (!onStageClick) return
+            const data = node.data as unknown as StageNodeData
+            onStageClick(data)
+          }}
           proOptions={{ hideAttribution: true }}
         />
       </ReactFlowProvider>
