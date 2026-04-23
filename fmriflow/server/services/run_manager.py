@@ -57,6 +57,7 @@ class RunHandle:
     pid: int | None = None
     pgid: int | None = None
     log_path: str | None = None
+    events_path: str | None = None
     output_dir: str | None = None
     is_reattached: bool = False
     started_at: float = 0.0
@@ -89,6 +90,7 @@ class RunHandle:
             'config_path': self.config_path,
             'output_dir': self.output_dir,
             'log_path': self.log_path,
+            'events_path': self.events_path,
         }
 
 
@@ -233,6 +235,7 @@ class RunManager:
     def _execute(self, handle: RunHandle) -> None:
         """Spawn the CLI as a detached child and drive its log."""
         log_path = Path(handle.log_path) if handle.log_path else None
+        events_path = (log_path.parent / "events.jsonl") if log_path else None
 
         try:
             cmd = [
@@ -246,6 +249,16 @@ class RunManager:
                 'message': f"Starting pipeline for {handle.config.get('experiment', '?')}",
             })
 
+            # Pass an events file so the subprocess can emit per-stage
+            # transitions (stimuli/responses/features/prepare/model/
+            # analyze/report) for the workflow graph and UI.
+            child_env = os.environ.copy()
+            if events_path is not None:
+                events_path.touch()
+                child_env["FMRIFLOW_EVENTS_FILE"] = str(events_path)
+                handle.events_path = str(events_path)
+                self._persist_state(handle)
+
             if log_path is not None:
                 log_fh = open(log_path, "w", buffering=1)
                 proc = _subprocess.Popen(
@@ -254,10 +267,12 @@ class RunManager:
                     stderr=_subprocess.STDOUT,
                     text=True,
                     start_new_session=True,
+                    env=child_env,
                 )
             else:
                 proc = _subprocess.Popen(
                     cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
+                    env=child_env,
                 )
 
             handle.pid = proc.pid
@@ -374,6 +389,7 @@ class RunManager:
                 'config_path': handle.config_path,
                 'output_dir': handle.output_dir,
                 'experiment': handle.config.get('experiment'),
+                'events_path': handle.events_path,
             },
             error=handle.error,
         )
@@ -406,6 +422,7 @@ class RunManager:
                 pid=state.pid,
                 pgid=state.pgid,
                 log_path=state.stdout_log,
+                events_path=params.get('events_path'),
                 output_dir=params.get('output_dir'),
                 is_reattached=True,
             )
@@ -471,11 +488,13 @@ class RunManager:
                 'config_path': state.config_path,
                 'output_dir': params.get('output_dir'),
                 'log_path': state.stdout_log,
+                'events_path': params.get('events_path'),
                 'experiment': params.get('experiment', ''),
                 'subject': state.subject,
             }
         log_path = summary.get('log_path')
         summary['log_tail'] = _read_tail(log_path, n=200) if log_path else ''
+        summary['inner_stages'] = _parse_events_file(summary.get('events_path'))
         return summary
 
     def cancel_run(self, run_id: str) -> dict:
@@ -662,3 +681,92 @@ def _read_tail(path: str | None, n: int = 200) -> str:
         return "\n".join(lines[-n:])
     except Exception:
         return ""
+
+
+# Known pipeline stages, in pipeline execution order.
+_ANALYSIS_STAGES = (
+    'stimuli', 'responses', 'features',
+    'prepare', 'model', 'analyze', 'report',
+)
+
+
+def _parse_events_file(path: str | None) -> list[dict]:
+    """Parse the pipeline subprocess's events.jsonl into a stage list.
+
+    Each line is one JSON event:
+      - stage_start {stage, t}
+      - stage_done  {stage, t, elapsed, detail}
+      - stage_fail  {stage, t, elapsed, error}
+      - stage_warn  {stage, t, elapsed, detail}
+
+    Returns the stages in the order they first appeared, each with
+    its current status ('running' / 'ok' / 'warning' / 'failed'),
+    started_at, finished_at, elapsed, detail, and error fields.
+    Returns [] when there's no events file yet (e.g. subprocess
+    just started, or this isn't an analysis run).
+    """
+    if not path:
+        return []
+    p = Path(path)
+    if not p.is_file():
+        return []
+
+    # Preserve insertion order via dict + list to handle the unusual
+    # case where a stage appears twice (e.g. resume).
+    order: list[str] = []
+    by_name: dict[str, dict] = {}
+
+    try:
+        raw = p.read_text(errors='replace')
+    except Exception:
+        return []
+
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            ev = json.loads(line)
+        except Exception:
+            continue
+        event = ev.get('event')
+        stage = ev.get('stage')
+        if not stage or event not in (
+            'stage_start', 'stage_done', 'stage_fail', 'stage_warn',
+        ):
+            continue
+
+        if stage not in by_name:
+            by_name[stage] = {
+                'stage': stage,
+                'status': 'pending',
+                'started_at': 0.0,
+                'finished_at': 0.0,
+                'elapsed': 0.0,
+                'detail': '',
+                'error': None,
+            }
+            order.append(stage)
+
+        slot = by_name[stage]
+        t = ev.get('t', 0.0)
+        if event == 'stage_start':
+            slot['status'] = 'running'
+            slot['started_at'] = t
+        elif event == 'stage_done':
+            slot['status'] = 'ok'
+            slot['finished_at'] = t
+            slot['elapsed'] = ev.get('elapsed', 0.0)
+            slot['detail'] = ev.get('detail', '')
+        elif event == 'stage_warn':
+            slot['status'] = 'warning'
+            slot['finished_at'] = t
+            slot['elapsed'] = ev.get('elapsed', 0.0)
+            slot['detail'] = ev.get('detail', '')
+        elif event == 'stage_fail':
+            slot['status'] = 'failed'
+            slot['finished_at'] = t
+            slot['elapsed'] = ev.get('elapsed', 0.0)
+            slot['error'] = ev.get('error', '')
+
+    return [by_name[s] for s in order]

@@ -1,8 +1,17 @@
-"""Rich-based terminal UI for pipeline output."""
+"""Rich-based terminal UI for pipeline output.
+
+Stage transitions also get mirrored to a JSON-lines events file when
+``$FMRIFLOW_EVENTS_FILE`` is set in the environment. The server uses
+this to reconstruct per-stage progress for detached pipeline runs
+(where the in-process UICaptureProxy can't reach across the
+subprocess boundary).
+"""
 
 from __future__ import annotations
 
 import contextlib
+import json
+import os
 import time
 
 from rich.console import Console
@@ -13,6 +22,23 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 
 
 console = Console()
+
+
+def _emit_event(event: dict) -> None:
+    """Append one JSON line to the events file, if configured.
+
+    No-op when ``$FMRIFLOW_EVENTS_FILE`` is unset (the normal CLI case).
+    Best-effort — errors are swallowed so a broken file never crashes
+    the pipeline.
+    """
+    path = os.environ.get("FMRIFLOW_EVENTS_FILE")
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 @contextlib.contextmanager
@@ -66,7 +92,9 @@ def header(experiment: str, subject: str, config: dict | None = None):
 
 def stage_start(name: str) -> float:
     """Record stage start time."""
-    return time.time()
+    t = time.time()
+    _emit_event({"event": "stage_start", "stage": name, "t": t})
+    return t
 
 
 def stage_done(name: str, t0: float, detail: str = ""):
@@ -79,6 +107,10 @@ def stage_done(name: str, t0: float, detail: str = ""):
         f"  [dim]{elapsed:.1f}s[/]",
         highlight=False,
     )
+    _emit_event({
+        "event": "stage_done", "stage": name,
+        "t": time.time(), "elapsed": round(elapsed, 3), "detail": detail,
+    })
 
 
 def stage_fail(name: str, t0: float, error: str = ""):
@@ -91,6 +123,10 @@ def stage_fail(name: str, t0: float, error: str = ""):
         f"  [dim]{elapsed:.1f}s[/]",
         highlight=False,
     )
+    _emit_event({
+        "event": "stage_fail", "stage": name,
+        "t": time.time(), "elapsed": round(elapsed, 3), "error": error,
+    })
 
 
 def stage_warn(name: str, t0: float, detail: str = ""):
@@ -103,6 +139,10 @@ def stage_warn(name: str, t0: float, detail: str = ""):
         f"  [dim]{elapsed:.1f}s[/]",
         highlight=False,
     )
+    _emit_event({
+        "event": "stage_warn", "stage": name,
+        "t": time.time(), "elapsed": round(elapsed, 3), "detail": detail,
+    })
 
 
 def log_hint(log_path: str):
