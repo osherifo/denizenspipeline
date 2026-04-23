@@ -93,6 +93,13 @@ The main control center for running experiments.
 - Elapsed timer
 - Artifacts section after completion (view/download links)
 
+**In-Flight Analysis Runs panel** (top of the right pane):
+
+- Lists active + recent detached analysis runs, auto-refreshing every 5 s while anything is running.
+- `Log` opens a modal with run metadata + last 200 lines of `stdout.log`.
+- `Cancel` sends `SIGTERM` to the process group with a `SIGKILL` chaser after 5 s.
+- Runs reattached from disk (after a server restart) show a yellow `REATTACHED` tag — see the ["Long-running analysis runs" section below](#long-running-analysis-runs--detach--reattach) for details.
+
 **Run history** (bottom):
 
 - Table of all past runs for the selected config
@@ -166,6 +173,49 @@ If you have not created any local error definitions in `devdocs/errors/`, this p
 - **Expanded view**: for available entries, full symptoms, root cause, diagnosis steps, fix instructions, config notes, references
 
 ---
+
+## Long-running analysis runs — detach & reattach
+
+Clicking **Run** on a config (or POSTing to `/api/runs/from-config`) now
+spawns `fmriflow run <config.yaml>` as a detached subprocess
+(`start_new_session=True`) with stdout+stderr captured to
+`~/.fmriflow/runs/{run_id}/stdout.log` and a sidecar `state.json`. The
+analysis subprocess survives server restarts the same way preproc,
+convert, and autoflatten do.
+
+On server startup, `RunManager._reattach_active_runs` scans the registry
+and re-registers any live pipeline PIDs. They show up in the In-Flight
+Analysis Runs panel at the top of the Dashboard right pane with a
+`REATTACHED` tag.
+
+### HTTP API
+
+```bash
+# List active + recent in-flight runs
+curl http://localhost:8000/api/runs/in-flight
+
+# Summary + last 200 log lines for one run
+curl http://localhost:8000/api/runs/in-flight/abc123def456
+
+# Cancel a running pipeline
+curl -X POST http://localhost:8000/api/runs/in-flight/abc123def456/cancel
+```
+
+### Outcome inference
+
+On reattach (PID-dead check), the monitor looks for
+`{output_dir}/run_summary.json` — present → `done` (and the Run History
+row appears on next Dashboard refresh); missing → `failed`.
+
+### Tradeoff
+
+Because the pipeline now runs in a child process, the structured stage
+events that the in-process `UICaptureProxy` used to emit no longer reach
+the server's WebSocket. The live log stream in the Log modal and In-Flight
+panel is still there, and the full stage timeline + artifacts show up in
+Run History once the pipeline writes its `run_summary.json`. If you need
+mid-run per-stage progress in the dashboard, we can add a JSON-lines
+event file the subprocess writes to — ask.
 
 ## Keyboard shortcuts and tips
 
