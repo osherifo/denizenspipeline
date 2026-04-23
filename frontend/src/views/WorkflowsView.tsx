@@ -5,7 +5,6 @@ import type {
   WorkflowConfigSummary,
   WorkflowConfigDetail,
   WorkflowRunSummary,
-  WorkflowStageStatus,
 } from '../api/types'
 import {
   fetchWorkflowConfigs,
@@ -14,6 +13,7 @@ import {
   fetchWorkflowRuns,
   cancelWorkflowRun,
 } from '../api/client'
+import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 
 // ── Styles ──────────────────────────────────────────────────────────────
 
@@ -229,63 +229,6 @@ function RunHistoryPanel({
   )
 }
 
-// ── Stage strip ────────────────────────────────────────────────────────
-
-function StageStrip({ stages }: { stages: WorkflowStageStatus[] }) {
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: `repeat(${stages.length}, 1fr)`,
-      gap: 6,
-    }}>
-      {stages.map((s) => (
-        <div key={s.stage + s.config} style={{
-          padding: '10px 12px', borderRadius: 6,
-          border: `1px solid ${statusColor(s.status)}`,
-          backgroundColor: s.status === 'running'
-            ? 'rgba(0, 229, 255, 0.08)'
-            : 'var(--bg-secondary)',
-        }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 1,
-            textTransform: 'uppercase', color: statusColor(s.status),
-          }}>
-            {s.stage}
-          </div>
-          <div style={{
-            fontSize: 13, fontWeight: 600, color: 'var(--text-primary)',
-            marginTop: 2,
-          }}>
-            {s.status}
-          </div>
-          <div style={{
-            fontSize: 10, color: 'var(--text-secondary)',
-            fontFamily: 'monospace', marginTop: 4, wordBreak: 'break-all',
-          }}>
-            {s.config.split('/').pop()}
-          </div>
-          {s.run_id && (
-            <div style={{
-              fontSize: 9, color: 'var(--text-secondary)',
-              fontFamily: 'monospace', marginTop: 2,
-            }}>
-              child: {s.run_id}
-            </div>
-          )}
-          {s.error && (
-            <div style={{
-              fontSize: 10, color: 'var(--accent-red)',
-              fontFamily: 'monospace', marginTop: 4,
-            }}>
-              {s.error}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ── Main view ──────────────────────────────────────────────────────────
 
 export function WorkflowsView() {
@@ -423,7 +366,7 @@ export function WorkflowsView() {
               {selectedRun.error}
             </div>
           )}
-          <StageStrip stages={selectedRun.stages} />
+          <WorkflowGraph stages={selectedRun.stages} height={240} />
         </div>
       )}
 

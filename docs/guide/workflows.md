@@ -46,7 +46,7 @@ The workflow config store scans `./experiments/workflows/`. Same pattern as the 
 Sidebar → **Pipeline → Workflows** → click a config → **Run**. The page shows:
 
 - **Workflow Runs** panel at the top — every recent run with per-stage status (`pending / running / done / failed`) collapsed into one line, plus a Cancel button for live runs.
-- **Detail pane** (when a run is selected) — a stage strip with one card per stage showing status, child run_id, and any error.
+- **Detail pane** (when a run is selected) — a ReactFlow graph with one node per stage, connected left-to-right. The currently running stage pulses cyan; edges animate between `done` and `running` neighbours; failed stages and the edge leading out of them are red. Each node shows the stage name, status badge, config filename, elapsed time, and child `run_id`.
 - **Configs list** on the left, detail + Run button on the right.
 
 ### HTTP API
