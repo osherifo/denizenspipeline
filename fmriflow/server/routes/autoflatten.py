@@ -33,6 +33,16 @@ class StatusBody(BaseModel):
     subject: str
 
 
+class RunFromAutoflattenConfigBody(BaseModel):
+    """Overrides shallow-merged on top of the YAML's autoflatten section."""
+    subjects_dir: str | None = None
+    subject: str | None = None
+    hemispheres: str | None = None
+    backend: str | None = None
+    output_dir: str | None = None
+    overwrite: bool | None = None
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/autoflatten/doctor")
@@ -122,6 +132,65 @@ async def start_autoflatten(request: Request, body: RunBody):
         return {"run_id": run_id, "status": "started"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/autoflatten/configs")
+async def list_autoflatten_configs(request: Request):
+    """List autoflatten YAML configs with a top-level autoflatten: section."""
+    store = request.app.state.autoflatten_config_store
+    summaries = store.list_configs()
+    return [
+        {
+            "filename": s.filename,
+            "path": s.path,
+            "subject": s.subject,
+            "subjects_dir": s.subjects_dir,
+            "hemispheres": s.hemispheres,
+            "backend": s.backend,
+            "output_dir": s.output_dir,
+        }
+        for s in summaries
+    ]
+
+
+@router.get("/autoflatten/configs/{filename}")
+async def get_autoflatten_config(request: Request, filename: str):
+    """Return full parsed config + raw YAML for one autoflatten config."""
+    store = request.app.state.autoflatten_config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Autoflatten config '{filename}' not found",
+        )
+    return result
+
+
+@router.post("/autoflatten/configs/{filename}/run")
+async def run_autoflatten_config(
+    request: Request,
+    filename: str,
+    body: RunFromAutoflattenConfigBody | None = None,
+):
+    """Start an autoflatten run from a YAML config file."""
+    store = request.app.state.autoflatten_config_store
+    info = store.get_config(filename)
+    if info is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Autoflatten config '{filename}' not found",
+        )
+    mgr = request.app.state.autoflatten_manager
+    overrides = body.model_dump(exclude_none=True) if body else None
+    try:
+        run_id = mgr.start_run_from_config_file(
+            info["path"], overrides=overrides,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"run_id": run_id, "status": "started", "config": filename}
 
 
 @router.get("/autoflatten/runs/{run_id}")

@@ -41,6 +41,37 @@ class AutoflattenManager:
     def __init__(self) -> None:
         self.active_runs: dict[str, AutoflattenRunHandle] = {}
 
+    def start_run_from_config_file(
+        self,
+        config_path: str,
+        overrides: dict | None = None,
+    ) -> str:
+        """Start an autoflatten run from a YAML file with a top-level
+        ``autoflatten:`` section.
+        """
+        import yaml as _yaml
+
+        from pathlib import Path as _Path
+        path = _Path(config_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Autoflatten config not found: {path}")
+        with open(path) as f:
+            data = _yaml.safe_load(f) or {}
+        section = data.get("autoflatten")
+        if not isinstance(section, dict):
+            raise ValueError(
+                f"Config '{path.name}' has no 'autoflatten:' section"
+            )
+        params: dict = dict(section)
+        if overrides:
+            params.update({k: v for k, v in overrides.items() if v is not None})
+        for field_name in ("subjects_dir", "subject"):
+            if not params.get(field_name):
+                raise ValueError(
+                    f"Autoflatten config missing required field '{field_name}'"
+                )
+        return self.start_run(params)
+
     def start_run(self, params: dict) -> str:
         """Start an autoflatten run in a background thread."""
         run_id = f"autoflatten_{params.get('subject', 'unknown')}_{uuid.uuid4().hex[:8]}"
