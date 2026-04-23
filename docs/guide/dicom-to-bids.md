@@ -134,6 +134,41 @@ curl -X POST http://localhost:8000/api/convert/configs/my_batch.yaml/run
 
 Returns `{"kind": "batch", "batch_id": ...}` or `{"kind": "single", "run_id": ...}`.
 
+## Long-running conversions — detach & reattach
+
+heudiconv runs spawned from the dashboard or `/api/convert/configs/{f}/run`
+are detached from the server process: each subprocess lives in its own
+process group (`start_new_session=True`) with stdout+stderr redirected to
+`~/.fmriflow/runs/{run_id}/stdout.log`, and a `state.json` sidecar records
+pid/status/timestamps. On server restart, live runs are re-registered and
+show up in the **Recent Runs** panel at the top of the Configs tab with a
+`REATTACHED` tag.
+
+Batch jobs get the same treatment — each heudiconv subprocess inside a
+batch is registered individually, so they survive server restarts. Batch
+**grouping** is lost on reattach (the BatchRunHandle goes away); surviving
+jobs re-appear as standalone convert runs in the Recent Runs panel.
+
+### HTTP API
+
+```bash
+# List active + recent convert runs
+curl http://localhost:8000/api/convert/runs
+
+# Summary + last 200 log lines for one
+curl http://localhost:8000/api/convert/runs/convert_AN_4f2b9c1a
+
+# Cancel a running subprocess (SIGTERM → SIGKILL after 5s)
+curl -X POST http://localhost:8000/api/convert/runs/convert_AN_4f2b9c1a/cancel
+```
+
+### Outcome inference
+
+On reattach (PID-dead check), the monitor looks for
+`{bids_dir}/convert_manifest.json` — present → `done` (manifest reloaded);
+missing → `failed`. You can always re-run the manifest build from the
+Collect tab if heudiconv finished but the parent died mid-collect.
+
 ## Web UI
 
 The DICOM-to-BIDS tab in the web UI provides:
@@ -141,5 +176,6 @@ The DICOM-to-BIDS tab in the web UI provides:
 - **Single run form** — fill in subject, session, source dir, heuristic, run
 - **Batch form** — editable jobs table with shared settings, load/export YAML
 - **Configs** — browse saved YAMLs under `./experiments/convert/`, inspect their summary + YAML, Run directly
+- **Recent Runs panel** (top of Configs tab) — lists active + finished runs with Log and Cancel buttons; survives server restarts via the detach/reattach machinery
 - **Live progress** — per-job status badges, streaming logs, elapsed time
 - **Saved configs** — save, load, run, and delete conversion configs
