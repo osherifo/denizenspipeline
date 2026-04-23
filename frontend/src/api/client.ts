@@ -32,6 +32,8 @@ import type {
   PreprocConfigSummary,
   PreprocConfigDetail,
   PreprocRunSummary,
+  AutoflattenConfigSummary,
+  AutoflattenConfigDetail,
 } from './types'
 
 const BASE = '/api'
@@ -533,6 +535,17 @@ export async function deleteSavedConvertConfig(filename: string): Promise<{ dele
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
 }
 
+export async function runSavedConvertConfig(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ kind: 'single' | 'batch'; run_id?: string; batch_id?: string; status: string; config: string }> {
+  return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
+  })
+}
+
 // ── Autoflatten ────────────────────────────────────────────────────────
 
 export async function fetchAutoflattenDoctor(): Promise<{ tools: { name: string; available: boolean; detail: string }[] }> {
@@ -554,6 +567,25 @@ export async function fetchAutoflattenStatus(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
+  })
+}
+
+export async function fetchAutoflattenConfigs(): Promise<AutoflattenConfigSummary[]> {
+  return json(`${BASE}/autoflatten/configs`)
+}
+
+export async function fetchAutoflattenConfigDetail(filename: string): Promise<AutoflattenConfigDetail> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runAutoflattenConfig(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
   })
 }
 

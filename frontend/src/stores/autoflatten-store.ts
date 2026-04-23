@@ -8,7 +8,7 @@ import {
   connectAutoflattenWs,
 } from '../api/client'
 
-type Tab = 'status' | 'run' | 'import'
+type Tab = 'status' | 'run' | 'import' | 'configs'
 
 interface ToolInfo {
   name: string
@@ -72,6 +72,7 @@ interface AutoflattenState {
   loadTools: () => Promise<void>
   checkStatus: (subjectsDir: string, subject: string) => Promise<void>
   startRun: (params: Parameters<typeof startAutoflatten>[0]) => Promise<void>
+  attachToRun: (runId: string) => void
   clearRun: () => void
   clearStatus: () => void
 }
@@ -177,6 +178,41 @@ export const useAutoflattenStore = create<AutoflattenState>((set, get) => ({
       }
     } catch (e) {
       set({ runError: String(e), running: false })
+    }
+  },
+
+  attachToRun: (runId) => {
+    set({
+      running: true,
+      runError: null,
+      runResult: null,
+      runEvents: [],
+      runStartTime: Date.now(),
+      runId,
+    })
+    const ws = connectAutoflattenWs(runId)
+    ws.onmessage = (msg) => {
+      const event: AutoflattenEvent = JSON.parse(msg.data)
+      set((s) => ({ runEvents: [...s.runEvents, event] }))
+      if (event.event === 'done' || event.event === 'failed') {
+        fetchAutoflattenRun(runId)
+          .then((data) => {
+            set({
+              running: false,
+              runResult: data.result?.result ?? null,
+              runError: event.event === 'failed' ? (event.error ?? 'failed') : null,
+            })
+          })
+          .catch(() => {
+            set({
+              running: false,
+              runError: event.event === 'failed' ? (event.error ?? 'failed') : null,
+            })
+          })
+      }
+    }
+    ws.onerror = () => {
+      set({ running: false, runError: 'WebSocket connection failed' })
     }
   },
 

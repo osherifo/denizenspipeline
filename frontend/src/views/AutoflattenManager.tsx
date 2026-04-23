@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { useAutoflattenStore } from '../stores/autoflatten-store'
 import { AutoflattenProgress } from '../components/autoflatten/AutoflattenProgress'
 import { FlatmapPreview } from '../components/autoflatten/FlatmapPreview'
+import { AutoflattenConfigBrowser } from '../components/autoflatten/AutoflattenConfigBrowser'
 import { fetchAutoflattenVisualizations } from '../api/client'
 
 const pageTitle: CSSProperties = {
@@ -70,6 +71,7 @@ const resultBox: CSSProperties = {
 
 const TABS = [
   { key: 'status' as const, label: 'Status' },
+  { key: 'configs' as const, label: 'Configs' },
   { key: 'run' as const, label: 'Run / Flatten' },
   { key: 'import' as const, label: 'Import' },
 ]
@@ -426,6 +428,7 @@ export function AutoflattenManager() {
         ))}
       </div>
       {tab === 'status' && <StatusTab />}
+      {tab === 'configs' && <AutoflattenConfigBrowser />}
       {tab === 'run' && <RunTab />}
       {tab === 'import' && <ImportTab />}
     </div>

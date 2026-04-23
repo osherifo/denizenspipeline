@@ -213,6 +213,23 @@ export interface PreprocConfigDetail {
   yaml_string: string
 }
 
+export interface AutoflattenConfigSummary {
+  filename: string
+  path: string
+  subject: string
+  subjects_dir: string
+  hemispheres: string
+  backend: string
+  output_dir: string
+}
+
+export interface AutoflattenConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
 export interface PreprocRunSummary {
   run_id: string
   subject: string

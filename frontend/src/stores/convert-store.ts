@@ -38,7 +38,7 @@ import {
   deleteSavedConvertConfig,
 } from '../api/client'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert' | 'batch'
+type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
 
 interface ConvertState {
   tab: Tab

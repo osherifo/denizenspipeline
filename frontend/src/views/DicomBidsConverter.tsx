@@ -8,14 +8,16 @@ import { ConvertManifestBrowser } from '../components/convert/ConvertManifestBro
 import { ConvertForm } from '../components/convert/ConvertForm'
 import { BatchForm } from '../components/convert/BatchForm'
 import { BatchProgress } from '../components/convert/BatchProgress'
+import { ConvertConfigBrowser } from '../components/convert/ConvertConfigBrowser'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert' | 'batch'
+type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
 
 const tabs: { key: Tab; label: string }[] = [
   { key: 'tools', label: 'Tools' },
   { key: 'heuristics', label: 'Heuristics' },
   { key: 'scan', label: 'Scan' },
   { key: 'manifests', label: 'Manifests' },
+  { key: 'configs', label: 'Configs' },
   { key: 'convert', label: 'Convert' },
   { key: 'batch', label: 'Batch' },
 ]
@@ -61,6 +63,7 @@ export function DicomBidsConverter() {
       {tab === 'heuristics' && <HeuristicBrowser />}
       {tab === 'scan' && <DicomScanner />}
       {tab === 'manifests' && <ConvertManifestBrowser />}
+      {tab === 'configs' && <ConvertConfigBrowser />}
       {tab === 'convert' && <ConvertForm />}
       {tab === 'batch' && (
         <>
