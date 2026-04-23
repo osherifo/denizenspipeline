@@ -47,9 +47,13 @@ def run_conversion(config: ConvertConfig) -> ConvertManifest:
 
     heuristic_path = resolve_heuristic(config.heuristic)
 
+    # source_dir may be a single path or whitespace-separated multiple
+    # paths (heudiconv's --files is variadic).
+    source_paths = config.source_dir.split()
+
     cmd = [
         "heudiconv",
-        "--files", config.source_dir,
+        "--files", *source_paths,
         "-o", config.bids_dir,
         "-s", config.subject,
         "-f", str(heuristic_path),
@@ -186,9 +190,10 @@ def dry_run(config: ConvertConfig) -> str:
         )
 
     heuristic_path = resolve_heuristic(config.heuristic)
+    source_paths = config.source_dir.split()
     cmd = [
         "heudiconv",
-        "--files", config.source_dir,
+        "--files", *source_paths,
         "-s", config.subject,
         "-f", str(heuristic_path),
         "--command", "none",

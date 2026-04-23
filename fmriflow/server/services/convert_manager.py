@@ -476,9 +476,10 @@ class ConvertManager:
                 )
 
             heuristic_path = resolve_heuristic(config.heuristic)
+            source_paths = config.source_dir.split()
             cmd = [
                 "heudiconv",
-                "--files", config.source_dir,
+                "--files", *source_paths,
                 "-o", config.bids_dir,
                 "-s", config.subject,
                 "-f", str(heuristic_path),
