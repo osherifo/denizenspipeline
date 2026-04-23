@@ -296,14 +296,24 @@ class RunManager:
             self._finalize_from_output(handle, proc.returncode)
 
         except Exception as e:
+            import traceback as _tb
+            tb_text = _tb.format_exc()
             handle.status = 'failed'
-            handle.error = str(e)
+            handle.error = f"{type(e).__name__}: {e}"
             handle.finished_at = time.time()
             handle.push_event({
                 'event': 'run_failed',
-                'error': str(e),
+                'error': handle.error,
+                'traceback': tb_text,
                 'elapsed': handle.finished_at - handle.started_at,
             })
+            if handle.log_path:
+                try:
+                    with open(handle.log_path, 'a') as _lf:
+                        _lf.write('\n\n=== wrapper traceback ===\n')
+                        _lf.write(tb_text)
+                except Exception:
+                    pass
             logger.error("Run %s failed: %s", handle.run_id, e, exc_info=True)
 
         finally:
