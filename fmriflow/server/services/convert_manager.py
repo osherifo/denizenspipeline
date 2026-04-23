@@ -1,9 +1,24 @@
-"""Conversion manager — heuristic listing, manifest scanning, and run orchestration."""
+"""Conversion manager — heuristic listing, manifest scanning, and run orchestration.
+
+Single-subject heudiconv runs are detached from the server process
+(``start_new_session=True``) with stdout+stderr redirected to a log file
+under ``~/.fmriflow/runs/{run_id}/stdout.log``, and a ``RunStateFile`` is
+persisted alongside. On startup the manager scans the registry and
+reattaches any live heudiconv subprocesses whose PID is still alive.
+
+Batch jobs spawn each heudiconv with the same detach treatment, so the
+conversions survive server restarts — but batch grouping is lost on
+reattach (individual jobs re-appear as standalone convert runs in the
+In-Flight panel).
+"""
 
 from __future__ import annotations
 
 import logging
+import os
+import signal
 import shutil
+import subprocess as _subprocess
 import threading
 import time
 import uuid
@@ -12,31 +27,60 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ConvertRunHandle:
-    """Tracks a running DICOM-to-BIDS conversion job."""
+    """Tracks a running DICOM-to-BIDS conversion job.
+
+    Detach-reattach bookkeeping lives at the bottom of the dataclass.
+    """
     run_id: str
     subject: str
-    status: str = "running"  # running, done, failed
+    status: str = "running"  # running, done, failed, cancelled, lost
     events: list[dict] = field(default_factory=list)
     _pending: list[dict] = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
     manifest_path: str | None = None
     error: str | None = None
     started_at: float = 0.0
     finished_at: float = 0.0
 
+    # Detach-reattach bookkeeping
+    pid: int | None = None
+    pgid: int | None = None
+    log_path: str | None = None
+    is_reattached: bool = False
+    params: dict = field(default_factory=dict)
+
     def push_event(self, event: dict) -> None:
         event.setdefault("timestamp", time.time())
-        self.events.append(event)
-        self._pending.append(event)
+        with self._lock:
+            self.events.append(event)
+            self._pending.append(event)
 
     def drain_events(self) -> list[dict]:
-        out = list(self._pending)
-        self._pending.clear()
+        with self._lock:
+            out = list(self._pending)
+            self._pending.clear()
         return out
+
+    def to_summary(self) -> dict:
+        return {
+            "run_id": self.run_id,
+            "subject": self.subject,
+            "status": self.status,
+            "pid": self.pid,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "is_reattached": self.is_reattached,
+            "manifest_path": self.manifest_path,
+            "error": self.error,
+            "log_path": self.log_path,
+        }
 
 
 class _BatchAwareRunHandle(ConvertRunHandle):
@@ -118,13 +162,23 @@ class BatchRunHandle:
 class ConvertManager:
     """Manages heuristic discovery, manifest scanning, and conversion runs."""
 
-    def __init__(self, heuristics_dir: Path | None = None):
+    def __init__(
+        self,
+        heuristics_dir: Path | None = None,
+        registry: RunRegistry | None = None,
+    ):
         self.heuristics_dir = heuristics_dir
         self._manifests_cache: list[dict] | None = None
         self._cache_time: float = 0
         self._cache_ttl = 10.0
         self.active_runs: dict[str, ConvertRunHandle] = {}
         self.active_batches: dict[str, BatchRunHandle] = {}
+        self.registry = registry or RunRegistry()
+
+        try:
+            self._reattach_active_runs()
+        except Exception:
+            logger.warning("Failed to scan convert run registry on startup", exc_info=True)
 
     # ── Heuristics ────────────────────────────────────────────────
 
@@ -347,32 +401,60 @@ class ConvertManager:
     def start_run(self, params: dict) -> str:
         """Start a DICOM-to-BIDS conversion in a background thread."""
         run_id = f"convert_{params['subject']}_{uuid.uuid4().hex[:8]}"
+        now = time.time()
+
         handle = ConvertRunHandle(
             run_id=run_id,
             subject=params["subject"],
-            started_at=time.time(),
+            started_at=now,
+            params=params,
         )
+
+        # Pre-register so that even if spawn fails there's a record on disk.
+        state = RunStateFile(
+            run_id=run_id,
+            kind="convert",
+            backend="heudiconv",
+            subject=params["subject"],
+            status="running",
+            started_at=now,
+            params=params,
+        )
+        self.registry.register(state)
+        handle.log_path = state.stdout_log
+
         self.active_runs[run_id] = handle
 
         thread = threading.Thread(
             target=self._execute_run,
             args=(handle, params),
             daemon=True,
+            name=f"convert-{run_id}",
         )
         thread.start()
         return run_id
 
     def _execute_run(self, handle: ConvertRunHandle, params: dict) -> None:
-        """Execute conversion in a background thread."""
-        import logging as _logging
-        capture = _LogCapture(handle)
-        convert_logger = _logging.getLogger("fmriflow.convert")
-        convert_logger.addHandler(capture)
+        """Drive a detached heudiconv subprocess and stream its log."""
+        self._run_heudiconv_detached(handle, params)
+
+    def _run_heudiconv_detached(
+        self,
+        handle: ConvertRunHandle,
+        params: dict,
+    ) -> None:
+        """Spawn heudiconv detached, tail its log, finalize + save manifest.
+
+        Used by both single-subject runs and each job in a batch.
+        """
+        from fmriflow.convert.errors import ConvertError, HeudiconvError
+        from fmriflow.convert.manifest import ConvertConfig
+        from fmriflow.convert.heuristics import resolve_heuristic
+        from fmriflow.convert.runner import collect_bids, run_bids_validator
+
+        log_path = Path(handle.log_path) if handle.log_path else None
 
         try:
-            from fmriflow.convert.manifest import ConvertConfig
-            from fmriflow.convert.runner import run_conversion
-
             config = ConvertConfig(
                 source_dir=params["source_dir"],
                 subject=params["subject"],
@@ -386,16 +468,87 @@ class ConvertManager:
                 validate_bids=params.get("validate_bids", True),
             )
 
+            if not shutil.which("heudiconv"):
+                raise ConvertError(
+                    "heudiconv not found. Install via: pip install heudiconv",
+                    subject=config.subject,
+                )
+
+            heuristic_path = resolve_heuristic(config.heuristic)
+            cmd = [
+                "heudiconv",
+                "--files", config.source_dir,
+                "-o", config.bids_dir,
+                "-s", config.subject,
+                "-f", str(heuristic_path),
+                "--bids",
+            ]
+            if config.sessions:
+                cmd.extend(["-ss", config.sessions[0]])
+            if config.grouping:
+                cmd.extend(["--grouping", config.grouping])
+            if config.minmeta:
+                cmd.append("--minmeta")
+            if config.overwrite:
+                cmd.append("--overwrite")
+
+            Path(config.bids_dir).mkdir(parents=True, exist_ok=True)
+
             handle.push_event({
                 "event": "started",
                 "message": f"Starting heudiconv for sub-{config.subject}",
             })
 
-            manifest = run_conversion(config)
+            if log_path is None:
+                # Fall back to in-process execution if we couldn't set up
+                # a log file (defensive — happens only if registry init failed).
+                proc = _subprocess.Popen(
+                    cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
+                )
+            else:
+                log_fh = open(log_path, "w", buffering=1)
+                proc = _subprocess.Popen(
+                    cmd,
+                    stdout=log_fh,
+                    stderr=_subprocess.STDOUT,
+                    text=True,
+                    start_new_session=True,
+                )
 
-            handle.manifest_path = str(
-                Path(config.bids_dir) / "convert_manifest.json"
-            )
+            handle.pid = proc.pid
+            try:
+                handle.pgid = os.getpgid(proc.pid)
+            except OSError:
+                handle.pgid = proc.pid
+            self._persist_state(handle)
+
+            tailer: _ConvertLogTailer | None = None
+            if log_path is not None:
+                tailer = _ConvertLogTailer(
+                    log_path, handle, stop_when=lambda: proc.poll() is not None,
+                )
+                tailer.start()
+
+            proc.wait()
+            if tailer is not None:
+                tailer.stop_and_join()
+
+            if proc.returncode != 0:
+                raise HeudiconvError(
+                    f"heudiconv exited with code {proc.returncode}",
+                    subject=config.subject,
+                    returncode=proc.returncode,
+                    stderr="",
+                )
+
+            manifest = collect_bids(config)
+            if config.validate_bids:
+                manifest = run_bids_validator(manifest)
+
+            manifest_path = Path(config.bids_dir) / "convert_manifest.json"
+            manifest.save(manifest_path)
+
+            handle.manifest_path = str(manifest_path)
             handle.status = "done"
             handle.finished_at = time.time()
             handle.push_event({
@@ -418,7 +571,7 @@ class ConvertManager:
             logger.error("Conversion failed: %s", e, exc_info=True)
 
         finally:
-            convert_logger.removeHandler(capture)
+            self._persist_state(handle)
 
     # ── DICOM scanning ───────────────────────────────────────────
 
@@ -535,14 +688,33 @@ class ConvertManager:
                 job_handle = batch_handle.jobs[job_id]
                 params = batch_config.to_convert_params(job_cfg)
 
-                # Create a batch-aware run handle
+                # Create a batch-aware run handle + register in the
+                # shared run registry so the heudiconv subprocess survives
+                # server restarts the same way single runs do. Batch
+                # grouping is lost on reattach — each job re-appears as
+                # a standalone convert run in the In-Flight panel.
+                run_id = f"convert_{job_cfg.subject}_{uuid.uuid4().hex[:8]}"
+                now = time.time()
                 run_handle = _BatchAwareRunHandle(
                     job_id=job_id,
                     parent=batch_handle,
-                    run_id=f"convert_{job_cfg.subject}_{uuid.uuid4().hex[:8]}",
+                    run_id=run_id,
                     subject=job_cfg.subject,
-                    started_at=time.time(),
+                    started_at=now,
+                    params=params,
                 )
+                state = RunStateFile(
+                    run_id=run_id,
+                    kind="convert",
+                    backend="heudiconv",
+                    subject=job_cfg.subject,
+                    status="running",
+                    started_at=now,
+                    params=params,
+                )
+                self.registry.register(state)
+                run_handle.log_path = state.stdout_log
+
                 job_handle.run_handle = run_handle
                 self.active_runs[run_handle.run_id] = run_handle
 
@@ -596,6 +768,143 @@ class ConvertManager:
         else:
             job_handle.status = "failed"
             job_handle.error = run_handle.error
+
+    # ── Registry / reattach / cancel ──────────────────────────────────
+
+    def _persist_state(self, handle: ConvertRunHandle) -> None:
+        """Flush the handle back to the registry state file."""
+        state = RunStateFile(
+            run_id=handle.run_id,
+            kind="convert",
+            backend="heudiconv",
+            subject=handle.subject,
+            status=handle.status,
+            pid=handle.pid,
+            pgid=handle.pgid,
+            started_at=handle.started_at,
+            finished_at=handle.finished_at,
+            stdout_log=handle.log_path or "",
+            params=handle.params,
+            error=handle.error,
+            manifest_path=handle.manifest_path,
+        )
+        self.registry.update(state)
+
+    def _reattach_active_runs(self) -> None:
+        """On startup, scan the registry and rehydrate handles for live runs."""
+        for state in self.registry.list_active():
+            if state.kind != "convert":
+                continue
+            if not RunRegistry.pid_alive(state.pid):
+                self.registry.mark_lost(state, "server_lost_track")
+                continue
+
+            handle = ConvertRunHandle(
+                run_id=state.run_id,
+                subject=state.subject,
+                status="running",
+                started_at=state.started_at,
+                pid=state.pid,
+                pgid=state.pgid,
+                log_path=state.stdout_log,
+                is_reattached=True,
+                params=state.params,
+            )
+            self.active_runs[state.run_id] = handle
+
+            monitor = _ConvertReattachedMonitor(handle, self, state)
+            thread = threading.Thread(
+                target=monitor.run, daemon=True, name=f"reattach-convert-{state.run_id}",
+            )
+            thread.start()
+            logger.info(
+                "Reattached to convert run %s (pid=%s, subject=%s)",
+                state.run_id, state.pid, state.subject,
+            )
+
+    def list_runs(self, include_finished: bool = True) -> list[dict]:
+        """Return in-memory active runs plus (optionally) recent finished ones."""
+        out: dict[str, dict] = {}
+        for handle in self.active_runs.values():
+            out[handle.run_id] = handle.to_summary()
+        if include_finished:
+            for state in self.registry.list_all():
+                if state.kind != "convert" or state.run_id in out:
+                    continue
+                out[state.run_id] = {
+                    "run_id": state.run_id,
+                    "subject": state.subject,
+                    "status": state.status,
+                    "pid": state.pid,
+                    "started_at": state.started_at,
+                    "finished_at": state.finished_at,
+                    "is_reattached": False,
+                    "manifest_path": state.manifest_path,
+                    "error": state.error,
+                    "log_path": state.stdout_log,
+                }
+        return sorted(out.values(), key=lambda r: r.get("started_at") or 0, reverse=True)
+
+    def get_run(self, run_id: str) -> dict | None:
+        """Return summary + recent log tail for a run."""
+        handle = self.active_runs.get(run_id)
+        if handle is not None:
+            summary = handle.to_summary()
+        else:
+            state = self.registry.load(run_id)
+            if state is None or state.kind != "convert":
+                return None
+            summary = {
+                "run_id": state.run_id,
+                "subject": state.subject,
+                "status": state.status,
+                "pid": state.pid,
+                "started_at": state.started_at,
+                "finished_at": state.finished_at,
+                "is_reattached": False,
+                "manifest_path": state.manifest_path,
+                "error": state.error,
+                "log_path": state.stdout_log,
+            }
+        log_path = summary.get("log_path")
+        summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""
+        return summary
+
+    def cancel_run(self, run_id: str) -> dict:
+        """Terminate a running heudiconv subprocess. SIGTERM then SIGKILL."""
+        handle = self.active_runs.get(run_id)
+        if handle is None:
+            return {"cancelled": False, "reason": "run not found in active set"}
+        if handle.status != "running":
+            return {"cancelled": False, "reason": f"status is {handle.status}"}
+        pgid = handle.pgid or handle.pid
+        if not pgid:
+            return {"cancelled": False, "reason": "no pid recorded"}
+
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            handle.status = "failed"
+            handle.error = "process already gone"
+            self._persist_state(handle)
+            return {"cancelled": True, "reason": "process already exited"}
+        except Exception as e:
+            return {"cancelled": False, "reason": str(e)}
+
+        def _grace_kill():
+            time.sleep(5)
+            if RunRegistry.pid_alive(handle.pid):
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                except Exception:
+                    pass
+        threading.Thread(target=_grace_kill, daemon=True).start()
+
+        handle.status = "cancelled"
+        handle.finished_at = time.time()
+        handle.push_event({"event": "cancelled", "message": "SIGTERM sent"})
+        self._persist_state(handle)
+        return {"cancelled": True}
 
     def get_batch_status(self, batch_id: str) -> dict | None:
         """Return the summary for a batch."""
@@ -652,3 +961,147 @@ class _LogCapture(logging.Handler):
             "event": "log",
             "message": self.format(record),
         })
+
+
+# ── Log tailer + reattached monitor (convert-flavoured) ─────────────────
+
+
+class _ConvertLogTailer(threading.Thread):
+    """Reads new lines from a heudiconv log file and pushes them as events."""
+
+    def __init__(
+        self,
+        log_path: Path,
+        handle: ConvertRunHandle,
+        stop_when,
+        poll_interval: float = 0.5,
+    ):
+        super().__init__(daemon=True, name=f"convert-tail-{handle.run_id}")
+        self.log_path = log_path
+        self.handle = handle
+        self.stop_when = stop_when
+        self.poll_interval = poll_interval
+        self._stop = threading.Event()
+
+    def run(self) -> None:
+        deadline = time.time() + 5
+        while not self.log_path.is_file() and time.time() < deadline:
+            time.sleep(0.1)
+        if not self.log_path.is_file():
+            return
+        try:
+            with open(self.log_path, "r", encoding="utf-8", errors="replace") as f:
+                while True:
+                    line = f.readline()
+                    if line:
+                        self._emit(line.rstrip("\n"))
+                        continue
+                    if self._stop.is_set() or self.stop_when():
+                        tail = f.read()
+                        if tail:
+                            for ln in tail.splitlines():
+                                self._emit(ln)
+                        return
+                    time.sleep(self.poll_interval)
+        except Exception:
+            logger.warning("Convert log tailer crashed for %s", self.handle.run_id, exc_info=True)
+
+    def _emit(self, line: str) -> None:
+        self.handle.push_event({"event": "log", "message": line})
+
+    def stop_and_join(self, timeout: float = 2.0) -> None:
+        self._stop.set()
+        self.join(timeout=timeout)
+
+
+class _ConvertReattachedMonitor:
+    """Tails the log file of a reattached convert run and watches its PID.
+
+    When the PID dies, inspect the BIDS output dir for the subject's
+    convert_manifest.json (written by a successful collect_bids step) —
+    present → done (manifest loaded back); missing → failed.
+    """
+
+    def __init__(
+        self,
+        handle: ConvertRunHandle,
+        manager: "ConvertManager",
+        state: RunStateFile,
+    ):
+        self.handle = handle
+        self.manager = manager
+        self.state = state
+
+    def run(self) -> None:
+        log_path = Path(self.handle.log_path) if self.handle.log_path else None
+        proc_dead = threading.Event()
+
+        def stop_when() -> bool:
+            if not RunRegistry.pid_alive(self.handle.pid):
+                proc_dead.set()
+                return True
+            return False
+
+        tailer = None
+        if log_path and log_path.is_file():
+            tailer = _ConvertLogTailer(log_path, self.handle, stop_when=stop_when)
+            tailer.start()
+
+        while RunRegistry.pid_alive(self.handle.pid):
+            time.sleep(1.0)
+        proc_dead.set()
+
+        if tailer is not None:
+            tailer.stop_and_join()
+
+        self._finalize()
+
+    def _finalize(self) -> None:
+        params = self.state.params or {}
+        bids_dir = params.get("bids_dir")
+        now = time.time()
+
+        manifest_path = None
+        if bids_dir:
+            candidate = Path(bids_dir) / "convert_manifest.json"
+            if candidate.is_file():
+                manifest_path = str(candidate)
+
+        if manifest_path:
+            self.handle.status = "done"
+            self.handle.finished_at = now
+            self.handle.manifest_path = manifest_path
+            self.handle.push_event({
+                "event": "done",
+                "message": "convert_manifest.json found after reattach",
+                "manifest_path": manifest_path,
+                "elapsed": now - self.handle.started_at,
+            })
+        else:
+            # heudiconv may have produced a partial BIDS tree without the
+            # manifest if the parent died mid-collect_bids. Mark as failed
+            # for safety; the user can re-run collect from the Collect tab.
+            self.handle.status = "failed"
+            self.handle.error = "subprocess exited without a complete convert_manifest.json"
+            self.handle.finished_at = now
+            self.handle.push_event({
+                "event": "failed",
+                "error": self.handle.error,
+                "elapsed": now - self.handle.started_at,
+            })
+
+        self.manager._persist_state(self.handle)
+        self.manager.invalidate_cache()
+
+
+def _read_tail(path: str | None, n: int = 200) -> str:
+    if not path:
+        return ""
+    try:
+        p = Path(path)
+        if not p.is_file():
+            return ""
+        lines = p.read_text(errors="replace").splitlines()
+        return "\n".join(lines[-n:])
+    except Exception:
+        return ""

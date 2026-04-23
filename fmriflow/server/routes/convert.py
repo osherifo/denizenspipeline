@@ -427,6 +427,33 @@ async def delete_saved_config(request: Request, filename: str):
     return {"deleted": True, "filename": filename}
 
 
+@router.get("/convert/runs")
+async def list_convert_runs(request: Request, include_finished: bool = True):
+    """List active (and optionally finished) convert runs."""
+    mgr = request.app.state.convert_manager
+    return {"runs": mgr.list_runs(include_finished=include_finished)}
+
+
+@router.get("/convert/runs/{run_id}")
+async def get_convert_run(request: Request, run_id: str):
+    """Return summary + last 200 log lines for one convert run."""
+    mgr = request.app.state.convert_manager
+    result = mgr.get_run(run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    return result
+
+
+@router.post("/convert/runs/{run_id}/cancel")
+async def cancel_convert_run(request: Request, run_id: str):
+    """Cancel a running heudiconv subprocess (SIGTERM then SIGKILL)."""
+    mgr = request.app.state.convert_manager
+    result = mgr.cancel_run(run_id)
+    if not result.get("cancelled"):
+        raise HTTPException(status_code=409, detail=result.get("reason", "could not cancel"))
+    return result
+
+
 class RunFromConvertConfigBody(BaseModel):
     """Overrides shallow-merged on top of the YAML's config body."""
     subject: str | None = None
