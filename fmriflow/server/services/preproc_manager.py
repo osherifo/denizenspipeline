@@ -713,7 +713,7 @@ class _LogTailer(threading.Thread):
         self.handle = handle
         self.stop_when = stop_when
         self.poll_interval = poll_interval
-        self._stop = threading.Event()
+        self._stop_flag = threading.Event()
 
     def run(self) -> None:
         # Wait briefly for the file to exist
@@ -731,7 +731,7 @@ class _LogTailer(threading.Thread):
                         self._emit(line.rstrip("\n"))
                         continue
                     # No new line — check whether to stop
-                    if self._stop.is_set() or self.stop_when():
+                    if self._stop_flag.is_set() or self.stop_when():
                         # Drain anything the subprocess wrote between the
                         # last readline and the stop check.
                         tail = f.read()
@@ -747,7 +747,7 @@ class _LogTailer(threading.Thread):
         self.handle.push_event({"event": "log", "message": line})
 
     def stop_and_join(self, timeout: float = 2.0) -> None:
-        self._stop.set()
+        self._stop_flag.set()
         self.join(timeout=timeout)
 
 

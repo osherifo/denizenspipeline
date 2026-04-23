@@ -584,7 +584,7 @@ class _RunLogTailer(threading.Thread):
         self.handle = handle
         self.stop_when = stop_when
         self.poll_interval = poll_interval
-        self._stop = threading.Event()
+        self._stop_flag = threading.Event()
 
     def run(self) -> None:
         deadline = time.time() + 5
@@ -599,7 +599,7 @@ class _RunLogTailer(threading.Thread):
                     if line:
                         self._emit(line.rstrip("\n"))
                         continue
-                    if self._stop.is_set() or self.stop_when():
+                    if self._stop_flag.is_set() or self.stop_when():
                         tail = f.read()
                         if tail:
                             for ln in tail.splitlines():
@@ -613,7 +613,7 @@ class _RunLogTailer(threading.Thread):
         self.handle.push_event({"event": "log", "message": line})
 
     def stop_and_join(self, timeout: float = 2.0) -> None:
-        self._stop.set()
+        self._stop_flag.set()
         self.join(timeout=timeout)
 
 
