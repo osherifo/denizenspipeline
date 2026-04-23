@@ -8,10 +8,12 @@ import {
   runSavedConvertConfig,
   deleteSavedConvertConfig,
 } from '../../api/client'
+import { ConvertInFlightRuns } from './ConvertInFlightRuns'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
-  height: 'calc(100vh - 48px - 120px)',
+  // Leave room for the tab bar + in-flight panel above.
+  height: 'calc(100vh - 48px - 220px)',
   minHeight: 320,
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
@@ -253,7 +255,9 @@ export function ConvertConfigBrowser() {
   const currentMeta = configs.find((c) => c.filename === selected?.filename)
 
   return (
-    <div style={containerStyle}>
+    <>
+      <ConvertInFlightRuns />
+      <div style={containerStyle}>
       <div style={sidebarStyle}>
         <div style={sidebarHeader}>
           <span style={sidebarTitle}>Configs ({configs.length})</span>
@@ -351,5 +355,6 @@ export function ConvertConfigBrowser() {
         )}
       </div>
     </div>
+    </>
   )
 }

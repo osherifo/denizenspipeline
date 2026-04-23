@@ -34,6 +34,7 @@ import type {
   PreprocRunSummary,
   AutoflattenConfigSummary,
   AutoflattenConfigDetail,
+  ConvertRunSummary,
 } from './types'
 
 const BASE = '/api'
@@ -533,6 +534,24 @@ export async function saveConvertBatchConfig(params: {
 
 export async function deleteSavedConvertConfig(filename: string): Promise<{ deleted: boolean }> {
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+}
+
+export async function fetchConvertRuns(
+  includeFinished: boolean = true,
+): Promise<ConvertRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: ConvertRunSummary[] }>(`${BASE}/convert/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchConvertRun(runId: string): Promise<ConvertRunSummary> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelConvertRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
 }
 
 export async function runSavedConvertConfig(

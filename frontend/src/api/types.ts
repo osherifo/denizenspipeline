@@ -246,6 +246,20 @@ export interface PreprocRunSummary {
   log_tail?: string
 }
 
+export interface ConvertRunSummary {
+  run_id: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  manifest_path: string | null
+  error: string | null
+  log_path: string | null
+  log_tail?: string
+}
+
 export interface StageStatus {
   status: 'pending' | 'running' | 'done' | 'warning' | 'failed'
   detail: string
