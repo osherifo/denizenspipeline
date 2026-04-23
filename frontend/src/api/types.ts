@@ -274,6 +274,16 @@ export interface AutoflattenRunSummary {
   result?: Record<string, unknown> | null
 }
 
+export interface AnalysisInnerStage {
+  stage: string   // 'stimuli' | 'responses' | 'features' | 'prepare' | 'model' | 'analyze' | 'report'
+  status: 'pending' | 'running' | 'ok' | 'warning' | 'failed' | string
+  started_at: number
+  finished_at: number
+  elapsed: number
+  detail: string
+  error: string | null
+}
+
 export interface AnalysisRunSummary {
   run_id: string
   experiment: string
@@ -288,6 +298,7 @@ export interface AnalysisRunSummary {
   output_dir: string | null
   log_path: string | null
   log_tail?: string
+  inner_stages?: AnalysisInnerStage[]
 }
 
 export interface WorkflowConfigSummary {
@@ -313,6 +324,10 @@ export interface WorkflowStageStatus {
   started_at: number
   finished_at: number
   error: string | null
+  // Populated client-side for the analysis stage when we've fetched its
+  // inner-stage progression (stimuli / responses / features / prepare /
+  // model / analyze / report).
+  inner_stages?: AnalysisInnerStage[]
 }
 
 export interface WorkflowRunSummary {

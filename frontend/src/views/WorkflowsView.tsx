@@ -1,5 +1,5 @@
 /** Workflows — end-to-end orchestration across convert / preproc / autoflatten / analysis. */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type {
   WorkflowConfigSummary,
@@ -12,7 +12,9 @@ import {
   runWorkflowConfig,
   fetchWorkflowRuns,
   cancelWorkflowRun,
+  fetchInFlightRun,
 } from '../api/client'
+import type { AnalysisInnerStage } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
@@ -245,6 +247,7 @@ export function WorkflowsView() {
   const [runsLoading, setRunsLoading] = useState(false)
   const [selectedRun, setSelectedRun] = useState<WorkflowRunSummary | null>(null)
   const [logStage, setLogStage] = useState<{ stage: string; runId: string; subject?: string } | null>(null)
+  const [analysisInner, setAnalysisInner] = useState<{ runId: string; stages: AnalysisInnerStage[] } | null>(null)
 
   async function reloadConfigs() {
     setLoading(true)
@@ -343,6 +346,44 @@ export function WorkflowsView() {
     return () => clearInterval(id)
   }, [selectedRun, runs])
 
+  // Fetch the analysis stage's inner-stage progression while it's
+  // the active (running / failed) stage. Poll every 2s to keep the
+  // graph's analysis node live. Clears when no analysis run is on.
+  useEffect(() => {
+    const analysisStage = selectedRun?.stages.find((s) => s.stage === 'analysis')
+    const rid = analysisStage?.run_id
+    if (!rid || !analysisStage || analysisStage.status === 'pending') {
+      setAnalysisInner(null)
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        const detail = await fetchInFlightRun(rid!)
+        if (!cancelled && detail.inner_stages) {
+          setAnalysisInner({ runId: rid!, stages: detail.inner_stages })
+        }
+      } catch { /* ignore */ }
+    }
+    load()
+    if (analysisStage.status !== 'running') return () => { cancelled = true }
+    const id = setInterval(load, 2000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [selectedRun?.stages.find((s) => s.stage === 'analysis')?.run_id,
+      selectedRun?.stages.find((s) => s.stage === 'analysis')?.status])
+
+  // Merge fetched inner_stages onto the analysis stage before handing
+  // to WorkflowGraph so the custom node renders them inline.
+  const graphStages = useMemo(() => {
+    if (!selectedRun) return []
+    if (!analysisInner) return selectedRun.stages
+    return selectedRun.stages.map((s) =>
+      s.stage === 'analysis' && s.run_id === analysisInner.runId
+        ? { ...s, inner_stages: analysisInner.stages }
+        : s,
+    )
+  }, [selectedRun, analysisInner])
+
   const currentMeta = configs.find((c) => c.filename === selected?.filename)
 
   return (
@@ -390,8 +431,8 @@ export function WorkflowsView() {
             </div>
           )}
           <WorkflowGraph
-            stages={selectedRun.stages}
-            height={240}
+            stages={graphStages}
+            height={300}
             onStageClick={(s) => {
               if (!s.run_id) return
               setLogStage({ stage: s.stage, runId: s.run_id })

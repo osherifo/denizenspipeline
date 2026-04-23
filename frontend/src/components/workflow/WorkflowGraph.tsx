@@ -26,10 +26,18 @@ const STATUS_COLORS: Record<string, string> = {
   pending:   '#6b7280',
   running:   '#00e5ff',
   done:      '#00e676',
+  ok:        '#00e676',
+  warning:   '#ffd600',
   failed:    '#ff1744',
   cancelled: '#ff1744',
   lost:      '#ff1744',
 }
+
+// Canonical order of analysis inner stages — used to stub out pending
+// rows when the events file doesn't list them yet.
+const ANALYSIS_INNER_STAGES: readonly string[] = [
+  'stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report',
+] as const
 
 // ── Node component ──────────────────────────────────────────────────────
 
@@ -42,7 +50,7 @@ type StageNodeData = WorkflowStageStatus & {
 const nodeBase: CSSProperties = {
   borderRadius: 8,
   padding: '12px 16px',
-  minWidth: 210,
+  minWidth: 230,
   fontSize: 11,
   fontFamily: 'inherit',
   backgroundColor: '#14181f',
@@ -162,6 +170,11 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
         </div>
       )}
       {data.error && <div style={errorLine}>{data.error}</div>}
+
+      {data.stage === 'analysis' && data.inner_stages && data.inner_stages.length > 0 && (
+        <InnerStagesStrip inner={data.inner_stages} />
+      )}
+
       {clickable && (
         <div style={{
           fontSize: 9, color: meta.color, marginTop: 6,
@@ -184,6 +197,79 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
 
 const WorkflowStageNode = memo(WorkflowStageNodeInner)
 const nodeTypes = { workflowStage: WorkflowStageNode }
+
+// ── Inner-stage strip (for the analysis node) ──────────────────────────
+
+import type { AnalysisInnerStage } from '../../api/types'
+
+const innerStripContainer: CSSProperties = {
+  marginTop: 8,
+  padding: '6px 8px',
+  borderRadius: 5,
+  border: '1px solid rgba(255,255,255,0.05)',
+  backgroundColor: 'rgba(0,0,0,0.25)',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(7, 1fr)',
+  gap: 3,
+}
+
+const innerPill = (color: string, isRunning: boolean): CSSProperties => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: '3px 2px',
+  borderRadius: 3,
+  backgroundColor: isRunning ? `${color}22` : 'transparent',
+  border: `1px solid ${color}55`,
+})
+
+const innerPillLabel: CSSProperties = {
+  fontSize: 8,
+  letterSpacing: 0.3,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  lineHeight: 1.2,
+}
+
+const innerPillDot = (color: string): CSSProperties => ({
+  width: 6, height: 6, borderRadius: '50%', backgroundColor: color,
+  marginTop: 2,
+})
+
+function InnerStagesStrip({ inner }: { inner: AnalysisInnerStage[] }) {
+  // Build a map from parsed events, then project onto the canonical
+  // 7-stage layout so pending stages show up as ghost pills.
+  const byName = new Map<string, AnalysisInnerStage>()
+  for (const s of inner) byName.set(s.stage, s)
+
+  // The last 'running' stage in pipeline order is the truly active
+  // one (orchestrator runs strictly sequentially; an earlier 'running'
+  // without a matching stage_done means a lost write, so we downgrade
+  // to 'ok' visually since the pipeline has moved past it).
+  let activeIdx = -1
+  ANALYSIS_INNER_STAGES.forEach((name, i) => {
+    const s = byName.get(name)
+    if (s && s.status === 'running') activeIdx = i
+  })
+
+  return (
+    <div style={innerStripContainer} title="Pipeline sub-stages">
+      {ANALYSIS_INNER_STAGES.map((name, i) => {
+        const s = byName.get(name)
+        const rawStatus = s?.status ?? 'pending'
+        const status =
+          rawStatus === 'running' && i < activeIdx ? 'ok' : rawStatus
+        const color = STATUS_COLORS[status] ?? STATUS_COLORS.pending
+        return (
+          <div key={name} style={innerPill(color, status === 'running')}>
+            <span style={{ ...innerPillLabel, color }}>{name.slice(0, 4)}</span>
+            <span style={innerPillDot(color)} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ── Main graph component ───────────────────────────────────────────────
 
