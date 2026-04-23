@@ -437,6 +437,53 @@ class ConvertManager:
 
     # ── Batch conversion ──────────────────────────────────────────
 
+    def start_run_from_config_file(
+        self,
+        config_path: str,
+        overrides: dict | None = None,
+    ) -> dict:
+        """Launch a single or batch conversion from a YAML file on disk.
+
+        Decides based on the YAML's top-level shape:
+
+        * If it contains ``convert_batch:`` or ``jobs:``, run as a batch
+          and return ``{"batch_id": ...}``.
+        * Otherwise run as a single subject and return ``{"run_id": ...}``.
+
+        Non-None fields in ``overrides`` shallow-merge on top of the
+        parsed config before launching.
+        """
+        import yaml
+
+        path = Path(config_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Convert config not found: {path}")
+
+        raw = path.read_text()
+        data = yaml.safe_load(raw) or {}
+        if not isinstance(data, dict):
+            raise ValueError(f"Convert config '{path.name}' is not a mapping")
+
+        data.pop("_meta", None)
+
+        is_batch = "convert_batch" in data or "jobs" in data
+        if is_batch:
+            from fmriflow.convert.batch import parse_batch_yaml
+            batch_config = parse_batch_yaml(raw)
+            batch_id = self.start_batch(batch_config)
+            return {"kind": "batch", "batch_id": batch_id}
+
+        params = dict(data)
+        if overrides:
+            params.update({k: v for k, v in overrides.items() if v is not None})
+        for field_name in ("source_dir", "bids_dir", "subject", "heuristic"):
+            if not params.get(field_name):
+                raise ValueError(
+                    f"Convert config missing required field '{field_name}'"
+                )
+        run_id = self.start_run(params)
+        return {"kind": "single", "run_id": run_id}
+
     def start_batch(self, batch_config) -> str:
         """Start a batch of DICOM-to-BIDS conversions."""
         from fmriflow.convert.batch import generate_job_id

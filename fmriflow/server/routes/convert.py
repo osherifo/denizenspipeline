@@ -425,3 +425,45 @@ async def delete_saved_config(request: Request, filename: str):
     if not store.delete_config(filename):
         raise HTTPException(status_code=404, detail=f"Config '{filename}' not found")
     return {"deleted": True, "filename": filename}
+
+
+class RunFromConvertConfigBody(BaseModel):
+    """Overrides shallow-merged on top of the YAML's config body."""
+    subject: str | None = None
+    source_dir: str | None = None
+    bids_dir: str | None = None
+    heuristic: str | None = None
+    sessions: list[str] | None = None
+
+
+@router.post("/convert/configs/{filename}/run")
+async def run_saved_convert_config(
+    request: Request,
+    filename: str,
+    body: RunFromConvertConfigBody | None = None,
+):
+    """Launch a single or batch conversion from a saved YAML config.
+
+    Detects whether the file is a single-run or batch config and
+    dispatches accordingly. Returns either ``{"kind": "single", "run_id": ...}``
+    or ``{"kind": "batch", "batch_id": ...}``.
+    """
+    store = request.app.state.convert_config_store
+    info = store.get_config(filename)
+    if info is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Convert config '{filename}' not found",
+        )
+
+    mgr = request.app.state.convert_manager
+    overrides = body.model_dump(exclude_none=True) if body else None
+    try:
+        result = mgr.start_run_from_config_file(
+            info["path"], overrides=overrides,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {**result, "status": "started", "config": filename}
