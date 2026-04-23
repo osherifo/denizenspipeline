@@ -260,6 +260,20 @@ export interface ConvertRunSummary {
   log_tail?: string
 }
 
+export interface AutoflattenRunSummary {
+  run_id: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  error: string | null
+  log_path: string | null
+  log_tail?: string
+  result?: Record<string, unknown> | null
+}
+
 export interface StageStatus {
   status: 'pending' | 'running' | 'done' | 'warning' | 'failed'
   detail: string

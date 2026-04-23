@@ -35,6 +35,7 @@ import type {
   AutoflattenConfigSummary,
   AutoflattenConfigDetail,
   ConvertRunSummary,
+  AutoflattenRunSummary,
 } from './types'
 
 const BASE = '/api'
@@ -586,6 +587,20 @@ export async function fetchAutoflattenStatus(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
+  })
+}
+
+export async function fetchAutoflattenRunsList(
+  includeFinished: boolean = true,
+): Promise<AutoflattenRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: AutoflattenRunSummary[] }>(`${BASE}/autoflatten/runs${qs}`)
+  return r.runs
+}
+
+export async function cancelAutoflattenRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
   })
 }
 

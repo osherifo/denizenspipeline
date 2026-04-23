@@ -9,10 +9,11 @@ import {
 } from '../../api/client'
 import { useAutoflattenStore } from '../../stores/autoflatten-store'
 import { AutoflattenProgress } from './AutoflattenProgress'
+import { AutoflattenInFlightRuns } from './AutoflattenInFlightRuns'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
-  height: 'calc(100vh - 48px - 200px)',
+  height: 'calc(100vh - 48px - 280px)',
   minHeight: 320,
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
@@ -211,6 +212,7 @@ export function AutoflattenConfigBrowser() {
 
   return (
     <>
+      <AutoflattenInFlightRuns />
       <div style={containerStyle}>
         <div style={sidebarStyle}>
           <div style={sidebarHeader}>
