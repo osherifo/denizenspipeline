@@ -15,6 +15,7 @@ import {
 } from '../api/client'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
+import { LiveStageLog } from '../components/workflow/LiveStageLog'
 
 // ── Styles ──────────────────────────────────────────────────────────────
 
@@ -395,6 +396,10 @@ export function WorkflowsView() {
               if (!s.run_id) return
               setLogStage({ stage: s.stage, runId: s.run_id })
             }}
+          />
+          <LiveStageLog
+            stages={selectedRun.stages}
+            onOpenFull={(stage, runId) => setLogStage({ stage, runId })}
           />
         </div>
       )}
