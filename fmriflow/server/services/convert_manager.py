@@ -153,6 +153,7 @@ class BatchRunHandle:
                     "error": jh.error,
                     "started_at": jh.started_at,
                     "finished_at": jh.finished_at,
+                    "run_id": jh.run_handle.run_id if jh.run_handle else None,
                 }
                 for jh in self.jobs.values()
             ],

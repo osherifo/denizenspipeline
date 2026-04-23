@@ -541,6 +541,7 @@ export interface BatchJobStatus {
   error: string | null
   started_at: number
   finished_at: number
+  run_id: string | null
 }
 
 export interface BatchSummary {

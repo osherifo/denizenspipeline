@@ -7,7 +7,9 @@ import {
   fetchPreprocRun,
   fetchAutoflattenRun,
   fetchInFlightRun,
+  fetchBatchStatus,
 } from '../../api/client'
+import type { BatchSummary } from '../../api/types'
 
 interface StageLogModalProps {
   stage: string
@@ -145,15 +147,27 @@ async function loadByStage(stage: string, runId: string): Promise<LogDetail> {
 }
 
 export function StageLogModal({ stage, runId, subjectHint, onClose }: StageLogModalProps) {
+  // Effective target — may be swapped to a specific job's run_id when
+  // the initial `runId` was a batch_id.
+  const [target, setTarget] = useState(runId)
+  const [batch, setBatch] = useState<BatchSummary | null>(null)
   const [detail, setDetail] = useState<LogDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const isBatchHead = stage === 'convert' && target.startsWith('batch_')
 
   async function load() {
     setLoading(true)
     setError(null)
     try {
-      setDetail(await loadByStage(stage, runId))
+      if (isBatchHead) {
+        setDetail(null)
+        setBatch(await fetchBatchStatus(target))
+      } else {
+        setBatch(null)
+        setDetail(await loadByStage(stage, target))
+      }
     } catch (e) {
       setError(String(e))
     } finally {
@@ -161,14 +175,23 @@ export function StageLogModal({ stage, runId, subjectHint, onClose }: StageLogMo
     }
   }
 
-  useEffect(() => { load() }, [stage, runId])
+  useEffect(() => { load() }, [stage, target])
 
-  // Auto-refresh every 3s while the stage is running
+  // Auto-refresh every 3s while the current view is "running"
   useEffect(() => {
-    if (!detail || detail.status !== 'running') return
+    const running = isBatchHead
+      ? (batch?.status === 'running' || (batch?.counts?.running ?? 0) > 0)
+      : detail?.status === 'running'
+    if (!running) return
     const id = setInterval(load, 3000)
     return () => clearInterval(id)
-  }, [detail?.status])
+  }, [detail?.status, batch?.status, batch?.counts?.running, isBatchHead])
+
+  const canGoBack = target !== runId && isBatchHead === false
+
+  const titleText = isBatchHead
+    ? `batch — ${target}`
+    : (detail?.title || (loading ? 'Loading…' : target))
 
   return (
     <div style={overlay} onClick={onClose}>
@@ -182,10 +205,13 @@ export function StageLogModal({ stage, runId, subjectHint, onClose }: StageLogMo
               {stage} stage{subjectHint ? ` · ${subjectHint}` : ''}
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
-              {detail?.title || (loading ? 'Loading…' : runId)}
+              {titleText}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            {canGoBack && (
+              <button style={btn} onClick={() => setTarget(runId)}>← Batch</button>
+            )}
             <button style={btn} onClick={load}>{loading ? '…' : 'Refresh'}</button>
             {detail?.logTail && (
               <button style={btn} onClick={() => navigator.clipboard?.writeText(detail.logTail || '')}>
@@ -196,6 +222,102 @@ export function StageLogModal({ stage, runId, subjectHint, onClose }: StageLogMo
           </div>
         </div>
         {error && <div style={errBox}>{error}</div>}
+
+        {batch && (
+          <>
+            <div style={metaGrid}>
+              <div style={metaLabel}>Status</div>
+              <div style={{ ...metaValue, color: statusColor(batch.status), textTransform: 'uppercase' }}>
+                {batch.status}
+              </div>
+              <div style={metaLabel}>Jobs</div>
+              <div style={metaValue}>
+                {batch.n_jobs} total
+                {' · '}
+                <span style={{ color: 'var(--accent-green)' }}>{batch.counts.done} done</span>
+                {' · '}
+                <span style={{ color: 'var(--accent-cyan)' }}>{batch.counts.running} running</span>
+                {' · '}
+                <span style={{ color: 'var(--accent-red)' }}>{batch.counts.failed} failed</span>
+                {' · '}
+                <span style={{ color: 'var(--text-secondary)' }}>{batch.counts.queued} queued</span>
+              </div>
+            </div>
+            <div style={{
+              flex: 1, overflow: 'auto',
+              backgroundColor: 'var(--bg-secondary)', borderRadius: 6,
+              padding: '10px 12px', border: '1px solid var(--border)',
+            }}>
+              <div style={{
+                fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)',
+                textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+              }}>
+                Per-job logs (click to open)
+              </div>
+              {batch.jobs.map((j) => {
+                const hasLog = !!j.run_id
+                return (
+                  <div
+                    key={j.job_id}
+                    onClick={() => { if (hasLog) setTarget(j.run_id!) }}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 80px 100px auto',
+                      alignItems: 'center', gap: 10,
+                      padding: '8px 10px',
+                      borderBottom: '1px solid var(--border)',
+                      fontSize: 11, fontFamily: 'monospace',
+                      cursor: hasLog ? 'pointer' : 'default',
+                      opacity: hasLog ? 1 : 0.6,
+                    }}
+                  >
+                    <div>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                        {j.subject}{j.session ? ` · ses-${j.session}` : ''}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                        {j.run_id || j.job_id}
+                      </div>
+                    </div>
+                    <div style={{ color: statusColor(j.status), fontWeight: 700, textTransform: 'uppercase' }}>
+                      {j.status}
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)' }}>
+                      {j.finished_at
+                        ? `${Math.round(j.finished_at - j.started_at)}s`
+                        : j.started_at ? 'running…' : '-'}
+                    </div>
+                    <div style={{
+                      fontSize: 9, color: hasLog ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                      letterSpacing: 0.5, fontWeight: 600,
+                    }}>
+                      {hasLog ? 'OPEN LOG →' : '(no log yet)'}
+                    </div>
+                  </div>
+                )
+              })}
+              {batch.jobs.some((j) => j.error) && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)',
+                    textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6,
+                  }}>
+                    Errors
+                  </div>
+                  {batch.jobs.filter((j) => j.error).map((j) => (
+                    <div key={j.job_id} style={{
+                      fontSize: 10, color: 'var(--accent-red)',
+                      fontFamily: 'monospace', marginBottom: 4,
+                    }}>
+                      <b>{j.subject}:</b> {j.error}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
         {detail && (
           <>
             <div style={metaGrid}>
