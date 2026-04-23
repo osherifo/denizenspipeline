@@ -41,7 +41,7 @@ These are all satisfied after a successful fmriprep run with `mode: full` or `mo
 
 ## Web UI
 
-The Autoflatten view appears in the sidebar under the **Preprocessing** group, alongside DICOM → BIDS and Preproc. It has three tabs:
+The Autoflatten view appears in the sidebar under the **Preprocessing** group, alongside DICOM → BIDS and Preproc. It has four tabs:
 
 ### Status tab
 
@@ -57,6 +57,41 @@ Check what's installed and inspect a subject's state. Enter the subjects directo
 If flat patches exist, their previews render as thumbnails below the status readout. Click an image to zoom.
 
 The tab also tells you the next action: flatten, import, or "all set".
+
+### Configs tab
+
+Browse YAML autoflatten configs discovered under `./experiments/autoflatten/`.
+Each file must have a top-level `autoflatten:` section matching the
+`AutoflattenConfig` fields (see CLI section below). Clicking a config
+shows a summary grid (subject, subjects_dir, hemispheres, backend) and
+the raw YAML with a **Run** button. The same live progress panel used
+by the Run/Import tabs streams below.
+
+Schema (minimal):
+
+```yaml
+autoflatten:
+  subjects_dir: /data/derivatives/freesurfer
+  subject: sub-AN
+  hemispheres: both         # both | lh | rh
+  backend: pyflatten        # pyflatten | freesurfer
+  overwrite: false
+  import_to_pycortex: true
+  pycortex_surface_name: ANfs   # optional
+```
+
+### HTTP API
+
+```bash
+# List configs
+curl http://localhost:8000/api/autoflatten/configs
+
+# Get one
+curl http://localhost:8000/api/autoflatten/configs/ANfs.yaml
+
+# Kick off (body is optional — fields shallow-merge onto the YAML)
+curl -X POST http://localhost:8000/api/autoflatten/configs/ANfs.yaml/run
+```
 
 ### Run / Flatten tab
 

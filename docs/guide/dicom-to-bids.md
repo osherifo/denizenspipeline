@@ -102,11 +102,37 @@ def infotodict(seqinfo):
 
 ## Saved configs
 
-Conversion configs can be saved for reproducibility and re-use:
+Conversion configs can be saved for reproducibility and re-use. The same
+YAML drives three equivalent entry points: CLI, dashboard **Configs** tab,
+and HTTP API.
 
-- **Web UI:** "Save Config" button on the Batch form
-- Configs are stored as YAML in `~/.fmriflow/convert_configs/`
-- Saved configs are valid batch YAML files — usable directly with `fmriflow convert batch --config`
+- **Default location:** `./experiments/convert/` (project-local, discovered by the dashboard).
+- **Legacy location:** `~/.fmriflow/convert_configs/` is still scanned read-only so pre-migration configs remain loadable — move them to `./experiments/convert/` when convenient.
+- Saved configs are valid convert YAML files — usable directly with `fmriflow convert batch --config <path>`.
+
+### Run from the dashboard (DICOM → BIDS → Configs)
+
+The dashboard scans `./experiments/convert/*.yaml` and lists them in the
+**Configs** tab. Clicking a config shows its summary + raw YAML with a
+**Run** button that dispatches either a single or batch conversion based
+on the file's shape (top-level `convert_batch:` or `jobs:` → batch,
+otherwise single). Progress streams into the existing Convert / Batch
+progress panel.
+
+### Run via HTTP API
+
+```bash
+# List saved configs
+curl http://localhost:8000/api/convert/configs
+
+# Get one
+curl http://localhost:8000/api/convert/configs/my_batch.yaml
+
+# Kick off (body is optional — fields shallow-merge onto the YAML)
+curl -X POST http://localhost:8000/api/convert/configs/my_batch.yaml/run
+```
+
+Returns `{"kind": "batch", "batch_id": ...}` or `{"kind": "single", "run_id": ...}`.
 
 ## Web UI
 
@@ -114,5 +140,6 @@ The DICOM-to-BIDS tab in the web UI provides:
 
 - **Single run form** — fill in subject, session, source dir, heuristic, run
 - **Batch form** — editable jobs table with shared settings, load/export YAML
+- **Configs** — browse saved YAMLs under `./experiments/convert/`, inspect their summary + YAML, Run directly
 - **Live progress** — per-job status badges, streaming logs, elapsed time
-- **Saved configs** — save, load, and delete conversion configs
+- **Saved configs** — save, load, run, and delete conversion configs

@@ -16,7 +16,7 @@ The sidebar organizes features into three groups: **Preprocessing**, **Analysis*
 
 ### DICOM to BIDS
 
-Convert raw DICOM images to BIDS format. Six tabs cover the full workflow:
+Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
 
 **Tools** — Shows installed conversion tools (heudiconv, dcm2niix) and their status.
 
@@ -25,6 +25,8 @@ Convert raw DICOM images to BIDS format. Six tabs cover the full workflow:
 **Scan** — Point at a DICOM directory to see what series it contains before converting.
 
 **Manifests** — Browse previously generated conversion manifests. Validate them against configs to check compatibility.
+
+**Configs** — Browse YAML conversion configs saved under `./experiments/convert/` (pre-migration configs at `~/.fmriflow/convert_configs/` are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a **Run** button that dispatches either a single or batch conversion based on the file's shape. See [DICOM → BIDS → Saved configs](dicom-to-bids.md#saved-configs) for the schema.
 
 **Convert** — Single-subject conversion form:
 
