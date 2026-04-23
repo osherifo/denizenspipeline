@@ -82,6 +82,7 @@ const groups = [
     label: 'Pipeline',
     items: [
       { key: 'graph', label: 'Pipeline Graph', hash: '#graph' },
+      { key: 'workflows', label: 'Workflows', hash: '#workflows' },
     ],
   },
   {

@@ -290,6 +290,42 @@ export interface AnalysisRunSummary {
   log_tail?: string
 }
 
+export interface WorkflowConfigSummary {
+  filename: string
+  path: string
+  name: string
+  n_stages: number
+  stage_names: string[]
+}
+
+export interface WorkflowConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
+export interface WorkflowStageStatus {
+  stage: 'convert' | 'preproc' | 'autoflatten' | 'analysis' | string
+  config: string
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled' | string
+  run_id: string | null
+  started_at: number
+  finished_at: number
+  error: string | null
+}
+
+export interface WorkflowRunSummary {
+  run_id: string
+  name: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | string
+  started_at: number
+  finished_at: number
+  error: string | null
+  config_path: string | null
+  stages: WorkflowStageStatus[]
+}
+
 export interface StageStatus {
   status: 'pending' | 'running' | 'done' | 'warning' | 'failed'
   detail: string

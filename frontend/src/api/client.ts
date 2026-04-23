@@ -37,6 +37,9 @@ import type {
   ConvertRunSummary,
   AutoflattenRunSummary,
   AnalysisRunSummary,
+  WorkflowConfigSummary,
+  WorkflowConfigDetail,
+  WorkflowRunSummary,
 } from './types'
 
 const BASE = '/api'
@@ -204,6 +207,44 @@ export async function fetchInFlightRun(runId: string): Promise<AnalysisRunSummar
 
 export async function cancelInFlightRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+// ── Workflows (end-to-end orchestration) ────────────────────────────────
+
+export async function fetchWorkflowConfigs(): Promise<WorkflowConfigSummary[]> {
+  return json(`${BASE}/workflows/configs`)
+}
+
+export async function fetchWorkflowConfigDetail(filename: string): Promise<WorkflowConfigDetail> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runWorkflowConfig(
+  filename: string,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+}
+
+export async function fetchWorkflowRuns(
+  includeFinished: boolean = true,
+): Promise<WorkflowRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: WorkflowRunSummary[] }>(`${BASE}/workflows/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchWorkflowRun(runId: string): Promise<WorkflowRunSummary> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelWorkflowRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',
   })
 }
