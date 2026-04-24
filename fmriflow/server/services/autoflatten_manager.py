@@ -486,6 +486,7 @@ class AutoflattenManager:
                 "error": state.error,
                 "log_path": state.stdout_log,
                 "result": None,
+                "subjects_dir": (state.params or {}).get("subjects_dir", ""),
             }
         # Preserve existing run-detail shape: include an events list so the
         # existing Autoflatten polling code keeps working, even though the
