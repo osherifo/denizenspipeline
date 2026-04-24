@@ -683,6 +683,28 @@ export async function runAutoflattenConfig(
   })
 }
 
+export async function saveAutoflattenConfig(
+  filename: string,
+  yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
+export async function copyAutoflattenConfig(
+  source: string,
+  newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
+  })
+}
+
 export async function startAutoflatten(params: {
   subjects_dir: string
   subject: string

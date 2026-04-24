@@ -43,6 +43,14 @@ class RunFromAutoflattenConfigBody(BaseModel):
     overwrite: bool | None = None
 
 
+class SaveAutoflattenConfigBody(BaseModel):
+    yaml_string: str
+
+
+class CopyAutoflattenConfigBody(BaseModel):
+    new_filename: str
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/autoflatten/doctor")
@@ -164,6 +172,35 @@ async def get_autoflatten_config(request: Request, filename: str):
             detail=f"Autoflatten config '{filename}' not found",
         )
     return result
+
+
+@router.put("/autoflatten/configs/{filename}")
+async def save_autoflatten_config(
+    request: Request,
+    filename: str,
+    body: SaveAutoflattenConfigBody,
+):
+    """Overwrite (or create) an autoflatten config file with raw YAML."""
+    store = request.app.state.autoflatten_config_store
+    result = store.save_config(filename, body.yaml_string)
+    if not result['saved']:
+        raise HTTPException(status_code=400, detail="; ".join(result['errors']))
+    return result
+
+
+@router.post("/autoflatten/configs/{filename}/copy")
+async def copy_autoflatten_config(
+    request: Request,
+    filename: str,
+    body: CopyAutoflattenConfigBody,
+):
+    """Duplicate an existing autoflatten config under a new filename."""
+    store = request.app.state.autoflatten_config_store
+    result = store.copy_config(filename, body.new_filename)
+    if not result['saved']:
+        status = 409 if any('already exists' in e for e in result['errors']) else 400
+        raise HTTPException(status_code=status, detail="; ".join(result['errors']))
+    return {**result, 'filename': body.new_filename}
 
 
 @router.post("/autoflatten/configs/{filename}/run")

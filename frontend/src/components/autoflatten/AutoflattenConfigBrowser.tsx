@@ -6,6 +6,8 @@ import {
   fetchAutoflattenConfigs,
   fetchAutoflattenConfigDetail,
   runAutoflattenConfig,
+  saveAutoflattenConfig,
+  copyAutoflattenConfig,
 } from '../../api/client'
 import { useAutoflattenStore } from '../../stores/autoflatten-store'
 import { AutoflattenProgress } from './AutoflattenProgress'
@@ -152,6 +154,52 @@ const yamlPre: CSSProperties = {
   border: '1px solid var(--border)',
 }
 
+const yamlTextarea = (hasError: boolean): CSSProperties => ({
+  width: '100%',
+  minHeight: 300,
+  maxHeight: 520,
+  padding: '12px 14px',
+  borderRadius: 6,
+  fontSize: 11,
+  lineHeight: 1.6,
+  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+  backgroundColor: 'var(--bg-secondary)',
+  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-cyan)'}`,
+  color: 'var(--text-primary)',
+  outline: 'none',
+  resize: 'vertical',
+  tabSize: 2,
+})
+
+const actionBtn = (variant: 'primary' | 'default' | 'danger' = 'default'): CSSProperties => ({
+  padding: '6px 14px',
+  fontSize: 11,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  borderRadius: 6,
+  cursor: 'pointer',
+  border:
+    variant === 'primary'
+      ? '1px solid var(--accent-cyan)'
+      : variant === 'danger'
+        ? '1px solid var(--accent-red)'
+        : '1px solid var(--border)',
+  backgroundColor:
+    variant === 'primary'
+      ? 'rgba(0, 229, 255, 0.1)'
+      : variant === 'danger'
+        ? 'rgba(255, 23, 68, 0.08)'
+        : 'var(--bg-input)',
+  color:
+    variant === 'primary'
+      ? 'var(--accent-cyan)'
+      : variant === 'danger'
+        ? 'var(--accent-red)'
+        : 'var(--text-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+})
+
 const sectionLabel: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
@@ -168,6 +216,11 @@ export function AutoflattenConfigBrowser() {
   const [selected, setSelected] = useState<AutoflattenConfigDetail | null>(null)
   const [selectedLoading, setSelectedLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [yamlDraft, setYamlDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [copying, setCopying] = useState(false)
 
   // Reuse the store's live event pipeline by attaching via its WebSocket
   // plumbing — we call the existing /autoflatten/configs/{f}/run endpoint
@@ -194,9 +247,12 @@ export function AutoflattenConfigBrowser() {
     setSelected(null)
     setSelectedLoading(true)
     setRunError(null)
+    setEditing(false)
+    setSaveError(null)
     try {
       const detail = await fetchAutoflattenConfigDetail(filename)
       setSelected(detail)
+      setYamlDraft(detail.yaml_string)
     } catch (e) {
       setRunError(String(e))
     } finally {
@@ -212,6 +268,50 @@ export function AutoflattenConfigBrowser() {
       attachToRun(r.run_id)
     } catch (e) {
       setRunError(String(e))
+    }
+  }
+
+  async function saveYaml() {
+    if (!selected) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await saveAutoflattenConfig(selected.filename, yamlDraft)
+      // Re-fetch so the parsed summary + raw YAML reflect what was saved.
+      const refreshed = await fetchAutoflattenConfigDetail(selected.filename)
+      setSelected(refreshed)
+      setYamlDraft(refreshed.yaml_string)
+      setEditing(false)
+      reload()
+    } catch (e) {
+      setSaveError(String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function cancelEdit() {
+    if (selected) setYamlDraft(selected.yaml_string)
+    setEditing(false)
+    setSaveError(null)
+  }
+
+  async function duplicate() {
+    if (!selected) return
+    const base = selected.filename.replace(/\.(yaml|yml)$/, '')
+    const ext = selected.filename.match(/\.(yaml|yml)$/)?.[0] ?? '.yaml'
+    const suggested = `${base}_copy${ext}`
+    const name = window.prompt('New filename:', suggested)
+    if (!name) return
+    setCopying(true)
+    try {
+      const result = await copyAutoflattenConfig(selected.filename, name)
+      await reload()
+      if (result.saved) await select(result.filename)
+    } catch (e) {
+      window.alert(`Copy failed: ${e}`)
+    } finally {
+      setCopying(false)
     }
   }
 
@@ -318,8 +418,59 @@ export function AutoflattenConfigBrowser() {
                 )
               })()}
 
-              <div style={sectionLabel}>YAML</div>
-              <pre style={yamlPre}>{selected.yaml_string}</pre>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <div style={sectionLabel}>YAML</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {!editing && (
+                    <button
+                      style={actionBtn('default')}
+                      onClick={() => setEditing(true)}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    style={actionBtn('default')}
+                    onClick={duplicate}
+                    disabled={copying || editing}
+                  >
+                    {copying ? 'Copying…' : 'Duplicate'}
+                  </button>
+                </div>
+              </div>
+              {editing ? (
+                <>
+                  <textarea
+                    style={yamlTextarea(saveError !== null)}
+                    value={yamlDraft}
+                    onChange={(e) => setYamlDraft(e.target.value)}
+                    spellCheck={false}
+                  />
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                      style={actionBtn('primary')}
+                      onClick={saveYaml}
+                      disabled={saving || yamlDraft === selected.yaml_string}
+                    >
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      style={actionBtn('default')}
+                      onClick={cancelEdit}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </button>
+                    {saveError && (
+                      <span style={{ fontSize: 11, color: 'var(--accent-red)', fontFamily: 'monospace' }}>
+                        {saveError}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <pre style={yamlPre}>{selected.yaml_string}</pre>
+              )}
             </>
           )}
         </div>
