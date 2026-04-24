@@ -369,6 +369,7 @@ class WorkflowManager:
             "error": error,
         })
         self._persist_state(handle)
+        self.active_runs.pop(handle.run_id, None)
 
     # ── Registry + management ───────────────────────────────────────
 
