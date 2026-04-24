@@ -6,6 +6,7 @@ import {
   fetchConvertRuns,
   fetchConvertRun,
   cancelConvertRun,
+  deleteConvertRun,
 } from '../../api/client'
 import { useDialog } from '../common/Dialog'
 
@@ -270,6 +271,20 @@ export function ConvertInFlightRuns() {
     }
   }
 
+  async function remove(runId: string, subject: string) {
+    const ok = await dlg.confirm(
+      `Delete convert run for ${subject}?\n\nRemoves registry entry, logs, the run's sub-${subject}/ subdirectory under bids_dir, and the matching .heudiconv cache. Other subjects in the same BIDS root are not touched. Cannot be undone.`,
+      { variant: 'danger', confirmLabel: 'Delete' },
+    )
+    if (!ok) return
+    try {
+      await deleteConvertRun(runId)
+      reload()
+    } catch (e) {
+      await dlg.alert(String(e))
+    }
+  }
+
   useEffect(() => { reload() }, [])
 
   useEffect(() => {
@@ -316,8 +331,10 @@ export function ConvertInFlightRuns() {
             </div>
             <div style={actionsStyle}>
               <button style={btn('muted')} onClick={() => openLog(r.run_id)}>Log</button>
-              {isRunning && (
+              {isRunning ? (
                 <button style={btn('danger')} onClick={() => cancel(r.run_id, r.subject)}>Cancel</button>
+              ) : (
+                <button style={btn('danger')} onClick={() => remove(r.run_id, r.subject)}>Delete</button>
               )}
             </div>
           </div>

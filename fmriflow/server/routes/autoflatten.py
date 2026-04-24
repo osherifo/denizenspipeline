@@ -263,6 +263,20 @@ async def cancel_autoflatten_run(request: Request, run_id: str):
     return result
 
 
+@router.delete("/autoflatten/runs/{run_id}")
+async def delete_autoflatten_run(request: Request, run_id: str):
+    """Delete a finished autoflatten run — registry entry only. The
+    shared FreeSurfer subject dir and pycortex surfaces are never
+    touched (often lab-owned)."""
+    mgr = request.app.state.autoflatten_manager
+    result = mgr.delete_run(run_id)
+    if not result.get("deleted"):
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
+    return result
+
+
 @router.get("/autoflatten/image")
 async def get_autoflatten_image(path: str):
     """Serve an autoflatten-generated PNG (flatmap visualization).

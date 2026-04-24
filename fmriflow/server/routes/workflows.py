@@ -90,3 +90,18 @@ async def cancel_workflow_run(request: Request, run_id: str):
     if not result.get("cancelled"):
         raise HTTPException(status_code=409, detail=result.get("reason", "could not cancel"))
     return result
+
+
+@router.delete("/workflows/runs/{run_id}")
+async def delete_workflow_run(request: Request, run_id: str):
+    """Delete a finished workflow run. Cascades to each stage's
+    child run so the same per-stage cleanup rules apply (subject BIDS
+    for convert, sub-<subject>/ for preproc, per-run output subdir for
+    analysis, registry only for autoflatten)."""
+    mgr = request.app.state.workflow_manager
+    result = mgr.delete_run(run_id)
+    if not result.get("deleted"):
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
+    return result

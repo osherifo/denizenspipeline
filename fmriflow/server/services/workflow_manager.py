@@ -454,3 +454,64 @@ class WorkflowManager:
         # poll and forward SIGTERM to the current stage's child. We
         # don't kill anything from here — the stage manager owns the PID.
         return {"cancelled": True}
+
+    def delete_run(self, run_id: str) -> dict:
+        """Delete a finished workflow run and cascade to its stage runs.
+
+        Refuses while the workflow itself is still running. Each stage's
+        child run (if any) is deleted via that stage's manager, which
+        applies its own per-stage output-cleanup rules. Then the
+        workflow's own registry dir is removed.
+        """
+        handle = self.active_runs.get(run_id)
+        status = handle.status if handle else None
+        state = self.registry.load(run_id)
+        if status is None and state is not None:
+            status = state.status
+        if status == "running":
+            return {"deleted": False, "reason": "workflow is still running; cancel first"}
+        if state is None and handle is None:
+            return {"deleted": False, "reason": "workflow not found"}
+
+        stage_results: list[dict] = []
+        # Collect child runs: prefer the in-memory handle (has full
+        # WorkflowStageStatus objects); fall back to state.params which
+        # stores a list of dicts per stage.
+        if handle is not None:
+            stage_iter = [
+                {"stage": s.stage, "run_id": s.run_id}
+                for s in handle.stages
+            ]
+        else:
+            stage_iter = (state.params or {}).get("stages", []) if state else []
+
+        for sdata in stage_iter:
+            child_stage = sdata.get("stage")
+            child_run_id = sdata.get("run_id")
+            if not child_stage or not child_run_id:
+                continue
+            mgr = self.stage_managers.get(child_stage)
+            if mgr is None or not hasattr(mgr, "delete_run"):
+                stage_results.append({
+                    "stage": child_stage,
+                    "run_id": child_run_id,
+                    "deleted": False,
+                    "reason": "manager not available",
+                })
+                continue
+            try:
+                r = mgr.delete_run(child_run_id)
+            except Exception as e:
+                r = {"deleted": False, "reason": str(e)}
+            stage_results.append({
+                "stage": child_stage,
+                "run_id": child_run_id,
+                **r,
+            })
+
+        self.active_runs.pop(run_id, None)
+        existed = self.registry.delete(run_id)
+        return {
+            "deleted": True if (existed or stage_results) else False,
+            "stage_results": stage_results,
+        }

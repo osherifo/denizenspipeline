@@ -599,6 +599,66 @@ class PreprocManager:
         summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""
         return summary
 
+    def delete_run(self, run_id: str) -> dict:
+        """Delete a finished preproc run.
+
+        Refuses while the run is still ``running`` — the caller must
+        cancel first. Removes the registry dir
+        (``~/.fmriflow/runs/<id>/``) and the run's per-subject output
+        directory under ``output_dir/sub-<subject>/``. Does not touch
+        sibling subjects in the same derivatives tree.
+
+        Returns ``{deleted: bool, reason?: str, removed_paths: [..]}``.
+        """
+        import shutil
+
+        # Determine current status — prefer in-memory handle, fall
+        # back to registry state.
+        handle = self.active_runs.get(run_id)
+        status = handle.status if handle else None
+        state = self.registry.load(run_id)
+        if status is None and state is not None:
+            status = state.status
+        if status == "running":
+            return {"deleted": False, "reason": "run is still running; cancel first"}
+        if state is None and handle is None:
+            return {"deleted": False, "reason": "run not found"}
+
+        # Gather per-subject paths to remove before we nuke state.
+        removed: list[str] = []
+        subject = (state.subject if state else handle.subject) or ""
+        params = (state.params if state else (handle.params if handle else {})) or {}
+        output_dir = params.get("output_dir")
+        if subject and output_dir:
+            sub_out = Path(output_dir) / f"sub-{subject}"
+            if sub_out.is_dir():
+                try:
+                    shutil.rmtree(sub_out)
+                    removed.append(str(sub_out))
+                except OSError as e:
+                    logger.warning("Could not remove %s: %s", sub_out, e)
+        # Sibling HTML report (fmriprep writes sub-{subject}.html at
+        # the output_dir root).
+        if subject and output_dir:
+            html = Path(output_dir) / f"sub-{subject}.html"
+            if html.is_file():
+                try:
+                    html.unlink()
+                    removed.append(str(html))
+                except OSError:
+                    pass
+
+        # Drop the handle from the in-memory registry.
+        self.active_runs.pop(run_id, None)
+
+        # Finally, remove the ~/.fmriflow/runs/<id>/ dir.
+        existed = self.registry.delete(run_id)
+        if not existed and not removed:
+            return {"deleted": False, "reason": "nothing to delete"}
+
+        self.invalidate_cache()
+        return {"deleted": True, "removed_paths": removed}
+
     def cancel_run(self, run_id: str) -> dict:
         """Terminate a running preproc subprocess. SIGTERM then SIGKILL."""
         handle = self.active_runs.get(run_id)

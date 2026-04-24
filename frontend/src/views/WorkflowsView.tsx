@@ -12,6 +12,7 @@ import {
   runWorkflowConfig,
   fetchWorkflowRuns,
   cancelWorkflowRun,
+  deleteWorkflowRun,
   fetchInFlightRun,
 } from '../api/client'
 import type { AnalysisInnerStage } from '../api/types'
@@ -176,12 +177,13 @@ const btn = (variant: 'danger' | 'muted'): CSSProperties => ({
 })
 
 function RunHistoryPanel({
-  runs, loading, onReload, onCancel, onSelect,
+  runs, loading, onReload, onCancel, onDelete, onSelect,
 }: {
   runs: WorkflowRunSummary[]
   loading: boolean
   onReload: () => void
   onCancel: (runId: string, name: string) => void
+  onDelete: (runId: string, name: string) => void
   onSelect: (runId: string) => void
 }) {
   return (
@@ -223,8 +225,10 @@ function RunHistoryPanel({
               {formatWhen(r.started_at)}
             </div>
             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-              {isRunning && (
+              {isRunning ? (
                 <button style={btn('danger')} onClick={() => onCancel(r.run_id, r.name)}>Cancel</button>
+              ) : (
+                <button style={btn('danger')} onClick={() => onDelete(r.run_id, r.name)}>Delete</button>
               )}
             </div>
           </div>
@@ -300,6 +304,21 @@ export function WorkflowsView() {
     try {
       await cancelWorkflowRun(runId)
       reloadRuns()
+    } catch (e) {
+      await dlg.alert(String(e))
+    }
+  }
+
+  async function removeWorkflow(runId: string, name: string) {
+    const ok = await dlg.confirm(
+      `Delete workflow "${name}"?\n\nCascades to every stage's child run: convert (sub-<subject>/ses-<ses>/ + .heudiconv cache), preproc (sub-<subject>/), autoflatten (registry only), analysis (per-run output subdir). Cannot be undone.`,
+      { variant: 'danger', confirmLabel: 'Delete workflow + stages' },
+    )
+    if (!ok) return
+    try {
+      await deleteWorkflowRun(runId)
+      reloadRuns()
+      if (selectedRun?.run_id === runId) setSelectedRun(null)
     } catch (e) {
       await dlg.alert(String(e))
     }
@@ -401,6 +420,7 @@ export function WorkflowsView() {
         loading={runsLoading}
         onReload={reloadRuns}
         onCancel={cancel}
+        onDelete={removeWorkflow}
         onSelect={(run_id) => {
           const r = runs.find((x) => x.run_id === run_id)
           if (r) setSelectedRun(r)

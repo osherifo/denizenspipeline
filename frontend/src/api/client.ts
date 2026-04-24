@@ -211,6 +211,12 @@ export async function cancelInFlightRun(runId: string): Promise<{ cancelled: boo
   })
 }
 
+export async function deleteInFlightRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
 // ── Workflows (end-to-end orchestration) ────────────────────────────────
 
 export async function fetchWorkflowConfigs(): Promise<WorkflowConfigSummary[]> {
@@ -246,6 +252,15 @@ export async function fetchWorkflowRun(runId: string): Promise<WorkflowRunSummar
 export async function cancelWorkflowRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',
+  })
+}
+
+export async function deleteWorkflowRun(runId: string): Promise<{
+  deleted: boolean
+  stage_results?: Array<{ stage: string; run_id: string; deleted: boolean; reason?: string }>
+}> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
   })
 }
 
@@ -409,6 +424,12 @@ export async function fetchPreprocRun(runId: string): Promise<PreprocRunSummary>
 export async function cancelPreprocRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',
+  })
+}
+
+export async function deletePreprocRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
   })
 }
 
@@ -615,6 +636,12 @@ export async function cancelConvertRun(runId: string): Promise<{ cancelled: bool
   })
 }
 
+export async function deleteConvertRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function runSavedConvertConfig(
   filename: string,
   overrides?: Record<string, unknown>,
@@ -661,6 +688,12 @@ export async function fetchAutoflattenRunsList(
 export async function cancelAutoflattenRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',
+  })
+}
+
+export async function deleteAutoflattenRun(runId: string): Promise<{ deleted: boolean }> {
+  return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
   })
 }
 

@@ -493,6 +493,29 @@ class AutoflattenManager:
         summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""
         return summary
 
+    def delete_run(self, run_id: str) -> dict:
+        """Delete a finished autoflatten run.
+
+        Refuses while running. Removes ONLY the registry dir — the
+        FreeSurfer subject dir and any pycortex surfaces are shared
+        and frequently lab-owned, so they are left alone.
+        """
+        handle = self.active_runs.get(run_id)
+        status = handle.status if handle else None
+        state = self.registry.load(run_id)
+        if status is None and state is not None:
+            status = state.status
+        if status == "running":
+            return {"deleted": False, "reason": "run is still running; cancel first"}
+        if state is None and handle is None:
+            return {"deleted": False, "reason": "run not found"}
+
+        self.active_runs.pop(run_id, None)
+        existed = self.registry.delete(run_id)
+        if not existed:
+            return {"deleted": False, "reason": "nothing to delete"}
+        return {"deleted": True, "removed_paths": []}
+
     def cancel_run(self, run_id: str) -> dict:
         handle = self.active_runs.get(run_id)
         if handle is None:

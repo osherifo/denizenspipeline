@@ -551,6 +551,46 @@ class RunManager:
         summary['inner_stages'] = _parse_events_file(summary.get('events_path'))
         return summary
 
+    def delete_run(self, run_id: str) -> dict:
+        """Delete a finished analysis run.
+
+        Refuses while running. Removes the registry dir and the
+        run's per-run output subdir (which has been scoped to
+        ``run_<ts>_<id>/`` since the per-run output-dir fix).
+        """
+        import shutil
+
+        handle = self.active_runs.get(run_id)
+        status = handle.status if handle else None
+        state = self.registry.load(run_id)
+        if status is None and state is not None:
+            status = state.status
+        if status == 'running':
+            return {'deleted': False, 'reason': 'run is still running; cancel first'}
+        if state is None and handle is None:
+            return {'deleted': False, 'reason': 'run not found'}
+
+        removed: list[str] = []
+        params = (state.params if state else (handle.config if handle else {})) or {}
+        output_dir = params.get('output_dir') or (handle.output_dir if handle else None)
+        if output_dir:
+            od = Path(output_dir)
+            # Only nuke if it looks like the per-run subdir pattern
+            # `run_<timestamp>_<id>`. Otherwise bail — user may have
+            # hand-edited the config to a shared dir.
+            if od.is_dir() and od.name.startswith(f'run_'):
+                try:
+                    shutil.rmtree(od)
+                    removed.append(str(od))
+                except OSError as e:
+                    logger.warning('Could not remove %s: %s', od, e)
+
+        self.active_runs.pop(run_id, None)
+        existed = self.registry.delete(run_id)
+        if not existed and not removed:
+            return {'deleted': False, 'reason': 'nothing to delete'}
+        return {'deleted': True, 'removed_paths': removed}
+
     def cancel_run(self, run_id: str) -> dict:
         handle = self.active_runs.get(run_id)
         if handle is None:

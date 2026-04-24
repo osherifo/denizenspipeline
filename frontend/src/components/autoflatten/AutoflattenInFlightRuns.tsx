@@ -6,6 +6,7 @@ import {
   fetchAutoflattenRunsList,
   fetchAutoflattenRun,
   cancelAutoflattenRun,
+  deleteAutoflattenRun,
 } from '../../api/client'
 import { useDialog } from '../common/Dialog'
 
@@ -266,6 +267,20 @@ export function AutoflattenInFlightRuns() {
     }
   }
 
+  async function remove(runId: string, subject: string) {
+    const ok = await dlg.confirm(
+      `Delete autoflatten run for ${subject}?\n\nRemoves only the run's registry entry and logs. The FreeSurfer subject directory and pycortex surfaces are left alone (often lab-shared). Cannot be undone.`,
+      { variant: 'danger', confirmLabel: 'Delete' },
+    )
+    if (!ok) return
+    try {
+      await deleteAutoflattenRun(runId)
+      reload()
+    } catch (e) {
+      await dlg.alert(String(e))
+    }
+  }
+
   useEffect(() => { reload() }, [])
 
   useEffect(() => {
@@ -312,8 +327,10 @@ export function AutoflattenInFlightRuns() {
             </div>
             <div style={actionsStyle}>
               <button style={btn('muted')} onClick={() => openLog(r.run_id)}>Log</button>
-              {isRunning && (
+              {isRunning ? (
                 <button style={btn('danger')} onClick={() => cancel(r.run_id, r.subject)}>Cancel</button>
+              ) : (
+                <button style={btn('danger')} onClick={() => remove(r.run_id, r.subject)}>Delete</button>
               )}
             </div>
           </div>

@@ -6,6 +6,7 @@ import {
   fetchInFlightRuns,
   fetchInFlightRun,
   cancelInFlightRun,
+  deleteInFlightRun,
 } from '../../api/client'
 import { useDialog } from '../common/Dialog'
 
@@ -276,6 +277,20 @@ export function AnalysisInFlightRuns() {
     }
   }
 
+  async function remove(runId: string, label: string) {
+    const ok = await dlg.confirm(
+      `Delete run "${label}"?\n\nRemoves registry entry, logs, and the run's per-run output subdirectory. Cannot be undone.`,
+      { variant: 'danger', confirmLabel: 'Delete' },
+    )
+    if (!ok) return
+    try {
+      await deleteInFlightRun(runId)
+      reload()
+    } catch (e) {
+      await dlg.alert(String(e))
+    }
+  }
+
   useEffect(() => { reload() }, [])
 
   useEffect(() => {
@@ -323,8 +338,10 @@ export function AnalysisInFlightRuns() {
             </div>
             <div style={actionsStyle}>
               <button style={btn('muted')} onClick={() => openLog(r.run_id)}>Log</button>
-              {isRunning && (
+              {isRunning ? (
                 <button style={btn('danger')} onClick={() => cancel(r.run_id, label)}>Cancel</button>
+              ) : (
+                <button style={btn('danger')} onClick={() => remove(r.run_id, label)}>Delete</button>
               )}
             </div>
           </div>

@@ -150,6 +150,18 @@ async def cancel_preproc_run(request: Request, run_id: str):
     return result
 
 
+@router.delete("/preproc/runs/{run_id}")
+async def delete_preproc_run(request: Request, run_id: str):
+    """Delete a finished preproc run: registry dir + sub-<subject>/ outputs."""
+    mgr = request.app.state.preproc_manager
+    result = mgr.delete_run(run_id)
+    if not result.get("deleted"):
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
+    return result
+
+
 @router.get("/preproc/configs")
 async def list_preproc_configs(request: Request):
     """List preprocessing YAML configs (with a top-level preproc: section)."""

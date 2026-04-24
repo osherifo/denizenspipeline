@@ -454,6 +454,18 @@ async def cancel_convert_run(request: Request, run_id: str):
     return result
 
 
+@router.delete("/convert/runs/{run_id}")
+async def delete_convert_run(request: Request, run_id: str):
+    """Delete a finished convert run: registry + sub-<subject>/ses-<ses>/ BIDS + .heudiconv cache."""
+    mgr = request.app.state.convert_manager
+    result = mgr.delete_run(run_id)
+    if not result.get("deleted"):
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
+    return result
+
+
 class RunFromConvertConfigBody(BaseModel):
     """Overrides shallow-merged on top of the YAML's config body."""
     subject: str | None = None
