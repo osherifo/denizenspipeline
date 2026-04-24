@@ -10,6 +10,8 @@ import {
   fetchWorkflowConfigs,
   fetchWorkflowConfigDetail,
   runWorkflowConfig,
+  saveWorkflowConfig,
+  copyWorkflowConfig,
   fetchWorkflowRuns,
   cancelWorkflowRun,
   deleteWorkflowRun,
@@ -128,6 +130,36 @@ const yamlPre: CSSProperties = {
   overflow: 'auto', maxHeight: 360, whiteSpace: 'pre',
   border: '1px solid var(--border)',
 }
+
+const yamlTextarea = (hasError: boolean): CSSProperties => ({
+  width: '100%',
+  minHeight: 260, maxHeight: 520,
+  padding: '12px 14px', borderRadius: 6,
+  fontSize: 11, lineHeight: 1.6,
+  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+  backgroundColor: 'var(--bg-secondary)',
+  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-cyan)'}`,
+  color: 'var(--text-primary)',
+  outline: 'none', resize: 'vertical', tabSize: 2,
+  boxSizing: 'border-box',
+})
+
+const cfgBtn = (variant: 'primary' | 'default' = 'default'): CSSProperties => ({
+  padding: '6px 14px',
+  fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+  borderRadius: 6, cursor: 'pointer',
+  border: variant === 'primary'
+    ? '1px solid var(--accent-cyan)'
+    : '1px solid var(--border)',
+  backgroundColor: variant === 'primary'
+    ? 'rgba(0, 229, 255, 0.1)'
+    : 'var(--bg-input)',
+  color: variant === 'primary'
+    ? 'var(--accent-cyan)'
+    : 'var(--text-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+})
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -253,6 +285,11 @@ export function WorkflowsView() {
   const [selectedRun, setSelectedRun] = useState<WorkflowRunSummary | null>(null)
   const [logStage, setLogStage] = useState<{ stage: string; runId: string; subject?: string } | null>(null)
   const [analysisInner, setAnalysisInner] = useState<{ runId: string; stages: AnalysisInnerStage[] } | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [yamlDraft, setYamlDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [copying, setCopying] = useState(false)
   const dlg = useDialog()
 
   async function reloadConfigs() {
@@ -277,8 +314,12 @@ export function WorkflowsView() {
     setSelected(null)
     setSelectedLoading(true)
     setRunError(null)
+    setEditing(false)
+    setSaveError(null)
     try {
-      setSelected(await fetchWorkflowConfigDetail(filename))
+      const detail = await fetchWorkflowConfigDetail(filename)
+      setSelected(detail)
+      setYamlDraft(detail.yaml_string)
     } finally {
       setSelectedLoading(false)
     }
@@ -295,6 +336,49 @@ export function WorkflowsView() {
       setRunError(String(e))
     } finally {
       setRunning(false)
+    }
+  }
+
+  async function saveYaml() {
+    if (!selected) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await saveWorkflowConfig(selected.filename, yamlDraft)
+      const refreshed = await fetchWorkflowConfigDetail(selected.filename)
+      setSelected(refreshed)
+      setYamlDraft(refreshed.yaml_string)
+      setEditing(false)
+      reloadConfigs()
+    } catch (e) {
+      setSaveError(String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function cancelEdit() {
+    if (selected) setYamlDraft(selected.yaml_string)
+    setEditing(false)
+    setSaveError(null)
+  }
+
+  async function duplicate() {
+    if (!selected) return
+    const base = selected.filename.replace(/\.(yaml|yml)$/, '')
+    const ext = selected.filename.match(/\.(yaml|yml)$/)?.[0] ?? '.yaml'
+    const suggested = `${base}_copy${ext}`
+    const name = await dlg.prompt('New filename:', { defaultValue: suggested })
+    if (!name) return
+    setCopying(true)
+    try {
+      const result = await copyWorkflowConfig(selected.filename, name)
+      await reloadConfigs()
+      if (result.saved) await select(result.filename)
+    } catch (e) {
+      await dlg.alert(`Copy failed: ${e}`)
+    } finally {
+      setCopying(false)
     }
   }
 
@@ -551,8 +635,56 @@ export function WorkflowsView() {
                 </div>
               )}
 
-              <div style={sectionLabel}>YAML</div>
-              <pre style={yamlPre}>{selected.yaml_string}</pre>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={sectionLabel}>YAML</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {!editing && (
+                    <button style={cfgBtn()} onClick={() => setEditing(true)}>
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    style={cfgBtn()}
+                    onClick={duplicate}
+                    disabled={copying || editing}
+                  >
+                    {copying ? 'Copying…' : 'Duplicate'}
+                  </button>
+                </div>
+              </div>
+              {editing ? (
+                <>
+                  <textarea
+                    style={yamlTextarea(saveError !== null)}
+                    value={yamlDraft}
+                    onChange={(e) => setYamlDraft(e.target.value)}
+                    spellCheck={false}
+                  />
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                    <button
+                      style={cfgBtn('primary')}
+                      onClick={saveYaml}
+                      disabled={saving || yamlDraft === selected.yaml_string}
+                    >
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      style={cfgBtn()}
+                      onClick={cancelEdit}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </button>
+                    {saveError && (
+                      <span style={{ fontSize: 11, color: 'var(--accent-red)', fontFamily: 'monospace' }}>
+                        {saveError}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <pre style={yamlPre}>{selected.yaml_string}</pre>
+              )}
             </>
           )}
         </div>
