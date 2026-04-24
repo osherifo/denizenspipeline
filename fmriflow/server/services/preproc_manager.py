@@ -349,7 +349,25 @@ class PreprocManager:
                 handle.pgid = proc.pid
             self._persist_state(handle)
 
-            tailer = _LogTailer(log_path, handle, stop_when=lambda: proc.poll() is not None)
+            def _sigterm_proc_group():
+                pgid = handle.pgid or handle.pid
+                if not pgid:
+                    return
+                try:
+                    os.killpg(pgid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                except Exception:
+                    logger.warning(
+                        "Failed to SIGTERM pgid=%s on fatal log line", pgid,
+                        exc_info=True,
+                    )
+
+            tailer = _LogTailer(
+                log_path, handle,
+                stop_when=lambda: proc.poll() is not None,
+                on_fatal_line=_sigterm_proc_group,
+            )
             tailer.start()
 
             proc.wait()
@@ -699,7 +717,23 @@ class _LogTailer(threading.Thread):
     Polls with a short sleep; line-buffered fmriprep output shows up
     within a second. Stops when ``stop_when()`` returns True AND the
     file has no further bytes to read.
+
+    If ``on_fatal_line`` is provided, it is invoked the first time a
+    terminal fmriprep failure marker appears in the log (nipype's
+    `CRITICAL: fMRIPrep failed` line). fmriprep's multiproc plugin
+    otherwise keeps scheduling other nodes for many seconds after a
+    node crashes, during which the subprocess is still alive and the
+    UI still reads as "running".
     """
+
+    # Regex: nipype's CRITICAL line that precedes fmriprep's terminal
+    # traceback. Matched greedily — any line containing all three
+    # markers qualifies, which covers the multi-line CRITICAL frame
+    # nipype emits on stdout.
+    _FATAL_MARKERS = (
+        "fMRIPrep failed:",
+        "recon-all: version check failed",
+    )
 
     def __init__(
         self,
@@ -707,6 +741,7 @@ class _LogTailer(threading.Thread):
         handle: PreprocRunHandle,
         stop_when,
         poll_interval: float = 0.5,
+        on_fatal_line=None,
     ):
         super().__init__(daemon=True, name=f"tail-{handle.run_id}")
         self.log_path = log_path
@@ -714,6 +749,8 @@ class _LogTailer(threading.Thread):
         self.stop_when = stop_when
         self.poll_interval = poll_interval
         self._stop_flag = threading.Event()
+        self._on_fatal_line = on_fatal_line
+        self._fatal_fired = False
 
     def run(self) -> None:
         # Wait briefly for the file to exist
@@ -745,6 +782,23 @@ class _LogTailer(threading.Thread):
 
     def _emit(self, line: str) -> None:
         self.handle.push_event({"event": "log", "message": line})
+
+        if not self._fatal_fired and self._on_fatal_line is not None:
+            for marker in self._FATAL_MARKERS:
+                if marker in line:
+                    self._fatal_fired = True
+                    self.handle.push_event({
+                        "event": "fatal_detected",
+                        "message": f"Terminal fmriprep error detected in log: {line}",
+                    })
+                    try:
+                        self._on_fatal_line()
+                    except Exception:
+                        logger.warning(
+                            "Fatal-line callback raised for %s",
+                            self.handle.run_id, exc_info=True,
+                        )
+                    break
 
     def stop_and_join(self, timeout: float = 2.0) -> None:
         self._stop_flag.set()
@@ -782,9 +836,27 @@ class _ReattachedMonitor:
                 return True
             return False
 
+        def _sigterm_proc_group():
+            pgid = self.handle.pgid or self.handle.pid
+            if not pgid:
+                return
+            try:
+                os.killpg(pgid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            except Exception:
+                logger.warning(
+                    "Failed to SIGTERM pgid=%s on fatal log line", pgid,
+                    exc_info=True,
+                )
+
         tailer = None
         if log_path and log_path.is_file():
-            tailer = _LogTailer(log_path, self.handle, stop_when=stop_when)
+            tailer = _LogTailer(
+                log_path, self.handle,
+                stop_when=stop_when,
+                on_fatal_line=_sigterm_proc_group,
+            )
             tailer.start()
 
         # Poll PID until it dies
