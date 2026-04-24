@@ -638,16 +638,31 @@ class ConvertManager:
 
         data.pop("_meta", None)
 
+        non_none_overrides = {
+            k: v for k, v in (overrides or {}).items() if v is not None
+        }
+
         is_batch = "convert_batch" in data or "jobs" in data
         if is_batch:
             from fmriflow.convert.batch import parse_batch_yaml
-            batch_config = parse_batch_yaml(raw)
+
+            batch_data = dict(data)
+            if non_none_overrides:
+                if isinstance(batch_data.get("convert_batch"), dict):
+                    batch_section = dict(batch_data["convert_batch"])
+                    batch_section.update(non_none_overrides)
+                    batch_data["convert_batch"] = batch_section
+                else:
+                    batch_data.update(non_none_overrides)
+
+            batch_raw = yaml.safe_dump(batch_data, sort_keys=False)
+            batch_config = parse_batch_yaml(batch_raw)
             batch_id = self.start_batch(batch_config)
             return {"kind": "batch", "batch_id": batch_id}
 
         params = dict(data)
-        if overrides:
-            params.update({k: v for k, v in overrides.items() if v is not None})
+        if non_none_overrides:
+            params.update(non_none_overrides)
         for field_name in ("source_dir", "bids_dir", "subject", "heuristic"):
             if not params.get(field_name):
                 raise ValueError(
