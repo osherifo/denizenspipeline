@@ -193,9 +193,12 @@ export function AutoflattenConfigBrowser() {
   async function select(filename: string) {
     setSelected(null)
     setSelectedLoading(true)
+    setRunError(null)
     try {
       const detail = await fetchAutoflattenConfigDetail(filename)
       setSelected(detail)
+    } catch (e) {
+      setRunError(String(e))
     } finally {
       setSelectedLoading(false)
     }
@@ -250,13 +253,21 @@ export function AutoflattenConfigBrowser() {
         </div>
 
         <div style={mainPanel}>
-          {!selected && !selectedLoading && (
+          {!selected && !selectedLoading && !runError && (
             <div style={emptyState}>
               <div>Select a config on the left.</div>
               <div style={{ fontSize: 11 }}>
                 Each YAML must have a top-level <code>autoflatten:</code> section.
               </div>
             </div>
+          )}
+          {!selected && !selectedLoading && runError && (
+            <div style={{
+              fontSize: 11, padding: '8px 12px', borderRadius: 6,
+              backgroundColor: 'rgba(255, 23, 68, 0.08)',
+              border: '1px solid rgba(255, 23, 68, 0.25)',
+              color: 'var(--accent-red)', fontFamily: 'monospace',
+            }}>{runError}</div>
           )}
           {selectedLoading && <div style={emptyState}>Loading…</div>}
           {selected && (

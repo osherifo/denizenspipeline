@@ -73,7 +73,10 @@ class ConvertConfigStore:
     def _extract_summary(self, path: Path, data: dict) -> dict:
         """Extract lightweight summary from a saved config."""
         meta = data.get("_meta", {})
-        config_type = "batch" if "convert_batch" in data else "single"
+        # Batch configs can be keyed under ``convert_batch`` or have a
+        # top-level ``jobs`` list (both shapes are accepted by the batch
+        # parser and the /convert/configs/{f}/run endpoint).
+        config_type = "batch" if ("convert_batch" in data or "jobs" in data) else "single"
 
         summary: dict[str, Any] = {
             "filename": path.name,
@@ -84,10 +87,17 @@ class ConvertConfigStore:
         }
 
         if config_type == "batch":
-            batch = data["convert_batch"]
-            summary["heuristic"] = batch.get("heuristic", "")
-            summary["bids_dir"] = batch.get("bids_dir", "")
-            summary["n_jobs"] = len(batch.get("jobs", []))
+            # Support both ``convert_batch:`` section and top-level ``jobs:``
+            # list shapes.
+            if "convert_batch" in data:
+                batch = data["convert_batch"]
+                summary["heuristic"] = batch.get("heuristic", "")
+                summary["bids_dir"] = batch.get("bids_dir", "")
+                summary["n_jobs"] = len(batch.get("jobs", []))
+            else:
+                summary["heuristic"] = data.get("heuristic", "")
+                summary["bids_dir"] = data.get("bids_dir", "")
+                summary["n_jobs"] = len(data.get("jobs", []))
         else:
             summary["heuristic"] = data.get("heuristic", "")
             summary["bids_dir"] = data.get("bids_dir", "")

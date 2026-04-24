@@ -278,7 +278,7 @@ export function ConvertConfigBrowser() {
             </div>
           )}
           {configs.map((c) => {
-            const isLegacy = Boolean((c as SavedConvertConfig & { legacy?: boolean }).legacy)
+            const isLegacy = Boolean(c.legacy)
             return (
               <div
                 key={c.filename}
@@ -315,7 +315,7 @@ export function ConvertConfigBrowser() {
                   {selected.filename}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                  {(selected as SavedConvertConfigDetail & { path?: string }).path || ''}
+                  {selected.path || ''}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -339,13 +339,13 @@ export function ConvertConfigBrowser() {
                 {currentMeta.type === 'single' && (
                   <>
                     <div style={summaryLabel}>Subject</div>
-                    <div style={summaryValue}>{(currentMeta as SavedConvertConfig & { subject?: string }).subject || '-'}</div>
+                    <div style={summaryValue}>{currentMeta.subject || '-'}</div>
                   </>
                 )}
                 {currentMeta.type === 'batch' && (
                   <>
                     <div style={summaryLabel}>Jobs</div>
-                    <div style={summaryValue}>{(currentMeta as SavedConvertConfig & { n_jobs?: number }).n_jobs ?? '-'}</div>
+                    <div style={summaryValue}>{currentMeta.n_jobs ?? '-'}</div>
                   </>
                 )}
                 {currentMeta.description && (

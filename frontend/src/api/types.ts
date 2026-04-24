@@ -577,10 +577,12 @@ export interface SavedConvertConfig {
   bids_dir: string
   n_jobs?: number
   subject?: string
+  legacy?: boolean
 }
 
 export interface SavedConvertConfigDetail {
   filename: string
+  path?: string
   config: Record<string, unknown>
   yaml_string: string
 }
