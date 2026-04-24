@@ -770,3 +770,40 @@ export async function fetchAutoflattenVisualizations(
   const qs = new URLSearchParams({ subjects_dir, subject }).toString()
   return json(`${BASE}/autoflatten/visualizations?${qs}`)
 }
+
+// ── Triage (automatic error capture) ────────────────────────────────────
+
+export async function fetchTriage(
+  runId: string,
+): Promise<import('./types').TriageRecord | null> {
+  const res = await fetch(`${BASE}/triage/${encodeURIComponent(runId)}`)
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
+export async function rescanTriage(runId: string) {
+  return json<import('./types').TriageRecord>(
+    `${BASE}/triage/${encodeURIComponent(runId)}/rescan`,
+    { method: 'POST' },
+  )
+}
+
+export async function saveNewErrorFromCapture(body: {
+  run_id: string
+  title: string
+  tags?: string[]
+  root_cause?: string
+  fix?: string
+  references?: string[]
+  slug?: string
+}): Promise<import('./types').NewErrorFromCaptureResult> {
+  return json(`${BASE}/errors/from-capture`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

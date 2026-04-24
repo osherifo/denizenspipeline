@@ -399,6 +399,15 @@ class AutoflattenManager:
         )
         self.registry.update(state)
 
+        from fmriflow.triage.service import trigger_on_failure
+        trigger_on_failure(
+            run_id=handle.run_id,
+            kind="autoflatten",
+            status=handle.status,
+            state=state.to_dict(),
+            run_dir=self.registry.run_dir(handle.run_id),
+        )
+
     def _reattach_active_runs(self) -> None:
         for state in self.registry.list_active():
             if state.kind != "autoflatten":

@@ -811,7 +811,11 @@ class ConvertManager:
     # ── Registry / reattach / cancel ──────────────────────────────────
 
     def _persist_state(self, handle: ConvertRunHandle) -> None:
-        """Flush the handle back to the registry state file."""
+        """Flush the handle back to the registry state file.
+
+        On a ``failed`` transition, kick off automatic triage so the
+        UI has KB matches ready when the user opens the failed run.
+        """
         state = RunStateFile(
             run_id=handle.run_id,
             kind="convert",
@@ -828,6 +832,15 @@ class ConvertManager:
             manifest_path=handle.manifest_path,
         )
         self.registry.update(state)
+
+        from fmriflow.triage.service import trigger_on_failure
+        trigger_on_failure(
+            run_id=handle.run_id,
+            kind="convert",
+            status=handle.status,
+            state=state.to_dict(),
+            run_dir=self.registry.run_dir(handle.run_id),
+        )
 
     def _reattach_active_runs(self) -> None:
         """On startup, scan the registry and rehydrate handles for live runs."""

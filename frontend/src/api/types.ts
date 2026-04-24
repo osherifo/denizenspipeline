@@ -603,3 +603,44 @@ export interface BatchEvent {
   elapsed?: number
   [key: string]: unknown
 }
+
+// ── Triage (automatic error capture) ────────────────────────────────────
+
+export interface TriageFingerprint {
+  source: string
+  hash: string
+  snippet: string
+}
+
+export interface TriageCandidateMatch {
+  id: number
+  title: string
+  confidence: number
+  match_on: string
+  matched_fingerprint_hashes: string[]
+}
+
+export interface TriageRecord {
+  run_id: string
+  kind: string
+  stage: string
+  backend: string | null
+  captured_at: string
+  failed_at: number | null
+  symptom: string
+  traceback_tail: string
+  stdout_tail: string
+  crash_files: string[]
+  fingerprints: TriageFingerprint[]
+  candidate_matches: TriageCandidateMatch[]
+  tags: string[]
+  capture_version: number
+}
+
+export interface NewErrorFromCaptureResult {
+  saved: boolean
+  id: number
+  filename: string
+  path: string
+  proposed_dir: string
+}

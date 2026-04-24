@@ -143,6 +143,10 @@ def main(argv: list[str] | None = None) -> int:
     from fmriflow.preproc.autoflatten_cli import add_autoflatten_subcommands
     add_autoflatten_subcommands(subparsers)
 
+    # ── triage (automatic error capture) ──
+    from fmriflow.triage.cli import add_triage_subcommands
+    add_triage_subcommands(subparsers)
+
     args = parser.parse_args(argv)
 
     # Set up logging — suppress standard log format, let rich handle output.
@@ -164,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
         args.command = 'convert'
     if args.command is None and getattr(args, 'autoflatten_command', None):
         args.command = 'autoflatten'
+    if args.command is None and getattr(args, 'triage_command', None):
+        args.command = 'triage'
 
     if args.command == 'run':
         return _cmd_run(args)
@@ -186,6 +192,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == 'autoflatten':
         from fmriflow.preproc.autoflatten_cli import dispatch_autoflatten
         return dispatch_autoflatten(args)
+    elif args.command == 'triage':
+        from fmriflow.triage.cli import run_triage_command
+        return run_triage_command(args)
     else:
         parser.print_help()
         return 1
