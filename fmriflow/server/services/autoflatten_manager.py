@@ -72,6 +72,10 @@ class AutoflattenRunHandle:
             "error": self.error,
             "log_path": self.log_path,
             "result": self.result,
+            # Surface inputs so the UI's Results view can rescan surf/
+            # for PNGs in the precomputed case where result.result
+            # visualizations is empty.
+            "subjects_dir": (self.params or {}).get("subjects_dir", ""),
         }
 
 
@@ -459,6 +463,7 @@ class AutoflattenManager:
                     "error": state.error,
                     "log_path": state.stdout_log,
                     "result": None,
+                    "subjects_dir": (state.params or {}).get("subjects_dir", ""),
                 }
         return sorted(out.values(), key=lambda r: r.get("started_at") or 0, reverse=True)
 
