@@ -209,10 +209,30 @@ export const useAutoflattenStore = create<AutoflattenState>((set, get) => ({
               runError: event.event === 'failed' ? (event.error ?? 'failed') : null,
             })
           })
+        ws.close()
       }
     }
     ws.onerror = () => {
-      set({ running: false, runError: 'WebSocket connection failed' })
+      // WebSocket errored — fall back to polling the REST endpoint
+      const poll = async () => {
+        try {
+          const data = await fetchAutoflattenRun(runId)
+          set({ runEvents: data.events as AutoflattenEvent[] })
+          if (data.status !== 'running') {
+            set({
+              running: false,
+              runResult: data.result?.result ?? null,
+              runError: data.status === 'failed' ? (data.error ?? 'failed') : null,
+            })
+            return
+          }
+        } catch {
+          set({ running: false, runError: 'Connection lost' })
+          return
+        }
+        setTimeout(poll, 1000)
+      }
+      poll()
     }
   },
 

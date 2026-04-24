@@ -501,39 +501,44 @@ class ConvertManager:
                 "message": f"Starting heudiconv for sub-{config.subject}",
             })
 
-            if log_path is None:
-                # Fall back to in-process execution if we couldn't set up
-                # a log file (defensive — happens only if registry init failed).
-                proc = _subprocess.Popen(
-                    cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
-                )
-            else:
-                log_fh = open(log_path, "w", buffering=1)
-                proc = _subprocess.Popen(
-                    cmd,
-                    stdout=log_fh,
-                    stderr=_subprocess.STDOUT,
-                    text=True,
-                    start_new_session=True,
-                )
-
-            handle.pid = proc.pid
-            try:
-                handle.pgid = os.getpgid(proc.pid)
-            except OSError:
-                handle.pgid = proc.pid
-            self._persist_state(handle)
-
+            log_fh = None
             tailer: _ConvertLogTailer | None = None
-            if log_path is not None:
-                tailer = _ConvertLogTailer(
-                    log_path, handle, stop_when=lambda: proc.poll() is not None,
-                )
-                tailer.start()
+            try:
+                if log_path is None:
+                    # Discard output instead of piping it — an unread PIPE
+                    # can fill the OS buffer and deadlock the subprocess.
+                    proc = _subprocess.Popen(
+                        cmd, stdout=_subprocess.DEVNULL, stderr=_subprocess.STDOUT, text=True,
+                    )
+                else:
+                    log_fh = open(log_path, "w", buffering=1)
+                    proc = _subprocess.Popen(
+                        cmd,
+                        stdout=log_fh,
+                        stderr=_subprocess.STDOUT,
+                        text=True,
+                        start_new_session=True,
+                    )
 
-            proc.wait()
-            if tailer is not None:
-                tailer.stop_and_join()
+                handle.pid = proc.pid
+                try:
+                    handle.pgid = os.getpgid(proc.pid)
+                except OSError:
+                    handle.pgid = proc.pid
+                self._persist_state(handle)
+
+                if log_path is not None:
+                    tailer = _ConvertLogTailer(
+                        log_path, handle, stop_when=lambda: proc.poll() is not None,
+                    )
+                    tailer.start()
+
+                proc.wait()
+            finally:
+                if tailer is not None:
+                    tailer.stop_and_join()
+                if log_fh is not None:
+                    log_fh.close()
 
             if proc.returncode != 0:
                 raise HeudiconvError(
