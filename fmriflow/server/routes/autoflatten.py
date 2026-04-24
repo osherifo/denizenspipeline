@@ -101,7 +101,8 @@ async def status(body: StatusBody):
     if cx_ok:
         try:
             import cortex
-            existing = cortex.db.get_list()
+            from fmriflow.preproc.autoflatten import _pycortex_subject_list
+            existing = _pycortex_subject_list(cortex)
             candidates = [
                 f"{body.subject}fs", body.subject,
                 body.subject.replace("sub-", ""),
