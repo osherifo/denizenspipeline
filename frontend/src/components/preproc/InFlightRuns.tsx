@@ -232,7 +232,7 @@ export function InFlightRuns({ runningOnly = false }: InFlightRunsProps) {
           detail={logDetail}
           loading={logLoading}
           error={logError}
-          onClose={() => { setLogDetail(null); setLogError(null) }}
+          onClose={() => { setLogDetail(null); setLogError(null); setLogLoading(false) }}
         />
       )}
     </div>
