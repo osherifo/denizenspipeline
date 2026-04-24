@@ -261,6 +261,7 @@ class RunManager:
 
             log_fh = None
             tailer = None
+            events_tailer = None
             try:
                 if log_path is not None:
                     log_fh = open(log_path, "w", buffering=1)
@@ -288,17 +289,25 @@ class RunManager:
                     handle.pgid = proc.pid
                 self._persist_state(handle)
 
+                proc_done = lambda: proc.poll() is not None
                 if log_path is not None:
                     tailer = _RunLogTailer(
-                        log_path, handle, stop_when=lambda: proc.poll() is not None,
+                        log_path, handle, stop_when=proc_done,
                     )
                     tailer.start()
+                if events_path is not None:
+                    events_tailer = _RunEventsTailer(
+                        events_path, handle, stop_when=proc_done,
+                    )
+                    events_tailer.start()
 
                 proc.wait()
                 self._finalize_from_output(handle, proc.returncode)
             finally:
                 if tailer is not None:
                     tailer.stop_and_join()
+                if events_tailer is not None:
+                    events_tailer.stop_and_join()
                 if log_fh is not None:
                     log_fh.close()
 
@@ -624,6 +633,68 @@ class _RunLogTailer(threading.Thread):
         self.join(timeout=timeout)
 
 
+class _RunEventsTailer(threading.Thread):
+    """Tails the subprocess's events.jsonl and pushes structured stage
+    events into handle.events so the WebSocket can deliver them.
+
+    Replaces the in-process UICaptureProxy path that is no longer
+    reachable once the pipeline runs in a detached subprocess.
+    """
+
+    def __init__(
+        self,
+        events_path: Path,
+        handle: "RunHandle",
+        stop_when,
+        poll_interval: float = 0.3,
+    ):
+        super().__init__(daemon=True, name=f"run-events-{handle.run_id}")
+        self.events_path = events_path
+        self.handle = handle
+        self.stop_when = stop_when
+        self.poll_interval = poll_interval
+        self._stop_flag = threading.Event()
+
+    def run(self) -> None:
+        deadline = time.time() + 5
+        while not self.events_path.is_file() and time.time() < deadline:
+            time.sleep(0.1)
+        if not self.events_path.is_file():
+            return
+        try:
+            with open(self.events_path, "r", encoding="utf-8", errors="replace") as f:
+                while True:
+                    line = f.readline()
+                    if line:
+                        self._emit(line.rstrip("\n"))
+                        continue
+                    if self._stop_flag.is_set() or self.stop_when():
+                        tail = f.read()
+                        if tail:
+                            for ln in tail.splitlines():
+                                self._emit(ln)
+                        return
+                    time.sleep(self.poll_interval)
+        except Exception:
+            logger.warning("Run events tailer crashed for %s", self.handle.run_id, exc_info=True)
+
+    def _emit(self, line: str) -> None:
+        line = line.strip()
+        if not line:
+            return
+        try:
+            ev = json.loads(line)
+        except Exception:
+            return
+        if not isinstance(ev, dict) or "event" not in ev:
+            return
+        self.handle.push_event(ev)
+
+    def stop_and_join(self, timeout: float = 2.0) -> None:
+        self._stop_flag.set()
+        self.join(timeout=timeout)
+
+
 class _RunReattachedMonitor:
     """Watches a reattached pipeline PID and tails its log file."""
 
@@ -639,6 +710,7 @@ class _RunReattachedMonitor:
 
     def run(self) -> None:
         log_path = Path(self.handle.log_path) if self.handle.log_path else None
+        events_path = Path(self.handle.events_path) if self.handle.events_path else None
         proc_dead = threading.Event()
 
         def stop_when() -> bool:
@@ -648,9 +720,13 @@ class _RunReattachedMonitor:
             return False
 
         tailer = None
+        events_tailer = None
         if log_path and log_path.is_file():
             tailer = _RunLogTailer(log_path, self.handle, stop_when=stop_when)
             tailer.start()
+        if events_path and events_path.is_file():
+            events_tailer = _RunEventsTailer(events_path, self.handle, stop_when=stop_when)
+            events_tailer.start()
 
         while RunRegistry.pid_alive(self.handle.pid):
             time.sleep(1.0)
@@ -658,6 +734,8 @@ class _RunReattachedMonitor:
 
         if tailer is not None:
             tailer.stop_and_join()
+        if events_tailer is not None:
+            events_tailer.stop_and_join()
 
         self._finalize()
 
