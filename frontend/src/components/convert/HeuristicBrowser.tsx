@@ -4,6 +4,7 @@ import type { CSSProperties, FormEvent } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 import { CodeEditor } from '../editor/CodeEditor'
 import type { HeuristicInfo } from '../../api/types'
+import { useDialog } from '../common/Dialog'
 
 /* ── Styles ──────────────────────────────────────────────────────────── */
 
@@ -168,6 +169,7 @@ export function HeuristicBrowser() {
   } = store
 
   const [showNewDialog, setShowNewDialog] = useState(false)
+  const dlg = useDialog()
 
   useEffect(() => { loadHeuristics() }, [])
 
@@ -287,10 +289,12 @@ export function HeuristicBrowser() {
                 {heuristics.some((h) => h.name === editorName) && (
                   <button
                     style={{ ...btnSmall, color: '#ef4444', borderColor: '#ef4444' }}
-                    onClick={() => {
-                      if (confirm(`Delete heuristic "${editorName}"?`)) {
-                        doDelete(editorName)
-                      }
+                    onClick={async () => {
+                      const ok = await dlg.confirm(
+                        `Delete heuristic "${editorName}"?`,
+                        { variant: 'danger', confirmLabel: 'Delete' },
+                      )
+                      if (ok) doDelete(editorName)
                     }}
                   >
                     Delete

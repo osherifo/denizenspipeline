@@ -97,6 +97,10 @@ function formatEventLine(event: RunEvent): string {
       return `\u2713 Run completed (${(event as any).total_elapsed?.toFixed(1)}s)`
     case 'run_failed':
       return `\u2717 Run failed: ${event.error || ''}`
+    case 'log':
+      return event.message || ''
+    case 'started':
+      return event.message || 'Run started'
     default:
       return `${event.event}`
   }

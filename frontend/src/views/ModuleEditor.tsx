@@ -5,6 +5,7 @@ import { useEditorStore } from '../stores/editor-store'
 import { CodeEditor } from '../components/editor/CodeEditor'
 import { ModuleSidebar } from '../components/editor/ModuleSidebar'
 import { StatusPanel } from '../components/editor/StatusPanel'
+import { useDialog } from '../components/common/Dialog'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
@@ -58,6 +59,7 @@ const emptyState: CSSProperties = {
 
 export function ModuleEditor() {
   const store = useEditorStore()
+  const dlg = useDialog()
   const validateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load user modules and template categories on mount
@@ -84,10 +86,12 @@ export function ModuleEditor() {
         templateCategories={store.templateCategories}
         currentName={store.currentName}
         onOpen={(name) => store.openModule(name)}
-        onDelete={(name) => {
-          if (confirm(`Delete module "${name}"?`)) {
-            store.deleteModule(name)
-          }
+        onDelete={async (name) => {
+          const ok = await dlg.confirm(
+            `Delete module "${name}"?`,
+            { variant: 'danger', confirmLabel: 'Delete' },
+          )
+          if (ok) store.deleteModule(name)
         }}
         onNewFromTemplate={(category, name) => store.newFromTemplate(category, name)}
         onNew={() => store.reset()}
@@ -157,10 +161,13 @@ export function ModuleEditor() {
               isDirty={store.isDirty}
               onValidate={() => store.validate()}
               onSave={() => store.save()}
-              onDelete={() => {
-                if (store.currentName && confirm(`Delete module "${store.currentName}"?`)) {
-                  store.deleteModule(store.currentName)
-                }
+              onDelete={async () => {
+                if (!store.currentName) return
+                const ok = await dlg.confirm(
+                  `Delete module "${store.currentName}"?`,
+                  { variant: 'danger', confirmLabel: 'Delete' },
+                )
+                if (ok) store.deleteModule(store.currentName)
               }}
               hasModule={store.userModules.some((p) => p.name === store.currentName)}
             />

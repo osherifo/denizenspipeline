@@ -32,6 +32,14 @@ import type {
   PreprocConfigSummary,
   PreprocConfigDetail,
   PreprocRunSummary,
+  AutoflattenConfigSummary,
+  AutoflattenConfigDetail,
+  ConvertRunSummary,
+  AutoflattenRunSummary,
+  AnalysisRunSummary,
+  WorkflowConfigSummary,
+  WorkflowConfigDetail,
+  WorkflowRunSummary,
 } from './types'
 
 const BASE = '/api'
@@ -182,6 +190,62 @@ export async function startRunFromConfig(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ config_path: configPath, overrides: overrides ?? null }),
+  })
+}
+
+export async function fetchInFlightRuns(
+  includeFinished: boolean = true,
+): Promise<AnalysisRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: AnalysisRunSummary[] }>(`${BASE}/runs/in-flight${qs}`)
+  return r.runs
+}
+
+export async function fetchInFlightRun(runId: string): Promise<AnalysisRunSummary> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelInFlightRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+// ── Workflows (end-to-end orchestration) ────────────────────────────────
+
+export async function fetchWorkflowConfigs(): Promise<WorkflowConfigSummary[]> {
+  return json(`${BASE}/workflows/configs`)
+}
+
+export async function fetchWorkflowConfigDetail(filename: string): Promise<WorkflowConfigDetail> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runWorkflowConfig(
+  filename: string,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+}
+
+export async function fetchWorkflowRuns(
+  includeFinished: boolean = true,
+): Promise<WorkflowRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: WorkflowRunSummary[] }>(`${BASE}/workflows/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchWorkflowRun(runId: string): Promise<WorkflowRunSummary> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelWorkflowRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
   })
 }
 
@@ -533,6 +597,35 @@ export async function deleteSavedConvertConfig(filename: string): Promise<{ dele
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
 }
 
+export async function fetchConvertRuns(
+  includeFinished: boolean = true,
+): Promise<ConvertRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: ConvertRunSummary[] }>(`${BASE}/convert/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchConvertRun(runId: string): Promise<ConvertRunSummary> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelConvertRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function runSavedConvertConfig(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ kind: 'single' | 'batch'; run_id?: string; batch_id?: string; status: string; config: string }> {
+  return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
+  })
+}
+
 // ── Autoflatten ────────────────────────────────────────────────────────
 
 export async function fetchAutoflattenDoctor(): Promise<{ tools: { name: string; available: boolean; detail: string }[] }> {
@@ -554,6 +647,61 @@ export async function fetchAutoflattenStatus(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
+  })
+}
+
+export async function fetchAutoflattenRunsList(
+  includeFinished: boolean = true,
+): Promise<AutoflattenRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: AutoflattenRunSummary[] }>(`${BASE}/autoflatten/runs${qs}`)
+  return r.runs
+}
+
+export async function cancelAutoflattenRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function fetchAutoflattenConfigs(): Promise<AutoflattenConfigSummary[]> {
+  return json(`${BASE}/autoflatten/configs`)
+}
+
+export async function fetchAutoflattenConfigDetail(filename: string): Promise<AutoflattenConfigDetail> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runAutoflattenConfig(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
+  })
+}
+
+export async function saveAutoflattenConfig(
+  filename: string,
+  yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
+export async function copyAutoflattenConfig(
+  source: string,
+  newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
   })
 }
 

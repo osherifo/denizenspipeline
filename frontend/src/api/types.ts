@@ -132,6 +132,7 @@ export interface RunEvent {
   elapsed?: number
   detail?: string
   error?: string
+  message?: string
   timestamp?: number
 }
 
@@ -213,6 +214,23 @@ export interface PreprocConfigDetail {
   yaml_string: string
 }
 
+export interface AutoflattenConfigSummary {
+  filename: string
+  path: string
+  subject: string
+  subjects_dir: string
+  hemispheres: string
+  backend: string
+  output_dir: string
+}
+
+export interface AutoflattenConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
 export interface PreprocRunSummary {
   run_id: string
   subject: string
@@ -227,6 +245,101 @@ export interface PreprocRunSummary {
   config_path: string | null
   log_path: string | null
   log_tail?: string
+}
+
+export interface ConvertRunSummary {
+  run_id: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  manifest_path: string | null
+  error: string | null
+  log_path: string | null
+  log_tail?: string
+}
+
+export interface AutoflattenRunSummary {
+  run_id: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  error: string | null
+  log_path: string | null
+  log_tail?: string
+  result?: Record<string, unknown> | null
+}
+
+export interface AnalysisInnerStage {
+  stage: string   // 'stimuli' | 'responses' | 'features' | 'prepare' | 'model' | 'analyze' | 'report'
+  status: 'pending' | 'running' | 'ok' | 'warning' | 'failed' | string
+  started_at: number
+  finished_at: number
+  elapsed: number
+  detail: string
+  error: string | null
+}
+
+export interface AnalysisRunSummary {
+  run_id: string
+  experiment: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  error: string | null
+  config_path: string | null
+  output_dir: string | null
+  log_path: string | null
+  log_tail?: string
+  inner_stages?: AnalysisInnerStage[]
+}
+
+export interface WorkflowConfigSummary {
+  filename: string
+  path: string
+  name: string
+  n_stages: number
+  stage_names: string[]
+}
+
+export interface WorkflowConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
+export interface WorkflowStageStatus {
+  stage: 'convert' | 'preproc' | 'autoflatten' | 'analysis' | string
+  config: string
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled' | string
+  run_id: string | null
+  started_at: number
+  finished_at: number
+  error: string | null
+  // Populated client-side for the analysis stage when we've fetched its
+  // inner-stage progression (stimuli / responses / features / prepare /
+  // model / analyze / report).
+  inner_stages?: AnalysisInnerStage[]
+}
+
+export interface WorkflowRunSummary {
+  run_id: string
+  name: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | string
+  started_at: number
+  finished_at: number
+  error: string | null
+  config_path: string | null
+  stages: WorkflowStageStatus[]
 }
 
 export interface StageStatus {
@@ -444,6 +557,7 @@ export interface BatchJobStatus {
   error: string | null
   started_at: number
   finished_at: number
+  run_id: string | null
 }
 
 export interface BatchSummary {
@@ -464,10 +578,12 @@ export interface SavedConvertConfig {
   bids_dir: string
   n_jobs?: number
   subject?: string
+  legacy?: boolean
 }
 
 export interface SavedConvertConfigDetail {
   filename: string
+  path?: string
   config: Record<string, unknown>
   yaml_string: string
 }

@@ -6,6 +6,7 @@ import { ConfigBrowser } from '../components/dashboard/ConfigBrowser'
 import { ConfigDetail } from '../components/dashboard/ConfigDetail'
 import { RunHistory } from '../components/dashboard/RunHistory'
 import { LiveProgress } from '../components/dashboard/LiveProgress'
+import { AnalysisInFlightRuns } from '../components/dashboard/AnalysisInFlightRuns'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
@@ -86,6 +87,7 @@ export function ExperimentDashboard() {
       />
 
       <div style={mainPanel}>
+        <AnalysisInFlightRuns />
         {store.selectedConfig ? (
           <>
             <ConfigDetail

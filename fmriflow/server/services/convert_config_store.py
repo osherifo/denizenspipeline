@@ -1,7 +1,9 @@
 """ConvertConfigStore — saves and indexes conversion config YAML files.
 
-Stores both single-run and batch conversion configs in ~/.fmriflow/convert_configs/
-for reproducibility and re-running.
+Stores both single-run and batch conversion configs in ``./experiments/convert/``
+for reproducibility and re-running. Falls back to the legacy
+``~/.fmriflow/convert_configs/`` directory for read-only backwards
+compatibility with pre-migration installs.
 """
 
 from __future__ import annotations
@@ -16,7 +18,8 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DIR = Path.home() / ".fmriflow" / "convert_configs"
+DEFAULT_DIR = Path("./experiments/convert")
+LEGACY_DIR = Path.home() / ".fmriflow" / "convert_configs"
 
 
 class ConvertConfigStore:
@@ -39,15 +42,29 @@ class ConvertConfigStore:
             return self._cache
 
         configs = []
-        for path in sorted(self.configs_dir.glob("*.yaml")):
-            try:
-                raw = path.read_text()
-                data = yaml.safe_load(raw) or {}
-                if not isinstance(data, dict):
+        # Scan the active dir plus the legacy dir (read-only migration bridge).
+        seen: set[str] = set()
+        search_dirs = [self.configs_dir]
+        if LEGACY_DIR.is_dir() and LEGACY_DIR.resolve() != self._configs_dir_resolved:
+            search_dirs.append(LEGACY_DIR)
+        for d in search_dirs:
+            if not d.is_dir():
+                continue
+            for path in sorted(d.glob("*.yaml")):
+                if path.name in seen:
                     continue
-                configs.append(self._extract_summary(path, data))
-            except Exception:
-                logger.debug("Skipping %s", path, exc_info=True)
+                try:
+                    raw = path.read_text()
+                    data = yaml.safe_load(raw) or {}
+                    if not isinstance(data, dict):
+                        continue
+                    summary = self._extract_summary(path, data)
+                    if d != self.configs_dir:
+                        summary["legacy"] = True
+                    configs.append(summary)
+                    seen.add(path.name)
+                except Exception:
+                    logger.debug("Skipping %s", path, exc_info=True)
 
         self._cache = configs
         self._cache_time = now
@@ -56,7 +73,10 @@ class ConvertConfigStore:
     def _extract_summary(self, path: Path, data: dict) -> dict:
         """Extract lightweight summary from a saved config."""
         meta = data.get("_meta", {})
-        config_type = "batch" if "convert_batch" in data else "single"
+        # Batch configs can be keyed under ``convert_batch`` or have a
+        # top-level ``jobs`` list (both shapes are accepted by the batch
+        # parser and the /convert/configs/{f}/run endpoint).
+        config_type = "batch" if ("convert_batch" in data or "jobs" in data) else "single"
 
         summary: dict[str, Any] = {
             "filename": path.name,
@@ -67,10 +87,17 @@ class ConvertConfigStore:
         }
 
         if config_type == "batch":
-            batch = data["convert_batch"]
-            summary["heuristic"] = batch.get("heuristic", "")
-            summary["bids_dir"] = batch.get("bids_dir", "")
-            summary["n_jobs"] = len(batch.get("jobs", []))
+            # Support both ``convert_batch:`` section and top-level ``jobs:``
+            # list shapes.
+            if "convert_batch" in data:
+                batch = data["convert_batch"]
+                summary["heuristic"] = batch.get("heuristic", "")
+                summary["bids_dir"] = batch.get("bids_dir", "")
+                summary["n_jobs"] = len(batch.get("jobs", []))
+            else:
+                summary["heuristic"] = data.get("heuristic", "")
+                summary["bids_dir"] = data.get("bids_dir", "")
+                summary["n_jobs"] = len(data.get("jobs", []))
         else:
             summary["heuristic"] = data.get("heuristic", "")
             summary["bids_dir"] = data.get("bids_dir", "")
@@ -99,13 +126,21 @@ class ConvertConfigStore:
         return resolved
 
     def get_config(self, filename: str) -> dict | None:
-        """Return full config + raw YAML for a saved config."""
+        """Return full config + raw YAML for a saved config.
+
+        Falls back to the legacy dir if the file isn't in the primary dir,
+        so pre-migration configs remain loadable.
+        """
         try:
             path = self._validate_filename(filename)
         except ValueError:
             return None
         if not path.is_file():
-            return None
+            legacy = LEGACY_DIR / filename
+            if legacy.is_file():
+                path = legacy
+            else:
+                return None
         raw = path.read_text()
         try:
             data = yaml.safe_load(raw) or {}
@@ -113,6 +148,7 @@ class ConvertConfigStore:
             data = {}
         return {
             "filename": filename,
+            "path": str(path),
             "config": data,
             "yaml_string": raw,
         }

@@ -38,7 +38,7 @@ import {
   deleteSavedConvertConfig,
 } from '../api/client'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'convert' | 'batch'
+type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
 
 interface ConvertState {
   tab: Tab
@@ -457,6 +457,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
               error: null,
               started_at: event.timestamp || 0,
               finished_at: 0,
+              run_id: (event as unknown as { run_id?: string }).run_id || null,
             }
           }
 

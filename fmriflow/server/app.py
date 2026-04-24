@@ -19,6 +19,9 @@ from fmriflow.server.services.preproc_manager import PreprocManager
 from fmriflow.server.services.convert_manager import ConvertManager
 from fmriflow.server.services.convert_config_store import ConvertConfigStore
 from fmriflow.server.services.autoflatten_manager import AutoflattenManager
+from fmriflow.server.services.autoflatten_config_store import AutoflattenConfigStore
+from fmriflow.server.services.workflow_manager import WorkflowManager
+from fmriflow.server.services.workflow_config_store import WorkflowConfigStore
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,9 @@ def create_app(
     modules_dir: str | None = None,
     configs_dir: str = './experiments',
     preproc_configs_dir: str = './experiments/preproc',
+    convert_configs_dir: str = './experiments/convert',
+    autoflatten_configs_dir: str = './experiments/autoflatten',
+    workflow_configs_dir: str = './experiments/workflows',
     derivatives_dir: str = './derivatives',
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
@@ -62,8 +68,17 @@ def create_app(
     preproc_config_store = PreprocConfigStore(Path(preproc_configs_dir))
     preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
-    convert_config_store = ConvertConfigStore()
+    convert_config_store = ConvertConfigStore(Path(convert_configs_dir))
     autoflatten_manager = AutoflattenManager()
+    autoflatten_config_store = AutoflattenConfigStore(Path(autoflatten_configs_dir))
+    workflow_config_store = WorkflowConfigStore(Path(workflow_configs_dir))
+    workflow_manager = WorkflowManager()
+    workflow_manager.bind_stage_managers(
+        convert=convert_manager,
+        preproc=preproc_manager,
+        autoflatten=autoflatten_manager,
+        analysis=run_manager,
+    )
 
     app.state.registry = registry
     app.state.run_store = run_store
@@ -74,6 +89,9 @@ def create_app(
     app.state.convert_manager = convert_manager
     app.state.convert_config_store = convert_config_store
     app.state.autoflatten_manager = autoflatten_manager
+    app.state.autoflatten_config_store = autoflatten_config_store
+    app.state.workflow_config_store = workflow_config_store
+    app.state.workflow_manager = workflow_manager
 
     # API routes
     from fmriflow.server.routes.modules import router as module_router
@@ -86,6 +104,7 @@ def create_app(
     from fmriflow.server.routes.convert import router as convert_router
     from fmriflow.server.routes.errors import router as errors_router
     from fmriflow.server.routes.autoflatten import router as autoflatten_router
+    from fmriflow.server.routes.workflows import router as workflows_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -100,6 +119,7 @@ def create_app(
     app.include_router(convert_router, prefix="/api")
     app.include_router(errors_router, prefix="/api")
     app.include_router(autoflatten_router, prefix="/api")
+    app.include_router(workflows_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)
