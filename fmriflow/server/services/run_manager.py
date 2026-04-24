@@ -35,6 +35,26 @@ from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
 logger = logging.getLogger(__name__)
 
 
+def _apply_per_run_output_dir(config: dict, run_id: str) -> dict:
+    """Rewrite ``config['reporting']['output_dir']`` to a per-run
+    subdirectory so repeat runs of the same experiment don't clobber
+    each other's ``run_summary.json`` / artifacts.
+
+    The suffix is ``run_<YYYYmmdd-HHMMSS>_<run_id>`` — sortable and
+    human-scannable. Returns a shallow copy of config (original is
+    left intact for callers that hold a reference).
+    """
+    from datetime import datetime
+
+    out = dict(config)
+    reporting = dict(out.get('reporting') or {})
+    base = reporting.get('output_dir') or './results'
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    reporting['output_dir'] = str(Path(base) / f"run_{stamp}_{run_id}")
+    out['reporting'] = reporting
+    return out
+
+
 @dataclass
 class RunHandle:
     """A single analysis pipeline run.
@@ -118,6 +138,8 @@ class RunManager:
             raise ValueError("start_run requires a non-empty config dict")
 
         run_id = uuid.uuid4().hex[:12]
+        config = _apply_per_run_output_dir(config, run_id)
+
         # Write dict → temp YAML that the CLI can load.
         tmp = tempfile.NamedTemporaryFile(
             mode='w', suffix=f"_{run_id}.yaml", delete=False,
@@ -142,32 +164,29 @@ class RunManager:
     ) -> str:
         """Launch a pipeline run from a YAML config file.
 
-        If ``overrides`` is provided and non-empty, we write a merged
-        temp YAML so the CLI picks up the overrides; otherwise we pass
-        the original path through so the run log shows the real
-        filename.
+        Always rewrites the config through a temp YAML so we can inject
+        a per-run ``reporting.output_dir`` suffix — each run lands in its
+        own subdirectory under the user-configured output_dir, so repeat
+        runs of the same experiment don't clobber each other's
+        ``run_summary.json`` / artifacts.
         """
         run_id = uuid.uuid4().hex[:12]
-        effective_path = config_path
-        temp_path: str | None = None
 
+        with open(config_path) as f:
+            base = yaml.safe_load(f) or {}
         if overrides:
-            with open(config_path) as f:
-                base = yaml.safe_load(f) or {}
             for k, v in overrides.items():
                 if v is not None:
                     base[k] = v
-            tmp = tempfile.NamedTemporaryFile(
-                mode='w', suffix=f"_{run_id}.yaml", delete=False,
-            )
-            yaml.safe_dump(base, tmp, sort_keys=False, allow_unicode=True)
-            tmp.close()
-            effective_path = tmp.name
-            temp_path = tmp.name
+        config = _apply_per_run_output_dir(base, run_id)
 
-        # Load config for bookkeeping (output_dir extraction + config_snapshot parity).
-        with open(effective_path) as f:
-            config = yaml.safe_load(f) or {}
+        tmp = tempfile.NamedTemporaryFile(
+            mode='w', suffix=f"_{run_id}.yaml", delete=False,
+        )
+        yaml.safe_dump(config, tmp, sort_keys=False, allow_unicode=True)
+        tmp.close()
+        effective_path = tmp.name
+        temp_path = tmp.name
 
         handle = self._register_handle(
             run_id=run_id,
@@ -176,7 +195,7 @@ class RunManager:
             temp_config_path=temp_path,
         )
         self._spawn_and_track(handle)
-        logger.info("Started run %s from config %s", run_id, effective_path)
+        logger.info("Started run %s from config %s", run_id, config_path)
         return run_id
 
     # ── Registry + spawn helpers ────────────────────────────────────
