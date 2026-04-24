@@ -164,6 +164,7 @@ const sectionLabel: CSSProperties = {
 export function AutoflattenConfigBrowser() {
   const [configs, setConfigs] = useState<AutoflattenConfigSummary[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [selected, setSelected] = useState<AutoflattenConfigDetail | null>(null)
   const [selectedLoading, setSelectedLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -178,9 +179,12 @@ export function AutoflattenConfigBrowser() {
 
   async function reload() {
     setLoading(true)
+    setLoadError(null)
     try {
       const list = await fetchAutoflattenConfigs()
       setConfigs(list)
+    } catch (e) {
+      setLoadError(String(e))
     } finally {
       setLoading(false)
     }
@@ -220,7 +224,12 @@ export function AutoflattenConfigBrowser() {
             <button style={refreshBtn} onClick={reload}>{loading ? '...' : 'Refresh'}</button>
           </div>
           <div style={listStyle}>
-            {configs.length === 0 && !loading && (
+            {loadError && (
+              <div style={{ padding: 12, fontSize: 11, color: 'var(--accent-red)', fontFamily: 'monospace' }}>
+                {loadError}
+              </div>
+            )}
+            {configs.length === 0 && !loading && !loadError && (
               <div style={{ padding: 16, fontSize: 11, color: 'var(--text-secondary)' }}>
                 No YAMLs found. Add one under <code>experiments/autoflatten/</code> with a top-level <code>autoflatten:</code> section.
               </div>
