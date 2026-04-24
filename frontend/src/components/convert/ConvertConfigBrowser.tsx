@@ -204,6 +204,12 @@ export function ConvertConfigBrowser() {
     try {
       const list = await fetchSavedConvertConfigs()
       setConfigs(list)
+    } catch (e) {
+      setConfigs([])
+      setLastResult({
+        ok: false,
+        message: `Failed to load saved convert configs: ${String(e)}`,
+      })
     } finally {
       setLoading(false)
     }
