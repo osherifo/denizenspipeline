@@ -261,39 +261,43 @@ class RunManager:
 
             if log_path is not None:
                 log_fh = open(log_path, "w", buffering=1)
-                proc = _subprocess.Popen(
-                    cmd,
-                    stdout=log_fh,
-                    stderr=_subprocess.STDOUT,
-                    text=True,
-                    start_new_session=True,
-                    env=child_env,
-                )
-            else:
-                proc = _subprocess.Popen(
-                    cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
-                    env=child_env,
-                )
-
-            handle.pid = proc.pid
-            try:
-                handle.pgid = os.getpgid(proc.pid)
-            except OSError:
-                handle.pgid = proc.pid
-            self._persist_state(handle)
-
+            log_fh = None
             tailer = None
-            if log_path is not None:
-                tailer = _RunLogTailer(
-                    log_path, handle, stop_when=lambda: proc.poll() is not None,
-                )
-                tailer.start()
+            try:
+                if log_path is not None:
+                    log_fh = open(log_path, "w", buffering=1)
+                    proc = _subprocess.Popen(
+                        cmd,
+                        stdout=log_fh,
+                        stderr=_subprocess.STDOUT,
+                        text=True,
+                        start_new_session=True,
+                    )
+                else:
+                    proc = _subprocess.Popen(
+                        cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
+                    )
 
-            proc.wait()
-            if tailer is not None:
-                tailer.stop_and_join()
+                handle.pid = proc.pid
+                try:
+                    handle.pgid = os.getpgid(proc.pid)
+                except OSError:
+                    handle.pgid = proc.pid
+                self._persist_state(handle)
 
-            self._finalize_from_output(handle, proc.returncode)
+                if log_path is not None:
+                    tailer = _RunLogTailer(
+                        log_path, handle, stop_when=lambda: proc.poll() is not None,
+                    )
+                    tailer.start()
+
+                proc.wait()
+                self._finalize_from_output(handle, proc.returncode)
+            finally:
+                if tailer is not None:
+                    tailer.stop_and_join()
+                if log_fh is not None:
+                    log_fh.close()
 
         except Exception as e:
             import traceback as _tb
