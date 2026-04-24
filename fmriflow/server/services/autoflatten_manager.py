@@ -237,19 +237,24 @@ class AutoflattenManager:
             "message": f"Starting autoflatten for {config.subject}",
         })
 
-        if log_path is not None:
-            log_fh = open(log_path, "w", buffering=1)
-            proc = _subprocess.Popen(
-                cmd,
-                stdout=log_fh,
-                stderr=_subprocess.STDOUT,
-                text=True,
-                start_new_session=True,
-            )
-        else:
-            proc = _subprocess.Popen(
-                cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
-            )
+        log_fh = None
+        try:
+            if log_path is not None:
+                log_fh = open(log_path, "w", buffering=1)
+                proc = _subprocess.Popen(
+                    cmd,
+                    stdout=log_fh,
+                    stderr=_subprocess.STDOUT,
+                    text=True,
+                    start_new_session=True,
+                )
+            else:
+                proc = _subprocess.Popen(
+                    cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
+                )
+        finally:
+            if log_fh is not None:
+                log_fh.close()
 
         handle.pid = proc.pid
         try:
