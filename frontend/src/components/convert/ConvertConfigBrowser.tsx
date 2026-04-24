@@ -216,6 +216,8 @@ export function ConvertConfigBrowser() {
     try {
       const detail = await fetchSavedConvertConfig(filename)
       setSelected(detail)
+    } catch (e) {
+      setLastResult({ ok: false, message: String(e) })
     } finally {
       setSelectedLoading(false)
     }
