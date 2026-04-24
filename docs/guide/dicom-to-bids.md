@@ -108,7 +108,8 @@ and HTTP API.
 
 - **Default location:** `./experiments/convert/` (project-local, discovered by the dashboard).
 - **Legacy location:** `~/.fmriflow/convert_configs/` is still scanned read-only so pre-migration configs remain loadable — move them to `./experiments/convert/` when convenient.
-- Saved configs are valid convert YAML files — usable directly with `fmriflow convert batch --config <path>`.
+- **Batch saved configs** are valid batch convert YAML files and can be used directly with `fmriflow convert batch --config <path>`.
+- **Single-run saved configs** are not batch YAML files (they do not have top-level `jobs`), so run them from the dashboard **Configs** tab or via the HTTP API endpoint described below.
 
 ### Run from the dashboard (DICOM → BIDS → Configs)
 
