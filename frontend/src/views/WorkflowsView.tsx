@@ -18,6 +18,7 @@ import type { AnalysisInnerStage } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
+import { useDialog } from '../components/common/Dialog'
 
 // ── Styles ──────────────────────────────────────────────────────────────
 
@@ -248,6 +249,7 @@ export function WorkflowsView() {
   const [selectedRun, setSelectedRun] = useState<WorkflowRunSummary | null>(null)
   const [logStage, setLogStage] = useState<{ stage: string; runId: string; subject?: string } | null>(null)
   const [analysisInner, setAnalysisInner] = useState<{ runId: string; stages: AnalysisInnerStage[] } | null>(null)
+  const dlg = useDialog()
 
   async function reloadConfigs() {
     setLoading(true)
@@ -293,12 +295,13 @@ export function WorkflowsView() {
   }
 
   async function cancel(runId: string, name: string) {
-    if (!confirm(`Cancel workflow "${name}"?`)) return
+    const ok = await dlg.confirm(`Cancel workflow "${name}"?`, { variant: 'danger', confirmLabel: 'Cancel workflow' })
+    if (!ok) return
     try {
       await cancelWorkflowRun(runId)
       reloadRuns()
     } catch (e) {
-      alert(String(e))
+      await dlg.alert(String(e))
     }
   }
 

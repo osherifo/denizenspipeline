@@ -7,6 +7,7 @@ import {
   fetchAutoflattenRun,
   cancelAutoflattenRun,
 } from '../../api/client'
+import { useDialog } from '../common/Dialog'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -228,6 +229,7 @@ export function AutoflattenInFlightRuns() {
   const [logDetail, setLogDetail] = useState<AutoflattenRunSummary | null>(null)
   const [logLoading, setLogLoading] = useState(false)
   const [logError, setLogError] = useState<string | null>(null)
+  const dlg = useDialog()
 
   async function reload() {
     setLoading(true)
@@ -254,12 +256,13 @@ export function AutoflattenInFlightRuns() {
   }
 
   async function cancel(runId: string, subject: string) {
-    if (!confirm(`Cancel run for ${subject}?`)) return
+    const ok = await dlg.confirm(`Cancel run for ${subject}?`, { variant: 'danger', confirmLabel: 'Cancel run' })
+    if (!ok) return
     try {
       await cancelAutoflattenRun(runId)
       reload()
     } catch (e) {
-      alert(String(e))
+      await dlg.alert(String(e))
     }
   }
 

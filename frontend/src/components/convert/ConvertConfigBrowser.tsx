@@ -9,6 +9,7 @@ import {
   deleteSavedConvertConfig,
 } from '../../api/client'
 import { ConvertInFlightRuns } from './ConvertInFlightRuns'
+import { useDialog } from '../common/Dialog'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
@@ -198,6 +199,7 @@ export function ConvertConfigBrowser() {
   const [lastResult, setLastResult] = useState<
     { ok: boolean; message: string } | null
   >(null)
+  const dlg = useDialog()
 
   async function reload() {
     setLoading(true)
@@ -248,13 +250,14 @@ export function ConvertConfigBrowser() {
   }
 
   async function remove(filename: string) {
-    if (!confirm(`Delete ${filename}?`)) return
+    const ok = await dlg.confirm(`Delete ${filename}?`, { variant: 'danger', confirmLabel: 'Delete' })
+    if (!ok) return
     try {
       await deleteSavedConvertConfig(filename)
       if (selected?.filename === filename) setSelected(null)
       reload()
     } catch (e) {
-      alert(String(e))
+      await dlg.alert(String(e))
     }
   }
 

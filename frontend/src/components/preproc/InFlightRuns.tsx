@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { usePreprocStore } from '../../stores/preproc-store'
 import { fetchPreprocRun } from '../../api/client'
 import type { PreprocRunSummary } from '../../api/types'
+import { useDialog } from '../common/Dialog'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -126,6 +127,7 @@ export function InFlightRuns({ runningOnly = false }: InFlightRunsProps) {
   const [logDetail, setLogDetail] = useState<PreprocRunSummary | null>(null)
   const [logLoading, setLogLoading] = useState(false)
   const [logError, setLogError] = useState<string | null>(null)
+  const dlg = useDialog()
 
   async function openLog(runId: string) {
     setLogDetail(null)
@@ -214,9 +216,16 @@ export function InFlightRuns({ runningOnly = false }: InFlightRunsProps) {
               {isRunning && (
                 <button
                   style={btn('danger')}
-                  onClick={() => {
-                    if (confirm(`Cancel run for ${r.subject}?`)) {
-                      cancelRun(r.run_id).catch((e) => alert(String(e)))
+                  onClick={async () => {
+                    const ok = await dlg.confirm(
+                      `Cancel run for ${r.subject}?`,
+                      { variant: 'danger', confirmLabel: 'Cancel run' },
+                    )
+                    if (!ok) return
+                    try {
+                      await cancelRun(r.run_id)
+                    } catch (e) {
+                      await dlg.alert(String(e))
                     }
                   }}
                 >

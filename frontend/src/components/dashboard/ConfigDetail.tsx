@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConfigDetail as ConfigDetailType } from '../../api/types'
 import { saveConfigFile, copyConfigFile } from '../../api/client'
+import { useDialog } from '../common/Dialog'
 
 interface ConfigDetailProps {
   config: ConfigDetailType
@@ -166,6 +167,7 @@ export function ConfigDetail({
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
+  const dlg = useDialog()
 
   // Reset the draft whenever a different config is selected or reloaded.
   useEffect(() => {
@@ -198,7 +200,7 @@ export function ConfigDetail({
     const base = config.filename.replace(/\.(yaml|yml)$/, '')
     const ext = config.filename.match(/\.(yaml|yml)$/)?.[0] ?? '.yaml'
     const suggested = `${base}_copy${ext}`
-    const name = window.prompt('New filename:', suggested)
+    const name = await dlg.prompt('New filename:', { defaultValue: suggested })
     if (!name) return
 
     setCopying(true)
@@ -206,7 +208,7 @@ export function ConfigDetail({
       const result = await copyConfigFile(config.filename, name)
       if (result.saved) onCopied?.(result.filename)
     } catch (e) {
-      window.alert(`Copy failed: ${e}`)
+      await dlg.alert(`Copy failed: ${e}`)
     } finally {
       setCopying(false)
     }

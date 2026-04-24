@@ -27,6 +27,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { ArtifactInfo } from '../../api/types'
 import { ArtifactViewer } from './ArtifactViewer'
 import { deleteArtifact } from '../../api/client'
+import { useDialog } from '../common/Dialog'
 
 interface Props {
   artifacts: ArtifactInfo[]
@@ -196,6 +197,7 @@ export function SortableArtifactList({ artifacts, runId, onArtifactDeleted }: Pr
     reconcileOrder(loadOrder(runId), available),
   )
   const [deletingName, setDeletingName] = useState<string | null>(null)
+  const dlg = useDialog()
 
   // Reconcile when the run or its artifact set changes.
   useEffect(() => {
@@ -220,7 +222,11 @@ export function SortableArtifactList({ artifacts, runId, onArtifactDeleted }: Pr
 
   const handleDelete = async (name: string) => {
     if (deletingName) return
-    if (!window.confirm(`Delete '${name}'? This removes the file from disk and cannot be undone.`)) return
+    const ok = await dlg.confirm(
+      `Delete '${name}'? This removes the file from disk and cannot be undone.`,
+      { variant: 'danger', confirmLabel: 'Delete' },
+    )
+    if (!ok) return
     setDeletingName(name)
     try {
       await deleteArtifact(runId, name)
@@ -230,7 +236,7 @@ export function SortableArtifactList({ artifacts, runId, onArtifactDeleted }: Pr
       saveOrder(runId, next)
       onArtifactDeleted?.(name)
     } catch (e) {
-      window.alert(`Delete failed: ${e}`)
+      await dlg.alert(`Delete failed: ${e}`)
     } finally {
       setDeletingName(null)
     }

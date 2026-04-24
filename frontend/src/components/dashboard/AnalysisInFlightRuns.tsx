@@ -7,6 +7,7 @@ import {
   fetchInFlightRun,
   cancelInFlightRun,
 } from '../../api/client'
+import { useDialog } from '../common/Dialog'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -238,6 +239,7 @@ export function AnalysisInFlightRuns() {
   const [logDetail, setLogDetail] = useState<AnalysisRunSummary | null>(null)
   const [logLoading, setLogLoading] = useState(false)
   const [logError, setLogError] = useState<string | null>(null)
+  const dlg = useDialog()
 
   async function reload() {
     setLoading(true)
@@ -264,12 +266,13 @@ export function AnalysisInFlightRuns() {
   }
 
   async function cancel(runId: string, label: string) {
-    if (!confirm(`Cancel run for ${label}?`)) return
+    const ok = await dlg.confirm(`Cancel run for ${label}?`, { variant: 'danger', confirmLabel: 'Cancel run' })
+    if (!ok) return
     try {
       await cancelInFlightRun(runId)
       reload()
     } catch (e) {
-      alert(String(e))
+      await dlg.alert(String(e))
     }
   }
 

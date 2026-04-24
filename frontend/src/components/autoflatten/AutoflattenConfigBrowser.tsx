@@ -12,6 +12,7 @@ import {
 import { useAutoflattenStore } from '../../stores/autoflatten-store'
 import { AutoflattenProgress } from './AutoflattenProgress'
 import { AutoflattenInFlightRuns } from './AutoflattenInFlightRuns'
+import { useDialog } from '../common/Dialog'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
@@ -221,6 +222,7 @@ export function AutoflattenConfigBrowser() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
+  const dlg = useDialog()
 
   // Reuse the store's live event pipeline by attaching via its WebSocket
   // plumbing — we call the existing /autoflatten/configs/{f}/run endpoint
@@ -301,7 +303,7 @@ export function AutoflattenConfigBrowser() {
     const base = selected.filename.replace(/\.(yaml|yml)$/, '')
     const ext = selected.filename.match(/\.(yaml|yml)$/)?.[0] ?? '.yaml'
     const suggested = `${base}_copy${ext}`
-    const name = window.prompt('New filename:', suggested)
+    const name = await dlg.prompt('New filename:', { defaultValue: suggested })
     if (!name) return
     setCopying(true)
     try {
@@ -309,7 +311,7 @@ export function AutoflattenConfigBrowser() {
       await reload()
       if (result.saved) await select(result.filename)
     } catch (e) {
-      window.alert(`Copy failed: ${e}`)
+      await dlg.alert(`Copy failed: ${e}`)
     } finally {
       setCopying(false)
     }
