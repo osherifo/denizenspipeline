@@ -132,6 +132,7 @@ export interface RunEvent {
   elapsed?: number
   detail?: string
   error?: string
+  message?: string
   timestamp?: number
 }
 
