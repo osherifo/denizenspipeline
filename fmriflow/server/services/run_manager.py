@@ -259,8 +259,6 @@ class RunManager:
                 handle.events_path = str(events_path)
                 self._persist_state(handle)
 
-            if log_path is not None:
-                log_fh = open(log_path, "w", buffering=1)
             log_fh = None
             tailer = None
             try:
@@ -272,10 +270,15 @@ class RunManager:
                         stderr=_subprocess.STDOUT,
                         text=True,
                         start_new_session=True,
+                        env=child_env,
                     )
                 else:
                     proc = _subprocess.Popen(
-                        cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
+                        cmd,
+                        stdout=_subprocess.DEVNULL,
+                        stderr=_subprocess.STDOUT,
+                        text=True,
+                        env=child_env,
                     )
 
                 handle.pid = proc.pid
