@@ -8,6 +8,7 @@ import {
   cancelConvertRun,
   deleteConvertRun,
 } from '../../api/client'
+import { TriageMatches } from '../triage/TriageMatches'
 import { useDialog } from '../common/Dialog'
 
 const panelStyle: CSSProperties = {
@@ -214,6 +215,7 @@ function LogModal({
                 </>
               )}
             </div>
+            <TriageMatches runId={detail.run_id} poll={detail.status === 'failed'} />
             <pre style={logPre}>
               {detail.log_tail && detail.log_tail.length > 0
                 ? detail.log_tail

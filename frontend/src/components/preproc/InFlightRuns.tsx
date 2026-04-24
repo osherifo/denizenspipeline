@@ -5,6 +5,7 @@ import { usePreprocStore } from '../../stores/preproc-store'
 import { fetchPreprocRun, deletePreprocRun } from '../../api/client'
 import type { PreprocRunSummary } from '../../api/types'
 import { useDialog } from '../common/Dialog'
+import { TriageMatches } from '../triage/TriageMatches'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -431,6 +432,8 @@ function LogModal({
                 </>
               )}
             </div>
+
+            <TriageMatches runId={detail.run_id} poll={detail.status === 'failed'} />
 
             <pre style={logPre}>
               {detail.log_tail && detail.log_tail.length > 0

@@ -9,6 +9,7 @@ import {
   deleteAutoflattenRun,
 } from '../../api/client'
 import { useDialog } from '../common/Dialog'
+import { TriageMatches } from '../triage/TriageMatches'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -212,6 +213,8 @@ function LogModal({
                 </>
               )}
             </div>
+            {/* KB matches strip — renders only when triage.json exists. */}
+            <TriageMatches runId={detail.run_id} poll={detail.status === 'failed'} />
             <pre style={logPre}>
               {detail.log_tail && detail.log_tail.length > 0
                 ? detail.log_tail
