@@ -29,6 +29,14 @@ class RunBody(BaseModel):
     name: str | None = None
 
 
+class WorkflowSaveBody(BaseModel):
+    name: str
+    description: str = ""
+    graph: dict[str, Any]
+    inputs: dict[str, Any] = {}
+    outputs: dict[str, Any] = {}
+
+
 def _node_specs(registry):
     return registry._nipype_nodes
 
@@ -74,7 +82,8 @@ async def start_run(request: Request, body: RunBody):
         name=body.name,
     )
     mgr = request.app.state.post_preproc_manager
-    handle = mgr.start(cfg, registry)
+    workflow_store = getattr(request.app.state, "post_preproc_workflow_store", None)
+    handle = mgr.start(cfg, registry, workflow_store=workflow_store)
     return {
         "run_id": handle.run_id,
         "status": handle.status,
@@ -123,3 +132,42 @@ async def get_manifest(request: Request, subject: str, output_dir: str):
         raise HTTPException(404, f"No manifest at {p}")
     import json
     return json.loads(p.read_text())
+
+
+# ── Saved workflows ─────────────────────────────────────────────────────
+
+
+@router.get("/post-preproc/workflows")
+async def list_workflows(request: Request):
+    store = request.app.state.post_preproc_workflow_store
+    return store.list()
+
+
+@router.get("/post-preproc/workflows/{name}")
+async def get_workflow(request: Request, name: str):
+    store = request.app.state.post_preproc_workflow_store
+    wf = store.get(name)
+    if wf is None:
+        raise HTTPException(404, f"No workflow {name!r}")
+    return wf
+
+
+@router.post("/post-preproc/workflows")
+async def save_workflow(request: Request, body: WorkflowSaveBody):
+    store = request.app.state.post_preproc_workflow_store
+    path = store.save(
+        body.name,
+        body.graph,
+        description=body.description,
+        inputs=body.inputs,
+        outputs=body.outputs,
+    )
+    return {"saved": True, "path": str(path), "name": body.name}
+
+
+@router.delete("/post-preproc/workflows/{name}")
+async def delete_workflow(request: Request, name: str):
+    store = request.app.state.post_preproc_workflow_store
+    if not store.delete(name):
+        raise HTTPException(404, f"No workflow {name!r}")
+    return {"deleted": True, "name": name}

@@ -36,7 +36,12 @@ class PostPreprocManager:
         self._runs: dict[str, PostPreprocRunHandle] = {}
         self._lock = threading.Lock()
 
-    def start(self, config: PostPreprocConfig, registry) -> PostPreprocRunHandle:
+    def start(
+        self,
+        config: PostPreprocConfig,
+        registry,
+        workflow_store=None,
+    ) -> PostPreprocRunHandle:
         run_id = uuid.uuid4().hex[:12]
         handle = PostPreprocRunHandle(
             run_id=run_id,
@@ -56,16 +61,20 @@ class PostPreprocManager:
         )
 
         thread = threading.Thread(
-            target=self._run, args=(run_id, cfg_with_run, registry), daemon=True
+            target=self._run,
+            args=(run_id, cfg_with_run, registry, workflow_store),
+            daemon=True,
         )
         thread.start()
         return handle
 
-    def _run(self, run_id: str, config: PostPreprocConfig, registry) -> None:
+    def _run(self, run_id: str, config: PostPreprocConfig, registry, workflow_store) -> None:
         with self._lock:
             self._runs[run_id].status = "running"
         try:
-            manifest = run_post_preproc(config, registry=registry)
+            manifest = run_post_preproc(
+                config, registry=registry, workflow_store=workflow_store,
+            )
             with self._lock:
                 handle = self._runs[run_id]
                 handle.status = "done"

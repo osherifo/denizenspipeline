@@ -21,11 +21,16 @@ import type {
 import '@xyflow/react/dist/style.css'
 
 import Editor from '@monaco-editor/react'
+import { NipypeNode } from '../components/post_preproc/NipypeNode'
 import {
   fetchNipypeNodes,
   validateGraph,
   startRun,
   getRun,
+  fetchWorkflows,
+  fetchWorkflow,
+  saveWorkflow,
+  deleteWorkflow,
 } from '../api/post-preproc'
 import {
   fetchModuleCode,
@@ -36,7 +41,11 @@ import type {
   NipypeNodeMeta,
   PostPreprocGraph,
   PostPreprocRunHandle,
+  PostPreprocWorkflowSummary,
+  PostPreprocWorkflow,
 } from '../api/types'
+
+const nodeTypes = { nipype: NipypeNode }
 
 const sectionLabel: CSSProperties = {
   fontSize: 11,
@@ -65,6 +74,26 @@ const primaryBtn: CSSProperties = {
   border: 'none',
 }
 
+const modalBackdrop: CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.6)',
+  zIndex: 100,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+const modalCard: CSSProperties = {
+  width: 460,
+  maxHeight: '70vh',
+  overflowY: 'auto',
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: 16,
+}
+
 const inputStyle: CSSProperties = {
   padding: '6px 8px',
   fontSize: 12,
@@ -79,21 +108,7 @@ const inputStyle: CSSProperties = {
 let nodeCounter = 1
 const nextId = () => `n${nodeCounter++}`
 
-// Match the Workflows view's preproc-stage color so the eye carries through.
-const NODE_COLOR = '#10b981'
-
-function nodeStyle(): CSSProperties {
-  return {
-    background: `${NODE_COLOR}22`,
-    border: `1px solid ${NODE_COLOR}aa`,
-    color: 'var(--text-primary)',
-    borderRadius: 6,
-    padding: 8,
-    fontSize: 12,
-    fontWeight: 600,
-    minWidth: 140,
-  }
-}
+// (legacy color helper removed; see components/post_preproc/NipypeNode.tsx)
 
 function defaultsForNode(meta: NipypeNodeMeta): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -128,9 +143,21 @@ function Inner() {
   const [codeStatus, setCodeStatus] = useState<string | null>(null)
   const [codeBusy, setCodeBusy] = useState(false)
 
+  const [workflows, setWorkflows] = useState<PostPreprocWorkflowSummary[]>([])
+  const [showSubworkflowPicker, setShowSubworkflowPicker] = useState(false)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [showLoadPicker, setShowLoadPicker] = useState(false)
+  const [workflowName, setWorkflowName] = useState('')
+  const [workflowDesc, setWorkflowDesc] = useState('')
+
+  const refreshWorkflows = useCallback(() => {
+    fetchWorkflows().then(setWorkflows).catch((e) => console.warn(e))
+  }, [])
+
   useEffect(() => {
     fetchNipypeNodes().then(setPalette).catch((e) => console.error(e))
-  }, [])
+    refreshWorkflows()
+  }, [refreshWorkflows])
 
   // Poll active run.
   useEffect(() => {
@@ -177,16 +204,137 @@ function Inner() {
       ...prev,
       {
         id,
-        type: 'default',
+        type: 'nipype',
         data: {
           label: `${meta.name} (${id})`,
           nodeType: meta.name,
+          inputs: meta.inputs,
+          outputs: meta.outputs,
           params: defaultsForNode(meta),
+          iterating: false,
         },
-        position: { x: 80 + prev.length * 180, y: 120 },
-        style: nodeStyle(),
+        position: { x: 80 + prev.length * 220, y: 120 },
       },
     ])
+  }
+
+  const addSubworkflowNode = (wf: PostPreprocWorkflow) => {
+    const id = nextId()
+    setNodes((prev) => [
+      ...prev,
+      {
+        id,
+        type: 'nipype',
+        data: {
+          label: `subworkflow:${wf.name} (${id})`,
+          nodeType: 'subworkflow',
+          inputs: Object.keys(wf.inputs ?? {}),
+          outputs: Object.keys(wf.outputs ?? {}),
+          params: { workflow_name: wf.name },
+          iterating: false,
+        },
+        position: { x: 80 + prev.length * 220, y: 120 },
+      },
+    ])
+  }
+
+  const handleSaveWorkflow = async () => {
+    if (!workflowName) return
+    // Auto-derive inputs/outputs: any handle on a node that isn't wired and
+    // has no _inputs literal becomes a workflow-level input. Any output handle
+    // not consumed by a downstream edge becomes a workflow-level output.
+    const inputs: Record<string, { from: string }> = {}
+    const outputs: Record<string, { from: string }> = {}
+    for (const n of nodes) {
+      const meta = (n.data as { inputs?: string[]; outputs?: string[] })
+      const params = (n.data as { params?: Record<string, unknown> }).params ?? {}
+      const literal = (params._inputs as Record<string, string> | undefined) ?? {}
+      for (const h of meta.inputs ?? []) {
+        const wired = edges.some(
+          (e) => e.target === n.id && (e.targetHandle ?? 'in_file') === h,
+        )
+        if (!wired && !literal[h]) {
+          inputs[`${n.id}_${h}`] = { from: `${n.id}.${h}` }
+        }
+      }
+      for (const h of meta.outputs ?? []) {
+        const consumed = edges.some(
+          (e) => e.source === n.id && (e.sourceHandle ?? 'out_file') === h,
+        )
+        if (!consumed) {
+          outputs[`${n.id}_${h}`] = { from: `${n.id}.${h}` }
+        }
+      }
+    }
+    try {
+      await saveWorkflow({
+        name: workflowName,
+        description: workflowDesc,
+        graph: buildGraph(),
+        inputs,
+        outputs,
+      })
+      setShowSaveDialog(false)
+      setWorkflowName('')
+      setWorkflowDesc('')
+      refreshWorkflows()
+    } catch (e) {
+      alert(`save failed: ${e}`)
+    }
+  }
+
+  const handleLoadWorkflow = async (name: string) => {
+    try {
+      const wf = await fetchWorkflow(name)
+      const g = wf.graph
+      // Restore nodes with the right type and input/output handle metadata.
+      const metaByType = new Map(palette.map((m) => [m.name, m]))
+      const newNodes: Node[] = (g.nodes ?? []).map((n) => {
+        const meta = metaByType.get(n.type)
+        const isSubworkflow = n.type === 'subworkflow'
+        const subInputs = isSubworkflow
+          ? Object.keys(wf.inputs ?? {})
+          : meta?.inputs ?? []
+        const subOutputs = isSubworkflow
+          ? Object.keys(wf.outputs ?? {})
+          : meta?.outputs ?? []
+        return {
+          id: n.id,
+          type: 'nipype',
+          data: {
+            label: `${n.type} (${n.id})`,
+            nodeType: n.type,
+            inputs: subInputs,
+            outputs: subOutputs,
+            params: n.data?.params ?? {},
+            iterating: !!(n.data?.params as { _iter?: unknown })?._iter,
+          },
+          position: n.position ?? { x: 0, y: 0 },
+        }
+      })
+      const newEdges: Edge[] = (g.edges ?? []).map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle ?? 'out_file',
+        targetHandle: e.targetHandle ?? 'in_file',
+      }))
+      setNodes(newNodes)
+      setEdges(newEdges)
+      setShowLoadPicker(false)
+    } catch (e) {
+      alert(`load failed: ${e}`)
+    }
+  }
+
+  const handleAddSubworkflow = async (name: string) => {
+    try {
+      const wf = await fetchWorkflow(name)
+      addSubworkflowNode(wf)
+      setShowSubworkflowPicker(false)
+    } catch (e) {
+      alert(`add failed: ${e}`)
+    }
   }
 
   const buildGraph = (): PostPreprocGraph => ({
@@ -240,8 +388,39 @@ function Inner() {
   const selectedMeta = useMemo(() => {
     if (!selectedNode) return null
     const t = (selectedNode.data as { nodeType?: string }).nodeType
-    return palette.find((p) => p.name === t) ?? null
+    const fromPalette = palette.find((p) => p.name === t) ?? null
+    if (!fromPalette) return null
+    // Subworkflow nodes carry their own inputs/outputs in node.data — overlay them.
+    const data = selectedNode.data as { inputs?: string[]; outputs?: string[] }
+    if (data.inputs && data.outputs) {
+      return { ...fromPalette, inputs: data.inputs, outputs: data.outputs }
+    }
+    return fromPalette
   }, [selectedNode, palette])
+
+  const toggleIterate = () => {
+    if (!selectedNode || !selectedMeta) return
+    setNodes((prev) =>
+      prev.map((n) => {
+        if (n.id !== selectedNode.id) return n
+        const params = ((n.data as { params?: Record<string, unknown> }).params ?? {}) as Record<string, unknown>
+        const isOn = !!params._iter
+        const next = { ...params }
+        if (isOn) {
+          delete next._iter
+        } else {
+          next._iter = {
+            handle: selectedMeta.inputs[0] ?? 'in_file',
+            from_source_manifest: true,
+          }
+        }
+        return {
+          ...n,
+          data: { ...n.data, params: next, iterating: !isOn },
+        }
+      }),
+    )
+  }
 
   const openCode = async () => {
     if (!selectedMeta) return
@@ -364,6 +543,18 @@ function Inner() {
         </button>
       </div>
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <button style={btn} onClick={() => setShowSaveDialog(true)} disabled={nodes.length === 0}>
+          Save workflow
+        </button>
+        <button style={btn} onClick={() => { refreshWorkflows(); setShowLoadPicker(true) }}>
+          Load workflow
+        </button>
+        <button style={btn} onClick={() => { refreshWorkflows(); setShowSubworkflowPicker(true) }}>
+          + Subworkflow
+        </button>
+      </div>
+
       {validation && (
         <div
           style={{
@@ -418,6 +609,85 @@ function Inner() {
               {runErr}
             </pre>
           )}
+        </div>
+      )}
+
+      {/* Save workflow modal */}
+      {showSaveDialog && (
+        <div style={modalBackdrop} onClick={() => setShowSaveDialog(false)}>
+          <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Save workflow</div>
+            <input
+              style={{ ...inputStyle, marginBottom: 6 }}
+              placeholder="name (e.g. smooth_then_mask)"
+              value={workflowName}
+              onChange={(e) => setWorkflowName(e.target.value)}
+            />
+            <input
+              style={{ ...inputStyle, marginBottom: 8 }}
+              placeholder="description (optional)"
+              value={workflowDesc}
+              onChange={(e) => setWorkflowDesc(e.target.value)}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              Free input/output handles will be auto-exposed as workflow inputs/outputs.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button style={btn} onClick={() => setShowSaveDialog(false)}>Cancel</button>
+              <button style={primaryBtn} onClick={handleSaveWorkflow} disabled={!workflowName}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load workflow picker */}
+      {showLoadPicker && (
+        <div style={modalBackdrop} onClick={() => setShowLoadPicker(false)}>
+          <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Load workflow</div>
+            {workflows.length === 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>None saved yet.</div>
+            )}
+            {workflows.map((w) => (
+              <button
+                key={w.name}
+                style={{ ...btn, width: '100%', textAlign: 'left', marginBottom: 4 }}
+                onClick={() => handleLoadWorkflow(w.name)}
+              >
+                <strong>{w.name}</strong>
+                <span style={{ marginLeft: 6, color: 'var(--text-secondary)', fontSize: 10 }}>
+                  ({w.n_nodes} nodes · in: {w.inputs.length} · out: {w.outputs.length})
+                </span>
+                {w.description && (
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{w.description}</div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Subworkflow picker */}
+      {showSubworkflowPicker && (
+        <div style={modalBackdrop} onClick={() => setShowSubworkflowPicker(false)}>
+          <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Pick a saved workflow to embed</div>
+            {workflows.length === 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>None saved yet.</div>
+            )}
+            {workflows.map((w) => (
+              <button
+                key={w.name}
+                style={{ ...btn, width: '100%', textAlign: 'left', marginBottom: 4 }}
+                onClick={() => handleAddSubworkflow(w.name)}
+              >
+                <strong>{w.name}</strong>
+                <span style={{ marginLeft: 6, color: 'var(--text-secondary)', fontSize: 10 }}>
+                  in: {w.inputs.join(', ') || '—'} · out: {w.outputs.join(', ') || '—'}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -540,6 +810,7 @@ function Inner() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, n) => setSelected(n.id)}
+            nodeTypes={nodeTypes}
             fitView
           >
             <Background />
@@ -571,10 +842,31 @@ function Inner() {
               <button
                 style={{ ...btn, marginBottom: 8, width: '100%' }}
                 onClick={openCode}
-                disabled={codeBusy}
+                disabled={codeBusy || selectedMeta.name === 'subworkflow'}
+                title={selectedMeta.name === 'subworkflow' ? 'Subworkflows are stored as YAML, not Python' : ''}
               >
                 {codeBusy ? 'Loading…' : 'View / edit code'}
               </button>
+              {selectedMeta.inputs.length > 0 && (
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 11,
+                    color: 'var(--text-secondary)',
+                    marginBottom: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!((selectedNode.data as { params?: Record<string, unknown> }).params?._iter)}
+                    onChange={toggleIterate}
+                  />
+                  Iterate over runs from source manifest
+                </label>
+              )}
               <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>
                 outputs: {selectedMeta.outputs.join(', ') || '—'}
               </div>

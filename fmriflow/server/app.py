@@ -24,6 +24,7 @@ from fmriflow.server.services.workflow_manager import WorkflowManager
 from fmriflow.server.services.workflow_config_store import WorkflowConfigStore
 from fmriflow.server.services.structural_qc_store import StructuralQCStore
 from fmriflow.server.services.post_preproc_manager import PostPreprocManager
+from fmriflow.server.services.post_preproc_workflow_store import PostPreprocWorkflowStore
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,9 @@ def create_app(
         Path.home() / ".fmriflow" / "structural_qc"
     )
     post_preproc_manager = PostPreprocManager()
+    post_preproc_workflow_store = PostPreprocWorkflowStore(
+        Path.home() / ".fmriflow" / "post_preproc_workflows"
+    )
     workflow_manager.bind_stage_managers(
         convert=convert_manager,
         preproc=preproc_manager,
@@ -100,6 +104,7 @@ def create_app(
     app.state.workflow_manager = workflow_manager
     app.state.structural_qc_store = structural_qc_store
     app.state.post_preproc_manager = post_preproc_manager
+    app.state.post_preproc_workflow_store = post_preproc_workflow_store
 
     # API routes
     from fmriflow.server.routes.modules import router as module_router

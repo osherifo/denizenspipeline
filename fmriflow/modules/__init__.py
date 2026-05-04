@@ -68,3 +68,4 @@ def register_builtins(registry):
     import fmriflow.modules.nipype_nodes.source  # noqa: F401
     import fmriflow.modules.nipype_nodes.smooth  # noqa: F401
     import fmriflow.modules.nipype_nodes.mask_apply  # noqa: F401
+    import fmriflow.modules.nipype_nodes.subworkflow  # noqa: F401

@@ -48,3 +48,38 @@ export async function getRun(runId: string): Promise<
 > {
   return json(`${BASE}/post-preproc/runs/${runId}`)
 }
+
+// ── Saved workflows ──────────────────────────────────────────────
+
+import type {
+  PostPreprocWorkflow,
+  PostPreprocWorkflowSummary,
+} from './types'
+
+export async function fetchWorkflows(): Promise<PostPreprocWorkflowSummary[]> {
+  return json(`${BASE}/post-preproc/workflows`)
+}
+
+export async function fetchWorkflow(name: string): Promise<PostPreprocWorkflow> {
+  return json(`${BASE}/post-preproc/workflows/${encodeURIComponent(name)}`)
+}
+
+export async function saveWorkflow(body: {
+  name: string
+  description?: string
+  graph: PostPreprocGraph
+  inputs?: Record<string, { from: string }>
+  outputs?: Record<string, { from: string }>
+}): Promise<{ saved: boolean; path: string; name: string }> {
+  return json(`${BASE}/post-preproc/workflows`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteWorkflow(name: string): Promise<{ deleted: boolean; name: string }> {
+  return json(`${BASE}/post-preproc/workflows/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+}

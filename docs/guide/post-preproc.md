@@ -57,6 +57,37 @@ Outputs land at `{output_dir}/{run_id}/<node_id>/` with a top-level
 `post_preproc_manifest.json` recording params, inputs, outputs, and
 per-node duration for every node that executed.
 
+## Workflows & subworkflows
+
+Once you have a graph that does something useful, click **Save workflow** in
+the builder's top bar. The graph is written to
+`~/.fmriflow/post_preproc_workflows/<name>.yaml` along with auto-derived
+`inputs:` and `outputs:` — every unwired input handle and every
+unconsumed output handle becomes a workflow-level port. Edit the YAML by
+hand later to rename or trim ports.
+
+**Load** brings a saved graph back onto the canvas with all node
+positions, parameters, and edges preserved.
+
+**+ Subworkflow** drops a saved workflow as a single node in the current
+graph. The wrapper node's left/right handles are the workflow's declared
+`inputs` and `outputs`. Wire it just like any built-in node — the runner
+recurses into the inner graph at run time. Cycles
+(`wf A → embeds → wf A`) raise an error rather than recursing forever.
+
+## Iterating over runs
+
+To run a node once per `run_name` in the source manifest (nipype's
+`MapNode`), select the node and tick **Iterate over runs from source
+manifest**. The runner expands the iteration over every `runs[*]` in the
+upstream `PreprocManifest`, writes one output sub-directory per
+iteration (`<node_id>/000/`, `<node_id>/001/`, …), and records the list
+of outputs in the post-preproc manifest.
+
+v1 limitation: iterating nodes are sinks — they can't have outgoing
+edges. If you need to feed mapped outputs into a downstream node, use a
+saved subworkflow as the iterating unit instead.
+
 ## API
 
 | Method | Path | Purpose |

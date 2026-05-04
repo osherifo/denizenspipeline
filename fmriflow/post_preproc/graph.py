@@ -173,4 +173,24 @@ class PostPreprocGraph:
         except ValueError as ex:
             errors.append(str(ex))
 
+        # _iter validation
+        for n in self.nodes:
+            it = n.params.get("_iter") if isinstance(n.params.get("_iter"), dict) else None
+            if not it:
+                continue
+            handle = it.get("handle")
+            spec = node_specs.get(n.type)
+            if spec is not None:
+                inputs = list(getattr(spec, "INPUTS", []))
+                if handle not in inputs:
+                    errors.append(
+                        f"Node {n.id}: _iter handle {handle!r} not in "
+                        f"{n.type}.INPUTS={inputs}"
+                    )
+            # iterating nodes are sinks in v1
+            if any(e.source == n.id for e in self.edges):
+                errors.append(
+                    f"Node {n.id}: iterating nodes can't have outgoing edges in v1"
+                )
+
         return errors

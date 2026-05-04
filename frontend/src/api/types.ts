@@ -729,3 +729,21 @@ export interface PostPreprocManifest {
   created: string
   manifest_version: number
 }
+
+// ── Post-preproc workflows (saved YAML) ───────────────────────────
+
+export interface PostPreprocWorkflowSummary {
+  name: string
+  description: string
+  inputs: string[]
+  outputs: string[]
+  n_nodes: number
+}
+
+export interface PostPreprocWorkflow {
+  name: string
+  description: string
+  inputs: Record<string, { from: string }>
+  outputs: Record<string, { from: string }>
+  graph: PostPreprocGraph
+}
