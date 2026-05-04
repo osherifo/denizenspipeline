@@ -696,3 +696,91 @@ export interface NipypeStatusBlock {
 export interface PreprocRunLive extends PreprocRunSummary {
   nipype_status: NipypeStatusBlock
 }
+
+// ── Structural QC ────────────────────────────────────────────────
+
+export type StructuralQCStatus = "pending" | "approved" | "needs_edits" | "rejected"
+
+export interface StructuralQCReview {
+  dataset: string
+  subject: string
+  status: StructuralQCStatus
+  reviewer: string
+  timestamp: string
+  notes: string
+  freeview_command_used: string | null
+}
+
+// ── Post-preproc ─────────────────────────────────────────────────
+
+export interface NipypeNodeMeta {
+  name: string
+  docstring: string
+  inputs: string[]
+  outputs: string[]
+  params: ParamSchema
+}
+
+export interface PostPreprocGraphNode {
+  id: string
+  type: string
+  data: { params: Record<string, unknown> }
+  position: { x: number; y: number }
+}
+
+export interface PostPreprocGraphEdge {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string
+  targetHandle?: string
+}
+
+export interface PostPreprocGraph {
+  nodes: PostPreprocGraphNode[]
+  edges: PostPreprocGraphEdge[]
+}
+
+export interface PostPreprocRunHandle {
+  run_id: string
+  status: 'pending' | 'running' | 'done' | 'failed'
+  output_dir: string
+  error?: string | null
+  manifest?: PostPreprocManifest | null
+}
+
+export interface PostPreprocManifest {
+  subject: string
+  dataset: string
+  source_manifest_path: string
+  graph: PostPreprocGraph
+  nodes_run: Array<{
+    node_id: string
+    node_type: string
+    params: Record<string, unknown>
+    inputs: Record<string, string>
+    outputs: Record<string, string>
+    duration_s: number | null
+  }>
+  output_dir: string
+  created: string
+  manifest_version: number
+}
+
+// ── Post-preproc workflows (saved YAML) ───────────────────────────
+
+export interface PostPreprocWorkflowSummary {
+  name: string
+  description: string
+  inputs: string[]
+  outputs: string[]
+  n_nodes: number
+}
+
+export interface PostPreprocWorkflow {
+  name: string
+  description: string
+  inputs: Record<string, { from: string }>
+  outputs: Record<string, { from: string }>
+  graph: PostPreprocGraph
+}
