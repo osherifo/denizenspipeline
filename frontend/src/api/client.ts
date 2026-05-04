@@ -63,6 +63,52 @@ export async function fetchModule(category: string, name: string): Promise<Modul
   return json(`${BASE}/modules/${category}/${name}`)
 }
 
+export interface ModuleCode {
+  name: string
+  category: string
+  path: string
+  code: string
+  class_start: number | null
+  class_end: number | null
+}
+
+export async function fetchModuleCode(category: string, name: string): Promise<ModuleCode> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/code`)
+}
+
+export interface SaveModuleCodeResult {
+  saved: boolean
+  name: string
+  category: string
+  path: string
+  bytes: number
+  restart_required: boolean
+}
+
+export async function saveModuleCode(
+  category: string, name: string, code: string,
+): Promise<SaveModuleCodeResult> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/code`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+}
+
+export interface ReloadModuleResult {
+  reloaded: boolean
+  module: string
+  replaced: boolean
+}
+
+export async function reloadModule(
+  category: string, name: string,
+): Promise<ReloadModuleResult> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/reload`, {
+    method: 'POST',
+  })
+}
+
 export async function fetchStages(): Promise<StageInfo[]> {
   return json(`${BASE}/stages`)
 }
@@ -211,6 +257,12 @@ export async function cancelInFlightRun(runId: string): Promise<{ cancelled: boo
   })
 }
 
+export async function deleteInFlightRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
 // ── Workflows (end-to-end orchestration) ────────────────────────────────
 
 export async function fetchWorkflowConfigs(): Promise<WorkflowConfigSummary[]> {
@@ -231,6 +283,26 @@ export async function runWorkflowConfig(
   })
 }
 
+export async function saveWorkflowConfig(
+  filename: string, yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
+export async function copyWorkflowConfig(
+  source: string, newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
+  })
+}
+
 export async function fetchWorkflowRuns(
   includeFinished: boolean = true,
 ): Promise<WorkflowRunSummary[]> {
@@ -246,6 +318,15 @@ export async function fetchWorkflowRun(runId: string): Promise<WorkflowRunSummar
 export async function cancelWorkflowRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',
+  })
+}
+
+export async function deleteWorkflowRun(runId: string): Promise<{
+  deleted: boolean
+  stage_results?: Array<{ stage: string; run_id: string; deleted: boolean; reason?: string }>
+}> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
   })
 }
 
@@ -409,6 +490,12 @@ export async function fetchPreprocRun(runId: string): Promise<PreprocRunSummary>
 export async function cancelPreprocRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',
+  })
+}
+
+export async function deletePreprocRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
   })
 }
 
@@ -615,6 +702,12 @@ export async function cancelConvertRun(runId: string): Promise<{ cancelled: bool
   })
 }
 
+export async function deleteConvertRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function runSavedConvertConfig(
   filename: string,
   overrides?: Record<string, unknown>,
@@ -661,6 +754,12 @@ export async function fetchAutoflattenRunsList(
 export async function cancelAutoflattenRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',
+  })
+}
+
+export async function deleteAutoflattenRun(runId: string): Promise<{ deleted: boolean }> {
+  return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
   })
 }
 
@@ -769,4 +868,41 @@ export async function fetchAutoflattenVisualizations(
 ): Promise<{ images: Record<string, string> }> {
   const qs = new URLSearchParams({ subjects_dir, subject }).toString()
   return json(`${BASE}/autoflatten/visualizations?${qs}`)
+}
+
+// ── Triage (automatic error capture) ────────────────────────────────────
+
+export async function fetchTriage(
+  runId: string,
+): Promise<import('./types').TriageRecord | null> {
+  const res = await fetch(`${BASE}/triage/${encodeURIComponent(runId)}`)
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
+export async function rescanTriage(runId: string) {
+  return json<import('./types').TriageRecord>(
+    `${BASE}/triage/${encodeURIComponent(runId)}/rescan`,
+    { method: 'POST' },
+  )
+}
+
+export async function saveNewErrorFromCapture(body: {
+  run_id: string
+  title: string
+  tags?: string[]
+  root_cause?: string
+  fix?: string
+  references?: string[]
+  slug?: string
+}): Promise<import('./types').NewErrorFromCaptureResult> {
+  return json(`${BASE}/errors/from-capture`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }

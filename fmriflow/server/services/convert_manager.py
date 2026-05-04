@@ -811,7 +811,11 @@ class ConvertManager:
     # ── Registry / reattach / cancel ──────────────────────────────────
 
     def _persist_state(self, handle: ConvertRunHandle) -> None:
-        """Flush the handle back to the registry state file."""
+        """Flush the handle back to the registry state file.
+
+        On a ``failed`` transition, kick off automatic triage so the
+        UI has KB matches ready when the user opens the failed run.
+        """
         state = RunStateFile(
             run_id=handle.run_id,
             kind="convert",
@@ -828,6 +832,15 @@ class ConvertManager:
             manifest_path=handle.manifest_path,
         )
         self.registry.update(state)
+
+        from fmriflow.triage.service import trigger_on_failure
+        trigger_on_failure(
+            run_id=handle.run_id,
+            kind="convert",
+            status=handle.status,
+            state=state.to_dict(),
+            run_dir=self.registry.run_dir(handle.run_id),
+        )
 
     def _reattach_active_runs(self) -> None:
         """On startup, scan the registry and rehydrate handles for live runs."""
@@ -908,6 +921,66 @@ class ConvertManager:
         log_path = summary.get("log_path")
         summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""
         return summary
+
+    def delete_run(self, run_id: str) -> dict:
+        """Delete a finished convert run.
+
+        Refuses while running. Removes the registry dir plus the
+        run's subject+session outputs under ``bids_dir`` and the
+        matching ``.heudiconv`` cache so a re-run for the same
+        (subject, session) won't load stale filegroup.json (devdoc
+        0029). Other subjects in the same BIDS root are untouched.
+        """
+        import shutil
+
+        handle = self.active_runs.get(run_id)
+        status = handle.status if handle else None
+        state = self.registry.load(run_id)
+        if status is None and state is not None:
+            status = state.status
+        if status == "running":
+            return {"deleted": False, "reason": "run is still running; cancel first"}
+        if state is None and handle is None:
+            return {"deleted": False, "reason": "run not found"}
+
+        removed: list[str] = []
+        subject = (state.subject if state else handle.subject) or ""
+        params = (state.params if state else (handle.params if handle else {})) or {}
+        bids_dir = params.get("bids_dir")
+        session = ""
+        sessions = params.get("sessions") or []
+        if sessions:
+            session = str(sessions[0])
+
+        if subject and bids_dir:
+            sub_root = Path(bids_dir) / f"sub-{subject}"
+            # If a session was used, only remove that session subdir.
+            # Otherwise remove the whole subject dir.
+            target = sub_root / f"ses-{session}" if session else sub_root
+            if target.is_dir():
+                try:
+                    shutil.rmtree(target)
+                    removed.append(str(target))
+                except OSError as e:
+                    logger.warning("Could not remove %s: %s", target, e)
+            # Clean up the matching .heudiconv cache entry.
+            heu_root = Path(bids_dir) / ".heudiconv" / subject
+            cache = heu_root / f"ses-{session}" if session else heu_root
+            if cache.is_dir():
+                try:
+                    shutil.rmtree(cache)
+                    removed.append(str(cache))
+                except OSError:
+                    pass
+
+        self.active_runs.pop(run_id, None)
+
+        existed = self.registry.delete(run_id)
+        if not existed and not removed:
+            return {"deleted": False, "reason": "nothing to delete"}
+
+        self._manifests_cache = None
+        return {"deleted": True, "removed_paths": removed}
 
     def cancel_run(self, run_id: str) -> dict:
         """Terminate a running heudiconv subprocess. SIGTERM then SIGKILL."""

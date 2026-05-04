@@ -6,8 +6,12 @@ import {
   fetchAutoflattenRunsList,
   fetchAutoflattenRun,
   cancelAutoflattenRun,
+  deleteAutoflattenRun,
+  fetchAutoflattenVisualizations,
 } from '../../api/client'
 import { useDialog } from '../common/Dialog'
+import { TriageMatches } from '../triage/TriageMatches'
+import { FlatmapPreview } from './FlatmapPreview'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -146,6 +150,71 @@ const logPre: CSSProperties = {
   margin: 0, border: '1px solid var(--border)',
 }
 
+function ResultsSection({ detail }: { detail: AutoflattenRunSummary }) {
+  // Visualizations: prefer what the run emitted, fall back to scanning
+  // surf/ on disk (the precomputed path doesn't write PNGs into
+  // result, but they may exist next to the patches from an earlier run).
+  const resultPayload = detail.result?.result
+  const emitted = resultPayload?.visualizations ?? {}
+  const hasEmitted = Object.keys(emitted).length > 0
+
+  const [scanned, setScanned] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (hasEmitted) return
+    const subjectsDir = detail.subjects_dir
+    if (!subjectsDir || !detail.subject) return
+    fetchAutoflattenVisualizations(subjectsDir, detail.subject)
+      .then((r) => setScanned(r.images))
+      .catch(() => setScanned({}))
+  }, [hasEmitted, detail.subjects_dir, detail.subject])
+
+  const images = hasEmitted ? emitted : scanned
+  const patches = resultPayload?.flat_patches ?? {}
+  const pycortexSurface = resultPayload?.pycortex_surface
+  const source = resultPayload?.source
+
+  return (
+    <div style={{
+      backgroundColor: 'var(--bg-card)',
+      border: '1px solid var(--border)',
+      borderRadius: 8, padding: '12px 14px', marginBottom: 12,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700,
+        color: 'var(--accent-cyan)', letterSpacing: 1,
+        textTransform: 'uppercase', marginBottom: 10,
+      }}>
+        Results
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'max-content 1fr',
+        gap: '4px 12px', fontSize: 12, marginBottom: 8,
+      }}>
+        <div style={{ color: 'var(--text-secondary)' }}>Source</div>
+        <div style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+          {source ?? '—'}
+        </div>
+        <div style={{ color: 'var(--text-secondary)' }}>pycortex surface</div>
+        <div style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+          {pycortexSurface ?? '(not imported)'}
+        </div>
+        {(['lh', 'rh'] as const).map((hemi) => (
+          patches[hemi] ? (
+            <div key={hemi} style={{ display: 'contents' }}>
+              <div style={{ color: 'var(--text-secondary)' }}>{hemi} patch</div>
+              <div style={{ color: 'var(--text-primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                {patches[hemi]}
+              </div>
+            </div>
+          ) : null
+        ))}
+      </div>
+      <FlatmapPreview images={images} patches={patches} />
+    </div>
+  )
+}
+
+
 function LogModal({
   detail, loading, error, onClose,
 }: {
@@ -211,6 +280,10 @@ function LogModal({
                 </>
               )}
             </div>
+            {/* Results — flat patches + visualizations + pycortex name. */}
+            {detail.status === 'done' && <ResultsSection detail={detail} />}
+            {/* KB matches strip — renders only when triage.json exists. */}
+            <TriageMatches runId={detail.run_id} poll={detail.status === 'failed'} />
             <pre style={logPre}>
               {detail.log_tail && detail.log_tail.length > 0
                 ? detail.log_tail
@@ -266,6 +339,20 @@ export function AutoflattenInFlightRuns() {
     }
   }
 
+  async function remove(runId: string, subject: string) {
+    const ok = await dlg.confirm(
+      `Delete autoflatten run for ${subject}?\n\nRemoves only the run's registry entry and logs. The FreeSurfer subject directory and pycortex surfaces are left alone (often lab-shared). Cannot be undone.`,
+      { variant: 'danger', confirmLabel: 'Delete' },
+    )
+    if (!ok) return
+    try {
+      await deleteAutoflattenRun(runId)
+      reload()
+    } catch (e) {
+      await dlg.alert(String(e))
+    }
+  }
+
   useEffect(() => { reload() }, [])
 
   useEffect(() => {
@@ -312,8 +399,10 @@ export function AutoflattenInFlightRuns() {
             </div>
             <div style={actionsStyle}>
               <button style={btn('muted')} onClick={() => openLog(r.run_id)}>Log</button>
-              {isRunning && (
+              {isRunning ? (
                 <button style={btn('danger')} onClick={() => cancel(r.run_id, r.subject)}>Cancel</button>
+              ) : (
+                <button style={btn('danger')} onClick={() => remove(r.run_id, r.subject)}>Delete</button>
               )}
             </div>
           </div>

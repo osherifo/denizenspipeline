@@ -1,14 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ModuleInfo, ParamField } from '../../api/types'
+import { fetchModuleCode, type ModuleCode } from '../../api/client'
 
 interface ModuleCardProps {
   module: ModuleInfo
+  onEdit?: (category: string, name: string) => void
 }
 
 const cardStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
-  border: '1px solid var(--border)',
+  borderWidth: 1,
+  borderStyle: 'solid',
+  borderColor: 'var(--border)',
   borderRadius: 8,
   padding: '14px 16px',
   cursor: 'pointer',
@@ -130,10 +134,116 @@ function ParamTable({ params }: { params: Record<string, ParamField> }) {
   )
 }
 
-export function ModuleCard({ module }: ModuleCardProps) {
+const sourceToggleStyle: CSSProperties = {
+  fontSize: 11,
+  color: 'var(--accent-cyan)',
+  background: 'transparent',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  padding: '4px 10px',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+}
+
+const sourcePathStyle: CSSProperties = {
+  fontSize: 10,
+  color: 'var(--text-secondary)',
+  marginTop: 10,
+  fontFamily: 'monospace',
+  wordBreak: 'break-all',
+}
+
+const sourcePreStyle: CSSProperties = {
+  marginTop: 8,
+  padding: 12,
+  backgroundColor: 'var(--bg-deep, #0b0f14)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  fontSize: 11,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  lineHeight: 1.5,
+  color: 'var(--text-primary)',
+  maxHeight: 480,
+  overflow: 'auto',
+  whiteSpace: 'pre',
+}
+
+const lineNumStyle: CSSProperties = {
+  display: 'inline-block',
+  width: 40,
+  paddingRight: 12,
+  textAlign: 'right',
+  color: 'var(--text-secondary)',
+  userSelect: 'none',
+  opacity: 0.5,
+}
+
+function SourceView({ code }: { code: ModuleCode }) {
+  const containerRef = useRef<HTMLPreElement | null>(null)
+  const lines = code.code.split('\n')
+  const start = code.class_start
+  const end = code.class_end
+
+  useEffect(() => {
+    const pre = containerRef.current
+    if (!pre || start == null) return
+    const target = pre.querySelector<HTMLElement>(`[data-line="${start}"]`)
+    if (target) {
+      pre.scrollTop = target.offsetTop - pre.offsetTop
+    }
+  }, [start])
+
+  return (
+    <>
+      <div style={sourcePathStyle}>{code.path}</div>
+      <pre ref={containerRef} style={sourcePreStyle} onClick={(e) => e.stopPropagation()}>
+        {lines.map((line, i) => {
+          const lineno = i + 1
+          const inClass = start != null && end != null && lineno >= start && lineno <= end
+          const rowStyle: CSSProperties = inClass
+            ? { backgroundColor: 'rgba(0, 229, 255, 0.06)', display: 'block' }
+            : { display: 'block' }
+          return (
+            <span key={lineno} data-line={lineno} style={rowStyle}>
+              <span style={lineNumStyle}>{lineno}</span>
+              {line || ' '}
+              {'\n'}
+            </span>
+          )
+        })}
+      </pre>
+    </>
+  )
+}
+
+export function ModuleCard({ module, onEdit }: ModuleCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [hovered, setHovered] = useState(false)
+  const [showSource, setShowSource] = useState(false)
+  const [code, setCode] = useState<ModuleCode | null>(null)
+  const [codeLoading, setCodeLoading] = useState(false)
+  const [codeError, setCodeError] = useState<string | null>(null)
   const paramCount = Object.keys(module.params).length
+
+  async function toggleSource(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (showSource) {
+      setShowSource(false)
+      return
+    }
+    setShowSource(true)
+    if (code || codeLoading) return
+    setCodeLoading(true)
+    setCodeError(null)
+    try {
+      const c = await fetchModuleCode(module.category, module.name)
+      setCode(c)
+    } catch (err) {
+      setCodeError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCodeLoading(false)
+    }
+  }
 
   return (
     <div
@@ -158,7 +268,34 @@ export function ModuleCard({ module }: ModuleCardProps) {
           </span>
         )}
       </div>
-      {expanded && <ParamTable params={module.params} />}
+      {expanded && (
+        <>
+          <ParamTable params={module.params} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button type="button" style={sourceToggleStyle} onClick={toggleSource}>
+              {showSource ? 'Hide source' : 'View source'}
+            </button>
+            {onEdit && (
+              <button
+                type="button"
+                style={sourceToggleStyle}
+                onClick={(e) => { e.stopPropagation(); onEdit(module.category, module.name) }}
+              >
+                Edit source
+              </button>
+            )}
+          </div>
+          {showSource && codeLoading && (
+            <div style={{ ...docStyle, fontStyle: 'italic' }}>Loading source…</div>
+          )}
+          {showSource && codeError && (
+            <div style={{ ...docStyle, color: 'var(--accent-red, #ff5252)' }}>
+              {codeError}
+            </div>
+          )}
+          {showSource && code && <SourceView code={code} />}
+        </>
+      )}
     </div>
   )
 }

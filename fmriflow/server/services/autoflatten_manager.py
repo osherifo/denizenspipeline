@@ -72,6 +72,10 @@ class AutoflattenRunHandle:
             "error": self.error,
             "log_path": self.log_path,
             "result": self.result,
+            # Surface inputs so the UI's Results view can rescan surf/
+            # for PNGs in the precomputed case where result.result
+            # visualizations is empty.
+            "subjects_dir": (self.params or {}).get("subjects_dir", ""),
         }
 
 
@@ -399,6 +403,15 @@ class AutoflattenManager:
         )
         self.registry.update(state)
 
+        from fmriflow.triage.service import trigger_on_failure
+        trigger_on_failure(
+            run_id=handle.run_id,
+            kind="autoflatten",
+            status=handle.status,
+            state=state.to_dict(),
+            run_dir=self.registry.run_dir(handle.run_id),
+        )
+
     def _reattach_active_runs(self) -> None:
         for state in self.registry.list_active():
             if state.kind != "autoflatten":
@@ -450,6 +463,7 @@ class AutoflattenManager:
                     "error": state.error,
                     "log_path": state.stdout_log,
                     "result": None,
+                    "subjects_dir": (state.params or {}).get("subjects_dir", ""),
                 }
         return sorted(out.values(), key=lambda r: r.get("started_at") or 0, reverse=True)
 
@@ -472,6 +486,7 @@ class AutoflattenManager:
                 "error": state.error,
                 "log_path": state.stdout_log,
                 "result": None,
+                "subjects_dir": (state.params or {}).get("subjects_dir", ""),
             }
         # Preserve existing run-detail shape: include an events list so the
         # existing Autoflatten polling code keeps working, even though the
@@ -483,6 +498,29 @@ class AutoflattenManager:
         log_path = summary.get("log_path")
         summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""
         return summary
+
+    def delete_run(self, run_id: str) -> dict:
+        """Delete a finished autoflatten run.
+
+        Refuses while running. Removes ONLY the registry dir — the
+        FreeSurfer subject dir and any pycortex surfaces are shared
+        and frequently lab-owned, so they are left alone.
+        """
+        handle = self.active_runs.get(run_id)
+        status = handle.status if handle else None
+        state = self.registry.load(run_id)
+        if status is None and state is not None:
+            status = state.status
+        if status == "running":
+            return {"deleted": False, "reason": "run is still running; cancel first"}
+        if state is None and handle is None:
+            return {"deleted": False, "reason": "run not found"}
+
+        self.active_runs.pop(run_id, None)
+        existed = self.registry.delete(run_id)
+        if not existed:
+            return {"deleted": False, "reason": "nothing to delete"}
+        return {"deleted": True, "removed_paths": []}
 
     def cancel_run(self, run_id: str) -> dict:
         handle = self.active_runs.get(run_id)

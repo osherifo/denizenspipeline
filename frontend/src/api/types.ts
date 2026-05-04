@@ -261,6 +261,16 @@ export interface ConvertRunSummary {
   log_tail?: string
 }
 
+export interface AutoflattenResultPayload {
+  subject: string
+  source: 'autoflatten' | 'precomputed' | 'import_only' | string
+  hemispheres: string[]
+  flat_patches: Record<string, string>
+  visualizations: Record<string, string>
+  pycortex_surface: string | null
+  elapsed_s: number
+}
+
 export interface AutoflattenRunSummary {
   run_id: string
   subject: string
@@ -272,7 +282,14 @@ export interface AutoflattenRunSummary {
   error: string | null
   log_path: string | null
   log_tail?: string
-  result?: Record<string, unknown> | null
+  result?: {
+    result?: AutoflattenResultPayload
+    record?: Record<string, unknown>
+  } | null
+  /** Backing FreeSurfer subjects dir — surfaced so the Results view
+   *  can rescan surf/ for visualization PNGs when the completed run
+   *  used the precomputed path and didn't write PNGs into result. */
+  subjects_dir?: string
 }
 
 export interface AnalysisInnerStage {
@@ -602,4 +619,45 @@ export interface BatchEvent {
   failed?: number
   elapsed?: number
   [key: string]: unknown
+}
+
+// ── Triage (automatic error capture) ────────────────────────────────────
+
+export interface TriageFingerprint {
+  source: string
+  hash: string
+  snippet: string
+}
+
+export interface TriageCandidateMatch {
+  id: number
+  title: string
+  confidence: number
+  match_on: string
+  matched_fingerprint_hashes: string[]
+}
+
+export interface TriageRecord {
+  run_id: string
+  kind: string
+  stage: string
+  backend: string | null
+  captured_at: string
+  failed_at: number | null
+  symptom: string
+  traceback_tail: string
+  stdout_tail: string
+  crash_files: string[]
+  fingerprints: TriageFingerprint[]
+  candidate_matches: TriageCandidateMatch[]
+  tags: string[]
+  capture_version: number
+}
+
+export interface NewErrorFromCaptureResult {
+  saved: boolean
+  id: number
+  filename: string
+  path: string
+  proposed_dir: string
 }

@@ -105,6 +105,7 @@ def create_app(
     from fmriflow.server.routes.errors import router as errors_router
     from fmriflow.server.routes.autoflatten import router as autoflatten_router
     from fmriflow.server.routes.workflows import router as workflows_router
+    from fmriflow.server.routes.triage import router as triage_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -120,6 +121,7 @@ def create_app(
     app.include_router(errors_router, prefix="/api")
     app.include_router(autoflatten_router, prefix="/api")
     app.include_router(workflows_router, prefix="/api")
+    app.include_router(triage_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

@@ -2,9 +2,10 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { usePreprocStore } from '../../stores/preproc-store'
-import { fetchPreprocRun } from '../../api/client'
+import { fetchPreprocRun, deletePreprocRun } from '../../api/client'
 import type { PreprocRunSummary } from '../../api/types'
 import { useDialog } from '../common/Dialog'
+import { TriageMatches } from '../triage/TriageMatches'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -213,7 +214,7 @@ export function InFlightRuns({ runningOnly = false }: InFlightRunsProps) {
               <button style={btn('muted')} onClick={() => openLog(r.run_id)}>
                 Log
               </button>
-              {isRunning && (
+              {isRunning ? (
                 <button
                   style={btn('danger')}
                   onClick={async () => {
@@ -230,6 +231,25 @@ export function InFlightRuns({ runningOnly = false }: InFlightRunsProps) {
                   }}
                 >
                   Cancel
+                </button>
+              ) : (
+                <button
+                  style={btn('danger')}
+                  onClick={async () => {
+                    const ok = await dlg.confirm(
+                      `Delete preproc run for ${r.subject}?\n\nRemoves registry entry, logs, and the run's sub-${r.subject}/ outputs under the derivatives dir. Cannot be undone.`,
+                      { variant: 'danger', confirmLabel: 'Delete' },
+                    )
+                    if (!ok) return
+                    try {
+                      await deletePreprocRun(r.run_id)
+                      await loadPreprocRuns()
+                    } catch (e) {
+                      await dlg.alert(String(e))
+                    }
+                  }}
+                >
+                  Delete
                 </button>
               )}
             </div>
@@ -412,6 +432,8 @@ function LogModal({
                 </>
               )}
             </div>
+
+            <TriageMatches runId={detail.run_id} poll={detail.status === 'failed'} />
 
             <pre style={logPre}>
               {detail.log_tail && detail.log_tail.length > 0

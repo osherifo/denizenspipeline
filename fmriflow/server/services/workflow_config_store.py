@@ -126,6 +126,76 @@ class WorkflowConfigStore:
             "yaml_string": raw,
         }
 
+    def save_config(self, filename: str, yaml_string: str) -> dict[str, Any]:
+        """Overwrite (or create) a workflow config file with raw YAML.
+
+        Validates the YAML parses and contains a top-level
+        ``workflow:`` mapping before writing. Rejects filenames with
+        directory components.
+        """
+        if '/' in filename or '\\' in filename or filename in ('.', '..'):
+            return {'saved': False, 'path': '', 'errors': [
+                f"Invalid filename: {filename!r}",
+            ]}
+        if not filename.endswith(('.yaml', '.yml')):
+            return {'saved': False, 'path': '', 'errors': [
+                "Config filename must end in .yaml or .yml",
+            ]}
+
+        try:
+            parsed = yaml.safe_load(yaml_string)
+        except yaml.YAMLError as e:
+            return {'saved': False, 'path': '', 'errors': [f'YAML parse error: {e}']}
+
+        if not isinstance(parsed, dict) or not isinstance(parsed.get('workflow'), dict):
+            return {'saved': False, 'path': '', 'errors': [
+                "Config must have a top-level `workflow:` mapping",
+            ]}
+
+        path = self.configs_dir / filename
+        try:
+            self.configs_dir.mkdir(parents=True, exist_ok=True)
+            path.write_text(yaml_string)
+        except OSError as e:
+            return {'saved': False, 'path': str(path), 'errors': [f'Write failed: {e}']}
+
+        self._last_scan = 0.0
+        return {'saved': True, 'path': str(path.resolve()), 'errors': []}
+
+    def copy_config(self, source: str, new_filename: str) -> dict[str, Any]:
+        """Duplicate an existing workflow config under a new filename.
+
+        Refuses to overwrite existing files.
+        """
+        if '/' in new_filename or '\\' in new_filename or new_filename in ('.', '..'):
+            return {'saved': False, 'path': '', 'errors': [
+                f"Invalid filename: {new_filename!r}",
+            ]}
+        if not new_filename.endswith(('.yaml', '.yml')):
+            return {'saved': False, 'path': '', 'errors': [
+                "Config filename must end in .yaml or .yml",
+            ]}
+
+        src = self.configs_dir / source
+        if not src.is_file():
+            return {'saved': False, 'path': '', 'errors': [
+                f"Source config not found: {source}",
+            ]}
+
+        dest = self.configs_dir / new_filename
+        if dest.exists():
+            return {'saved': False, 'path': str(dest), 'errors': [
+                f"Destination already exists: {new_filename}",
+            ]}
+
+        try:
+            dest.write_text(src.read_text())
+        except OSError as e:
+            return {'saved': False, 'path': str(dest), 'errors': [f'Write failed: {e}']}
+
+        self._last_scan = 0.0
+        return {'saved': True, 'path': str(dest.resolve()), 'errors': []}
+
 
 def parse_stage_refs(workflow: dict) -> list[WorkflowStageRef]:
     """Validate + extract stage refs from a workflow dict.

@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(tags=["workflows"])
+
+
+class SaveWorkflowConfigBody(BaseModel):
+    yaml_string: str
+
+
+class CopyWorkflowConfigBody(BaseModel):
+    new_filename: str
 
 
 # ── Config browsing ──────────────────────────────────────────────────────
@@ -36,6 +45,31 @@ async def get_workflow_config(request: Request, filename: str):
             detail=f"Workflow config '{filename}' not found",
         )
     return result
+
+
+@router.put("/workflows/configs/{filename}")
+async def save_workflow_config(
+    request: Request, filename: str, body: SaveWorkflowConfigBody,
+):
+    """Overwrite (or create) a workflow config file with raw YAML."""
+    store = request.app.state.workflow_config_store
+    result = store.save_config(filename, body.yaml_string)
+    if not result['saved']:
+        raise HTTPException(status_code=400, detail="; ".join(result['errors']))
+    return result
+
+
+@router.post("/workflows/configs/{filename}/copy")
+async def copy_workflow_config(
+    request: Request, filename: str, body: CopyWorkflowConfigBody,
+):
+    """Duplicate an existing workflow config under a new filename."""
+    store = request.app.state.workflow_config_store
+    result = store.copy_config(filename, body.new_filename)
+    if not result['saved']:
+        status = 409 if any('already exists' in e for e in result['errors']) else 400
+        raise HTTPException(status_code=status, detail="; ".join(result['errors']))
+    return {**result, 'filename': body.new_filename}
 
 
 @router.post("/workflows/configs/{filename}/run")
@@ -89,4 +123,19 @@ async def cancel_workflow_run(request: Request, run_id: str):
     result = mgr.cancel_run(run_id)
     if not result.get("cancelled"):
         raise HTTPException(status_code=409, detail=result.get("reason", "could not cancel"))
+    return result
+
+
+@router.delete("/workflows/runs/{run_id}")
+async def delete_workflow_run(request: Request, run_id: str):
+    """Delete a finished workflow run. Cascades to each stage's
+    child run so the same per-stage cleanup rules apply (subject BIDS
+    for convert, sub-<subject>/ for preproc, per-run output subdir for
+    analysis, registry only for autoflatten)."""
+    mgr = request.app.state.workflow_manager
+    result = mgr.delete_run(run_id)
+    if not result.get("deleted"):
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
     return result

@@ -156,6 +156,36 @@ class RunRegistry:
         state.finished_at = time.time()
         self._write(state)
 
+    def delete(self, run_id: str) -> bool:
+        """Recursively remove ``<root>/<run_id>/``.
+
+        Refuses to delete anything whose resolved path escapes the
+        registry root — defensive in case a caller ever passes a
+        crafted run_id like ``../../foo``.
+
+        Returns True if the directory existed and was removed, False
+        if it was already absent.
+        """
+        import shutil
+
+        rd = self.run_dir(run_id)
+        try:
+            resolved = rd.resolve(strict=False)
+            root_resolved = self.root.resolve(strict=False)
+        except OSError:
+            return False
+        if not resolved.is_relative_to(root_resolved):
+            logger.warning(
+                "Refusing to delete run_id %r: resolved path %s escapes registry root %s",
+                run_id, resolved, root_resolved,
+            )
+            return False
+
+        if not rd.is_dir():
+            return False
+        shutil.rmtree(rd, ignore_errors=False)
+        return True
+
     # ── Internals ───────────────────────────────────────────────────
 
     def _write(self, state: RunStateFile) -> None:

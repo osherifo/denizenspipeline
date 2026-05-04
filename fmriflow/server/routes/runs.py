@@ -62,6 +62,19 @@ async def cancel_in_flight_run(request: Request, run_id: str):
     return result
 
 
+@router.delete("/runs/in-flight/{run_id}")
+async def delete_in_flight_run(request: Request, run_id: str):
+    """Delete a finished analysis run — registry dir + per-run output subdir."""
+    manager = request.app.state.run_manager
+    result = manager.delete_run(run_id)
+    if not result.get("deleted"):
+        from fastapi import HTTPException
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
+    return result
+
+
 @router.get("/runs/{run_id}")
 async def get_run(request: Request, run_id: str):
     """Get full detail for a single historical run."""

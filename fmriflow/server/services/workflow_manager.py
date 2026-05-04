@@ -115,10 +115,98 @@ class WorkflowManager:
         self.stage_managers: dict[str, Any] = stage_managers or {}
         self.active_runs: dict[str, WorkflowRunHandle] = {}
         self.registry = registry or RunRegistry()
+        # Workflow resumption is deferred until stage managers are
+        # bound (bind_stage_managers). app.py wiring order currently
+        # constructs WorkflowManager before all four stage managers
+        # exist, so if we scanned the registry here we'd fail with
+        # "no manager for stage 'convert'" and abandon every
+        # in-flight workflow. bind_stage_managers triggers the rescan.
 
     def bind_stage_managers(self, **managers) -> None:
-        """Late-bind stage managers (app.py builds them, wires via this)."""
+        """Late-bind stage managers (app.py builds them, wires via this).
+
+        Also reattaches any in-flight workflows from the registry — the
+        orchestrator thread is a normal Thread and doesn't survive a
+        server restart, so on startup we need to re-spawn it for any
+        workflow whose state.json still says ``running``.
+        """
         self.stage_managers.update(managers)
+        try:
+            self._reattach_active_runs()
+        except Exception:
+            logger.warning(
+                "Failed to scan workflow registry on startup",
+                exc_info=True,
+            )
+
+    # ── Reattach ─────────────────────────────────────────────────────
+
+    def _reattach_active_runs(self) -> None:
+        """Rebuild handles and re-spawn orchestrator threads for
+        workflows the registry still considers running."""
+        for state in self.registry.list_active():
+            if state.kind != "workflow":
+                continue
+            if state.run_id in self.active_runs:
+                continue
+            handle = self._rebuild_handle_from_state(state)
+            if handle is None:
+                continue
+            self.active_runs[handle.run_id] = handle
+            handle.push_event({
+                "event": "workflow_reattached",
+                "name": handle.name,
+            })
+            t = threading.Thread(
+                target=self._orchestrate,
+                args=(handle,),
+                kwargs={"resume": True},
+                daemon=True,
+                name=f"workflow-{handle.run_id}",
+            )
+            t.start()
+            logger.info(
+                "Reattached workflow %s (resuming from %s)",
+                handle.run_id,
+                self._first_unfinished_stage(handle) or "end",
+            )
+
+    def _rebuild_handle_from_state(self, state: RunStateFile) -> WorkflowRunHandle | None:
+        """Rehydrate a WorkflowRunHandle from a persisted RunStateFile."""
+        params = state.params or {}
+        stages_data = params.get("stages") or []
+        if not stages_data:
+            return None
+        stages: list[WorkflowStageStatus] = []
+        for sd in stages_data:
+            if not isinstance(sd, dict):
+                continue
+            stages.append(WorkflowStageStatus(
+                stage=sd.get("stage", ""),
+                config=sd.get("config", ""),
+                status=sd.get("status", "pending"),
+                run_id=sd.get("run_id"),
+                started_at=sd.get("started_at", 0.0) or 0.0,
+                finished_at=sd.get("finished_at", 0.0) or 0.0,
+                error=sd.get("error"),
+            ))
+        return WorkflowRunHandle(
+            run_id=state.run_id,
+            name=params.get("name", ""),
+            status="running",
+            started_at=state.started_at,
+            finished_at=0.0,
+            error=None,
+            stages=stages,
+            config_path=state.config_path,
+        )
+
+    @staticmethod
+    def _first_unfinished_stage(handle: WorkflowRunHandle) -> str | None:
+        for s in handle.stages:
+            if s.status not in ("done",):
+                return s.stage
+        return None
 
     # ── Launch ───────────────────────────────────────────────────────
 
@@ -203,51 +291,89 @@ class WorkflowManager:
 
     # ── Orchestration ────────────────────────────────────────────────
 
-    def _orchestrate(self, handle: WorkflowRunHandle) -> None:
+    def _orchestrate(self, handle: WorkflowRunHandle, *, resume: bool = False) -> None:
+        """Drive the workflow through its stages, one at a time.
+
+        ``resume=True`` is used after a reattach on server startup: we
+        skip stages already marked ``done``, re-poll a stage that was
+        ``running`` when the server died (its child may have finished
+        already), and finalise earlier if an earlier stage was marked
+        failed/cancelled.
+        """
         handle.push_event({
-            "event": "workflow_started",
+            "event": "workflow_resumed" if resume else "workflow_started",
             "name": handle.name,
             "n_stages": len(handle.stages),
         })
 
         for i, stage in enumerate(handle.stages):
+            # Resume: skip already-finished stages, handle pre-failed
+            # stages as terminal.
+            if resume:
+                if stage.status == "done":
+                    continue
+                if stage.status in ("failed", "cancelled", "lost"):
+                    self._finalize(
+                        handle,
+                        "failed" if stage.status != "cancelled" else "cancelled",
+                        error=f"{stage.stage} {stage.status}: "
+                              f"{stage.error or 'stage was terminal before restart'}",
+                    )
+                    return
+
             if handle._cancel.is_set():
                 stage.status = "cancelled"
                 handle.push_event({"event": "stage_cancelled", "stage": stage.stage})
                 self._finalize(handle, "cancelled", error="cancelled before start")
                 return
 
-            stage.started_at = time.time()
-            stage.status = "running"
-            handle.push_event({
-                "event": "stage_started",
-                "stage": stage.stage,
-                "index": i,
-                "config": stage.config,
-            })
-            self._persist_state(handle)
-
-            try:
-                child_run_id = self._launch_stage(stage)
-            except Exception as e:
-                stage.status = "failed"
-                stage.error = str(e)
-                stage.finished_at = time.time()
+            # Resume path with an existing child run_id: the stage was
+            # running when the server died. Don't re-launch; just
+            # re-poll. The stage's started_at stays at its original
+            # pre-restart value.
+            child_run_id: str | None = None
+            if resume and stage.status == "running" and stage.run_id:
+                child_run_id = stage.run_id
                 handle.push_event({
-                    "event": "stage_failed",
+                    "event": "stage_reattached",
                     "stage": stage.stage,
-                    "error": str(e),
+                    "index": i,
+                    "run_id": child_run_id,
                 })
-                self._finalize(handle, "failed", error=f"{stage.stage}: {e}")
-                return
+            else:
+                # Fresh launch (either a new workflow or a pending
+                # stage on resume).
+                stage.started_at = time.time()
+                stage.status = "running"
+                handle.push_event({
+                    "event": "stage_started",
+                    "stage": stage.stage,
+                    "index": i,
+                    "config": stage.config,
+                })
+                self._persist_state(handle)
 
-            stage.run_id = child_run_id
-            handle.push_event({
-                "event": "stage_run_id",
-                "stage": stage.stage,
-                "run_id": child_run_id,
-            })
-            self._persist_state(handle)
+                try:
+                    child_run_id = self._launch_stage(stage)
+                except Exception as e:
+                    stage.status = "failed"
+                    stage.error = str(e)
+                    stage.finished_at = time.time()
+                    handle.push_event({
+                        "event": "stage_failed",
+                        "stage": stage.stage,
+                        "error": str(e),
+                    })
+                    self._finalize(handle, "failed", error=f"{stage.stage}: {e}")
+                    return
+
+                stage.run_id = child_run_id
+                handle.push_event({
+                    "event": "stage_run_id",
+                    "stage": stage.stage,
+                    "run_id": child_run_id,
+                })
+                self._persist_state(handle)
 
             outcome = self._wait_for_stage(handle, stage, child_run_id)
             stage.finished_at = time.time()
@@ -330,13 +456,20 @@ class WorkflowManager:
     def _read_child_status(
         self, mgr: Any, stage: str, child_run_id: str,
     ) -> dict | None:
-        """Return {status, error} from the child manager's active set, or None."""
+        """Return {status, error} from the child manager's active set.
+
+        Falls back to the persistent registry when the handle isn't in
+        ``active_runs`` — important after a server restart, where a
+        child run that completed during the outage has a state.json
+        with the final status but is never rehydrated into
+        ``active_runs`` (the per-stage reattach only picks up runs
+        whose PID is still alive).
+        """
         if stage == "convert":
             # Batch?
             batch_handle = getattr(mgr, "active_batches", {}).get(child_run_id)
             if batch_handle is not None:
                 if batch_handle.status in ("done", "failed", "cancelled"):
-                    # Infer failure if any job failed
                     counts = batch_handle.summary.get("counts", {})
                     if counts.get("failed", 0) > 0:
                         return {"status": "failed", "error": f"{counts['failed']} job(s) failed"}
@@ -344,14 +477,26 @@ class WorkflowManager:
                 return {"status": "running"}
             # Single run
             h = getattr(mgr, "active_runs", {}).get(child_run_id)
-            if h is None:
-                return None
-            return {"status": h.status, "error": h.error}
-        else:
-            h = getattr(mgr, "active_runs", {}).get(child_run_id)
-            if h is None:
-                return None
+            if h is not None:
+                return {"status": h.status, "error": h.error}
+            return self._read_child_status_from_registry(child_run_id)
+
+        h = getattr(mgr, "active_runs", {}).get(child_run_id)
+        if h is not None:
             return {"status": h.status, "error": getattr(h, "error", None)}
+        return self._read_child_status_from_registry(child_run_id)
+
+    def _read_child_status_from_registry(self, child_run_id: str) -> dict | None:
+        """Load a child's state.json from the shared run registry.
+
+        Returns None if no state file exists — the workflow orchestrator
+        interprets that as "child vanished, probably done & cleaned up"
+        and moves on.
+        """
+        state = self.registry.load(child_run_id)
+        if state is None:
+            return None
+        return {"status": state.status, "error": state.error}
 
     def _finalize(
         self,
@@ -454,3 +599,64 @@ class WorkflowManager:
         # poll and forward SIGTERM to the current stage's child. We
         # don't kill anything from here — the stage manager owns the PID.
         return {"cancelled": True}
+
+    def delete_run(self, run_id: str) -> dict:
+        """Delete a finished workflow run and cascade to its stage runs.
+
+        Refuses while the workflow itself is still running. Each stage's
+        child run (if any) is deleted via that stage's manager, which
+        applies its own per-stage output-cleanup rules. Then the
+        workflow's own registry dir is removed.
+        """
+        handle = self.active_runs.get(run_id)
+        status = handle.status if handle else None
+        state = self.registry.load(run_id)
+        if status is None and state is not None:
+            status = state.status
+        if status == "running":
+            return {"deleted": False, "reason": "workflow is still running; cancel first"}
+        if state is None and handle is None:
+            return {"deleted": False, "reason": "workflow not found"}
+
+        stage_results: list[dict] = []
+        # Collect child runs: prefer the in-memory handle (has full
+        # WorkflowStageStatus objects); fall back to state.params which
+        # stores a list of dicts per stage.
+        if handle is not None:
+            stage_iter = [
+                {"stage": s.stage, "run_id": s.run_id}
+                for s in handle.stages
+            ]
+        else:
+            stage_iter = (state.params or {}).get("stages", []) if state else []
+
+        for sdata in stage_iter:
+            child_stage = sdata.get("stage")
+            child_run_id = sdata.get("run_id")
+            if not child_stage or not child_run_id:
+                continue
+            mgr = self.stage_managers.get(child_stage)
+            if mgr is None or not hasattr(mgr, "delete_run"):
+                stage_results.append({
+                    "stage": child_stage,
+                    "run_id": child_run_id,
+                    "deleted": False,
+                    "reason": "manager not available",
+                })
+                continue
+            try:
+                r = mgr.delete_run(child_run_id)
+            except Exception as e:
+                r = {"deleted": False, "reason": str(e)}
+            stage_results.append({
+                "stage": child_stage,
+                "run_id": child_run_id,
+                **r,
+            })
+
+        self.active_runs.pop(run_id, None)
+        existed = self.registry.delete(run_id)
+        return {
+            "deleted": True if (existed or stage_results) else False,
+            "stage_results": stage_results,
+        }

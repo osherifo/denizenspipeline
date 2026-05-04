@@ -10,6 +10,7 @@ import {
   fetchBatchStatus,
 } from '../../api/client'
 import type { BatchSummary } from '../../api/types'
+import { TriageMatches } from '../triage/TriageMatches'
 
 interface StageLogModalProps {
   stage: string
@@ -354,6 +355,11 @@ export function StageLogModal({ stage, runId, subjectHint, onClose }: StageLogMo
                 </>
               )}
             </div>
+            {/* KB matches strip — only renders if triage.json exists
+                for this run (fetch returns null → component returns
+                null). Poll while we're waiting for triage to finish
+                writing after a just-failed run. */}
+            <TriageMatches runId={target} poll={detail.status === 'failed'} />
             <pre style={pre}>
               {detail.logTail && detail.logTail.length > 0
                 ? detail.logTail

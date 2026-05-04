@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { WorkflowStageStatus } from '../../api/types'
+import { TriageMatches } from '../triage/TriageMatches'
 import {
   fetchConvertRun,
   fetchPreprocRun,
@@ -277,6 +278,10 @@ export function LiveStageLog({ stages, onOpenFull }: LiveStageLogProps) {
         <div style={{ ...metaLine, color: 'var(--accent-red)' }}>{log.error}</div>
       )}
       {log.logPath && <div style={metaLine}>{log.logPath}</div>}
+      {/* KB matches — appears only when the run has a triage record.
+          Polls for a few seconds on a just-failed run because the
+          triage thread hasn't written triage.json yet. */}
+      <TriageMatches runId={target.runId} poll={log.status === 'failed'} />
       <pre ref={preRef} style={logPre}>
         {log.logTail && log.logTail.length > 0
           ? log.logTail

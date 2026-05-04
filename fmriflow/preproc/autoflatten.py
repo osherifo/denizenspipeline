@@ -287,6 +287,28 @@ def import_flat_patches(
 # ── Private helpers ─────────────────────────────────────────────────────
 
 
+def _pycortex_subject_list(cortex) -> list[str]:
+    """Return the names of subjects registered in pycortex.
+
+    pycortex removed ``cortex.db.get_list()`` in the 1.2.x series in
+    favour of the underlying ``cortex.db.subjects`` dict. We try the
+    old API first (some installs may still have it) then fall back.
+    """
+    get_list = getattr(cortex.db, "get_list", None)
+    if callable(get_list):
+        try:
+            return list(get_list())
+        except Exception:
+            pass
+    subjects = getattr(cortex.db, "subjects", None)
+    if subjects is not None:
+        try:
+            return list(subjects)
+        except Exception:
+            pass
+    return []
+
+
 def _resolve_hemispheres(hemispheres: str) -> list[str]:
     if hemispheres == "both":
         return ["lh", "rh"]
@@ -425,7 +447,7 @@ def _do_pycortex_import(
     cx_name = config.pycortex_surface_name or f"{config.subject}fs"
 
     # Check if subject already exists in pycortex
-    existing_subjects = cortex.db.get_list()
+    existing_subjects = _pycortex_subject_list(cortex)
     if cx_name not in existing_subjects:
         logger.info(
             "Importing FreeSurfer subject '%s' into pycortex as '%s'",

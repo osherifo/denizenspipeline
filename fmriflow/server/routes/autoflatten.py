@@ -101,7 +101,8 @@ async def status(body: StatusBody):
     if cx_ok:
         try:
             import cortex
-            existing = cortex.db.get_list()
+            from fmriflow.preproc.autoflatten import _pycortex_subject_list
+            existing = _pycortex_subject_list(cortex)
             candidates = [
                 f"{body.subject}fs", body.subject,
                 body.subject.replace("sub-", ""),
@@ -260,6 +261,20 @@ async def cancel_autoflatten_run(request: Request, run_id: str):
     result = mgr.cancel_run(run_id)
     if not result.get("cancelled"):
         raise HTTPException(status_code=409, detail=result.get("reason", "could not cancel"))
+    return result
+
+
+@router.delete("/autoflatten/runs/{run_id}")
+async def delete_autoflatten_run(request: Request, run_id: str):
+    """Delete a finished autoflatten run — registry entry only. The
+    shared FreeSurfer subject dir and pycortex surfaces are never
+    touched (often lab-owned)."""
+    mgr = request.app.state.autoflatten_manager
+    result = mgr.delete_run(run_id)
+    if not result.get("deleted"):
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
     return result
 
 

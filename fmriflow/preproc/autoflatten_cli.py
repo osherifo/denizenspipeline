@@ -229,7 +229,8 @@ def _af_status(args) -> int:
     if cx_available:
         try:
             import cortex
-            existing = cortex.db.get_list()
+            from fmriflow.preproc.autoflatten import _pycortex_subject_list
+            existing = _pycortex_subject_list(cortex)
             # Check common naming patterns
             candidates = [
                 f"{subject}fs",
