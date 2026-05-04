@@ -52,6 +52,7 @@ nav:
     - Preprocessing: guide/preprocessing.md
     - DICOM to BIDS: guide/dicom-to-bids.md
     - Autoflatten: guide/autoflatten.md
+    - Post-preproc: guide/post-preproc.md
     - Pipeline Graph: guide/pipeline-graph.md
     - Workflows: guide/workflows.md
     - Web UI: guide/web-ui.md

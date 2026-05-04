@@ -24,6 +24,7 @@ from fmriflow.modules._decorators import (
     _analyzers,
     _models,
     _reporters,
+    _nipype_nodes,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class ModuleRegistry:
         self._analyzers = _analyzers
         self._models = _models
         self._reporters = _reporters
+        self._nipype_nodes = _nipype_nodes
 
     def discover(self) -> None:
         """Discover modules from builtins and entry_points."""
@@ -73,6 +75,7 @@ class ModuleRegistry:
             'fmriflow.analyzers': self._analyzers,
             'fmriflow.models': self._models,
             'fmriflow.reporters': self._reporters,
+            'fmriflow.nipype_nodes': self._nipype_nodes,
         }
 
         for group, registry_dict in groups.items():
@@ -164,6 +167,13 @@ class ModuleRegistry:
             return cls
         return wrapper
 
+    def nipype_node(self, name: str):
+        """Decorator to register a post-fmriprep nipype node wrapper."""
+        def wrapper(cls):
+            self._nipype_nodes[name] = cls
+            return cls
+        return wrapper
+
     # ─── Getters (return instances) ─────────────────────────────
 
     def get_stimulus_loader(self, name: str):
@@ -236,6 +246,13 @@ class ModuleRegistry:
                 f"Available: {list(self._reporters.keys())}")
         return self._reporters[name]()
 
+    def get_nipype_node(self, name: str):
+        if name not in self._nipype_nodes:
+            raise ModuleLookupError(
+                f"Nipype node '{name}' not found. "
+                f"Available: {list(self._nipype_nodes.keys())}")
+        return self._nipype_nodes[name]()
+
     # ─── Introspection ──────────────────────────────────────────
 
     def list_modules(self) -> dict[str, list[str]]:
@@ -251,6 +268,7 @@ class ModuleRegistry:
             'analyzers': sorted(self._analyzers.keys()),
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
+            'nipype_nodes': sorted(self._nipype_nodes.keys()),
         }
 
     def get_module_class(self, category: str, name: str) -> type:
@@ -266,6 +284,7 @@ class ModuleRegistry:
             'analyzers': self._analyzers,
             'models': self._models,
             'reporters': self._reporters,
+            'nipype_nodes': self._nipype_nodes,
         }
         if category not in registry_map:
             raise ModuleLookupError(f"Unknown category '{category}'")
@@ -295,6 +314,7 @@ class ModuleRegistry:
             'analyzers': 'analyze',
             'models': 'model',
             'reporters': 'report',
+            'nipype_nodes': 'post_preproc',
         }
 
         result = {}
