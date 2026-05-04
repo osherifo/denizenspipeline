@@ -111,6 +111,23 @@ status-callback shim is sketched in
 `devdocs/proposals/frontend/live-fmriprep-node-monitoring.md` as a
 future v2.
 
+#### Drill-in: the live nipype DAG
+
+**Double-click** the Preproc block (when its strip has at least one
+node) to open a full-screen ReactFlow view of the live nipype graph,
+laid out top-to-bottom by `dagre`. Each leaf is a real nipype node
+(colored by status, with elapsed seconds); each parent is a virtual
+summary box for a sub-workflow that rolls up `running / done / failed`
+counts of its descendants.
+
+The modal polls the same `/api/preproc/runs/{run_id}/live` endpoint as
+the strip and re-lays out on each refresh. Once the run finishes, the
+DAG remains viewable from the saved JSONL — useful for postmortems on
+failed runs ("which sub-workflow blew up?"). v1 derives the DAG from
+the dotted node paths nipype prints, not from a real dependency graph
+— so it shows hierarchy, not data flow. A real-DAG view requires the
+status-callback shim in v2.
+
 ## How orchestration works
 
 The `WorkflowManager` runs one background thread per active workflow. For each stage it:

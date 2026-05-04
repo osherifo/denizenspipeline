@@ -187,6 +187,12 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
           letterSpacing: 0.5, fontWeight: 600,
         }}>
           click for log →
+          {data.stage === 'preproc' && data.nipype_status &&
+            data.nipype_status.counts.total_seen > 0 && (
+              <span style={{ marginLeft: 8, opacity: 0.8 }}>
+                · double-click for DAG
+              </span>
+            )}
         </div>
       )}
 
@@ -335,9 +341,12 @@ interface WorkflowGraphProps {
   stages: WorkflowStageStatus[]
   height?: number
   onStageClick?: (stage: WorkflowStageStatus) => void
+  onStageDoubleClick?: (stage: WorkflowStageStatus) => void
 }
 
-export function WorkflowGraph({ stages, height = 220, onStageClick }: WorkflowGraphProps) {
+export function WorkflowGraph(
+  { stages, height = 220, onStageClick, onStageDoubleClick }: WorkflowGraphProps,
+) {
   const { nodes, edges } = useMemo(() => buildGraph(stages), [stages])
   if (!stages.length) return null
 
@@ -368,6 +377,11 @@ export function WorkflowGraph({ stages, height = 220, onStageClick }: WorkflowGr
             if (!onStageClick) return
             const data = node.data as unknown as StageNodeData
             onStageClick(data)
+          }}
+          onNodeDoubleClick={(_e, node) => {
+            if (!onStageDoubleClick) return
+            const data = node.data as unknown as StageNodeData
+            onStageDoubleClick(data)
           }}
           proOptions={{ hideAttribution: true }}
         />

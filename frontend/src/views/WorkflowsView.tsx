@@ -21,6 +21,7 @@ import {
 import type { AnalysisInnerStage, NipypeStatusBlock } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
+import { NipypeGraphModal } from '../components/workflow/NipypeGraphModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
 import { useDialog } from '../components/common/Dialog'
 
@@ -287,6 +288,7 @@ export function WorkflowsView() {
   const [logStage, setLogStage] = useState<{ stage: string; runId: string; subject?: string } | null>(null)
   const [analysisInner, setAnalysisInner] = useState<{ runId: string; stages: AnalysisInnerStage[] } | null>(null)
   const [preprocNipype, setPreprocNipype] = useState<{ runId: string; block: NipypeStatusBlock } | null>(null)
+  const [nipypeGraph, setNipypeGraph] = useState<{ runId: string; isRunning: boolean } | null>(null)
   const [editing, setEditing] = useState(false)
   const [yamlDraft, setYamlDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -577,6 +579,14 @@ export function WorkflowsView() {
               if (!s.run_id) return
               setLogStage({ stage: s.stage, runId: s.run_id })
             }}
+            onStageDoubleClick={(s) => {
+              if (s.stage !== 'preproc' || !s.run_id) return
+              if (!s.nipype_status || s.nipype_status.counts.total_seen === 0) return
+              setNipypeGraph({
+                runId: s.run_id,
+                isRunning: s.status === 'running',
+              })
+            }}
           />
           <LiveStageLog
             stages={selectedRun.stages}
@@ -591,6 +601,14 @@ export function WorkflowsView() {
           runId={logStage.runId}
           subjectHint={logStage.subject}
           onClose={() => setLogStage(null)}
+        />
+      )}
+
+      {nipypeGraph && (
+        <NipypeGraphModal
+          runId={nipypeGraph.runId}
+          isRunning={nipypeGraph.isRunning}
+          onClose={() => setNipypeGraph(null)}
         />
       )}
 
