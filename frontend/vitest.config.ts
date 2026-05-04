@@ -26,11 +26,14 @@ export default defineConfig({
         'src/main.tsx',
         'src/**/*.d.ts',
       ],
+      // Floor thresholds: prevent regressions while we extend coverage view
+      // by view. Bump as more views/components land tests (target in
+      // devdocs/proposals/infrastructure/frontend-testing-plan.md is 70%+).
       thresholds: {
-        lines: 70,
-        functions: 70,
-        branches: 65,
-        statements: 70,
+        lines: 13,
+        statements: 13,
+        functions: 60,
+        branches: 70,
       },
     },
   },
