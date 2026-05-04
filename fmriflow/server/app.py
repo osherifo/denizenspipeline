@@ -83,10 +83,15 @@ def create_app(
     post_preproc_workflow_store = PostPreprocWorkflowStore(
         Path.home() / ".fmriflow" / "post_preproc_workflows"
     )
+    post_preproc_manager.bind_dependencies(
+        registry=registry,
+        workflow_store=post_preproc_workflow_store,
+    )
     workflow_manager.bind_stage_managers(
         convert=convert_manager,
         preproc=preproc_manager,
         autoflatten=autoflatten_manager,
+        post_preproc=post_preproc_manager,
         analysis=run_manager,
     )
 

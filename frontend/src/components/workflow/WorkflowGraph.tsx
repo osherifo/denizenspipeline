@@ -19,6 +19,7 @@ const STAGE_META: Record<string, { color: string; icon: string; label: string }>
   convert:     { color: '#3b82f6', icon: '\u{1F504}', label: 'Convert' },
   preproc:     { color: '#10b981', icon: '\u{2699}',  label: 'Preproc' },
   autoflatten: { color: '#14b8a6', icon: '\u{1F9E0}', label: 'Autoflatten' },
+  post_preproc:{ color: '#10b981', icon: '\u{1F300}', label: 'Post-preproc' },
   analysis:    { color: '#ef4444', icon: '\u{1F4CA}', label: 'Analysis' },
 }
 
