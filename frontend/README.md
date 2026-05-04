@@ -60,6 +60,30 @@ cd ..
 fmriflow serve       # serves API + frontend on http://127.0.0.1:8421
 ```
 
+## Tests
+
+```bash
+npm test                 # vitest run (unit + component + view)
+npm run test:watch       # interactive
+npm run test:coverage    # v8 coverage to ./coverage
+npm run test:e2e         # Playwright against mocked API
+npm run test:e2e:live    # Playwright against real fmriflow serve (LIVE=1)
+```
+
+Layout:
+
+- `src/api/__tests__/` — API client tests
+- `src/stores/__tests__/` — Zustand store tests (one file per store)
+- `src/components/<area>/__tests__/` — component tests
+- `src/views/__tests__/` — view tests
+- `src/test/` — harness: `setup.ts`, `render.tsx`, `factories.ts`, `ws.ts`, `mocks/`
+- `e2e/flows/` — Playwright flows; `e2e/fixtures/api.ts` is the canned-API fixture
+
+The harness never touches real subject data — every test runs against
+synthetic factories or canned MSW responses. See
+`devdocs/proposals/infrastructure/frontend-testing-plan.md` and
+`devdocs/proposals/infrastructure/test-data-strategy.md`.
+
 ## CLI Commands
 
 ```bash
