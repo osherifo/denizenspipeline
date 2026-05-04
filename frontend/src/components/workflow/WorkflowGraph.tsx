@@ -47,6 +47,7 @@ type StageNodeData = WorkflowStageStatus & {
   index: number
   isFirst: boolean
   isLast: boolean
+  onOpenNipypeDag?: () => void
 }
 
 const nodeBase: CSSProperties = {
@@ -179,7 +180,10 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
 
       {data.stage === 'preproc' && data.nipype_status &&
         data.nipype_status.counts.total_seen > 0 && (
-          <InnerNodesStrip block={data.nipype_status} />
+          <InnerNodesStrip
+            block={data.nipype_status}
+            onOpenDag={data.onOpenNipypeDag}
+          />
         )}
 
       {clickable && (
@@ -188,12 +192,6 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
           letterSpacing: 0.5, fontWeight: 600,
         }}>
           click for log →
-          {data.stage === 'preproc' && data.nipype_status &&
-            data.nipype_status.counts.total_seen > 0 && (
-              <span style={{ marginLeft: 8, opacity: 0.8 }}>
-                · double-click for DAG
-              </span>
-            )}
         </div>
       )}
 
@@ -297,7 +295,10 @@ const GRAPH_STYLE: CSSProperties = {
 const NODE_SPACING_X = 280
 const NODE_Y = 40
 
-function buildGraph(stages: WorkflowStageStatus[]): { nodes: Node[]; edges: Edge[] } {
+function buildGraph(
+  stages: WorkflowStageStatus[],
+  onOpenNipypeDag?: (stage: WorkflowStageStatus) => void,
+): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = stages.map((s, i) => ({
     id: `stage-${i}-${s.stage}`,
     type: 'workflowStage',
@@ -307,6 +308,10 @@ function buildGraph(stages: WorkflowStageStatus[]): { nodes: Node[]; edges: Edge
       index: i,
       isFirst: i === 0,
       isLast: i === stages.length - 1,
+      onOpenNipypeDag:
+        s.stage === 'preproc' && onOpenNipypeDag
+          ? () => onOpenNipypeDag(s)
+          : undefined,
     },
     draggable: false,
     selectable: false,
@@ -343,12 +348,22 @@ interface WorkflowGraphProps {
   height?: number
   onStageClick?: (stage: WorkflowStageStatus) => void
   onStageDoubleClick?: (stage: WorkflowStageStatus) => void
+  onOpenNipypeDag?: (stage: WorkflowStageStatus) => void
 }
 
 export function WorkflowGraph(
-  { stages, height = 220, onStageClick, onStageDoubleClick }: WorkflowGraphProps,
+  {
+    stages,
+    height = 220,
+    onStageClick,
+    onStageDoubleClick,
+    onOpenNipypeDag,
+  }: WorkflowGraphProps,
 ) {
-  const { nodes, edges } = useMemo(() => buildGraph(stages), [stages])
+  const { nodes, edges } = useMemo(
+    () => buildGraph(stages, onOpenNipypeDag),
+    [stages, onOpenNipypeDag],
+  )
   if (!stages.length) return null
 
   return (

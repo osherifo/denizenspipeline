@@ -579,9 +579,8 @@ export function WorkflowsView() {
               if (!s.run_id) return
               setLogStage({ stage: s.stage, runId: s.run_id })
             }}
-            onStageDoubleClick={(s) => {
+            onOpenNipypeDag={(s) => {
               if (s.stage !== 'preproc' || !s.run_id) return
-              if (!s.nipype_status || s.nipype_status.counts.total_seen === 0) return
               setNipypeGraph({
                 runId: s.run_id,
                 isRunning: s.status === 'running',

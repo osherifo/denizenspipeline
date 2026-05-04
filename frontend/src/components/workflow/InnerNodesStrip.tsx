@@ -4,10 +4,9 @@
  * graph stays scannable. Default-collapsed; expand on click to see all.
  */
 
-import { memo, useMemo, useState } from 'react'
+import { memo } from 'react'
 import type { CSSProperties } from 'react'
 import type {
-  NipypeNodeStatus,
   NipypeStatusCounts,
   NipypeStatusBlock,
 } from '../../api/types'
@@ -33,9 +32,22 @@ const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  cursor: 'pointer',
   userSelect: 'none',
 }
+
+const viewBtn = (color: string): CSSProperties => ({
+  marginLeft: 'auto',
+  padding: '2px 8px',
+  fontSize: 9,
+  fontWeight: 700,
+  letterSpacing: 0.5,
+  borderRadius: 4,
+  background: `${color}33`,
+  color,
+  border: `1px solid ${color}88`,
+  cursor: 'pointer',
+  textTransform: 'uppercase',
+})
 
 const countPill = (color: string): CSSProperties => ({
   padding: '1px 6px',
@@ -46,35 +58,6 @@ const countPill = (color: string): CSSProperties => ({
   fontSize: 9,
   fontWeight: 700,
 })
-
-const groupHeader: CSSProperties = {
-  marginTop: 6,
-  marginBottom: 2,
-  fontSize: 9,
-  textTransform: 'uppercase',
-  letterSpacing: 0.5,
-  color: 'var(--text-secondary)',
-  fontWeight: 700,
-}
-
-const pillRow: CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 4,
-}
-
-const nodePill = (color: string): CSSProperties => ({
-  padding: '2px 6px',
-  borderRadius: 8,
-  background: `${color}1f`,
-  color,
-  border: `1px solid ${color}55`,
-  fontSize: 9,
-  fontWeight: 600,
-  cursor: 'default',
-  whiteSpace: 'nowrap',
-})
-
 
 function _summarize(counts: NipypeStatusCounts): React.ReactNode {
   const items: { color: string; label: string }[] = []
@@ -94,79 +77,40 @@ function _summarize(counts: NipypeStatusCounts): React.ReactNode {
 }
 
 
-function _topGroup(workflow: string): string {
-  // First two dotted segments — keeps fmriprep_wf groups (anatomical /
-  // functional / fieldmap) visible without dragging in 8-deep paths.
-  const parts = workflow.split('.')
-  if (parts.length === 0) return '(root)'
-  if (parts.length === 1) return parts[0]
-  return parts.slice(0, 2).join('.')
-}
-
-
 interface Props {
   block: NipypeStatusBlock
-  onNodeClick?: (node: NipypeNodeStatus) => void
+  onOpenDag?: () => void
 }
 
-function InnerNodesStripInner({ block, onNodeClick }: Props) {
-  const [expanded, setExpanded] = useState(false)
-  const grouped = useMemo(() => {
-    const groups = new Map<string, NipypeNodeStatus[]>()
-    for (const n of block.recent_nodes) {
-      const key = _topGroup(n.workflow || '')
-      const arr = groups.get(key)
-      if (arr) arr.push(n)
-      else groups.set(key, [n])
-    }
-    return groups
-  }, [block.recent_nodes])
-
+function InnerNodesStripInner({ block, onOpenDag }: Props) {
   const total = block.counts.total_seen
+  // Pick the dominant status color for the View DAG button.
+  const btnColor =
+    block.counts.failed > 0 ? STATUS_COLOR.failed
+    : block.counts.running > 0 ? STATUS_COLOR.running
+    : STATUS_COLOR.ok
   return (
     <div style={containerStyle}>
-      <div style={headerStyle} onClick={() => setExpanded((v) => !v)}>
-        <span style={{ color: 'var(--text-secondary)' }}>
-          {expanded ? '▼' : '▶'}
-        </span>
+      <div style={headerStyle}>
         <span style={{ fontWeight: 700 }}>nipype nodes</span>
         {_summarize(block.counts)}
         {total > 0 && (
-          <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)' }}>
-            {total} seen
+          <span style={{ color: 'var(--text-secondary)', marginLeft: 4 }}>
+            ({total} seen)
           </span>
         )}
+        {onOpenDag && total > 0 && (
+          <button
+            style={viewBtn(btnColor)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenDag()
+            }}
+          >
+            View DAG →
+          </button>
+        )}
       </div>
-      {expanded && grouped.size > 0 && (
-        <div style={{ marginTop: 4 }}>
-          {Array.from(grouped.entries()).map(([group, nodes]) => (
-            <div key={group}>
-              <div style={groupHeader}>{group}</div>
-              <div style={pillRow}>
-                {nodes.map((n) => {
-                  const color = STATUS_COLOR[n.status] ?? 'var(--text-secondary)'
-                  const elapsed = n.elapsed > 0
-                    ? ` · ${n.elapsed.toFixed(1)}s`
-                    : ''
-                  return (
-                    <span
-                      key={n.node}
-                      style={{
-                        ...nodePill(color),
-                        cursor: onNodeClick ? 'pointer' : 'default',
-                      }}
-                      title={`${n.node} — ${n.status}${elapsed}`}
-                      onClick={onNodeClick ? () => onNodeClick(n) : undefined}
-                    >
-                      {n.leaf}{elapsed}
-                    </span>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
