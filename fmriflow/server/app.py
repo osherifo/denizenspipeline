@@ -23,6 +23,7 @@ from fmriflow.server.services.autoflatten_config_store import AutoflattenConfigS
 from fmriflow.server.services.workflow_manager import WorkflowManager
 from fmriflow.server.services.workflow_config_store import WorkflowConfigStore
 from fmriflow.server.services.structural_qc_store import StructuralQCStore
+from fmriflow.server.services.post_preproc_manager import PostPreprocManager
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ def create_app(
     structural_qc_store = StructuralQCStore(
         Path.home() / ".fmriflow" / "structural_qc"
     )
+    post_preproc_manager = PostPreprocManager()
     workflow_manager.bind_stage_managers(
         convert=convert_manager,
         preproc=preproc_manager,
@@ -97,6 +99,7 @@ def create_app(
     app.state.workflow_config_store = workflow_config_store
     app.state.workflow_manager = workflow_manager
     app.state.structural_qc_store = structural_qc_store
+    app.state.post_preproc_manager = post_preproc_manager
 
     # API routes
     from fmriflow.server.routes.modules import router as module_router
@@ -112,6 +115,7 @@ def create_app(
     from fmriflow.server.routes.workflows import router as workflows_router
     from fmriflow.server.routes.triage import router as triage_router
     from fmriflow.server.routes.structural_qc import router as structural_qc_router
+    from fmriflow.server.routes.post_preproc import router as post_preproc_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -129,6 +133,7 @@ def create_app(
     app.include_router(workflows_router, prefix="/api")
     app.include_router(triage_router, prefix="/api")
     app.include_router(structural_qc_router, prefix="/api")
+    app.include_router(post_preproc_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)
