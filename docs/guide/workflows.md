@@ -21,11 +21,13 @@ workflow:
       config: experiments/preproc/fmriprep_AN.yaml
     - stage: autoflatten
       config: experiments/autoflatten/AN.yaml
+    - stage: post_preproc
+      config: experiments/post_preproc/smooth_AN.yaml
     - stage: analysis
       config: experiments/mkr_AN.yaml
 ```
 
-- `stages[].stage` must be one of `convert`, `preproc`, `autoflatten`, `analysis`.
+- `stages[].stage` must be one of `convert`, `preproc`, `autoflatten`, `post_preproc`, `analysis`.
 - `stages[].config` is a path to an existing stage YAML. Relative paths resolve against the workflow YAML's parent dir first, then against the server's cwd.
 - Stages run **in list order**, one at a time, stop-on-first-failure.
 - You can omit any stage — a workflow can be just `preproc → analysis` if convert isn't needed.
@@ -37,6 +39,7 @@ The workflow config store scans `./experiments/workflows/`. Same pattern as the 
 - `./experiments/preproc/`
 - `./experiments/convert/`
 - `./experiments/autoflatten/`
+- `./experiments/post_preproc/` — see [Post-preproc stage YAML](post-preproc.md#use-as-a-workflow-stage)
 - `./experiments/workflows/` — **this page**
 
 ## Running

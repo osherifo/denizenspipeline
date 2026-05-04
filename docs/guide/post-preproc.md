@@ -88,6 +88,34 @@ v1 limitation: iterating nodes are sinks — they can't have outgoing
 edges. If you need to feed mapped outputs into a downstream node, use a
 saved subworkflow as the iterating unit instead.
 
+## Use as a workflow stage
+
+A saved post-preproc workflow can run as a stage of the overarching
+fMRIflow workflow (see [Workflows](workflows.md)). Add a `post_preproc`
+entry to the workflow's `stages:` list pointing at a small stage YAML:
+
+```yaml
+# experiments/post_preproc/smooth_AN.yaml
+graph: smooth_then_mask           # name of a saved post-preproc workflow
+subject: sub01
+source_manifest_path: ./derivatives/sub-01/preproc_manifest.json
+output_dir: ./derivatives/post_preproc/sub01
+bindings:
+  in_file:                        # name of an exposed workflow input
+    source_run: r1                # take this run's output_file from preproc
+  # any_other_input:
+  #   path: /abs/file.nii.gz      # or pin to a literal path
+```
+
+`bindings` translate the workflow's exposed `inputs:` ports into concrete
+files. Each key looks up the saved workflow's `inputs[K] = {from:
+<inner_id>.<inner_handle>}` declaration and injects a literal `_inputs`
+value on that inner node — same mechanism the side panel uses, just
+declared up front in YAML so a workflow run can press one button.
+
+The Workflows view renders the post-preproc stage as a green
+"Post-preproc" block between Preproc/Autoflatten and Analysis.
+
 ## API
 
 | Method | Path | Purpose |
