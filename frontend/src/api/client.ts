@@ -63,6 +63,52 @@ export async function fetchModule(category: string, name: string): Promise<Modul
   return json(`${BASE}/modules/${category}/${name}`)
 }
 
+export interface ModuleCode {
+  name: string
+  category: string
+  path: string
+  code: string
+  class_start: number | null
+  class_end: number | null
+}
+
+export async function fetchModuleCode(category: string, name: string): Promise<ModuleCode> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/code`)
+}
+
+export interface SaveModuleCodeResult {
+  saved: boolean
+  name: string
+  category: string
+  path: string
+  bytes: number
+  restart_required: boolean
+}
+
+export async function saveModuleCode(
+  category: string, name: string, code: string,
+): Promise<SaveModuleCodeResult> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/code`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+}
+
+export interface ReloadModuleResult {
+  reloaded: boolean
+  module: string
+  replaced: boolean
+}
+
+export async function reloadModule(
+  category: string, name: string,
+): Promise<ReloadModuleResult> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/reload`, {
+    method: 'POST',
+  })
+}
+
 export async function fetchStages(): Promise<StageInfo[]> {
   return json(`${BASE}/stages`)
 }
