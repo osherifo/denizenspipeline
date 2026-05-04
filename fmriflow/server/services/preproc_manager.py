@@ -62,6 +62,9 @@ class PreprocRunHandle:
     is_reattached: bool = False
     config_path: str | None = None
     params: dict = field(default_factory=dict)
+    # JSONL of parsed nipype-node events, populated by _LogTailer when the
+    # backend is fmriprep. Used by /api/preproc/runs/{run_id}/live.
+    nipype_jsonl_path: str | None = None
 
     def push_event(self, event: dict) -> None:
         event.setdefault("timestamp", time.time())
@@ -89,6 +92,7 @@ class PreprocRunHandle:
             "error": self.error,
             "config_path": self.config_path,
             "log_path": self.log_path,
+            "nipype_jsonl_path": self.nipype_jsonl_path,
         }
 
 
@@ -250,6 +254,11 @@ class PreprocManager:
         )
         self.registry.register(state)
         handle.log_path = state.stdout_log
+        # Sibling JSONL for parsed nipype-node events (only fmriprep populates it).
+        if params.get("backend") == "fmriprep":
+            handle.nipype_jsonl_path = str(
+                Path(state.stdout_log).parent / "nipype_events.jsonl"
+            )
 
         self.active_runs[run_id] = handle
 
@@ -363,10 +372,14 @@ class PreprocManager:
                         exc_info=True,
                     )
 
+            nipype_jsonl_path = (
+                Path(handle.nipype_jsonl_path) if handle.nipype_jsonl_path else None
+            )
             tailer = _LogTailer(
                 log_path, handle,
                 stop_when=lambda: proc.poll() is not None,
                 on_fatal_line=_sigterm_proc_group,
+                nipype_jsonl_path=nipype_jsonl_path,
             )
             tailer.start()
 
@@ -532,6 +545,10 @@ class PreprocManager:
                 config_path=state.config_path,
                 params=state.params,
             )
+            if state.backend == "fmriprep" and state.stdout_log:
+                handle.nipype_jsonl_path = str(
+                    Path(state.stdout_log).parent / "nipype_events.jsonl"
+                )
             self.active_runs[state.run_id] = handle
 
             monitor = _ReattachedMonitor(handle, self, state)
@@ -816,6 +833,7 @@ class _LogTailer(threading.Thread):
         stop_when,
         poll_interval: float = 0.5,
         on_fatal_line=None,
+        nipype_jsonl_path: Path | None = None,
     ):
         super().__init__(daemon=True, name=f"tail-{handle.run_id}")
         self.log_path = log_path
@@ -825,6 +843,13 @@ class _LogTailer(threading.Thread):
         self._stop_flag = threading.Event()
         self._on_fatal_line = on_fatal_line
         self._fatal_fired = False
+        # Optional nipype log parsing (only meaningful for fmriprep stdout).
+        self._nipype_jsonl_path = nipype_jsonl_path
+        if nipype_jsonl_path is not None:
+            from fmriflow.preproc.nipype_log import NipypeLogParser
+            self._nipype_parser: object | None = NipypeLogParser()
+        else:
+            self._nipype_parser = None
 
     def run(self) -> None:
         # Wait briefly for the file to exist
@@ -856,6 +881,20 @@ class _LogTailer(threading.Thread):
 
     def _emit(self, line: str) -> None:
         self.handle.push_event({"event": "log", "message": line})
+
+        # Parse nipype lines (cheap; one regex check per line) and persist.
+        if self._nipype_parser is not None and self._nipype_jsonl_path is not None:
+            try:
+                from fmriflow.preproc.nipype_log import append_jsonl
+                for ev in self._nipype_parser.feed(line):
+                    append_jsonl(self._nipype_jsonl_path, ev)
+                    # Also push to in-memory event queue for any live consumers.
+                    self.handle.push_event(ev)
+            except Exception:
+                # Never let log parsing kill the tailer.
+                logger.debug(
+                    "nipype log parser raised", exc_info=True,
+                )
 
         if not self._fatal_fired and self._on_fatal_line is not None:
             for marker in self._FATAL_MARKERS:
@@ -926,10 +965,15 @@ class _ReattachedMonitor:
 
         tailer = None
         if log_path and log_path.is_file():
+            nipype_jsonl_path = (
+                Path(self.handle.nipype_jsonl_path)
+                if self.handle.nipype_jsonl_path else None
+            )
             tailer = _LogTailer(
                 log_path, self.handle,
                 stop_when=stop_when,
                 on_fatal_line=_sigterm_proc_group,
+                nipype_jsonl_path=nipype_jsonl_path,
             )
             tailer.start()
 

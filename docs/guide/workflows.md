@@ -75,6 +75,42 @@ curl http://localhost:8000/api/workflows/runs/workflow_abc123def456
 curl -X POST http://localhost:8000/api/workflows/runs/workflow_abc123def456/cancel
 ```
 
+### Live nipype-node monitoring (Preproc stage)
+
+When the Preproc stage runs **fmriprep**, the Workflows view tails its
+stdout for nipype's `[Node]` lines and surfaces a per-node status
+strip under the Preproc block. Each node renders as a small pill
+colored by status (cyan = running, green = ok, red = failed) and
+grouped by the top two segments of its workflow path
+(`fmriprep_wf.bold_preproc_wf`, `fmriprep_wf.sdc_estimate_wf`, …).
+
+The strip is **default-collapsed** with a one-line summary
+(`3 running / 47 done / 1 failed · 51 seen`); click the chevron to
+expand. Hovering a pill shows the full dotted node path and elapsed
+seconds.
+
+Behind the scenes:
+
+- `_LogTailer` already streams stdout line by line. Each line is
+  also fed to a small stateful parser
+  (`fmriflow/preproc/nipype_log.py::NipypeLogParser`) that emits
+  `node_start`, `node_done`, `node_fail` events.
+- Events are appended to
+  `~/.fmriflow/runs/{run_id}/nipype_events.jsonl`.
+- The frontend polls
+  `GET /api/preproc/runs/{run_id}/live` every 2 s while the stage
+  is running; the response includes a `nipype_status` block built
+  by re-parsing the JSONL.
+- The JSONL on disk is the source of truth, so the strip
+  rehydrates after a server restart / detach-reattach.
+
+This is **log-tailing only** — no fmriprep monkey-patching, no nipype
+plugin shim. If the log format ever drifts, unmatched lines are
+dropped and the rest of the strip keeps working. A richer
+status-callback shim is sketched in
+`devdocs/proposals/frontend/live-fmriprep-node-monitoring.md` as a
+future v2.
+
 ## How orchestration works
 
 The `WorkflowManager` runs one background thread per active workflow. For each stage it:

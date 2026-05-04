@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { WorkflowStageStatus } from '../../api/types'
+import { InnerNodesStrip } from './InnerNodesStrip'
 
 // ── Stage metadata ──────────────────────────────────────────────────────
 
@@ -174,6 +175,11 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
       {data.stage === 'analysis' && data.inner_stages && data.inner_stages.length > 0 && (
         <InnerStagesStrip inner={data.inner_stages} />
       )}
+
+      {data.stage === 'preproc' && data.nipype_status &&
+        data.nipype_status.counts.total_seen > 0 && (
+          <InnerNodesStrip block={data.nipype_status} />
+        )}
 
       {clickable && (
         <div style={{

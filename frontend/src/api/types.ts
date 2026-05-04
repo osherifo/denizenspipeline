@@ -346,6 +346,9 @@ export interface WorkflowStageStatus {
   // inner-stage progression (stimuli / responses / features / prepare /
   // model / analyze / report).
   inner_stages?: AnalysisInnerStage[]
+  // Populated client-side for the preproc stage when fmriprep is the
+  // backend; the parent view polls /preproc/runs/{run_id}/live.
+  nipype_status?: NipypeStatusBlock
 }
 
 export interface WorkflowRunSummary {
@@ -660,4 +663,36 @@ export interface NewErrorFromCaptureResult {
   filename: string
   path: string
   proposed_dir: string
+}
+
+// ── Live nipype-node monitoring ───────────────────────────────────
+
+export type NipypeNodeStatusKind = 'running' | 'ok' | 'failed'
+
+export interface NipypeNodeStatus {
+  node: string        // full dotted path
+  leaf: string        // last segment
+  workflow: string    // parent workflow path
+  status: NipypeNodeStatusKind
+  started_at: number
+  finished_at: number
+  elapsed: number
+  crash_file: string | null
+  level: string
+}
+
+export interface NipypeStatusCounts {
+  running: number
+  ok: number
+  failed: number
+  total_seen: number
+}
+
+export interface NipypeStatusBlock {
+  counts: NipypeStatusCounts
+  recent_nodes: NipypeNodeStatus[]
+}
+
+export interface PreprocRunLive extends PreprocRunSummary {
+  nipype_status: NipypeStatusBlock
 }

@@ -140,6 +140,36 @@ async def get_preproc_run(request: Request, run_id: str):
     return result
 
 
+@router.get("/preproc/runs/{run_id}/live")
+async def get_preproc_run_live(
+    request: Request, run_id: str, cap: int = 200,
+):
+    """Live status for one preproc run, including parsed nipype-node events.
+
+    Returns the run's summary plus a ``nipype_status`` block built by
+    parsing ``nipype_events.jsonl`` next to the run's stdout log. When
+    the backend isn't fmriprep (no parser) or no events have been
+    written yet, ``nipype_status`` is an empty block.
+    """
+    mgr = request.app.state.preproc_manager
+    result = mgr.get_run(run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+    from fmriflow.preproc.nipype_log import parse_nipype_events_file
+
+    jsonl_path = result.get("nipype_jsonl_path")
+    if jsonl_path:
+        block = parse_nipype_events_file(jsonl_path, cap=cap)
+        result["nipype_status"] = block.to_dict()
+    else:
+        result["nipype_status"] = {
+            "counts": {"running": 0, "ok": 0, "failed": 0, "total_seen": 0},
+            "recent_nodes": [],
+        }
+    return result
+
+
 @router.post("/preproc/runs/{run_id}/cancel")
 async def cancel_preproc_run(request: Request, run_id: str):
     """Cancel a running preprocessing job (SIGTERM then SIGKILL)."""
