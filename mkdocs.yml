@@ -50,6 +50,7 @@ nav:
     - Python API: guide/python-api.md
     - Writing Modules: guide/modules.md
     - Preprocessing: guide/preprocessing.md
+    - Structural QC: guide/structural-qc.md
     - DICOM to BIDS: guide/dicom-to-bids.md
     - Autoflatten: guide/autoflatten.md
     - Pipeline Graph: guide/pipeline-graph.md
