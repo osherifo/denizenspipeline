@@ -201,6 +201,41 @@ class {class_name}:
         return []
 ''',
 
+    'nipype_nodes': '''\
+"""Custom post-fmriprep node: {name}."""
+
+from pathlib import Path
+from typing import Any
+
+from fmriflow.modules._decorators import nipype_node
+
+
+@nipype_node("{name}")
+class {class_name}:
+    """Short description of what this node does."""
+
+    INPUTS = ["in_file"]
+    OUTPUTS = ["out_file"]
+
+    PARAM_SCHEMA: dict[str, Any] = {{
+        # "fwhm": {{"type": "float", "default": 5.0, "description": "..."}},
+    }}
+
+    def run(
+        self,
+        inputs: dict[str, Path],
+        out_dir: Path,
+        params: dict[str, Any],
+    ) -> dict[str, Path]:
+        in_file = Path(inputs["in_file"])
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # YOUR LOGIC HERE — produce one file per OUTPUTS handle.
+        out_path = out_dir / f"{{in_file.stem}}_{name}.nii.gz"
+
+        return {{"out_file": out_path}}
+''',
+
     'models': '''\
 """Custom model: {name}."""
 

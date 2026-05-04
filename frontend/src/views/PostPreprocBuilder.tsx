@@ -20,12 +20,18 @@ import type {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
+import Editor from '@monaco-editor/react'
 import {
   fetchNipypeNodes,
   validateGraph,
   startRun,
   getRun,
 } from '../api/post-preproc'
+import {
+  fetchModuleCode,
+  saveModuleCode,
+  reloadModule,
+} from '../api/client'
 import type {
   NipypeNodeMeta,
   PostPreprocGraph,
@@ -73,6 +79,22 @@ const inputStyle: CSSProperties = {
 let nodeCounter = 1
 const nextId = () => `n${nodeCounter++}`
 
+// Match the Workflows view's preproc-stage color so the eye carries through.
+const NODE_COLOR = '#10b981'
+
+function nodeStyle(): CSSProperties {
+  return {
+    background: `${NODE_COLOR}22`,
+    border: `1px solid ${NODE_COLOR}aa`,
+    color: 'var(--text-primary)',
+    borderRadius: 6,
+    padding: 8,
+    fontSize: 12,
+    fontWeight: 600,
+    minWidth: 140,
+  }
+}
+
 function defaultsForNode(meta: NipypeNodeMeta): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(meta.params)) {
@@ -100,6 +122,11 @@ function Inner() {
   const [validation, setValidation] = useState<string[] | null>(null)
   const [run, setRun] = useState<PostPreprocRunHandle | null>(null)
   const [runErr, setRunErr] = useState<string | null>(null)
+  const [codeOpen, setCodeOpen] = useState(false)
+  const [codeText, setCodeText] = useState('')
+  const [codePath, setCodePath] = useState('')
+  const [codeStatus, setCodeStatus] = useState<string | null>(null)
+  const [codeBusy, setCodeBusy] = useState(false)
 
   useEffect(() => {
     fetchNipypeNodes().then(setPalette).catch((e) => console.error(e))
@@ -157,6 +184,7 @@ function Inner() {
           params: defaultsForNode(meta),
         },
         position: { x: 80 + prev.length * 180, y: 120 },
+        style: nodeStyle(),
       },
     ])
   }
@@ -214,6 +242,44 @@ function Inner() {
     const t = (selectedNode.data as { nodeType?: string }).nodeType
     return palette.find((p) => p.name === t) ?? null
   }, [selectedNode, palette])
+
+  const openCode = async () => {
+    if (!selectedMeta) return
+    setCodeBusy(true)
+    setCodeStatus(null)
+    try {
+      const r = await fetchModuleCode('nipype_nodes', selectedMeta.name)
+      setCodeText(r.code)
+      setCodePath(r.path)
+      setCodeOpen(true)
+    } catch (e) {
+      setCodeStatus(`load failed: ${e}`)
+    } finally {
+      setCodeBusy(false)
+    }
+  }
+
+  const saveCode = async () => {
+    if (!selectedMeta) return
+    setCodeBusy(true)
+    setCodeStatus(null)
+    try {
+      await saveModuleCode('nipype_nodes', selectedMeta.name, codeText)
+      const r = await reloadModule('nipype_nodes', selectedMeta.name)
+      setCodeStatus(r.reloaded ? '✓ saved & reloaded' : '✓ saved')
+      // Refresh palette so updated PARAM_SCHEMA / IO appears.
+      try {
+        const fresh = await fetchNipypeNodes()
+        setPalette(fresh)
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      setCodeStatus(`save failed: ${e}`)
+    } finally {
+      setCodeBusy(false)
+    }
+  }
 
   const updateSelectedParam = (key: string, value: unknown) => {
     if (!selectedNode) return
@@ -339,6 +405,84 @@ function Inner() {
         </div>
       )}
 
+      {/* Code editor modal */}
+      {codeOpen && selectedMeta && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={() => setCodeOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '90vw',
+              height: '85vh',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700 }}>
+                {selectedMeta.name}
+              </div>
+              <code style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {codePath}
+              </code>
+              <div style={{ flex: 1 }} />
+              {codeStatus && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: codeStatus.startsWith('✓')
+                      ? 'var(--accent-green)'
+                      : 'var(--accent-red)',
+                  }}
+                >
+                  {codeStatus}
+                </span>
+              )}
+              <button style={primaryBtn} onClick={saveCode} disabled={codeBusy}>
+                {codeBusy ? 'Saving…' : 'Save & reload'}
+              </button>
+              <button style={btn} onClick={() => setCodeOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, border: '1px solid var(--border)', borderRadius: 4 }}>
+              <Editor
+                language="python"
+                theme="vs-dark"
+                value={codeText}
+                onChange={(v) => setCodeText(v ?? '')}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 12,
+                  scrollBeyondLastLine: false,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Body: palette | canvas | params */}
       <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 280px', gap: 8, flex: 1, minHeight: 0 }}>
         {/* Palette */}
@@ -408,6 +552,13 @@ function Inner() {
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
                 {selectedMeta.name} <code style={{ color: 'var(--text-secondary)' }}>{selectedNode.id}</code>
               </div>
+              <button
+                style={{ ...btn, marginBottom: 8, width: '100%' }}
+                onClick={openCode}
+                disabled={codeBusy}
+              >
+                {codeBusy ? 'Loading…' : 'View / edit code'}
+              </button>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>
                 inputs: {selectedMeta.inputs.join(', ') || '—'} · outputs:{' '}
                 {selectedMeta.outputs.join(', ') || '—'}
