@@ -301,6 +301,22 @@ function Inner() {
     )
   }
 
+  const updateSelectedInput = (handle: string, value: string) => {
+    if (!selectedNode) return
+    setNodes((prev) =>
+      prev.map((n) => {
+        if (n.id !== selectedNode.id) return n
+        const params = ((n.data as { params?: Record<string, unknown> }).params ?? {}) as Record<string, unknown>
+        const existing = (params._inputs as Record<string, string> | undefined) ?? {}
+        const next = { ...existing, [handle]: value }
+        return {
+          ...n,
+          data: { ...n.data, params: { ...params, _inputs: next } },
+        }
+      }),
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
       <div style={{ marginBottom: 12 }}>
@@ -560,10 +576,64 @@ function Inner() {
                 {codeBusy ? 'Loading…' : 'View / edit code'}
               </button>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                inputs: {selectedMeta.inputs.join(', ') || '—'} · outputs:{' '}
-                {selectedMeta.outputs.join(', ') || '—'}
+                outputs: {selectedMeta.outputs.join(', ') || '—'}
               </div>
+              {selectedMeta.inputs.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: 'var(--text-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: 1,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Inputs
+                  </div>
+                  {selectedMeta.inputs.map((handle) => {
+                    const incomingEdge = edges.find(
+                      (e) =>
+                        e.target === selectedNode.id &&
+                        (e.targetHandle ?? 'in_file') === handle,
+                    )
+                    const params = (selectedNode.data as { params?: Record<string, unknown> }).params ?? {}
+                    const literal = ((params._inputs as Record<string, string> | undefined) ?? {})[handle] ?? ''
+                    return (
+                      <div key={handle} style={{ marginBottom: 6 }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>
+                          {handle}
+                        </div>
+                        {incomingEdge ? (
+                          <div
+                            style={{
+                              ...inputStyle,
+                              fontSize: 11,
+                              color: 'var(--accent-cyan)',
+                              background: 'var(--bg-card)',
+                            }}
+                          >
+                            ← from <code>{incomingEdge.source}</code>
+                            <span style={{ color: 'var(--text-secondary)', marginLeft: 6 }}>
+                              ({incomingEdge.sourceHandle ?? 'out_file'})
+                            </span>
+                          </div>
+                        ) : (
+                          <input
+                            style={inputStyle}
+                            placeholder="path to file (e.g. /path/to/in.nii.gz)"
+                            value={literal}
+                            onChange={(e) => updateSelectedInput(handle, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               {Object.entries(selectedMeta.params).map(([key, schema]) => {
+                if (key === '_inputs') return null
                 const params = (selectedNode.data as { params?: Record<string, unknown> }).params ?? {}
                 const v = params[key]
                 return (

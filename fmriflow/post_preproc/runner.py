@@ -61,6 +61,16 @@ def run_post_preproc(
                 )
             inputs[edge.target_handle] = src_outputs[edge.source_handle]
 
+        # Literal-path overrides for inputs without an edge: ``params._inputs``
+        # is a {handle: "/path/to/file"} map set from the UI's input fields.
+        literal_inputs = node.params.get("_inputs") or {}
+        if isinstance(literal_inputs, dict):
+            for handle, path in literal_inputs.items():
+                if handle in inputs:
+                    continue  # an edge wins over a literal path
+                if path:
+                    inputs[handle] = Path(path)
+
         # Source nodes resolve from the source manifest.
         params: dict[str, Any] = dict(node.params)
         if node.type == "preproc_run":
