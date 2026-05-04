@@ -661,3 +661,16 @@ export interface NewErrorFromCaptureResult {
   path: string
   proposed_dir: string
 }
+
+export type StructuralQCStatus = "pending" | "approved" | "needs_edits" | "rejected"
+
+export interface StructuralQCReview {
+  dataset: string
+  subject: string
+  status: StructuralQCStatus
+  reviewer: string
+  timestamp: string
+  notes: string
+  freeview_command_used: string | null
+}
+

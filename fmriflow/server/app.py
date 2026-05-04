@@ -22,6 +22,7 @@ from fmriflow.server.services.autoflatten_manager import AutoflattenManager
 from fmriflow.server.services.autoflatten_config_store import AutoflattenConfigStore
 from fmriflow.server.services.workflow_manager import WorkflowManager
 from fmriflow.server.services.workflow_config_store import WorkflowConfigStore
+from fmriflow.server.services.structural_qc_store import StructuralQCStore
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,9 @@ def create_app(
     autoflatten_config_store = AutoflattenConfigStore(Path(autoflatten_configs_dir))
     workflow_config_store = WorkflowConfigStore(Path(workflow_configs_dir))
     workflow_manager = WorkflowManager()
+    structural_qc_store = StructuralQCStore(
+        Path.home() / ".fmriflow" / "structural_qc"
+    )
     workflow_manager.bind_stage_managers(
         convert=convert_manager,
         preproc=preproc_manager,
@@ -92,6 +96,7 @@ def create_app(
     app.state.autoflatten_config_store = autoflatten_config_store
     app.state.workflow_config_store = workflow_config_store
     app.state.workflow_manager = workflow_manager
+    app.state.structural_qc_store = structural_qc_store
 
     # API routes
     from fmriflow.server.routes.modules import router as module_router
@@ -106,6 +111,7 @@ def create_app(
     from fmriflow.server.routes.autoflatten import router as autoflatten_router
     from fmriflow.server.routes.workflows import router as workflows_router
     from fmriflow.server.routes.triage import router as triage_router
+    from fmriflow.server.routes.structural_qc import router as structural_qc_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -122,6 +128,7 @@ def create_app(
     app.include_router(autoflatten_router, prefix="/api")
     app.include_router(workflows_router, prefix="/api")
     app.include_router(triage_router, prefix="/api")
+    app.include_router(structural_qc_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)
