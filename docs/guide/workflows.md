@@ -78,6 +78,26 @@ curl http://localhost:8000/api/workflows/runs/workflow_abc123def456
 curl -X POST http://localhost:8000/api/workflows/runs/workflow_abc123def456/cancel
 ```
 
+### Structural QC drill-in (Preproc stage)
+
+Once the Preproc stage finishes (`status: done`), the Preproc block
+gains a **Structural QC →** button. Clicking it opens the same
+reviewer panel that lives under the Preproc-manager manifest detail
+view, in a modal: fmriprep report, niivue T1 + pial viewer,
+Approve / Needs edits / Rejected status, and the *Copy freeview
+command* fallback. The modal looks up the subject from the
+preproc child run's summary, so it works whether the workflow ran
+to completion just now or hours ago.
+
+Manifest discovery: the panel relies on the Preproc manager
+finding the subject's manifest. The manager scans both:
+
+1. The configured `--derivatives-dir` (default `./derivatives`).
+2. The output dirs of every completed preproc run on the run
+   registry — so manifests written outside the configured
+   derivatives root (e.g. under `./testing/<study>/...`) are
+   discovered automatically without restarting the server.
+
 ### Live nipype-node monitoring (Preproc stage)
 
 When the Preproc stage runs **fmriprep**, the Workflows view tails its

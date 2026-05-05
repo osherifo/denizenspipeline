@@ -123,6 +123,26 @@ def test_aggregator_empty_path_returns_zeros(tmp_path):
     assert block.recent_nodes == []
 
 
+def test_parser_rewrites_leaf_only_terminal_events_to_full_path():
+    """fmriprep's `[Node] Finished "leaf"` lines drop the workflow path.
+
+    The parser remembers the full path from the matching `Setting-up`
+    and reattaches it on the terminal event so aggregation collapses
+    start + done into one node instead of two.
+    """
+    parser = NipypeLogParser()
+    events = _drain(parser, [
+        '250504-12:31:02,123 nipype.workflow INFO:',
+        '\t [Node] Setting-up "fmriprep_wf.sub_AN_wf.surface_recon_wf.recon_config" in "/work/...".',
+        '250504-12:31:04,000 nipype.workflow INFO:',
+        '\t [Node] Finished "recon_config", elapsed time 2.0s.',
+    ])
+    assert [e["event"] for e in events] == ["node_start", "node_done"]
+    # Both events refer to the same fully-qualified node path.
+    assert events[0]["node"] == events[1]["node"]
+    assert events[1]["workflow"] == "fmriprep_wf.sub_AN_wf.surface_recon_wf"
+
+
 def test_aggregator_skips_malformed_lines(tmp_path):
     p = tmp_path / "events.jsonl"
     p.write_text("not json\n" + json.dumps({

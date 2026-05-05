@@ -123,33 +123,70 @@ class PreprocManager:
     # ── Manifest scanning ────────────────────────────────────────
 
     def scan_manifests(self) -> list[dict]:
-        """Scan derivatives dir for preproc_manifest.json files."""
+        """Scan for ``preproc_manifest.json`` files.
+
+        Two sources, deduplicated by absolute path:
+
+        1. The configured ``derivatives_dir`` (default ``./derivatives``)
+           — recursive glob.
+        2. The output_dir of every completed preproc run on the run
+           registry. Catches manifests written outside the configured
+           derivatives root (e.g. under ``./testing/<study>/...``).
+        """
         now = time.time()
         if self._manifests_cache is not None and (now - self._cache_time) < self._cache_ttl:
             return self._manifests_cache
 
-        manifests = []
-        if not self.derivatives_dir.is_dir():
-            self._manifests_cache = []
-            self._cache_time = now
-            return []
+        from fmriflow.preproc.manifest import PreprocManifest
 
-        for mf in sorted(self.derivatives_dir.rglob("preproc_manifest.json")):
+        seen: set[str] = set()
+        manifests: list[dict] = []
+
+        def _add(mf: Path) -> None:
+            ap = str(mf.resolve())
+            if ap in seen:
+                return
+            seen.add(ap)
             try:
-                from fmriflow.preproc.manifest import PreprocManifest
                 m = PreprocManifest.from_json(mf)
-                manifests.append({
-                    "subject": m.subject,
-                    "path": str(mf),
-                    "backend": m.backend,
-                    "backend_version": m.backend_version,
-                    "space": m.space,
-                    "n_runs": len(m.runs),
-                    "created": m.created,
-                    "dataset": m.dataset,
-                })
             except Exception:
                 logger.warning("Could not read manifest: %s", mf, exc_info=True)
+                return
+            manifests.append({
+                "subject": m.subject,
+                "path": ap,
+                "backend": m.backend,
+                "backend_version": m.backend_version,
+                "space": m.space,
+                "n_runs": len(m.runs),
+                "created": m.created,
+                "dataset": m.dataset,
+            })
+
+        if self.derivatives_dir.is_dir():
+            for mf in sorted(self.derivatives_dir.rglob("preproc_manifest.json")):
+                _add(mf)
+
+        # Also pick up manifests recorded by the run registry — covers
+        # output_dirs outside the configured derivatives root.
+        try:
+            for state in self.registry.list_all():
+                if state.kind != "preproc" or state.status != "done":
+                    continue
+                # First preference: explicit manifest_path on the state.
+                if state.manifest_path:
+                    p = Path(state.manifest_path)
+                    if p.is_file():
+                        _add(p)
+                        continue
+                # Fallback: derive from output_dir + subject.
+                out = (state.params or {}).get("output_dir") if state.params else None
+                if out:
+                    p = Path(out) / f"sub-{state.subject}" / "preproc_manifest.json"
+                    if p.is_file():
+                        _add(p)
+        except Exception:
+            logger.warning("Could not scan run registry for manifests", exc_info=True)
 
         self._manifests_cache = manifests
         self._cache_time = now

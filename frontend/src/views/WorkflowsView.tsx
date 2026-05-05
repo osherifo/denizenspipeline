@@ -17,11 +17,13 @@ import {
   deleteWorkflowRun,
   fetchInFlightRun,
   fetchPreprocRunLive,
+  fetchPreprocRun,
 } from '../api/client'
 import type { AnalysisInnerStage, NipypeStatusBlock } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
 import { NipypeGraphModal } from '../components/workflow/NipypeGraphModal'
+import { StructuralQCModal } from '../components/workflow/StructuralQCModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
 import { useDialog } from '../components/common/Dialog'
 
@@ -289,6 +291,7 @@ export function WorkflowsView() {
   const [analysisInner, setAnalysisInner] = useState<{ runId: string; stages: AnalysisInnerStage[] } | null>(null)
   const [preprocNipype, setPreprocNipype] = useState<{ runId: string; block: NipypeStatusBlock } | null>(null)
   const [nipypeGraph, setNipypeGraph] = useState<{ runId: string; isRunning: boolean } | null>(null)
+  const [structuralQC, setStructuralQC] = useState<{ subject: string } | null>(null)
   const [editing, setEditing] = useState(false)
   const [yamlDraft, setYamlDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -586,6 +589,15 @@ export function WorkflowsView() {
                 isRunning: s.status === 'running',
               })
             }}
+            onOpenStructuralQC={async (s) => {
+              if (s.stage !== 'preproc' || !s.run_id) return
+              try {
+                const detail = await fetchPreprocRun(s.run_id)
+                setStructuralQC({ subject: detail.subject })
+              } catch (e) {
+                alert(`Could not load preproc run: ${e}`)
+              }
+            }}
           />
           <LiveStageLog
             stages={selectedRun.stages}
@@ -608,6 +620,13 @@ export function WorkflowsView() {
           runId={nipypeGraph.runId}
           isRunning={nipypeGraph.isRunning}
           onClose={() => setNipypeGraph(null)}
+        />
+      )}
+
+      {structuralQC && (
+        <StructuralQCModal
+          subject={structuralQC.subject}
+          onClose={() => setStructuralQC(null)}
         />
       )}
 

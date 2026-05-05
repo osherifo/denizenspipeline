@@ -90,6 +90,11 @@ class NipypeLogParser:
 
     def __init__(self) -> None:
         self._pending: _Pending | None = None
+        # fmriprep's nipype emits the full dotted path on "Setting-up"
+        # but only the leaf on "Finished" / "Error on". Track the most
+        # recent full path per leaf so terminal events can be rewritten
+        # back to their full path for clean aggregation.
+        self._full_by_leaf: dict[str, str] = {}
 
     def feed(self, line: str) -> Iterable[dict]:
         """Process one log line; yield 0 or 1 event dicts.
@@ -149,14 +154,23 @@ class NipypeLogParser:
             if time.time() - self._pending.received_at > 5.0:
                 self._pending = None
 
-    @staticmethod
-    def _make_event(match: re.Match, *, level: str, t: float) -> dict | None:
+    def _make_event(self, match: re.Match, *, level: str, t: float) -> dict | None:
         action = match.group("action")
         node = match.group("node")
         kind = _action_to_event(action, level)
         if kind is None:
             return None
         wf, leaf = _split_node_path(node)
+        # On node_start, remember the full dotted path keyed by leaf so
+        # later terminal events can be reattached. On terminal events
+        # whose payload is leaf-only, look the full path back up.
+        if kind == "node_start" and "." in node:
+            self._full_by_leaf[leaf] = node
+        elif kind in ("node_done", "node_fail") and "." not in node:
+            full = self._full_by_leaf.get(leaf)
+            if full is not None:
+                node = full
+                wf, leaf = _split_node_path(node)
         return {
             "event": kind,
             "node": node,
