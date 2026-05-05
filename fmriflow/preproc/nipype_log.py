@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -91,10 +92,13 @@ class NipypeLogParser:
     def __init__(self) -> None:
         self._pending: _Pending | None = None
         # fmriprep's nipype emits the full dotted path on "Setting-up"
-        # but only the leaf on "Finished" / "Error on". Track the most
-        # recent full path per leaf so terminal events can be rewritten
-        # back to their full path for clean aggregation.
-        self._full_by_leaf: dict[str, str] = {}
+        # but only the leaf on "Finished" / "Error on". Per-leaf FIFO
+        # queue: appendleft on node_start (so the oldest in-flight is at
+        # the right end), pop on node_done/_fail. Survives sibling
+        # concurrency when finish order matches start order, and avoids
+        # the dict[leaf,str] last-write-wins bug where two starts of the
+        # same leaf would mis-pair the dones.
+        self._full_by_leaf: dict[str, deque[str]] = {}
 
     def feed(self, line: str) -> Iterable[dict]:
         """Process one log line; yield 0 or 1 event dicts.
@@ -161,16 +165,20 @@ class NipypeLogParser:
         if kind is None:
             return None
         wf, leaf = _split_node_path(node)
-        # On node_start, remember the full dotted path keyed by leaf so
-        # later terminal events can be reattached. On terminal events
-        # whose payload is leaf-only, look the full path back up.
+        # On node_start, append the full dotted path to the per-leaf
+        # FIFO queue. On terminal events whose payload is leaf-only, pop
+        # the oldest queued full path back. (No-op if the queue is
+        # empty or the start carried only a leaf.)
         if kind == "node_start" and "." in node:
-            self._full_by_leaf[leaf] = node
+            self._full_by_leaf.setdefault(leaf, deque()).append(node)
         elif kind in ("node_done", "node_fail") and "." not in node:
-            full = self._full_by_leaf.get(leaf)
-            if full is not None:
+            queue = self._full_by_leaf.get(leaf)
+            if queue:
+                full = queue.popleft()
                 node = full
                 wf, leaf = _split_node_path(node)
+                if not queue:
+                    del self._full_by_leaf[leaf]
         return {
             "event": kind,
             "node": node,
@@ -221,7 +229,8 @@ class NipypeNodeStatus:
 @dataclass
 class NipypeStatusBlock:
     counts: dict = field(default_factory=lambda: {
-        "running": 0, "ok": 0, "failed": 0, "total_seen": 0,
+        "running": 0, "ok": 0, "failed": 0,
+        "completed_assumed": 0, "total_seen": 0,
     })
     recent_nodes: list[NipypeNodeStatus] = field(default_factory=list)
 
@@ -232,12 +241,27 @@ class NipypeStatusBlock:
         }
 
 
+def _recompute_counts(nodes: list[NipypeNodeStatus]) -> dict:
+    return {
+        "running":           sum(1 for n in nodes if n.status == "running"),
+        "ok":                sum(1 for n in nodes if n.status == "ok"),
+        "failed":            sum(1 for n in nodes if n.status == "failed"),
+        "completed_assumed": sum(1 for n in nodes if n.status == "completed_assumed"),
+        "total_seen":        len(nodes),
+    }
+
+
 def parse_nipype_events_file(path: str | Path, *, cap: int = 200) -> NipypeStatusBlock:
     """Collapse the JSONL events file into a NipypeStatusBlock.
 
     Cap limits the number of nodes returned (most recent N).
-    Unfinished nodes (saw ``node_start`` but no terminal event) are
-    reported with status ``running``.
+
+    Performs a read-time **FIFO leaf-matching pass** so JSONLs written
+    before the parser's same-leaf fix (where Finished/Error lines
+    carried bare-leaf names) still aggregate cleanly without rewrite:
+    a leaf-only terminal event pops the oldest queued ``node_start`` of
+    that leaf and applies the terminal status to that full path. Truly
+    unmatched bare-leaf events are kept as their own nodes.
     """
     p = Path(path)
     if not p.is_file():
@@ -245,6 +269,9 @@ def parse_nipype_events_file(path: str | Path, *, cap: int = 200) -> NipypeStatu
 
     by_node: dict[str, NipypeNodeStatus] = {}
     order: list[str] = []  # insertion order on first sighting
+    # Per-leaf FIFO of full dotted paths still awaiting a terminal event.
+    starts_by_leaf: dict[str, deque[str]] = {}
+
     for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line:
@@ -253,21 +280,41 @@ def parse_nipype_events_file(path: str | Path, *, cap: int = 200) -> NipypeStatu
             ev = json.loads(line)
         except (ValueError, json.JSONDecodeError):
             continue
+        kind = ev.get("event")
         node = ev.get("node")
-        if not node:
+        leaf = ev.get("leaf") or (node.rsplit(".", 1)[-1] if node else None)
+        if not node or not leaf:
             continue
+
+        # Reconciliation: rewrite leaf-only terminal events to their
+        # matching node_start's full path (FIFO).
+        if (
+            kind in ("node_done", "node_fail")
+            and "." not in node
+        ):
+            queue = starts_by_leaf.get(leaf)
+            if queue:
+                full = queue.popleft()
+                node = full
+                leaf = node.rsplit(".", 1)[-1]
+                if not queue:
+                    del starts_by_leaf[leaf]
+
+        if kind == "node_start" and "." in node:
+            starts_by_leaf.setdefault(leaf, deque()).append(node)
+
         if node not in by_node:
             by_node[node] = NipypeNodeStatus(
                 node=node,
-                leaf=ev.get("leaf") or node.rsplit(".", 1)[-1],
-                workflow=ev.get("workflow") or "",
+                leaf=leaf,
+                workflow=(ev.get("workflow") or
+                          (node.rsplit(".", 1)[0] if "." in node else "")),
                 status="running",
                 started_at=float(ev.get("t") or 0.0),
                 level=ev.get("level") or "INFO",
             )
             order.append(node)
         n = by_node[node]
-        kind = ev.get("event")
         if kind == "node_start" and n.started_at == 0.0:
             n.started_at = float(ev.get("t") or 0.0)
         elif kind == "node_done":
@@ -283,12 +330,37 @@ def parse_nipype_events_file(path: str | Path, *, cap: int = 200) -> NipypeStatu
             n.level = ev.get("level") or n.level
 
     nodes = [by_node[k] for k in order]
-    counts = {
-        "running": sum(1 for n in nodes if n.status == "running"),
-        "ok":      sum(1 for n in nodes if n.status == "ok"),
-        "failed":  sum(1 for n in nodes if n.status == "failed"),
-        "total_seen": len(nodes),
-    }
+    counts = _recompute_counts(nodes)
     if cap and len(nodes) > cap:
         nodes = nodes[-cap:]
     return NipypeStatusBlock(counts=counts, recent_nodes=nodes)
+
+
+def reconcile_with_run_state(
+    block: NipypeStatusBlock,
+    *,
+    run_status: str,
+) -> NipypeStatusBlock:
+    """Run-end sweep: if the parent preproc run finished cleanly, mark
+    any still-``running`` nodes as ``completed_assumed``.
+
+    fmriprep's nipype occasionally emits log lines whose terminal verbs
+    we don't recognise, or batches them in a way that drops the line
+    entirely. When the parent run says ``done``, those orphans are
+    almost certainly fine — surface them as ``completed_assumed`` so
+    the user sees that we didn't observe a Finished line directly.
+    Failed/cancelled/lost runs leave the orphans as ``running`` so the
+    failure context is preserved.
+    """
+    if run_status != "done":
+        return block
+    if not block.recent_nodes:
+        return block
+    flipped = False
+    for n in block.recent_nodes:
+        if n.status == "running":
+            n.status = "completed_assumed"
+            flipped = True
+    if flipped:
+        block.counts = _recompute_counts(block.recent_nodes)
+    return block

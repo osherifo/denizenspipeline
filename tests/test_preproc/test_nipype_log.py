@@ -93,7 +93,8 @@ def test_aggregator_collapses_jsonl(tmp_path):
     assert by_leaf["smooth"].elapsed == 10.0
     assert by_leaf["mask"].status == "failed"
     assert by_leaf["mask"].elapsed == 10.0
-    assert block.counts == {"running": 0, "ok": 1, "failed": 1, "total_seen": 2}
+    assert block.counts == {"running": 0, "ok": 1, "failed": 1,
+                            "completed_assumed": 0, "total_seen": 2}
 
 
 def test_aggregator_unfinished_nodes_default_to_running(tmp_path):
@@ -119,7 +120,8 @@ def test_aggregator_caps_total_returned(tmp_path):
 
 def test_aggregator_empty_path_returns_zeros(tmp_path):
     block = parse_nipype_events_file(tmp_path / "missing.jsonl")
-    assert block.counts == {"running": 0, "ok": 0, "failed": 0, "total_seen": 0}
+    assert block.counts == {"running": 0, "ok": 0, "failed": 0,
+                            "completed_assumed": 0, "total_seen": 0}
     assert block.recent_nodes == []
 
 

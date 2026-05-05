@@ -25,7 +25,10 @@ function nodes(statuses: ('running' | 'ok' | 'failed')[]): NipypeNodeStatus[] {
 
 
 function block(statuses: ('running' | 'ok' | 'failed')[]): NipypeStatusBlock {
-  const counts = { running: 0, ok: 0, failed: 0, total_seen: statuses.length }
+  const counts = {
+    running: 0, ok: 0, failed: 0,
+    completed_assumed: 0, total_seen: statuses.length,
+  }
   for (const s of statuses) counts[s] += 1
   return { counts, recent_nodes: nodes(statuses) }
 }

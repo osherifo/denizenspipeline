@@ -15,6 +15,8 @@ const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
   ok: '#00e676',
   failed: '#ff1744',
+  // Softer green for inferred-as-finished (no Finished log line seen).
+  completed_assumed: '#52c98f',
   // Anything else falls back to neutral
 }
 
@@ -64,6 +66,11 @@ function _summarize(counts: NipypeStatusCounts): React.ReactNode {
   if (counts.running) items.push({ color: STATUS_COLOR.running, label: `${counts.running} running` })
   if (counts.ok) items.push({ color: STATUS_COLOR.ok, label: `${counts.ok} done` })
   if (counts.failed) items.push({ color: STATUS_COLOR.failed, label: `${counts.failed} failed` })
+  if (counts.completed_assumed)
+    items.push({
+      color: STATUS_COLOR.completed_assumed,
+      label: `${counts.completed_assumed} assumed`,
+    })
   if (items.length === 0) {
     return <span style={{ color: 'var(--text-secondary)' }}>no nodes seen yet</span>
   }

@@ -156,15 +156,26 @@ async def get_preproc_run_live(
     if result is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
-    from fmriflow.preproc.nipype_log import parse_nipype_events_file
+    from fmriflow.preproc.nipype_log import (
+        parse_nipype_events_file,
+        reconcile_with_run_state,
+    )
 
     jsonl_path = result.get("nipype_jsonl_path")
     if jsonl_path:
         block = parse_nipype_events_file(jsonl_path, cap=cap)
+        # Run-end sweep: when the parent preproc run is `done`, mark
+        # any still-`running` nodes as `completed_assumed`. fmriprep
+        # occasionally drops terminal log lines we'd otherwise match;
+        # this is the safety net.
+        block = reconcile_with_run_state(
+            block, run_status=result.get("status", ""),
+        )
         result["nipype_status"] = block.to_dict()
     else:
         result["nipype_status"] = {
-            "counts": {"running": 0, "ok": 0, "failed": 0, "total_seen": 0},
+            "counts": {"running": 0, "ok": 0, "failed": 0,
+                       "completed_assumed": 0, "total_seen": 0},
             "recent_nodes": [],
         }
     return result

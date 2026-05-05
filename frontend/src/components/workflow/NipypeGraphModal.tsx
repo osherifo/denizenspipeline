@@ -23,6 +23,7 @@ const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
   ok: '#00e676',
   failed: '#ff1744',
+  completed_assumed: '#52c98f',
 }
 const NEUTRAL = 'var(--text-secondary)'
 
@@ -69,12 +70,14 @@ const LeafNode = memo(_LeafNodeInner)
 
 function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
   const c = data.counts ?? { running: 0, ok: 0, failed: 0, total: 0 }
-  // Dominant color: failed > running > ok > neutral.
+  // Dominant color: failed > running > ok > completed_assumed > neutral.
   const color =
     c.failed > 0 ? STATUS_COLOR.failed
     : c.running > 0 ? STATUS_COLOR.running
     : c.ok > 0 ? STATUS_COLOR.ok
-    : NEUTRAL
+    : (c as { completed_assumed?: number }).completed_assumed
+      ? STATUS_COLOR.completed_assumed
+      : NEUTRAL
   return (
     <div
       style={{
@@ -106,6 +109,12 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
         {c.running > 0 && <span>{c.running}▶</span>}
         {c.ok > 0 && <span style={{ color: STATUS_COLOR.ok }}>{c.ok}✓</span>}
         {c.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{c.failed}✗</span>}
+        {(() => {
+          const ca = (c as { completed_assumed?: number }).completed_assumed ?? 0
+          return ca > 0 ? (
+            <span style={{ color: STATUS_COLOR.completed_assumed }}>{ca}?</span>
+          ) : null
+        })()}
         {c.total === 0 && <span>—</span>}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ background: color }} />
@@ -258,7 +267,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
         <code style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{runId}</code>
         {block && (
           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-            {block.counts.running} running · {block.counts.ok} done · {block.counts.failed} failed · {block.counts.total_seen} seen
+            {block.counts.running} running · {block.counts.ok} done · {block.counts.failed} failed{block.counts.completed_assumed ? ` · ${block.counts.completed_assumed} assumed` : ''} · {block.counts.total_seen} seen
           </span>
         )}
         {isRunning && (

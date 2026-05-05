@@ -134,6 +134,24 @@ status-callback shim is sketched in
 `devdocs/proposals/frontend/live-fmriprep-node-monitoring.md` as a
 future v2.
 
+##### Status reconciliation: `completed_assumed`
+
+fmriprep's nipype prints the full dotted path on `[Node] Setting-up`
+but only the leaf on `[Node] Finished`. The strip pairs them with a
+per-leaf FIFO queue at parse time, and when the parent preproc run
+finishes (`state.json: status=done`) any node we never saw a terminal
+log line for is flipped to **`completed_assumed`** (rendered in a
+softer green with an `N assumed` count). Failed/cancelled runs leave
+the orphans as `running` so the failure context is preserved.
+
+Old runs from before the parser fix shipped can have their JSONL
+backfilled in place::
+
+    python scripts/backfill_nipype_events.py [--dry-run] PATH
+
+`PATH` is either the JSONL itself or a directory tree to walk; a
+`.bak` sidecar is written next to each rewritten file.
+
 #### Drill-in: the live nipype DAG
 
 **Double-click** the Preproc block (when its strip has at least one
