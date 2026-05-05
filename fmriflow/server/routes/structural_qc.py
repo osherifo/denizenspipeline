@@ -188,9 +188,14 @@ async def get_fs_file(request: Request, subject: str, rel: str):
     if fs_dir is None:
         raise HTTPException(404, "No FreeSurfer subject directory")
 
+    # Validate the suffix from the *requested* rel — the caller controls
+    # this, and we want to allow symlinked targets like
+    # `lh.pial → lh.pial.T1` whose resolved suffix wouldn't pass.
+    rel_suffix = Path(rel).suffix.lower()
+    if rel_suffix not in _FS_ALLOWED_SUFFIXES:
+        raise HTTPException(403, f"Suffix not allowed: {rel_suffix}")
+
     target = _safe_join(fs_dir, rel)
     if not target.is_file():
         raise HTTPException(404, f"File not found: {rel}")
-    if target.suffix.lower() not in _FS_ALLOWED_SUFFIXES:
-        raise HTTPException(403, f"Suffix not allowed: {target.suffix}")
     return FileResponse(target, media_type="application/octet-stream")
