@@ -7,23 +7,61 @@ small reviewer surface for exactly that.
 
 ## Where to find it
 
-Open the **Workflows** view, pick a subject's preproc manifest, and scroll
-to the **Structural QC** section under the Runs table. The colored dot in
-the section header reflects the current status.
+Three entry points to the same panel:
+
+- **Preprocessing → Preproc** → click a subject's manifest → scroll to
+  the **Structural QC** section under the Runs table.
+- **Workflows → Workflow run detail.** Once the preproc stage finishes
+  (`status: done`), the Preproc block in the workflow graph gains a
+  **Structural QC →** button — clicking it opens the panel as a modal
+  for the subject that just preprocessed.
+- **Preprocessing → QC Reviews** → click a row to reopen the panel
+  for any subject that already has a saved review.
 
 ## What you can do
 
-- **Show fmriprep report** — toggles the fmriprep-generated HTML report
-  inline. This is usually enough to decide on routine subjects.
-- **Show 3D viewer** — opens an embedded [niivue](https://github.com/niivue/niivue)
-  canvas with `mri/T1.mgz` plus the left/right pial surfaces overlaid.
-  Drag to rotate; scroll to zoom.
-- **Pick a status** — *Pending*, *Approve*, *Needs edits*, *Rejected*.
+### Inspect the images
+
+- **Show fmriprep report** — toggles the fmriprep HTML report inline
+  (skull-strip overlay, T1↔surface alignment, segmentation slices,
+  motion summaries). This alone is enough to decide on routine subjects.
+- **Show 3D viewer** — opens an embedded
+  [niivue](https://github.com/niivue/niivue) canvas with `mri/T1.mgz`
+  plus FreeSurfer surfaces. Drag to rotate; scroll to zoom. The viewer
+  has a toolbar with:
+    - **View**: *Multi* (default — multi-planar slice view), *Axial*,
+      *Coronal*, *Sagittal*, *3D* render.
+    - **Volume on / off**: hide the T1 in 3D so the cortex meshes are
+      unobstructed.
+    - **Surfaces** (multi-toggle): *pial* (green), *white* (red),
+      *inflated* (blue) — colour-coded to match freeview's defaults
+      (pial=green, white=red). Toggle any combination on at once;
+      *clear* hides them all.
+    - **X-ray** slider (0..1): drives niivue's global mesh-transparency
+      pass. Lower values = outer mesh wins (opaque); higher values =
+      inner mesh shows through. Useful when both pial and white are on
+      and you want to see one through the other in 3D.
+    - **⤢ Fullscreen**: pop the canvas out to a `position: fixed`
+      overlay. Niivue stays mounted across the toggle, so the volume
+      isn't re-downloaded.
+- **Copy freeview command** *(only when status = Needs edits)* — for
+  the cases the in-browser viewer can't handle (segmentation editing
+  etc.), copies a ready-made `freeview` invocation to your clipboard,
+  pre-loading T1, the brainmask, aseg, and pial/white surfaces. Files
+  that don't exist on disk are silently skipped.
+
+### Approve / reject the run
+
+- **Pick a status** — *Pending* (the default for a never-reviewed
+  subject), *Approve*, *Needs edits*, or *Rejected*. The chosen status
+  is reflected by the coloured dot in the section header.
 - **Reviewer + notes** — free text, saved alongside the status.
-- **Copy freeview command** *(only when status = Needs edits)* — copies a
-  ready-made `freeview` invocation to your clipboard, pre-loading T1, the
-  brainmask, aseg, and pial/white surfaces. Files that don't exist on disk
-  are silently skipped.
+  Anything you type sticks with the YAML on disk so a future reviewer
+  can pick up where you left off.
+- **Save review** — writes the (status, reviewer, notes, timestamp,
+  freeview-command-used) tuple to disk. Both the **Preprocessing →
+  Preproc** sidebar pill and the **QC Reviews** view pick up the
+  change on next reload.
 
 The intended workflow:
 
