@@ -16,6 +16,16 @@ interface Props {
   subject: string
 }
 
+type SurfaceKind = 'pial' | 'white' | 'inflated'
+
+const SURFACE_COLORS: Record<SurfaceKind, [number, number, number, number]> = {
+  pial:     [255,  80,  80, 255],   // red
+  white:    [255, 220,  60, 255],   // yellow
+  inflated: [ 80, 160, 255, 255],   // blue
+}
+
+const ALL_SURFACES: SurfaceKind[] = ['pial', 'white', 'inflated']
+
 const STATUSES: { value: StructuralQCStatus; label: string; color: string }[] = [
   { value: 'pending', label: 'Pending', color: 'var(--text-secondary)' },
   { value: 'approved', label: 'Approve', color: 'var(--accent-green)' },
@@ -62,8 +72,11 @@ export function StructuralQCPanel({ subject }: Props) {
   const [freeviewErr, setFreeviewErr] = useState<string | null>(null)
   const [showReport, setShowReport] = useState(false)
   const [showViewer, setShowViewer] = useState(false)
-  const [surfaceKind, setSurfaceKind] =
-    useState<'pial' | 'white' | 'inflated' | 'none'>('pial')
+  const [fullscreen, setFullscreen] = useState(false)
+  // Multiple surfaces can be shown at once. Each renders in its own colour.
+  const [surfaces, setSurfaces] = useState<Set<SurfaceKind>>(
+    () => new Set<SurfaceKind>(['pial']),
+  )
   // niivue sliceType: 0=axial 1=coronal 2=sagittal 3=multiplanar 4=render(3D)
   const [sliceType, setSliceType] = useState<number>(3)
   const [volumeVisible, setVolumeVisible] = useState<boolean>(true)
@@ -142,9 +155,10 @@ export function StructuralQCPanel({ subject }: Props) {
     } catch (e) {
       console.warn('niivue setOpacity failed', e)
     }
-  }, [volumeVisible, surfaceKind, sliceType, showViewer])
+  }, [volumeVisible, surfaces, sliceType, showViewer])
 
-  // Reload meshes when surface kind changes.
+  // Reload meshes when the surface set changes — supports multiple
+  // surfaces simultaneously, colour-coded per kind.
   useEffect(() => {
     const nv = nvRef.current
     if (!nv || !showViewer) return
@@ -158,24 +172,19 @@ export function StructuralQCPanel({ subject }: Props) {
             (inst as unknown as { removeMesh?: (m: unknown) => void }).removeMesh?.(m)
           } catch { /* niivue versions differ — best-effort */ }
         }
-        if (cancelled) return
-        if (surfaceKind === 'none') {
+        if (cancelled || surfaces.size === 0) {
           inst.updateGLVolume()
           return
         }
-        const fname = surfaceKind
-        await inst.loadMeshes([
-          {
-            url: fsFileUrl(subject, `surf/lh.${fname}`),
-            name: `lh.${fname}`,
-            rgba255: [255, 80, 80, 255],
-          },
-          {
-            url: fsFileUrl(subject, `surf/rh.${fname}`),
-            name: `rh.${fname}`,
-            rgba255: [255, 80, 80, 255],
-          },
-        ])
+        const specs = []
+        for (const kind of surfaces) {
+          const rgba = SURFACE_COLORS[kind]
+          specs.push(
+            { url: fsFileUrl(subject, `surf/lh.${kind}`), name: `lh.${kind}`, rgba255: rgba },
+            { url: fsFileUrl(subject, `surf/rh.${kind}`), name: `rh.${kind}`, rgba255: rgba },
+          )
+        }
+        await inst.loadMeshes(specs)
       } catch (e) {
         console.warn('niivue mesh reload failed', e)
       }
@@ -184,7 +193,7 @@ export function StructuralQCPanel({ subject }: Props) {
     return () => {
       cancelled = true
     }
-  }, [surfaceKind, showViewer, subject])
+  }, [surfaces, showViewer, subject])
 
   async function handleSave() {
     setSaving(true)
@@ -267,7 +276,17 @@ export function StructuralQCPanel({ subject }: Props) {
           {showViewer ? 'Hide' : 'Show'} 3D viewer
         </button>
         {showViewer && (
-          <>
+          <div
+            style={fullscreen ? {
+              position: 'fixed',
+              inset: 0,
+              zIndex: 1000,
+              background: '#000',
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+            } : { marginTop: 8 }}
+          >
             {/* Toolbar — view + surface pickers */}
             <div
               style={{
@@ -275,7 +294,6 @@ export function StructuralQCPanel({ subject }: Props) {
                 flexWrap: 'wrap',
                 gap: 12,
                 alignItems: 'center',
-                marginTop: 8,
                 padding: 8,
                 border: '1px solid var(--border)',
                 borderTopLeftRadius: 4,
@@ -326,23 +344,49 @@ export function StructuralQCPanel({ subject }: Props) {
                 {volumeVisible ? 'on' : 'off'}
               </button>
               <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
-              <span style={{ color: 'var(--text-secondary)' }}>Surface:</span>
-              {(['pial', 'white', 'inflated', 'none'] as const).map((k) => (
-                <button
-                  key={k}
-                  style={{
-                    ...btn,
-                    padding: '2px 8px',
-                    fontSize: 11,
-                    background: surfaceKind === k ? 'var(--accent-cyan)' : btn.background,
-                    color: surfaceKind === k ? '#000' : 'var(--text-primary)',
-                    borderColor: surfaceKind === k ? 'var(--accent-cyan)' : 'var(--border)',
-                  }}
-                  onClick={() => setSurfaceKind(k)}
-                >
-                  {k}
-                </button>
-              ))}
+              <span style={{ color: 'var(--text-secondary)' }}>Surfaces:</span>
+              {ALL_SURFACES.map((k) => {
+                const on = surfaces.has(k)
+                const color = `rgb(${SURFACE_COLORS[k].slice(0, 3).join(',')})`
+                return (
+                  <button
+                    key={k}
+                    style={{
+                      ...btn,
+                      padding: '2px 8px',
+                      fontSize: 11,
+                      background: on ? color : btn.background,
+                      color: on ? '#000' : 'var(--text-primary)',
+                      borderColor: on ? color : 'var(--border)',
+                    }}
+                    onClick={() => {
+                      setSurfaces((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(k)) next.delete(k)
+                        else next.add(k)
+                        return next
+                      })
+                    }}
+                  >
+                    {k}
+                  </button>
+                )
+              })}
+              <button
+                style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
+                onClick={() => setSurfaces(new Set())}
+                title="Hide all surfaces"
+              >
+                clear
+              </button>
+              <span style={{ flex: 1 }} />
+              <button
+                style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
+                onClick={() => setFullscreen((v) => !v)}
+                title="Pop out to fullscreen"
+              >
+                {fullscreen ? '⤢ Exit fullscreen' : '⤢ Fullscreen'}
+              </button>
             </div>
             <div
               style={{
@@ -352,14 +396,20 @@ export function StructuralQCPanel({ subject }: Props) {
                 borderBottomRightRadius: 4,
                 background: '#000',
                 overflow: 'hidden',
+                flex: fullscreen ? 1 : undefined,
+                minHeight: 0,
               }}
             >
               <canvas
                 ref={canvasRef}
-                style={{ width: '100%', height: '70vh', display: 'block' }}
+                style={{
+                  width: '100%',
+                  height: fullscreen ? '100%' : '70vh',
+                  display: 'block',
+                }}
               />
             </div>
-          </>
+          </div>
         )}
       </div>
 
