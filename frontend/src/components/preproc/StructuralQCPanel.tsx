@@ -62,6 +62,10 @@ export function StructuralQCPanel({ subject }: Props) {
   const [freeviewErr, setFreeviewErr] = useState<string | null>(null)
   const [showReport, setShowReport] = useState(false)
   const [showViewer, setShowViewer] = useState(false)
+  const [surfaceKind, setSurfaceKind] =
+    useState<'pial' | 'white' | 'inflated' | 'none'>('pial')
+  // niivue sliceType: 0=axial 1=coronal 2=sagittal 3=multiplanar 4=render(3D)
+  const [sliceType, setSliceType] = useState<number>(3)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const nvRef = useRef<Niivue | null>(null)
 
@@ -82,7 +86,8 @@ export function StructuralQCPanel({ subject }: Props) {
     }
   }, [subject])
 
-  // Initialize niivue when viewer is opened
+  // Initialize niivue when viewer is opened. Surface kind / slice type
+  // changes go through their own effects so we don't reload the volume.
   useEffect(() => {
     if (!showViewer || !canvasRef.current) return
     const nv = new Niivue({ show3Dcrosshair: true, backColor: [0, 0, 0, 1] })
@@ -94,25 +99,70 @@ export function StructuralQCPanel({ subject }: Props) {
     // "Cannot read properties of undefined (reading 'toUpperCase')".
     nv.loadVolumes([{ url: fsFileUrl(subject, 'mri/T1.mgz'), name: 'T1.mgz' }])
       .then(() => {
-        return nv.loadMeshes([
-          {
-            url: fsFileUrl(subject, 'surf/lh.pial'),
-            name: 'lh.pial',
-            rgba255: [255, 0, 0, 255],
-          },
-          {
-            url: fsFileUrl(subject, 'surf/rh.pial'),
-            name: 'rh.pial',
-            rgba255: [255, 0, 0, 255],
-          },
-        ])
+        nv.setSliceType(sliceType)
       })
       .catch((e) => console.warn('niivue load failed', e))
 
     return () => {
       nvRef.current = null
     }
+    // We *don't* depend on sliceType / surfaceKind here — those are
+    // applied incrementally below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showViewer, subject])
+
+  // Apply slice-type changes without recreating the niivue instance.
+  useEffect(() => {
+    const nv = nvRef.current
+    if (!nv) return
+    try {
+      nv.setSliceType(sliceType)
+    } catch (e) {
+      console.warn('niivue setSliceType failed', e)
+    }
+  }, [sliceType])
+
+  // Reload meshes when surface kind changes.
+  useEffect(() => {
+    const nv = nvRef.current
+    if (!nv || !showViewer) return
+    const inst = nv
+    let cancelled = false
+    async function reload() {
+      try {
+        const meshes = (inst as unknown as { meshes?: Array<unknown> }).meshes ?? []
+        for (const m of [...meshes]) {
+          try {
+            (inst as unknown as { removeMesh?: (m: unknown) => void }).removeMesh?.(m)
+          } catch { /* niivue versions differ — best-effort */ }
+        }
+        if (cancelled) return
+        if (surfaceKind === 'none') {
+          inst.updateGLVolume()
+          return
+        }
+        const fname = surfaceKind
+        await inst.loadMeshes([
+          {
+            url: fsFileUrl(subject, `surf/lh.${fname}`),
+            name: `lh.${fname}`,
+            rgba255: [255, 80, 80, 255],
+          },
+          {
+            url: fsFileUrl(subject, `surf/rh.${fname}`),
+            name: `rh.${fname}`,
+            rgba255: [255, 80, 80, 255],
+          },
+        ])
+      } catch (e) {
+        console.warn('niivue mesh reload failed', e)
+      }
+    }
+    reload()
+    return () => {
+      cancelled = true
+    }
+  }, [surfaceKind, showViewer, subject])
 
   async function handleSave() {
     setSaving(true)
@@ -192,23 +242,84 @@ export function StructuralQCPanel({ subject }: Props) {
       {/* Niivue toggle + canvas */}
       <div style={{ marginBottom: 12 }}>
         <button style={btn} onClick={() => setShowViewer((v) => !v)}>
-          {showViewer ? 'Hide' : 'Show'} 3D viewer (T1 + pial)
+          {showViewer ? 'Hide' : 'Show'} 3D viewer
         </button>
         {showViewer && (
-          <div
-            style={{
-              marginTop: 8,
-              border: '1px solid var(--border)',
-              borderRadius: 4,
-              background: '#000',
-              overflow: 'hidden',
-            }}
-          >
-            <canvas
-              ref={canvasRef}
-              style={{ width: '100%', height: 500, display: 'block' }}
-            />
-          </div>
+          <>
+            {/* Toolbar — view + surface pickers */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 12,
+                alignItems: 'center',
+                marginTop: 8,
+                padding: 8,
+                border: '1px solid var(--border)',
+                borderTopLeftRadius: 4,
+                borderTopRightRadius: 4,
+                background: 'var(--bg-secondary)',
+                fontSize: 11,
+              }}
+            >
+              <span style={{ color: 'var(--text-secondary)' }}>View:</span>
+              {[
+                { v: 3, label: 'Multi' },
+                { v: 0, label: 'Axial' },
+                { v: 1, label: 'Coronal' },
+                { v: 2, label: 'Sagittal' },
+                { v: 4, label: '3D' },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  style={{
+                    ...btn,
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    background: sliceType === opt.v ? 'var(--accent-cyan)' : btn.background,
+                    color: sliceType === opt.v ? '#000' : 'var(--text-primary)',
+                    borderColor: sliceType === opt.v ? 'var(--accent-cyan)' : 'var(--border)',
+                  }}
+                  onClick={() => setSliceType(opt.v)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+              <span style={{ color: 'var(--text-secondary)' }}>Surface:</span>
+              {(['pial', 'white', 'inflated', 'none'] as const).map((k) => (
+                <button
+                  key={k}
+                  style={{
+                    ...btn,
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    background: surfaceKind === k ? 'var(--accent-cyan)' : btn.background,
+                    color: surfaceKind === k ? '#000' : 'var(--text-primary)',
+                    borderColor: surfaceKind === k ? 'var(--accent-cyan)' : 'var(--border)',
+                  }}
+                  onClick={() => setSurfaceKind(k)}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+            <div
+              style={{
+                border: '1px solid var(--border)',
+                borderTop: 'none',
+                borderBottomLeftRadius: 4,
+                borderBottomRightRadius: 4,
+                background: '#000',
+                overflow: 'hidden',
+              }}
+            >
+              <canvas
+                ref={canvasRef}
+                style={{ width: '100%', height: '70vh', display: 'block' }}
+              />
+            </div>
+          </>
         )}
       </div>
 
