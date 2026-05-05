@@ -66,6 +66,7 @@ export function StructuralQCPanel({ subject }: Props) {
     useState<'pial' | 'white' | 'inflated' | 'none'>('pial')
   // niivue sliceType: 0=axial 1=coronal 2=sagittal 3=multiplanar 4=render(3D)
   const [sliceType, setSliceType] = useState<number>(3)
+  const [volumeVisible, setVolumeVisible] = useState<boolean>(true)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const nvRef = useRef<Niivue | null>(null)
 
@@ -121,6 +122,27 @@ export function StructuralQCPanel({ subject }: Props) {
       console.warn('niivue setSliceType failed', e)
     }
   }, [sliceType])
+
+  // Toggle volume opacity (0 = invisible, 1 = full). Lets the user
+  // hide the T1 "skull" in 3D mode so the cortex meshes are unobstructed.
+  useEffect(() => {
+    const nv = nvRef.current as unknown as {
+      volumes?: Array<unknown>
+      setOpacity?: (idx: number, opacity: number) => void
+      updateGLVolume?: () => void
+    } | null
+    if (!nv) return
+    const vols = nv.volumes ?? []
+    if (vols.length === 0 || !nv.setOpacity) return
+    try {
+      for (let i = 0; i < vols.length; i++) {
+        nv.setOpacity(i, volumeVisible ? 1 : 0)
+      }
+      nv.updateGLVolume?.()
+    } catch (e) {
+      console.warn('niivue setOpacity failed', e)
+    }
+  }, [volumeVisible, surfaceKind, sliceType, showViewer])
 
   // Reload meshes when surface kind changes.
   useEffect(() => {
@@ -285,6 +307,24 @@ export function StructuralQCPanel({ subject }: Props) {
                   {opt.label}
                 </button>
               ))}
+              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+              <span style={{ color: 'var(--text-secondary)' }}>Volume:</span>
+              <button
+                style={{
+                  ...btn,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  background: volumeVisible ? 'var(--accent-cyan)' : btn.background,
+                  color: volumeVisible ? '#000' : 'var(--text-primary)',
+                  borderColor: volumeVisible ? 'var(--accent-cyan)' : 'var(--border)',
+                }}
+                onClick={() => setVolumeVisible((v) => !v)}
+                title={volumeVisible
+                  ? 'Hide the T1 — useful in 3D mode so the cortex meshes are unobstructed'
+                  : 'Show the T1 volume'}
+              >
+                {volumeVisible ? 'on' : 'off'}
+              </button>
               <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
               <span style={{ color: 'var(--text-secondary)' }}>Surface:</span>
               {(['pial', 'white', 'inflated', 'none'] as const).map((k) => (
