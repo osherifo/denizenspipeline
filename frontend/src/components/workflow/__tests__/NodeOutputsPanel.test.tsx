@@ -139,7 +139,7 @@ describe('<NodeOutputsPanel />', () => {
     expect(screen.getByText('crash-20260505-boom-abc.txt')).toBeInTheDocument()
   })
 
-  it('calls onClose when Close is clicked', async () => {
+  it('calls onClose when the hide-panel arrow is clicked', async () => {
     mockOutputs({
       node: 'wf.x', leaf_dir: '/w', exists: true, files: [], crashes: [],
     })
@@ -148,9 +148,9 @@ describe('<NodeOutputsPanel />', () => {
       <NodeOutputsPanel runId="r1" node="wf.x" onClose={onClose} />,
     )
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /hide outputs panel/i })).toBeInTheDocument(),
     )
-    await user.click(screen.getByRole('button', { name: /close/i }))
+    await user.click(screen.getByRole('button', { name: /hide outputs panel/i }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 })

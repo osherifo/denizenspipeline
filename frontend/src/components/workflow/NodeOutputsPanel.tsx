@@ -304,11 +304,23 @@ export function NodeOutputsPanel({ runId, node, onClose }: Props) {
   return (
     <div style={drawer}>
       <div style={drawerHeader}>
+        <button
+          style={{
+            ...closeBtn,
+            marginLeft: 0,
+            padding: '2px 8px',
+            fontWeight: 700,
+          }}
+          onClick={onClose}
+          title="Hide outputs panel (DAG stays open)"
+          aria-label="Hide outputs panel"
+        >
+          →
+        </button>
         <div style={{ fontSize: 12, fontWeight: 700 }}>{node.split('.').pop()}</div>
         <code style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
           {node}
         </code>
-        <button style={closeBtn} onClick={onClose}>Close</button>
       </div>
 
       {error && (
