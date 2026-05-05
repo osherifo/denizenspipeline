@@ -34,6 +34,25 @@ The intended workflow:
    `recon-all -autorecon2`.
 4. Come back and flip the status to **Approve**.
 
+## Reviewing across many subjects
+
+Two surfaces help you find and act on saved reviews:
+
+- **Status pill in the Preproc manifest list.** Sidebar →
+  **Preprocessing → Preproc**. Each manifest row shows a small
+  pill on the right reflecting the saved review status
+  (*pending / approved / needs edits / rejected*).
+- **QC Reviews view.** Sidebar → **Preprocessing → QC Reviews**.
+  Lists every saved review across every dataset (newest first).
+  Filter chips at the top — *All / Pending / Approved / Needs
+  edits / Rejected* — show live counts. Clicking a row opens the
+  same Structural QC panel for that subject in a modal; closing
+  the modal reloads the list so any edits show up immediately.
+
+The view also surfaces the underlying YAMLs you'd otherwise have to
+grep on disk: dataset, reviewer, last-saved timestamp, notes, and a
+truncated notes preview (hover to see the full text).
+
 ## Where reviews are stored
 
 Each review is one YAML file at:
@@ -50,6 +69,7 @@ For scripts and CI:
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| `GET`  | `/api/structural-qc/reviews` | list all reviews across all datasets (optional `?dataset=` filter) |
 | `GET`  | `/api/preproc/subjects/{subject}/structural-qc` | current review (or default *pending*) |
 | `POST` | `/api/preproc/subjects/{subject}/structural-qc` | save a review |
 | `GET`  | `/api/preproc/subjects/{subject}/structural-qc/freeview-command` | freeview command for the subject |
