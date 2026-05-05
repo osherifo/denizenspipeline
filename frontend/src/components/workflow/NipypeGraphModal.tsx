@@ -19,6 +19,7 @@ import { fetchPreprocRunLive } from '../../api/client'
 import type { NipypeStatusBlock } from '../../api/types'
 import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
 import { NodeOutputsPanel } from './NodeOutputsPanel'
+import { NodeListPanel } from './NodeListPanel'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -290,6 +291,11 @@ function Inner({ runId, isRunning, onClose }: Props) {
         borderRadius: 4, background: 'var(--bg-secondary)',
         overflow: 'hidden',
       }}>
+        <NodeListPanel
+          nodes={block?.recent_nodes ?? []}
+          selected={openNode}
+          onSelect={setOpenNode}
+        />
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {error && (
           <div style={{ padding: 12, color: 'var(--accent-red)', fontSize: 12 }}>
