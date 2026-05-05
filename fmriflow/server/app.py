@@ -126,6 +126,7 @@ def create_app(
     from fmriflow.server.routes.triage import router as triage_router
     from fmriflow.server.routes.structural_qc import router as structural_qc_router
     from fmriflow.server.routes.post_preproc import router as post_preproc_router
+    from fmriflow.server.routes.node_outputs import router as node_outputs_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -144,6 +145,17 @@ def create_app(
     app.include_router(triage_router, prefix="/api")
     app.include_router(structural_qc_router, prefix="/api")
     app.include_router(post_preproc_router, prefix="/api")
+    # Node-outputs route must come BEFORE preproc_router because
+    # `/preproc/runs/{run_id}/node/...` would otherwise be shadowed by
+    # the more general `{run_id}` patterns. FastAPI's matcher walks the
+    # routes in include order, so re-include this one last to take
+    # precedence... actually, FastAPI uses first-match so we want this
+    # *registered* such that the more specific path is found first.
+    # `preproc_router` only handles `/preproc/runs/{run_id}` and
+    # `/preproc/runs/{run_id}/{exact-name}` (live, cancel, …) so the
+    # `/node/{path}/...` segment never collides — order doesn't matter
+    # in practice; we still register near the end for symmetry.
+    app.include_router(node_outputs_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

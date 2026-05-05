@@ -152,6 +152,39 @@ backfilled in place::
 `PATH` is either the JSONL itself or a directory tree to walk; a
 `.bak` sidecar is written next to each rewritten file.
 
+#### Drill into a node's outputs
+
+**Click a leaf** in the live DAG to open a side drawer with that
+node's `work_dir` contents. fmriprep typically drops a handful of
+files per leaf — `command.txt`, `_inputs.pklz`, `_node.pklz`,
+`result_<leaf>.pklz`, intermediate NIfTIs, and any logs.
+
+The drawer renders each file by type:
+
+- `*.nii.gz`, `*.mgz` → niivue 3D viewer
+- `*.json`, `*.tsv`, `*.csv`, `*.txt`, `*.log`, `*.rst`,
+  `*.cfg` → inline `<pre>` (JSON pretty-printed)
+- `*.svg`, `*.png`, `*.jpg`, etc. → inline image
+- `*.html` → iframe
+- `*.pkl`, `*.pklz` → server-side `pickle.load` + JSON-safe
+  rendering. fmriprep's `result_*.pklz` files reference paths
+  inside the singularity container that don't exist on the host —
+  if pickle resurrection fails for that reason, the drawer shows
+  the error message; the file is still on disk.
+- Anything else → "Copy path" button
+
+Failed nodes also surface their `crash-*.txt` files at the top of
+the drawer (discovered under
+`{output_dir}/sub-{subject}/log/<ts>/crash-*` regardless of
+timestamp). API endpoints behind the drawer:
+
+- `GET /api/preproc/runs/{run_id}/node/{node_path:path}/files`
+  — list whitelisted artefacts + matching crash files.
+- `GET /api/preproc/runs/{run_id}/node/{node_path:path}/file?rel=…`
+  — serve a single file (suffix-whitelisted, safe-join).
+- `GET /api/preproc/runs/{run_id}/node/{node_path:path}/pickle?rel=…`
+  — load and JSON-encode a pickle.
+
 #### Drill-in: the live nipype DAG
 
 **Double-click** the Preproc block (when its strip has at least one

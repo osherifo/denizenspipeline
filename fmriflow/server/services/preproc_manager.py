@@ -93,6 +93,8 @@ class PreprocRunHandle:
             "config_path": self.config_path,
             "log_path": self.log_path,
             "nipype_jsonl_path": self.nipype_jsonl_path,
+            "work_dir": (self.params or {}).get("work_dir"),
+            "output_dir": (self.params or {}).get("output_dir"),
         }
 
 
@@ -648,6 +650,8 @@ class PreprocManager:
                 "error": state.error,
                 "config_path": state.config_path,
                 "log_path": state.stdout_log,
+                "work_dir": (state.params or {}).get("work_dir"),
+                "output_dir": (state.params or {}).get("output_dir"),
             }
         log_path = summary.get("log_path")
         summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""

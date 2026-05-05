@@ -18,6 +18,7 @@ import dagre from 'dagre'
 import { fetchPreprocRunLive } from '../../api/client'
 import type { NipypeStatusBlock } from '../../api/types'
 import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
+import { NodeOutputsPanel } from './NodeOutputsPanel'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -234,6 +235,7 @@ export function NipypeGraphModal({ runId, isRunning, onClose }: Props) {
 function Inner({ runId, isRunning, onClose }: Props) {
   const [block, setBlock] = useState<NipypeStatusBlock | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [openNode, setOpenNode] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -283,9 +285,12 @@ function Inner({ runId, isRunning, onClose }: Props) {
         <button style={closeBtn} onClick={onClose}>Close</button>
       </div>
       <div style={{
-        flex: 1, minHeight: 0, border: '1px solid var(--border)',
+        flex: 1, minHeight: 0, display: 'flex',
+        border: '1px solid var(--border)',
         borderRadius: 4, background: 'var(--bg-secondary)',
+        overflow: 'hidden',
       }}>
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {error && (
           <div style={{ padding: 12, color: 'var(--accent-red)', fontSize: 12 }}>
             {error}
@@ -305,10 +310,25 @@ function Inner({ runId, isRunning, onClose }: Props) {
             nodesDraggable={false}
             nodesConnectable={false}
             elementsSelectable={true}
+            onNodeClick={(_e, n) => {
+              const data = n.data as unknown as NipypeTreeNode & { _kind?: string }
+              const kind = data._kind ?? data.kind
+              if (kind === 'leaf') {
+                setOpenNode(data.full_node ?? data.id)
+              }
+            }}
           >
             <Background />
             <Controls />
           </ReactFlow>
+        )}
+        </div>
+        {openNode && (
+          <NodeOutputsPanel
+            runId={runId}
+            node={openNode}
+            onClose={() => setOpenNode(null)}
+          />
         )}
       </div>
     </>

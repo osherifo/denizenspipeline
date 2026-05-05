@@ -786,3 +786,34 @@ export interface PostPreprocWorkflow {
   outputs: Record<string, { from: string }>
   graph: PostPreprocGraph
 }
+
+// ── Per-node fmriprep outputs ────────────────────────────────────
+
+export interface NodeOutputFile {
+  name: string
+  rel: string
+  suffix: string
+  size: number
+  kind: 'view' | 'pickle' | 'link'
+}
+
+export interface NodeOutputCrash {
+  name: string
+  path: string
+  size: number
+}
+
+export interface NodeOutputsList {
+  node: string
+  leaf_dir: string
+  exists: boolean
+  files: NodeOutputFile[]
+  crashes: NodeOutputCrash[]
+}
+
+export interface NodePickleResponse {
+  name: string
+  type?: string
+  value?: unknown
+  error?: string
+}
