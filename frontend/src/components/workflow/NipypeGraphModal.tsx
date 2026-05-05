@@ -9,6 +9,7 @@ import {
   Controls,
   Position,
   Handle,
+  useReactFlow,
   type Node,
   type Edge,
   type NodeProps,
@@ -237,6 +238,26 @@ function Inner({ runId, isRunning, onClose }: Props) {
   const [block, setBlock] = useState<NipypeStatusBlock | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openNode, setOpenNode] = useState<string | null>(null)
+  const rf = useReactFlow()
+
+  // Whenever the user picks a node (via list or graph click), pan + zoom
+  // the canvas to centre that node. fitView with a single-node selector
+  // does both at once and animates smoothly.
+  useEffect(() => {
+    if (!openNode) return
+    // Defer one tick so the layout has the node by the time we pan.
+    const t = setTimeout(() => {
+      try {
+        rf.fitView({
+          nodes: [{ id: openNode }],
+          duration: 400,
+          padding: 0.4,
+          maxZoom: 1.5,
+        })
+      } catch { /* node not in graph yet — ignore */ }
+    }, 50)
+    return () => clearTimeout(t)
+  }, [openNode, rf])
 
   useEffect(() => {
     let cancelled = false
