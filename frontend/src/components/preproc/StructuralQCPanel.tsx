@@ -81,9 +81,11 @@ export function StructuralQCPanel({ subject }: Props) {
   // niivue sliceType: 0=axial 1=coronal 2=sagittal 3=multiplanar 4=render(3D)
   const [sliceType, setSliceType] = useState<number>(3)
   const [volumeVisible, setVolumeVisible] = useState<boolean>(true)
-  // Per-mesh opacity (0..1). Default 0.55 so an inner surface peeks
-  // through an outer one in 3D — same trick freeview uses.
-  const [surfaceAlpha, setSurfaceAlpha] = useState<number>(0.55)
+  // Per-surface alpha (0..1) so an outer mesh can be made transparent
+  // enough to see an inner one. Default 0.55 = freeview-ish translucency.
+  const [surfaceAlphas, setSurfaceAlphas] = useState<Record<SurfaceKind, number>>(
+    { pial: 0.55, white: 1.0, inflated: 1.0 },
+  )
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const nvRef = useRef<Niivue | null>(null)
 
@@ -140,26 +142,35 @@ export function StructuralQCPanel({ subject }: Props) {
     }
   }, [sliceType])
 
-  // Apply mesh opacity live whenever the slider moves or meshes reload.
+  // Apply per-mesh opacity live whenever a slider moves or meshes
+  // reload. Also enable the meshXRay second pass so the inner surface
+  // is actually visible through the outer one in 3D — without this,
+  // niivue's depth-test draws the outer mesh fully opaque.
   useEffect(() => {
     const nv = nvRef.current as unknown as {
-      meshes?: Array<{ id: string }>
+      meshes?: Array<{ id: string; name?: string }>
       setMeshProperty?: (id: string, key: string, val: number) => void
+      opts?: { meshXRay: number }
       drawScene?: () => void
-      updateGLVolume?: () => void
     } | null
-    if (!nv || !nv.setMeshProperty) return
+    if (!nv) return
+    if (nv.opts) nv.opts.meshXRay = 0.5
     const ms = nv.meshes ?? []
-    if (ms.length === 0) return
+    if (!nv.setMeshProperty || ms.length === 0) {
+      nv.drawScene?.()
+      return
+    }
     try {
       for (const m of ms) {
-        nv.setMeshProperty(m.id, 'opacity', surfaceAlpha)
+        const kind = (Object.keys(SURFACE_COLORS) as SurfaceKind[])
+          .find((k) => (m.name ?? '').endsWith(`.${k}`)) ?? 'pial'
+        nv.setMeshProperty(m.id, 'opacity', surfaceAlphas[kind] ?? 1)
       }
       nv.drawScene?.()
     } catch (e) {
       console.warn('niivue setMeshProperty failed', e)
     }
-  }, [surfaceAlpha, surfaces, showViewer])
+  }, [surfaceAlphas, surfaces, showViewer])
 
   // Toggle volume opacity (0 = invisible, 1 = full). Lets the user
   // hide the T1 "skull" in 3D mode so the cortex meshes are unobstructed.
@@ -374,27 +385,66 @@ export function StructuralQCPanel({ subject }: Props) {
                 const on = surfaces.has(k)
                 const color = `rgb(${SURFACE_COLORS[k].slice(0, 3).join(',')})`
                 return (
-                  <button
+                  <span
                     key={k}
                     style={{
-                      ...btn,
-                      padding: '2px 8px',
-                      fontSize: 11,
-                      background: on ? color : btn.background,
-                      color: on ? '#000' : 'var(--text-primary)',
-                      borderColor: on ? color : 'var(--border)',
-                    }}
-                    onClick={() => {
-                      setSurfaces((prev) => {
-                        const next = new Set(prev)
-                        if (next.has(k)) next.delete(k)
-                        else next.add(k)
-                        return next
-                      })
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      border: `1px solid ${on ? color : 'var(--border)'}`,
+                      background: on ? `${color}` : 'transparent',
                     }}
                   >
-                    {k}
-                  </button>
+                    <button
+                      type="button"
+                      style={{
+                        ...btn,
+                        padding: '0 6px',
+                        fontSize: 11,
+                        background: 'transparent',
+                        color: on ? '#000' : 'var(--text-primary)',
+                        border: 'none',
+                      }}
+                      onClick={() => {
+                        setSurfaces((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(k)) next.delete(k)
+                          else next.add(k)
+                          return next
+                        })
+                      }}
+                    >
+                      {k}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={surfaceAlphas[k]}
+                      disabled={!on}
+                      onChange={(e) =>
+                        setSurfaceAlphas((prev) => ({
+                          ...prev,
+                          [k]: parseFloat(e.target.value),
+                        }))
+                      }
+                      style={{ width: 60, opacity: on ? 1 : 0.4 }}
+                      title={`${k} opacity (lower = more transparent)`}
+                    />
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: on ? '#000' : 'var(--text-secondary)',
+                        minWidth: 22,
+                      }}
+                    >
+                      {surfaceAlphas[k].toFixed(2)}
+                    </span>
+                  </span>
                 )
               })}
               <button
@@ -404,35 +454,6 @@ export function StructuralQCPanel({ subject }: Props) {
               >
                 clear
               </button>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  marginLeft: 6,
-                }}
-              >
-                <span style={{ color: 'var(--text-secondary)' }}>α</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={surfaceAlpha}
-                  onChange={(e) => setSurfaceAlpha(parseFloat(e.target.value))}
-                  style={{ width: 90 }}
-                  title="Surface opacity (lower = more transparent)"
-                />
-                <span
-                  style={{
-                    fontVariantNumeric: 'tabular-nums',
-                    color: 'var(--text-secondary)',
-                    minWidth: 28,
-                  }}
-                >
-                  {surfaceAlpha.toFixed(2)}
-                </span>
-              </span>
               <span style={{ flex: 1 }} />
               <button
                 style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
