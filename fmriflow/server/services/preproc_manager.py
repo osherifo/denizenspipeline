@@ -651,6 +651,13 @@ class PreprocManager:
             }
         log_path = summary.get("log_path")
         summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""
+        # Derive nipype_jsonl_path from the log path on the registry-fallback
+        # branch — it's not persisted in state.json, but the JSONL always
+        # lives next to stdout.log when fmriprep wrote one.
+        if not summary.get("nipype_jsonl_path") and log_path:
+            candidate = Path(log_path).parent / "nipype_events.jsonl"
+            if candidate.is_file():
+                summary["nipype_jsonl_path"] = str(candidate)
         return summary
 
     def delete_run(self, run_id: str) -> dict:
