@@ -18,9 +18,10 @@ interface Props {
 
 type SurfaceKind = 'pial' | 'white' | 'inflated'
 
+// Match FreeSurfer's freeview palette: pial = green, white = red.
 const SURFACE_COLORS: Record<SurfaceKind, [number, number, number, number]> = {
-  pial:     [255,  80,  80, 255],   // red
-  white:    [255, 220,  60, 255],   // yellow
+  pial:     [ 60, 220,  90, 255],   // green
+  white:    [255,  80,  80, 255],   // red
   inflated: [ 80, 160, 255, 255],   // blue
 }
 
