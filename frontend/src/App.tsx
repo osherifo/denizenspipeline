@@ -13,9 +13,10 @@ import { AutoflattenManager } from './views/AutoflattenManager'
 import { PipelineGraph } from './views/PipelineGraph'
 import { WorkflowsView } from './views/WorkflowsView'
 import { PostPreprocBuilder } from './views/PostPreprocBuilder'
+import { QCReviews } from './views/QCReviews'
 import { useModuleStore } from './stores/module-store'
 
-type Route = 'modules' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'autoflatten' | 'graph' | 'errors' | 'workflows' | 'post-preproc'
+type Route = 'modules' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'autoflatten' | 'graph' | 'errors' | 'workflows' | 'post-preproc' | 'qc-reviews'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
@@ -31,6 +32,7 @@ function getRoute(): Route {
   if (hash === 'errors') return 'errors'
   if (hash === 'workflows') return 'workflows'
   if (hash === 'post-preproc') return 'post-preproc'
+  if (hash === 'qc-reviews') return 'qc-reviews'
   return 'dashboard'
 }
 
@@ -132,6 +134,7 @@ export function App() {
         {route === 'errors' && <ErrorBrowser />}
         {route === 'workflows' && <WorkflowsView />}
         {route === 'post-preproc' && <PostPreprocBuilder />}
+        {route === 'qc-reviews' && <QCReviews />}
       </div>
     </div>
   )

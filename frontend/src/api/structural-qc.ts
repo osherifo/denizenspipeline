@@ -4,6 +4,13 @@ import type { StructuralQCReview, StructuralQCStatus } from './types'
 
 const BASE = '/api'
 
+export async function fetchAllReviews(dataset?: string): Promise<StructuralQCReview[]> {
+  const qs = dataset ? `?dataset=${encodeURIComponent(dataset)}` : ''
+  const res = await fetch(`${BASE}/structural-qc/reviews${qs}`)
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
 export async function fetchReview(subject: string): Promise<StructuralQCReview> {
   const res = await fetch(`${BASE}/preproc/subjects/${subject}/structural-qc`)
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)

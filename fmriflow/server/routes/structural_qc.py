@@ -117,6 +117,22 @@ def _build_freeview_command(fs_subject_dir: Path) -> str:
 # ── review CRUD ─────────────────────────────────────────────────────────
 
 
+@router.get("/structural-qc/reviews")
+async def list_reviews(request: Request, dataset: str | None = None):
+    """List all structural-QC reviews across datasets, or filter by one.
+
+    Returns ``[{...review fields...}]`` newest-first (by timestamp).
+    """
+    store = request.app.state.structural_qc_store
+    if dataset:
+        reviews = store.list_for_dataset(dataset)
+    else:
+        reviews = store.list_all()
+    rows = [r.to_dict() for r in reviews]
+    rows.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
+    return rows
+
+
 @router.get("/preproc/subjects/{subject}/structural-qc")
 async def get_review(request: Request, subject: str):
     manifest = _manifest_for(request, subject)

@@ -92,6 +92,7 @@ const groups = [
       { key: 'preproc', label: 'Preproc', hash: '#preproc' },
       { key: 'autoflatten', label: 'Autoflatten', hash: '#autoflatten' },
       { key: 'post-preproc', label: 'Post-preproc (nipype)', hash: '#post-preproc' },
+      { key: 'qc-reviews', label: 'QC Reviews', hash: '#qc-reviews' },
     ],
   },
   {

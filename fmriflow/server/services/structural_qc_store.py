@@ -70,6 +70,21 @@ class StructuralQCStore:
                 logger.warning("Skipping QC review %s: %s", p, e)
         return out
 
+    def list_all(self) -> list[StructuralQCReview]:
+        """Return every review across every dataset under ``root``."""
+        out: list[StructuralQCReview] = []
+        if not self.root.is_dir():
+            return out
+        for d in sorted(self.root.iterdir()):
+            if not d.is_dir():
+                continue
+            try:
+                _safe(d.name)
+            except ValueError:
+                continue  # skip stray dirs that aren't valid dataset names
+            out.extend(self.list_for_dataset(d.name))
+        return out
+
     # ── writes ──────────────────────────────────────────────────────
 
     def save(self, review: StructuralQCReview) -> Path:
