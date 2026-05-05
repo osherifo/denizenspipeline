@@ -12,9 +12,11 @@ Three entry points to the same panel:
 - **Preprocessing → Preproc** → click a subject's manifest → scroll to
   the **Structural QC** section under the Runs table.
 - **Workflows → Workflow run detail.** Once the preproc stage finishes
-  (`status: done`), the Preproc block in the workflow graph gains a
-  **Structural QC →** button — clicking it opens the panel as a modal
-  for the subject that just preprocessed.
+  (`status: done`), the Preproc block in the workflow graph gains two
+  pill buttons: **Structural QC →** opens this panel as a modal for
+  the subject that just preprocessed, and **View DAG →** opens the
+  live nipype DAG modal (works on already-finished runs too — empty
+  state shown if the run has no parsed events).
 - **Preprocessing → QC Reviews** → click a row to reopen the panel
   for any subject that already has a saved review.
 

@@ -188,29 +188,55 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
         )}
 
       {data.stage === 'preproc' && data.status === 'done' &&
-        data.onOpenStructuralQC && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              data.onOpenStructuralQC?.()
-            }}
-            style={{
-              marginTop: 6,
-              padding: '4px 10px',
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 0.5,
-              borderRadius: 4,
-              background: `${meta.color}33`,
-              color: meta.color,
-              border: `1px solid ${meta.color}88`,
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-            }}
-          >
-            Structural QC →
-          </button>
+        (data.onOpenStructuralQC || data.onOpenNipypeDag) && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            {data.onOpenStructuralQC && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  data.onOpenStructuralQC?.()
+                }}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 0.5,
+                  borderRadius: 4,
+                  background: `${meta.color}33`,
+                  color: meta.color,
+                  border: `1px solid ${meta.color}88`,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Structural QC →
+              </button>
+            )}
+            {data.onOpenNipypeDag && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  data.onOpenNipypeDag?.()
+                }}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 0.5,
+                  borderRadius: 4,
+                  background: `${meta.color}33`,
+                  color: meta.color,
+                  border: `1px solid ${meta.color}88`,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                }}
+              >
+                View DAG →
+              </button>
+            )}
+          </div>
         )}
 
       {clickable && (
