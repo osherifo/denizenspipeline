@@ -89,7 +89,10 @@ export function StructuralQCPanel({ subject }: Props) {
     nvRef.current = nv
     nv.attachToCanvas(canvasRef.current)
 
-    nv.loadVolumes([{ url: fsFileUrl(subject, 'mri/T1.mgz'), name: 'T1' }])
+    // niivue derives the file format from `name` (preferring it over `url`),
+    // so the name MUST keep its extension or `getFileExt` blows up with
+    // "Cannot read properties of undefined (reading 'toUpperCase')".
+    nv.loadVolumes([{ url: fsFileUrl(subject, 'mri/T1.mgz'), name: 'T1.mgz' }])
       .then(() => {
         return nv.loadMeshes([
           {
