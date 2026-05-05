@@ -31,6 +31,29 @@ _FS_ALLOWED_SUFFIXES = {
     ".png", ".svg",
 }
 
+# Files we'll serve from the fmriprep output dir to satisfy the
+# report HTML's relative URLs (figures, embedded svg, etc.).
+_OUT_ALLOWED_SUFFIXES = {
+    ".svg", ".png", ".jpg", ".jpeg", ".gif",
+    ".html", ".htm", ".css", ".js", ".json",
+    ".tsv", ".txt", ".nii", ".gz",
+}
+
+_MEDIA_TYPES = {
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".css": "text/css",
+    ".js": "application/javascript",
+    ".json": "application/json",
+    ".tsv": "text/tab-separated-values",
+    ".txt": "text/plain",
+}
+
 
 class ReviewBody(BaseModel):
     status: str
@@ -215,3 +238,36 @@ async def get_fs_file(request: Request, subject: str, rel: str):
     if not target.is_file():
         raise HTTPException(404, f"File not found: {rel}")
     return FileResponse(target, media_type="application/octet-stream")
+
+
+# Declared LAST on purpose: this catch-all serves the fmriprep report's
+# relative asset URLs (e.g. `sub-AN/figures/foo.svg`). FastAPI matches
+# routes in declaration order, so the dedicated `/report`,
+# `/freeview-command`, and `/fs-file` endpoints above win first.
+@router.get("/preproc/subjects/{subject}/structural-qc/{rest:path}")
+async def get_report_asset(request: Request, subject: str, rest: str):
+    """Serve any file under the manifest's ``output_dir`` so the report
+    HTML's relative figure URLs resolve.
+
+    The report iframe sits at
+    ``/api/preproc/subjects/{subject}/structural-qc/report`` so the
+    browser resolves ``sub-AN/figures/foo.svg`` against
+    ``/api/preproc/subjects/AN/structural-qc/sub-AN/figures/foo.svg`` —
+    that path lands here. Suffix-whitelisted, with a safe-join check
+    against ``output_dir``.
+    """
+    manifest = _manifest_for(request, subject)
+    out = Path(manifest.get("output_dir", ""))
+    if not out.is_dir():
+        raise HTTPException(404, "Manifest output_dir does not exist")
+
+    suffix = Path(rest).suffix.lower()
+    if suffix not in _OUT_ALLOWED_SUFFIXES:
+        raise HTTPException(403, f"Suffix not allowed: {suffix}")
+
+    target = _safe_join(out, rest)
+    if not target.is_file():
+        raise HTTPException(404, f"File not found: {rest}")
+
+    media_type = _MEDIA_TYPES.get(suffix, "application/octet-stream")
+    return FileResponse(target, media_type=media_type)
