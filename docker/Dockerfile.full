@@ -51,12 +51,15 @@ RUN groupadd -g ${PGID} fmriflow \
 
 WORKDIR /app
 
-# Install fmriflow on top of the fmriprep python env.
+# Install fmriflow on top of the fmriprep python env. Same extras
+# as the slim image so register_builtins succeeds (himalaya needs
+# sklearn at import time). nlp / flatten omitted on purpose; derive
+# if needed.
 COPY pyproject.toml README.md ./
 COPY fmriflow/ ./fmriflow/
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir heudiconv \
-    && pip install --no-cache-dir '.[frontend,bids]'
+    && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz]'
 
 COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
 
