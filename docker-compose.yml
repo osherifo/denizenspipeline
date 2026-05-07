@@ -1,0 +1,53 @@
+# fmriflow slim — orchestrator only.
+#
+# fmriprep is delegated to the host's docker daemon by mounting
+# /var/run/docker.sock. Configure your preproc YAML with
+# `container_type: docker` and `container: nipreps/fmriprep:24.1.1`.
+#
+# For the standalone variant (FreeSurfer + fmriprep baked in), use:
+#   docker compose -f docker-compose.full.yml up
+#
+# For apptainer-on-host instead of docker-out-of-docker, see
+# docs/guide/docker.md.
+
+services:
+  fmriflow:
+    container_name: fmriflow
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.slim
+      args:
+        PUID: ${UID:-1000}
+        PGID: ${GID:-1000}
+    image: fmriflow:slim
+    ports:
+      - "8421:8421"
+    environment:
+      # Path the FS license file resolves to inside the container.
+      # Provide one of:
+      #   - bind ./license/license.txt to /data/license/license.txt (default below), or
+      #   - set FS_LICENSE_TEXT in your shell / .env to pass the content inline.
+      FS_LICENSE: /data/license/license.txt
+      FS_LICENSE_TEXT: ${FS_LICENSE_TEXT:-}
+      PUID: ${UID:-1000}
+      PGID: ${GID:-1000}
+    volumes:
+      # Persistent state: ~/.fmriflow/ (run registry, modules, QC,
+      # workflows, registered heuristics).
+      - fmriflow-state:/data
+      # User-editable workspace.
+      - ./experiments:/workspace/experiments
+      - ./results:/workspace/results
+      - ./derivatives:/workspace/derivatives
+      # BIDS + DICOM inputs (read-only). Adjust to your data layout.
+      - ./bids:/workspace/bids:ro
+      - ./dicoms:/workspace/dicoms:ro
+      # FreeSurfer license (drop your license.txt under ./license/).
+      - ./license:/data/license:ro
+      # docker-out-of-docker for fmriprep. Comment this line if you
+      # are using apptainer-on-host instead.
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  fmriflow-state:

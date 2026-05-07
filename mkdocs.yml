@@ -44,6 +44,7 @@ nav:
   - Getting Started:
     - Installation: guide/installation.md
     - Quickstart: guide/quickstart.md
+    - Docker: guide/docker.md
   - User Guide:
     - Configuration: guide/configuration.md
     - CLI Reference: guide/cli.md
