@@ -82,7 +82,7 @@ The container creates files as `fmriflow:fmriflow`, with uid/gid taken
 from `PUID`/`PGID` (default `1000:1000`). Override per-host with:
 
 ```bash
-UID=$(id -u) GID=$(id -g) docker compose up
+PUID=$(id -u) PGID=$(id -g) docker compose up
 ```
 
 ## Pinning fmriprep version (full image)
