@@ -25,21 +25,15 @@ services:
     ports:
       - "8421:8421"
     environment:
-      FS_LICENSE: /data/license/license.txt
+      FMRIFLOW_HOME: /workspace
+      # FMRIFLOW_DATA: /data   # optional — uncomment to split off
+      FS_LICENSE: /workspace/secrets/freesurfer-license.txt
       FS_LICENSE_TEXT: ${FS_LICENSE_TEXT:-}
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
     volumes:
-      - fmriflow-state:/data
-      - ./experiments:/workspace/experiments
-      - ./results:/workspace/results
-      - ./derivatives:/workspace/derivatives
-      - ./bids:/workspace/bids:ro
-      - ./dicoms:/workspace/dicoms:ro
-      - ./license:/data/license:ro
+      - ${FMRIFLOW_HOME:-~/projects/fmriflow}:/workspace
+      # - ${FMRIFLOW_DATA:-~/projects/fmriflow-data}:/data
       # No /var/run/docker.sock — fmriprep runs in-process via
       # `container_type: bare` in your preproc YAML.
     restart: unless-stopped
-
-volumes:
-  fmriflow-state:

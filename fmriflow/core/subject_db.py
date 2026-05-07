@@ -30,8 +30,7 @@ The DB file is located via (first match wins):
     1. ``paths.subjects_db`` in config
     2. ``FMRIFLOW_SUBJECTS_DB`` env var
     3. ``subjects.json`` in the config file's directory
-    4. ``fmriflow/data/subjects.json`` inside the package tree (not shipped;
-       for local development only)
+    4. ``$FMRIFLOW_HOME/subjects.json`` (the user's lab-specific DB)
 """
 
 from __future__ import annotations
@@ -131,9 +130,10 @@ def _find_db_path(config: dict, config_dir: Path | None) -> Path | None:
         if candidate.exists():
             return candidate
 
-    # 4. Built-in package data
-    pkg_data = Path(__file__).resolve().parent.parent / "data" / "subjects.json"
-    if pkg_data.exists():
-        return pkg_data
+    # 4. User-tier subjects.json under $FMRIFLOW_HOME
+    from fmriflow.core import paths
+    user_db = paths.subjects_db()
+    if user_db.exists():
+        return user_db
 
     return None

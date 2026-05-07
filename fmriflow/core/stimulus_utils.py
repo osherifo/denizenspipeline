@@ -95,7 +95,8 @@ def load_grids_for_stories(experiment, session, grid_dir=None):
         {story_name: TextGrid_object}
     """
     if grid_dir is None:
-        data_dir = os.environ.get('FMRIFLOW_DATA_DIR', '.')
+        from fmriflow.core import paths
+        data_dir = os.environ.get('FMRIFLOW_DATA_DIR') or str(paths.data())
         grid_dir = Path(data_dir) / 'stimuli' / experiment / session / 'TextGrids'
     else:
         grid_dir = Path(grid_dir)
@@ -129,7 +130,8 @@ def load_generic_trfiles(experiment, session, tr_dir=None, expectedtr=2.0045):
         {story_name: TRFile_object}
     """
     if tr_dir is None:
-        data_dir = os.environ.get('FMRIFLOW_DATA_DIR', '.')
+        from fmriflow.core import paths
+        data_dir = os.environ.get('FMRIFLOW_DATA_DIR') or str(paths.data())
         tr_dir = Path(data_dir) / 'stimuli' / experiment / session / 'trfiles'
     else:
         tr_dir = Path(tr_dir)

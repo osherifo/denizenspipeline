@@ -1,0 +1,13 @@
+{
+    "_comment": "Example schema for $FMRIFLOW_HOME/subjects.json. Copy this file (without the _comment key) and edit it for your subjects. Each top-level key is a subject id; the value is a config dict consumed by fmriflow.core.subject_db.",
+    "sub01": {
+        "fs_subject": "sub01",
+        "xfm": "sub01_to_anat",
+        "surfaces": ["pial", "white", "inflated"]
+    },
+    "sub02": {
+        "fs_subject": "sub02",
+        "xfm": "sub02_to_anat",
+        "surfaces": ["pial", "white", "inflated"]
+    }
+}

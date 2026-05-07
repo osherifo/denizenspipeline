@@ -109,20 +109,24 @@ def main(argv: list[str] | None = None) -> int:
     serve_parser.add_argument(
         '--host', type=str, default='127.0.0.1', help='Server host')
     serve_parser.add_argument(
-        '--results-dir', type=str, default='./results',
-        help='Directory to scan for run summaries')
+        '--results-dir', type=str, default=None,
+        help='Directory to scan for run summaries '
+             '(default: $FMRIFLOW_HOME/data/results/)')
     serve_parser.add_argument(
         '--open', action='store_true',
         help='Open the web UI in a browser after starting')
     serve_parser.add_argument(
         '--modules-dir', type=str, default=None,
-        help='Directory for user modules (default: ~/.fmriflow/modules/)')
+        help='Directory for user modules '
+             '(default: $FMRIFLOW_HOME/addons/modules/)')
     serve_parser.add_argument(
-        '--configs-dir', type=str, default='./experiments',
-        help='Directory containing experiment YAML configs (default: ./experiments)')
+        '--configs-dir', type=str, default=None,
+        help='Directory containing experiment YAML configs '
+             '(default: $FMRIFLOW_HOME/configs/)')
     serve_parser.add_argument(
-        '--derivatives-dir', type=str, default='./derivatives',
-        help='Directory containing preprocessing derivatives (default: ./derivatives)')
+        '--derivatives-dir', type=str, default=None,
+        help='Directory containing preprocessing derivatives '
+             '(default: $FMRIFLOW_HOME/data/derivatives/)')
 
     # ── compose ──
     compose_parser = subparsers.add_parser(
@@ -146,6 +150,10 @@ def main(argv: list[str] | None = None) -> int:
     # ── triage (automatic error capture) ──
     from fmriflow.triage.cli import add_triage_subcommands
     add_triage_subcommands(subparsers)
+
+    # ── working-directory bootstrap (init, paths, migrate) ──
+    from fmriflow import cli_bootstrap
+    cli_bootstrap.add_subcommands(subparsers)
 
     args = parser.parse_args(argv)
 
@@ -195,6 +203,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == 'triage':
         from fmriflow.triage.cli import run_triage_command
         return run_triage_command(args)
+    elif args.command in ('init', 'paths', 'migrate'):
+        from fmriflow import cli_bootstrap
+        return cli_bootstrap.dispatch(args)
     else:
         parser.print_help()
         return 1
@@ -215,8 +226,9 @@ def _cmd_run(args) -> int:
         pipeline.config['subject'] = args.subject
 
     # Set up file logging to {output_dir}/pipeline.log
+    from fmriflow.core import paths
     output_dir = pipeline.config.get('reporting', {}).get(
-        'output_dir', './results')
+        'output_dir') or str(paths.results_root())
     log_path = _setup_file_logging(output_dir)
     logger.info("Pipeline started — config: %s", args.config)
 

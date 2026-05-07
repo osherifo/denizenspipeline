@@ -52,14 +52,25 @@ REQUIRED_METHODS: dict[str, list[str]] = {
 
 
 def get_modules_dir() -> Path:
-    """Return the user modules directory, creating it if needed."""
+    """Return the user modules directory, creating it if needed.
+
+    Resolution order:
+    1. ``$FMRIFLOW_MODULES_DIR`` (legacy env var, still honoured).
+    2. ``$FMRIFLOW_HOME/addons/modules/`` (new home).
+    3. Legacy ``~/.fmriflow/modules/`` if it exists with content
+       and the new dir is still empty (migration grace).
+    """
     custom = os.environ.get('FMRIFLOW_MODULES_DIR')
     if custom:
         d = Path(custom)
-    else:
-        d = Path.home() / '.fmriflow' / 'modules'
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    from fmriflow.core import paths
+    new = paths.addons_dir("modules")
+    legacy = paths.legacy_modules_root()
+    if legacy.is_dir() and any(legacy.iterdir()) and not any(new.iterdir()):
+        return legacy
+    return new
 
 
 def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
