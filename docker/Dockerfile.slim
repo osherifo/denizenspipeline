@@ -64,6 +64,11 @@ WORKDIR /app
 # pycortex/autoflatten.
 COPY pyproject.toml README.md ./
 COPY fmriflow/ ./fmriflow/
+# Frontend bundle from stage 1 — must land BEFORE pip install so
+# hatch packages it into the wheel (otherwise the installed package
+# has no static/ dir and FastAPI's StaticFiles mount is skipped,
+# causing GET / to return 404).
+COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
 # Extras: frontend (FastAPI/uvicorn), bids (nibabel), ml + himalaya
 # (sklearn — register_builtins eagerly imports models/himalaya), audio
 # (librosa), video (opencv), cloud (cottoncandy/boto3), viz (pycortex
@@ -73,9 +78,6 @@ COPY fmriflow/ ./fmriflow/
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir heudiconv \
     && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
-
-# Frontend bundle from stage 1.
-COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
 
 # Default workspace + persistent state dirs. Heuristics are provided
 # via the runtime data directory rather than copied from the repo.
