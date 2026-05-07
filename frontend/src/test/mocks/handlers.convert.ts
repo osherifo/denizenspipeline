@@ -36,11 +36,11 @@ export const convertHandlers = [
   ),
   http.post('/api/convert/scan', () =>
     HttpResponse.json({
-      source_dir: '/tmp',
-      n_files: 10,
-      subjects: ['01'],
-      sessions: ['ses-01'],
-      sample_dicoms: [],
+      scanner: null,
+      series: [
+        { number: 1, description: 'T1w', n_images: 10, modality_guess: 'anat' },
+      ],
+      matching_heuristic: null,
     }),
   ),
   http.post('/api/convert/collect', () =>

@@ -86,7 +86,7 @@ describe('useConvertStore', () => {
   describe('scan + collect + run', () => {
     it('scanDicom populates scanResult', async () => {
       await useConvertStore.getState().scanDicom('/tmp/dicom')
-      expect(useConvertStore.getState().scanResult?.n_files).toBe(10)
+      expect(useConvertStore.getState().scanResult?.series.length).toBe(1)
     })
 
     it('collect populates collectResult', async () => {
