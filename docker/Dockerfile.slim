@@ -64,10 +64,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Frontend bundle from stage 1.
 COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
 
-# Repo-shipped heuristics (the user heuristics dir is a volume).
-COPY heuristics/ /app/heuristics/
-
-# Default workspace + persistent state dirs.
+# Default workspace + persistent state dirs. Heuristics are provided
+# via the runtime data directory rather than copied from the repo.
 RUN mkdir -p /workspace/experiments /workspace/results /workspace/derivatives \
              /data/.fmriflow /data/heuristics /data/modules \
     && chown -R fmriflow:fmriflow /app /workspace /data
