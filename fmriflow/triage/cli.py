@@ -17,7 +17,7 @@ import json
 import logging
 from pathlib import Path
 
-from fmriflow.server.services.run_registry import DEFAULT_RUNS_ROOT
+from fmriflow.core import paths
 from fmriflow.triage.capture import TriageFileName
 from fmriflow.triage.matcher import load_kb_entries
 from fmriflow.triage.service import triage as triage_sync
@@ -38,8 +38,8 @@ def add_triage_subcommands(subparsers: argparse._SubParsersAction) -> None:
         help="Walk ~/.fmriflow/runs/ and re-triage failed runs",
     )
     scan_parser.add_argument(
-        "--runs-root", type=str, default=str(DEFAULT_RUNS_ROOT),
-        help="Registry root (default: ~/.fmriflow/runs)",
+        "--runs-root", type=str, default=None,
+        help="Registry root (default: $FMRIFLOW_HOME/runs/)",
     )
     scan_parser.add_argument(
         "--force", action="store_true",
@@ -67,7 +67,7 @@ def run_triage_command(args: argparse.Namespace) -> int:
 # ── Sub-subcommands ─────────────────────────────────────────────────────
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    root = Path(args.runs_root).expanduser()
+    root = Path(args.runs_root).expanduser() if args.runs_root else paths.runs_dir()
     if not root.is_dir():
         print(f"No runs root at {root} — nothing to do.")
         return 0

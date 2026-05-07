@@ -91,3 +91,4 @@ packages = ["fmriflow"]
 # packaged tree. force-include is unconditional.
 [tool.hatch.build.targets.wheel.force-include]
 "fmriflow/server/static" = "fmriflow/server/static"
+"fmriflow/builtin" = "fmriflow/builtin"

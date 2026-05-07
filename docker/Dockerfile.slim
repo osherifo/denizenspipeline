@@ -79,17 +79,14 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir heudiconv \
     && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
 
-# Default workspace + persistent state dirs. Heuristics are provided
-# via the runtime data directory rather than copied from the repo.
-RUN mkdir -p /workspace/experiments /workspace/results /workspace/derivatives \
-             /data/.fmriflow /data/heuristics /data/modules \
-    && chown -R fmriflow:fmriflow /app /workspace /data
+# Default workspace ($FMRIFLOW_HOME). The compose file binds the
+# host's $FMRIFLOW_HOME (default ~/projects/fmriflow) to /workspace
+# at run time. We seed an empty layout so first-boot doesn't error.
+RUN mkdir -p /workspace \
+    && chown -R fmriflow:fmriflow /app /workspace
 
-# ~/.fmriflow lives under /data so it survives container restarts
-# when /data is a volume. Heuristics + modules dirs are env-driven.
-ENV HOME=/data \
-    FMRIFLOW_HEURISTICS_DIR=/data/heuristics \
-    FMRIFLOW_MODULES_DIR=/data/modules
+ENV FMRIFLOW_HOME=/workspace \
+    HOME=/workspace
 
 EXPOSE 8421
 

@@ -1,6 +1,8 @@
 """Filesystem-backed registry for long-running jobs.
 
-Each run gets a directory under ``~/.fmriflow/runs/{run_id}/`` containing:
+Each run gets a directory under ``$FMRIFLOW_HOME/runs/{run_id}/``
+(legacy ``~/.fmriflow/runs/`` is consulted as a read-only
+fallback) containing:
 
 - ``state.json`` — live status, pid, command, timestamps, config snapshot.
 - ``stdout.log`` — the subprocess's captured stdout+stderr, tailed for
@@ -22,9 +24,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from fmriflow.core import paths
+
 logger = logging.getLogger(__name__)
 
-DEFAULT_RUNS_ROOT = Path.home() / ".fmriflow" / "runs"
 STATE_FILENAME = "state.json"
 STDOUT_FILENAME = "stdout.log"
 
@@ -66,13 +69,31 @@ class RunRegistry:
     """Directory-backed registry for preprocessing runs."""
 
     def __init__(self, root: Path | None = None):
-        self.root = Path(root) if root else DEFAULT_RUNS_ROOT
+        # Explicit root disables the legacy fallback (so tests are
+        # isolated from the developer's real ~/.fmriflow/runs/).
+        if root is not None:
+            self.root = Path(root)
+            self._legacy_root = None
+        else:
+            self.root = paths.runs_dir()
+            self._legacy_root = paths.legacy_runs_root()
         self.root.mkdir(parents=True, exist_ok=True)
+
+    def _resolve(self, run_id: str) -> Path:
+        """Return the run directory, falling back to the legacy
+        location for runs created before $FMRIFLOW_HOME existed."""
+        new = self.root / run_id
+        if new.is_dir() or self._legacy_root is None:
+            return new
+        legacy = self._legacy_root / run_id
+        if legacy.is_dir():
+            return legacy
+        return new
 
     # ── Paths ────────────────────────────────────────────────────────
 
     def run_dir(self, run_id: str) -> Path:
-        return self.root / run_id
+        return self._resolve(run_id)
 
     def state_path(self, run_id: str) -> Path:
         return self.run_dir(run_id) / STATE_FILENAME
@@ -83,8 +104,12 @@ class RunRegistry:
     # ── Create / update / load ──────────────────────────────────────
 
     def register(self, state: RunStateFile) -> Path:
-        """Create the run directory and write the initial state file."""
-        d = self.run_dir(state.run_id)
+        """Create the run directory and write the initial state file.
+
+        New runs always go under ``self.root`` (the new home), even
+        if a same-named legacy run exists.
+        """
+        d = self.root / state.run_id
         d.mkdir(parents=True, exist_ok=True)
         if not state.stdout_log:
             state.stdout_log = str(self.stdout_path(state.run_id))
@@ -107,16 +132,28 @@ class RunRegistry:
             return None
 
     def list_all(self) -> list[RunStateFile]:
-        """Return every run currently on disk, newest first."""
+        """Return every run currently on disk, newest first.
+
+        Walks both the new root and the legacy ``~/.fmriflow/runs/``
+        location so reattach works during the migration window.
+        Legacy fallback is skipped when ``root`` was explicitly
+        supplied (tests, custom registries).
+        """
         out: list[RunStateFile] = []
-        if not self.root.is_dir():
-            return out
-        for child in self.root.iterdir():
-            if not child.is_dir():
+        seen: set[str] = set()
+        roots = [self.root]
+        if self._legacy_root is not None:
+            roots.append(self._legacy_root)
+        for root in roots:
+            if not root.is_dir():
                 continue
-            state = self.load(child.name)
-            if state:
-                out.append(state)
+            for child in root.iterdir():
+                if not child.is_dir() or child.name in seen:
+                    continue
+                state = self.load(child.name)
+                if state:
+                    seen.add(child.name)
+                    out.append(state)
         out.sort(key=lambda s: s.started_at, reverse=True)
         return out
 

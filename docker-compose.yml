@@ -9,6 +9,13 @@
 #
 # For apptainer-on-host instead of docker-out-of-docker, see
 # docs/guide/docker.md.
+#
+# Two host paths matter:
+#   - $FMRIFLOW_HOME (default ~/projects/fmriflow) holds configs,
+#     addons, runs, stores, secrets, and the user's subjects.json.
+#   - $FMRIFLOW_DATA (optional; default $FMRIFLOW_HOME/data) holds
+#     BIDS, DICOMs, derivatives, work, and results — split it onto
+#     a separate disk if you want.
 
 services:
   fmriflow:
@@ -23,31 +30,22 @@ services:
     ports:
       - "8421:8421"
     environment:
-      # Path the FS license file resolves to inside the container.
-      # Provide one of:
-      #   - bind ./license/license.txt to /data/license/license.txt (default below), or
-      #   - set FS_LICENSE_TEXT in your shell / .env to pass the content inline.
-      FS_LICENSE: /data/license/license.txt
+      FMRIFLOW_HOME: /workspace
+      # Optional: uncomment to put $FMRIFLOW_DATA on a separate disk.
+      # FMRIFLOW_DATA: /data
+      FS_LICENSE: /workspace/secrets/freesurfer-license.txt
       FS_LICENSE_TEXT: ${FS_LICENSE_TEXT:-}
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
     volumes:
-      # Persistent state: ~/.fmriflow/ (run registry, modules, QC,
-      # workflows, registered heuristics).
-      - fmriflow-state:/data
-      # User-editable workspace.
-      - ./experiments:/workspace/experiments
-      - ./results:/workspace/results
-      - ./derivatives:/workspace/derivatives
-      # BIDS + DICOM inputs (read-only). Adjust to your data layout.
-      - ./bids:/workspace/bids:ro
-      - ./dicoms:/workspace/dicoms:ro
-      # FreeSurfer license (drop your license.txt under ./license/).
-      - ./license:/data/license:ro
+      # The user's working directory ($FMRIFLOW_HOME).
+      # Set FMRIFLOW_HOME on the host to point this anywhere; the
+      # default is ~/projects/fmriflow.
+      - ${FMRIFLOW_HOME:-~/projects/fmriflow}:/workspace
+      # Optional: separate big-data mount. Uncomment + set
+      # FMRIFLOW_DATA on the host to a RAID/NAS path.
+      # - ${FMRIFLOW_DATA:-~/projects/fmriflow-data}:/data
       # docker-out-of-docker for fmriprep. Comment this line if you
       # are using apptainer-on-host instead.
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
-
-volumes:
-  fmriflow-state:
