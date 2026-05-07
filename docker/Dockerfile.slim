@@ -57,9 +57,15 @@ WORKDIR /app
 # pycortex/autoflatten.
 COPY pyproject.toml README.md ./
 COPY fmriflow/ ./fmriflow/
+# Extras: frontend (FastAPI/uvicorn), bids (nibabel), ml + himalaya
+# (sklearn — register_builtins eagerly imports models/himalaya), audio
+# (librosa), video (opencv), cloud (cottoncandy/boto3), viz (pycortex
+# + matplotlib for flatmap reporters), flatten (autoflatten).
+# nlp (transformers + torch ~2 GB) is intentionally omitted; derive
+# with `pip install fmriflow[nlp]` if you need Word2Vec/BERT/FastText.
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir heudiconv \
-    && pip install --no-cache-dir '.[frontend,bids]'
+    && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
 
 # Frontend bundle from stage 1.
 COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
