@@ -21,11 +21,13 @@ workflow:
       config: experiments/preproc/fmriprep_AN.yaml
     - stage: autoflatten
       config: experiments/autoflatten/AN.yaml
+    - stage: post_preproc
+      config: experiments/post_preproc/smooth_AN.yaml
     - stage: analysis
       config: experiments/mkr_AN.yaml
 ```
 
-- `stages[].stage` must be one of `convert`, `preproc`, `autoflatten`, `analysis`.
+- `stages[].stage` must be one of `convert`, `preproc`, `autoflatten`, `post_preproc`, `analysis`.
 - `stages[].config` is a path to an existing stage YAML. Relative paths resolve against the workflow YAML's parent dir first, then against the server's cwd.
 - Stages run **in list order**, one at a time, stop-on-first-failure.
 - You can omit any stage — a workflow can be just `preproc → analysis` if convert isn't needed.
@@ -37,6 +39,7 @@ The workflow config store scans `./experiments/workflows/`. Same pattern as the 
 - `./experiments/preproc/`
 - `./experiments/convert/`
 - `./experiments/autoflatten/`
+- `./experiments/post_preproc/` — see [Post-preproc stage YAML](post-preproc.md#use-as-a-workflow-stage)
 - `./experiments/workflows/` — **this page**
 
 ## Running
@@ -74,6 +77,130 @@ curl http://localhost:8000/api/workflows/runs/workflow_abc123def456
 # Cancel (SIGTERM to the current stage's child subprocess via the stage manager)
 curl -X POST http://localhost:8000/api/workflows/runs/workflow_abc123def456/cancel
 ```
+
+### Structural QC drill-in (Preproc stage)
+
+Once the Preproc stage finishes (`status: done`), the Preproc block
+gains a **Structural QC →** button. Clicking it opens the same
+reviewer panel that lives under the Preproc-manager manifest detail
+view, in a modal: fmriprep report, niivue T1 + pial viewer,
+Approve / Needs edits / Rejected status, and the *Copy freeview
+command* fallback. The modal looks up the subject from the
+preproc child run's summary, so it works whether the workflow ran
+to completion just now or hours ago.
+
+Manifest discovery: the panel relies on the Preproc manager
+finding the subject's manifest. The manager scans both:
+
+1. The configured `--derivatives-dir` (default `./derivatives`).
+2. The output dirs of every completed preproc run on the run
+   registry — so manifests written outside the configured
+   derivatives root (e.g. under `./testing/<study>/...`) are
+   discovered automatically without restarting the server.
+
+### Live nipype-node monitoring (Preproc stage)
+
+When the Preproc stage runs **fmriprep**, the Workflows view tails its
+stdout for nipype's `[Node]` lines and surfaces a per-node status
+strip under the Preproc block. Each node renders as a small pill
+colored by status (cyan = running, green = ok, red = failed) and
+grouped by the top two segments of its workflow path
+(`fmriprep_wf.bold_preproc_wf`, `fmriprep_wf.sdc_estimate_wf`, …).
+
+The strip is **default-collapsed** with a one-line summary
+(`3 running / 47 done / 1 failed · 51 seen`); click the chevron to
+expand. Hovering a pill shows the full dotted node path and elapsed
+seconds.
+
+Behind the scenes:
+
+- `_LogTailer` already streams stdout line by line. Each line is
+  also fed to a small stateful parser
+  (`fmriflow/preproc/nipype_log.py::NipypeLogParser`) that emits
+  `node_start`, `node_done`, `node_fail` events.
+- Events are appended to
+  `~/.fmriflow/runs/{run_id}/nipype_events.jsonl`.
+- The frontend polls
+  `GET /api/preproc/runs/{run_id}/live` every 2 s while the stage
+  is running; the response includes a `nipype_status` block built
+  by re-parsing the JSONL.
+- The JSONL on disk is the source of truth, so the strip
+  rehydrates after a server restart / detach-reattach.
+
+This is **log-tailing only** — no fmriprep monkey-patching, no nipype
+plugin shim. If the log format ever drifts, unmatched lines are
+dropped and the rest of the strip keeps working. A richer
+status-callback shim is sketched in
+`devdocs/proposals/frontend/live-fmriprep-node-monitoring.md` as a
+future v2.
+
+##### Status reconciliation: `completed_assumed`
+
+fmriprep's nipype prints the full dotted path on `[Node] Setting-up`
+but only the leaf on `[Node] Finished`. The strip pairs them with a
+per-leaf FIFO queue at parse time, and when the parent preproc run
+finishes (`state.json: status=done`) any node we never saw a terminal
+log line for is flipped to **`completed_assumed`** (rendered in a
+softer green with an `N assumed` count). Failed/cancelled runs leave
+the orphans as `running` so the failure context is preserved.
+
+Old runs from before the parser fix shipped can have their JSONL
+backfilled in place::
+
+    python scripts/backfill_nipype_events.py [--dry-run] PATH
+
+`PATH` is either the JSONL itself or a directory tree to walk; a
+`.bak` sidecar is written next to each rewritten file.
+
+#### Drill into a node's outputs
+
+**Click a leaf** in the live DAG to open a side drawer with that
+node's `work_dir` contents. fmriprep typically drops a handful of
+files per leaf — `command.txt`, `_inputs.pklz`, `_node.pklz`,
+`result_<leaf>.pklz`, intermediate NIfTIs, and any logs.
+
+The drawer renders each file by type:
+
+- `*.nii.gz`, `*.mgz` → niivue 3D viewer
+- `*.json`, `*.tsv`, `*.csv`, `*.txt`, `*.log`, `*.rst`,
+  `*.cfg` → inline `<pre>` (JSON pretty-printed)
+- `*.svg`, `*.png`, `*.jpg`, etc. → inline image
+- `*.html` → iframe
+- `*.pkl`, `*.pklz` → server-side `pickle.load` + JSON-safe
+  rendering. fmriprep's `result_*.pklz` files reference paths
+  inside the singularity container that don't exist on the host —
+  if pickle resurrection fails for that reason, the drawer shows
+  the error message; the file is still on disk.
+- Anything else → "Copy path" button
+
+Failed nodes also surface their `crash-*.txt` files at the top of
+the drawer (discovered under
+`{output_dir}/sub-{subject}/log/<ts>/crash-*` regardless of
+timestamp). API endpoints behind the drawer:
+
+- `GET /api/preproc/runs/{run_id}/node/{node_path:path}/files`
+  — list whitelisted artefacts + matching crash files.
+- `GET /api/preproc/runs/{run_id}/node/{node_path:path}/file?rel=…`
+  — serve a single file (suffix-whitelisted, safe-join).
+- `GET /api/preproc/runs/{run_id}/node/{node_path:path}/pickle?rel=…`
+  — load and JSON-encode a pickle.
+
+#### Drill-in: the live nipype DAG
+
+**Double-click** the Preproc block (when its strip has at least one
+node) to open a full-screen ReactFlow view of the live nipype graph,
+laid out top-to-bottom by `dagre`. Each leaf is a real nipype node
+(colored by status, with elapsed seconds); each parent is a virtual
+summary box for a sub-workflow that rolls up `running / done / failed`
+counts of its descendants.
+
+The modal polls the same `/api/preproc/runs/{run_id}/live` endpoint as
+the strip and re-lays out on each refresh. Once the run finishes, the
+DAG remains viewable from the saved JSONL — useful for postmortems on
+failed runs ("which sub-workflow blew up?"). v1 derives the DAG from
+the dotted node paths nipype prints, not from a real dependency graph
+— so it shows hierarchy, not data flow. A real-DAG view requires the
+status-callback shim in v2.
 
 ## How orchestration works
 

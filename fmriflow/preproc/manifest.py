@@ -80,6 +80,9 @@ class PreprocManifest:
     pipeline_version: str | None = None
     checksum: str | None = None
 
+    # FreeSurfer outputs (location of SUBJECTS_DIR if backend produced one)
+    freesurfer_subjects_dir: str | None = None
+
     # Post-step outputs
     autoflatten: dict[str, Any] | None = None
 

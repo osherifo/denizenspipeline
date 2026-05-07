@@ -1,17 +1,19 @@
 /** ReactFlow graph for a single workflow run — one node per stage. */
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
   Handle,
   Position,
+  useNodesState,
   type Node,
   type Edge,
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { WorkflowStageStatus } from '../../api/types'
+import { InnerNodesStrip } from './InnerNodesStrip'
 
 // ── Stage metadata ──────────────────────────────────────────────────────
 
@@ -19,6 +21,7 @@ const STAGE_META: Record<string, { color: string; icon: string; label: string }>
   convert:     { color: '#3b82f6', icon: '\u{1F504}', label: 'Convert' },
   preproc:     { color: '#10b981', icon: '\u{2699}',  label: 'Preproc' },
   autoflatten: { color: '#14b8a6', icon: '\u{1F9E0}', label: 'Autoflatten' },
+  post_preproc:{ color: '#10b981', icon: '\u{1F300}', label: 'Post-preproc' },
   analysis:    { color: '#ef4444', icon: '\u{1F4CA}', label: 'Analysis' },
 }
 
@@ -45,6 +48,8 @@ type StageNodeData = WorkflowStageStatus & {
   index: number
   isFirst: boolean
   isLast: boolean
+  onOpenNipypeDag?: () => void
+  onOpenStructuralQC?: () => void
 }
 
 const nodeBase: CSSProperties = {
@@ -175,6 +180,41 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
         <InnerStagesStrip inner={data.inner_stages} />
       )}
 
+      {data.stage === 'preproc' && data.nipype_status &&
+        data.nipype_status.counts.total_seen > 0 && (
+          <InnerNodesStrip
+            block={data.nipype_status}
+            onOpenDag={data.onOpenNipypeDag}
+          />
+        )}
+
+      {data.stage === 'preproc' && data.status === 'done' &&
+        data.onOpenStructuralQC && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                data.onOpenStructuralQC?.()
+              }}
+              style={{
+                padding: '4px 10px',
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 0.5,
+                borderRadius: 4,
+                background: `${meta.color}33`,
+                color: meta.color,
+                border: `1px solid ${meta.color}88`,
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+              }}
+            >
+              Structural QC →
+            </button>
+          </div>
+        )}
+
       {clickable && (
         <div style={{
           fontSize: 9, color: meta.color, marginTop: 6,
@@ -282,9 +322,14 @@ const GRAPH_STYLE: CSSProperties = {
 }
 
 const NODE_SPACING_X = 280
+const NODE_GAP_X = 60
 const NODE_Y = 40
 
-function buildGraph(stages: WorkflowStageStatus[]): { nodes: Node[]; edges: Edge[] } {
+function buildGraph(
+  stages: WorkflowStageStatus[],
+  onOpenNipypeDag?: (stage: WorkflowStageStatus) => void,
+  onOpenStructuralQC?: (stage: WorkflowStageStatus) => void,
+): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = stages.map((s, i) => ({
     id: `stage-${i}-${s.stage}`,
     type: 'workflowStage',
@@ -294,6 +339,14 @@ function buildGraph(stages: WorkflowStageStatus[]): { nodes: Node[]; edges: Edge
       index: i,
       isFirst: i === 0,
       isLast: i === stages.length - 1,
+      onOpenNipypeDag:
+        s.stage === 'preproc' && onOpenNipypeDag
+          ? () => onOpenNipypeDag(s)
+          : undefined,
+      onOpenStructuralQC:
+        s.stage === 'preproc' && onOpenStructuralQC
+          ? () => onOpenStructuralQC(s)
+          : undefined,
     },
     draggable: false,
     selectable: false,
@@ -317,7 +370,7 @@ function buildGraph(stages: WorkflowStageStatus[]): { nodes: Node[]; edges: Edge
       id: `edge-${i}`,
       source: `stage-${i}-${from.stage}`,
       target: `stage-${i + 1}-${to.stage}`,
-      type: 'smoothstep',
+      type: 'straight',
       animated: fromDone && toActive,
       style: { stroke, strokeWidth: fromDone ? 2 : 1.5 },
     })
@@ -329,10 +382,25 @@ interface WorkflowGraphProps {
   stages: WorkflowStageStatus[]
   height?: number
   onStageClick?: (stage: WorkflowStageStatus) => void
+  onStageDoubleClick?: (stage: WorkflowStageStatus) => void
+  onOpenNipypeDag?: (stage: WorkflowStageStatus) => void
+  onOpenStructuralQC?: (stage: WorkflowStageStatus) => void
 }
 
-export function WorkflowGraph({ stages, height = 220, onStageClick }: WorkflowGraphProps) {
-  const { nodes, edges } = useMemo(() => buildGraph(stages), [stages])
+export function WorkflowGraph(
+  {
+    stages,
+    height = 220,
+    onStageClick,
+    onStageDoubleClick,
+    onOpenNipypeDag,
+    onOpenStructuralQC,
+  }: WorkflowGraphProps,
+) {
+  const { nodes, edges } = useMemo(
+    () => buildGraph(stages, onOpenNipypeDag, onOpenStructuralQC),
+    [stages, onOpenNipypeDag, onOpenStructuralQC],
+  )
   if (!stages.length) return null
 
   return (
@@ -344,28 +412,100 @@ export function WorkflowGraph({ stages, height = 220, onStageClick }: WorkflowGr
         }
       `}</style>
       <ReactFlowProvider>
-        <ReactFlow
-          nodes={nodes}
+        <_WorkflowGraphInner
+          initialNodes={nodes}
           edges={edges}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          panOnDrag={false}
-          zoomOnScroll={false}
-          zoomOnPinch={false}
-          zoomOnDoubleClick={false}
-          preventScrolling={false}
-          onNodeClick={(_e, node) => {
-            if (!onStageClick) return
-            const data = node.data as unknown as StageNodeData
-            onStageClick(data)
-          }}
-          proOptions={{ hideAttribution: true }}
+          onStageClick={onStageClick}
+          onStageDoubleClick={onStageDoubleClick}
         />
       </ReactFlowProvider>
     </div>
+  )
+}
+
+
+function _WorkflowGraphInner({
+  initialNodes,
+  edges,
+  onStageClick,
+  onStageDoubleClick,
+}: {
+  initialNodes: Node[]
+  edges: Edge[]
+  onStageClick?: (stage: WorkflowStageStatus) => void
+  onStageDoubleClick?: (stage: WorkflowStageStatus) => void
+}) {
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
+  const lastSig = useRef('')
+
+  // Resync when parent rebuilds the graph (live status updates).
+  useEffect(() => {
+    setNodes(initialNodes)
+    lastSig.current = ''
+  }, [initialNodes, setNodes])
+
+  // After xyflow measures each card, recompute x AND y from the
+  // measured sizes:
+  //   • x packs cards left-to-right with a constant gap, so wider
+  //     cards push the next one over and never overlap.
+  //   • y centers each card on a shared horizontal axis so their
+  //     handles line up → edges draw as straight horizontal lines.
+  useEffect(() => {
+    if (nodes.length === 0) return
+    const dims = nodes.map((n) => {
+      const m = (n as Node & {
+        measured?: { width?: number; height?: number }
+      }).measured
+      return {
+        w: m?.width && m.width > 0 ? m.width : 0,
+        h: m?.height && m.height > 0 ? m.height : 0,
+      }
+    })
+    if (dims.some((d) => d.w === 0 || d.h === 0)) return
+    const sig = dims.map((d) => `${d.w}x${d.h}`).join(',')
+    if (sig === lastSig.current) return
+    lastSig.current = sig
+
+    const maxH = Math.max(...dims.map((d) => d.h))
+    const centerY = NODE_Y + maxH / 2
+    let cursor = 0
+    const repositioned = nodes.map((n, i) => {
+      const x = cursor
+      const y = centerY - dims[i].h / 2
+      cursor += dims[i].w + NODE_GAP_X
+      if (n.position.x === x && n.position.y === y) return n
+      return { ...n, position: { x, y } }
+    })
+    if (repositioned.some((n, i) => n !== nodes[i])) setNodes(repositioned)
+  }, [nodes, setNodes])
+
+  return (
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      nodeTypes={nodeTypes}
+      fitView
+      fitViewOptions={{ padding: 0.2 }}
+      nodesDraggable={false}
+      nodesConnectable={false}
+      elementsSelectable={false}
+      panOnDrag={false}
+      zoomOnScroll={false}
+      zoomOnPinch={false}
+      zoomOnDoubleClick={false}
+      preventScrolling={false}
+      onNodeClick={(_e, node) => {
+        if (!onStageClick) return
+        const data = node.data as unknown as StageNodeData
+        onStageClick(data)
+      }}
+      onNodeDoubleClick={(_e, node) => {
+        if (!onStageDoubleClick) return
+        const data = node.data as unknown as StageNodeData
+        onStageDoubleClick(data)
+      }}
+      proOptions={{ hideAttribution: true }}
+    />
   )
 }

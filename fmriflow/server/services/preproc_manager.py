@@ -62,6 +62,9 @@ class PreprocRunHandle:
     is_reattached: bool = False
     config_path: str | None = None
     params: dict = field(default_factory=dict)
+    # JSONL of parsed nipype-node events, populated by _LogTailer when the
+    # backend is fmriprep. Used by /api/preproc/runs/{run_id}/live.
+    nipype_jsonl_path: str | None = None
 
     def push_event(self, event: dict) -> None:
         event.setdefault("timestamp", time.time())
@@ -89,6 +92,9 @@ class PreprocRunHandle:
             "error": self.error,
             "config_path": self.config_path,
             "log_path": self.log_path,
+            "nipype_jsonl_path": self.nipype_jsonl_path,
+            "work_dir": (self.params or {}).get("work_dir"),
+            "output_dir": (self.params or {}).get("output_dir"),
         }
 
 
@@ -119,33 +125,70 @@ class PreprocManager:
     # ── Manifest scanning ────────────────────────────────────────
 
     def scan_manifests(self) -> list[dict]:
-        """Scan derivatives dir for preproc_manifest.json files."""
+        """Scan for ``preproc_manifest.json`` files.
+
+        Two sources, deduplicated by absolute path:
+
+        1. The configured ``derivatives_dir`` (default ``./derivatives``)
+           — recursive glob.
+        2. The output_dir of every completed preproc run on the run
+           registry. Catches manifests written outside the configured
+           derivatives root (e.g. under ``./testing/<study>/...``).
+        """
         now = time.time()
         if self._manifests_cache is not None and (now - self._cache_time) < self._cache_ttl:
             return self._manifests_cache
 
-        manifests = []
-        if not self.derivatives_dir.is_dir():
-            self._manifests_cache = []
-            self._cache_time = now
-            return []
+        from fmriflow.preproc.manifest import PreprocManifest
 
-        for mf in sorted(self.derivatives_dir.rglob("preproc_manifest.json")):
+        seen: set[str] = set()
+        manifests: list[dict] = []
+
+        def _add(mf: Path) -> None:
+            ap = str(mf.resolve())
+            if ap in seen:
+                return
+            seen.add(ap)
             try:
-                from fmriflow.preproc.manifest import PreprocManifest
                 m = PreprocManifest.from_json(mf)
-                manifests.append({
-                    "subject": m.subject,
-                    "path": str(mf),
-                    "backend": m.backend,
-                    "backend_version": m.backend_version,
-                    "space": m.space,
-                    "n_runs": len(m.runs),
-                    "created": m.created,
-                    "dataset": m.dataset,
-                })
             except Exception:
                 logger.warning("Could not read manifest: %s", mf, exc_info=True)
+                return
+            manifests.append({
+                "subject": m.subject,
+                "path": ap,
+                "backend": m.backend,
+                "backend_version": m.backend_version,
+                "space": m.space,
+                "n_runs": len(m.runs),
+                "created": m.created,
+                "dataset": m.dataset,
+            })
+
+        if self.derivatives_dir.is_dir():
+            for mf in sorted(self.derivatives_dir.rglob("preproc_manifest.json")):
+                _add(mf)
+
+        # Also pick up manifests recorded by the run registry — covers
+        # output_dirs outside the configured derivatives root.
+        try:
+            for state in self.registry.list_all():
+                if state.kind != "preproc" or state.status != "done":
+                    continue
+                # First preference: explicit manifest_path on the state.
+                if state.manifest_path:
+                    p = Path(state.manifest_path)
+                    if p.is_file():
+                        _add(p)
+                        continue
+                # Fallback: derive from output_dir + subject.
+                out = (state.params or {}).get("output_dir") if state.params else None
+                if out:
+                    p = Path(out) / f"sub-{state.subject}" / "preproc_manifest.json"
+                    if p.is_file():
+                        _add(p)
+        except Exception:
+            logger.warning("Could not scan run registry for manifests", exc_info=True)
 
         self._manifests_cache = manifests
         self._cache_time = now
@@ -250,6 +293,11 @@ class PreprocManager:
         )
         self.registry.register(state)
         handle.log_path = state.stdout_log
+        # Sibling JSONL for parsed nipype-node events (only fmriprep populates it).
+        if params.get("backend") == "fmriprep":
+            handle.nipype_jsonl_path = str(
+                Path(state.stdout_log).parent / "nipype_events.jsonl"
+            )
 
         self.active_runs[run_id] = handle
 
@@ -363,10 +411,14 @@ class PreprocManager:
                         exc_info=True,
                     )
 
+            nipype_jsonl_path = (
+                Path(handle.nipype_jsonl_path) if handle.nipype_jsonl_path else None
+            )
             tailer = _LogTailer(
                 log_path, handle,
                 stop_when=lambda: proc.poll() is not None,
                 on_fatal_line=_sigterm_proc_group,
+                nipype_jsonl_path=nipype_jsonl_path,
             )
             tailer.start()
 
@@ -532,6 +584,10 @@ class PreprocManager:
                 config_path=state.config_path,
                 params=state.params,
             )
+            if state.backend == "fmriprep" and state.stdout_log:
+                handle.nipype_jsonl_path = str(
+                    Path(state.stdout_log).parent / "nipype_events.jsonl"
+                )
             self.active_runs[state.run_id] = handle
 
             monitor = _ReattachedMonitor(handle, self, state)
@@ -594,9 +650,18 @@ class PreprocManager:
                 "error": state.error,
                 "config_path": state.config_path,
                 "log_path": state.stdout_log,
+                "work_dir": (state.params or {}).get("work_dir"),
+                "output_dir": (state.params or {}).get("output_dir"),
             }
         log_path = summary.get("log_path")
         summary["log_tail"] = _read_tail(log_path, n=200) if log_path else ""
+        # Derive nipype_jsonl_path from the log path on the registry-fallback
+        # branch — it's not persisted in state.json, but the JSONL always
+        # lives next to stdout.log when fmriprep wrote one.
+        if not summary.get("nipype_jsonl_path") and log_path:
+            candidate = Path(log_path).parent / "nipype_events.jsonl"
+            if candidate.is_file():
+                summary["nipype_jsonl_path"] = str(candidate)
         return summary
 
     def delete_run(self, run_id: str) -> dict:
@@ -816,6 +881,7 @@ class _LogTailer(threading.Thread):
         stop_when,
         poll_interval: float = 0.5,
         on_fatal_line=None,
+        nipype_jsonl_path: Path | None = None,
     ):
         super().__init__(daemon=True, name=f"tail-{handle.run_id}")
         self.log_path = log_path
@@ -825,6 +891,13 @@ class _LogTailer(threading.Thread):
         self._stop_flag = threading.Event()
         self._on_fatal_line = on_fatal_line
         self._fatal_fired = False
+        # Optional nipype log parsing (only meaningful for fmriprep stdout).
+        self._nipype_jsonl_path = nipype_jsonl_path
+        if nipype_jsonl_path is not None:
+            from fmriflow.preproc.nipype_log import NipypeLogParser
+            self._nipype_parser: object | None = NipypeLogParser()
+        else:
+            self._nipype_parser = None
 
     def run(self) -> None:
         # Wait briefly for the file to exist
@@ -856,6 +929,20 @@ class _LogTailer(threading.Thread):
 
     def _emit(self, line: str) -> None:
         self.handle.push_event({"event": "log", "message": line})
+
+        # Parse nipype lines (cheap; one regex check per line) and persist.
+        if self._nipype_parser is not None and self._nipype_jsonl_path is not None:
+            try:
+                from fmriflow.preproc.nipype_log import append_jsonl
+                for ev in self._nipype_parser.feed(line):
+                    append_jsonl(self._nipype_jsonl_path, ev)
+                    # Also push to in-memory event queue for any live consumers.
+                    self.handle.push_event(ev)
+            except Exception:
+                # Never let log parsing kill the tailer.
+                logger.debug(
+                    "nipype log parser raised", exc_info=True,
+                )
 
         if not self._fatal_fired and self._on_fatal_line is not None:
             for marker in self._FATAL_MARKERS:
@@ -926,10 +1013,15 @@ class _ReattachedMonitor:
 
         tailer = None
         if log_path and log_path.is_file():
+            nipype_jsonl_path = (
+                Path(self.handle.nipype_jsonl_path)
+                if self.handle.nipype_jsonl_path else None
+            )
             tailer = _LogTailer(
                 log_path, self.handle,
                 stop_when=stop_when,
                 on_fatal_line=_sigterm_proc_group,
+                nipype_jsonl_path=nipype_jsonl_path,
             )
             tailer.start()
 

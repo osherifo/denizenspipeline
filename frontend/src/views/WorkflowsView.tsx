@@ -16,10 +16,14 @@ import {
   cancelWorkflowRun,
   deleteWorkflowRun,
   fetchInFlightRun,
+  fetchPreprocRunLive,
+  fetchPreprocRun,
 } from '../api/client'
-import type { AnalysisInnerStage } from '../api/types'
+import type { AnalysisInnerStage, NipypeStatusBlock } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
+import { NipypeGraphModal } from '../components/workflow/NipypeGraphModal'
+import { StructuralQCModal } from '../components/workflow/StructuralQCModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
 import { useDialog } from '../components/common/Dialog'
 
@@ -285,6 +289,9 @@ export function WorkflowsView() {
   const [selectedRun, setSelectedRun] = useState<WorkflowRunSummary | null>(null)
   const [logStage, setLogStage] = useState<{ stage: string; runId: string; subject?: string } | null>(null)
   const [analysisInner, setAnalysisInner] = useState<{ runId: string; stages: AnalysisInnerStage[] } | null>(null)
+  const [preprocNipype, setPreprocNipype] = useState<{ runId: string; block: NipypeStatusBlock } | null>(null)
+  const [nipypeGraph, setNipypeGraph] = useState<{ runId: string; isRunning: boolean } | null>(null)
+  const [structuralQC, setStructuralQC] = useState<{ subject: string } | null>(null)
   const [editing, setEditing] = useState(false)
   const [yamlDraft, setYamlDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -478,17 +485,48 @@ export function WorkflowsView() {
   }, [selectedRun?.stages.find((s) => s.stage === 'analysis')?.run_id,
       selectedRun?.stages.find((s) => s.stage === 'analysis')?.status])
 
-  // Merge fetched inner_stages onto the analysis stage before handing
-  // to WorkflowGraph so the custom node renders them inline.
+  // Fetch the preproc stage's nipype-node status while it's the active
+  // (running / done / failed) stage. Same cadence as analysis. The
+  // /live endpoint includes the parsed JSONL even after the run ends,
+  // so the strip remains populated for completed / failed runs.
+  useEffect(() => {
+    const preprocStage = selectedRun?.stages.find((s) => s.stage === 'preproc')
+    const rid = preprocStage?.run_id
+    if (!rid || !preprocStage || preprocStage.status === 'pending') {
+      setPreprocNipype(null)
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        const detail = await fetchPreprocRunLive(rid!)
+        if (!cancelled && detail.nipype_status) {
+          setPreprocNipype({ runId: rid!, block: detail.nipype_status })
+        }
+      } catch { /* ignore */ }
+    }
+    load()
+    if (preprocStage.status !== 'running') return () => { cancelled = true }
+    const id = setInterval(load, 2000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [selectedRun?.stages.find((s) => s.stage === 'preproc')?.run_id,
+      selectedRun?.stages.find((s) => s.stage === 'preproc')?.status])
+
+  // Merge fetched inner_stages and nipype_status onto their respective
+  // stages before handing to WorkflowGraph so the custom node renders
+  // them inline.
   const graphStages = useMemo(() => {
     if (!selectedRun) return []
-    if (!analysisInner) return selectedRun.stages
-    return selectedRun.stages.map((s) =>
-      s.stage === 'analysis' && s.run_id === analysisInner.runId
-        ? { ...s, inner_stages: analysisInner.stages }
-        : s,
-    )
-  }, [selectedRun, analysisInner])
+    return selectedRun.stages.map((s) => {
+      if (analysisInner && s.stage === 'analysis' && s.run_id === analysisInner.runId) {
+        return { ...s, inner_stages: analysisInner.stages }
+      }
+      if (preprocNipype && s.stage === 'preproc' && s.run_id === preprocNipype.runId) {
+        return { ...s, nipype_status: preprocNipype.block }
+      }
+      return s
+    })
+  }, [selectedRun, analysisInner, preprocNipype])
 
   const currentMeta = configs.find((c) => c.filename === selected?.filename)
 
@@ -544,6 +582,22 @@ export function WorkflowsView() {
               if (!s.run_id) return
               setLogStage({ stage: s.stage, runId: s.run_id })
             }}
+            onOpenNipypeDag={(s) => {
+              if (s.stage !== 'preproc' || !s.run_id) return
+              setNipypeGraph({
+                runId: s.run_id,
+                isRunning: s.status === 'running',
+              })
+            }}
+            onOpenStructuralQC={async (s) => {
+              if (s.stage !== 'preproc' || !s.run_id) return
+              try {
+                const detail = await fetchPreprocRun(s.run_id)
+                setStructuralQC({ subject: detail.subject })
+              } catch (e) {
+                alert(`Could not load preproc run: ${e}`)
+              }
+            }}
           />
           <LiveStageLog
             stages={selectedRun.stages}
@@ -558,6 +612,21 @@ export function WorkflowsView() {
           runId={logStage.runId}
           subjectHint={logStage.subject}
           onClose={() => setLogStage(null)}
+        />
+      )}
+
+      {nipypeGraph && (
+        <NipypeGraphModal
+          runId={nipypeGraph.runId}
+          isRunning={nipypeGraph.isRunning}
+          onClose={() => setNipypeGraph(null)}
+        />
+      )}
+
+      {structuralQC && (
+        <StructuralQCModal
+          subject={structuralQC.subject}
+          onClose={() => setStructuralQC(null)}
         />
       )}
 

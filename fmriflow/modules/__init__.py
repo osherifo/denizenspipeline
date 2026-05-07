@@ -63,3 +63,9 @@ def register_builtins(registry):
     import fmriflow.modules.reporters.weights  # noqa: F401
     import fmriflow.modules.reporters.histogram  # noqa: F401
     import fmriflow.modules.reporters.webgl  # noqa: F401
+
+    # Post-fmriprep nipype-style nodes
+    import fmriflow.modules.nipype_nodes.source  # noqa: F401
+    import fmriflow.modules.nipype_nodes.smooth  # noqa: F401
+    import fmriflow.modules.nipype_nodes.mask_apply  # noqa: F401
+    import fmriflow.modules.nipype_nodes.subworkflow  # noqa: F401

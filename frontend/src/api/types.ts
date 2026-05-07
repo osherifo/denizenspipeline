@@ -346,6 +346,9 @@ export interface WorkflowStageStatus {
   // inner-stage progression (stimuli / responses / features / prepare /
   // model / analyze / report).
   inner_stages?: AnalysisInnerStage[]
+  // Populated client-side for the preproc stage when fmriprep is the
+  // backend; the parent view polls /preproc/runs/{run_id}/live.
+  nipype_status?: NipypeStatusBlock
 }
 
 export interface WorkflowRunSummary {
@@ -660,4 +663,162 @@ export interface NewErrorFromCaptureResult {
   filename: string
   path: string
   proposed_dir: string
+}
+
+// ── Live nipype-node monitoring ───────────────────────────────────
+
+export type NipypeNodeStatusKind =
+  | 'running' | 'ok' | 'failed' | 'completed_assumed' | 'cached'
+
+export interface NipypeWorkTree {
+  work_dir: string | null
+  leaves: string[]
+}
+
+export interface NipypeNodeStatus {
+  node: string        // full dotted path
+  leaf: string        // last segment
+  workflow: string    // parent workflow path
+  status: NipypeNodeStatusKind
+  started_at: number
+  finished_at: number
+  elapsed: number
+  crash_file: string | null
+  level: string
+}
+
+export interface NipypeStatusCounts {
+  running: number
+  ok: number
+  failed: number
+  completed_assumed: number
+  total_seen: number
+}
+
+export interface NipypeStatusBlock {
+  counts: NipypeStatusCounts
+  recent_nodes: NipypeNodeStatus[]
+}
+
+export interface PreprocRunLive extends PreprocRunSummary {
+  nipype_status: NipypeStatusBlock
+}
+
+// ── Structural QC ────────────────────────────────────────────────
+
+export type StructuralQCStatus = "pending" | "approved" | "needs_edits" | "rejected"
+
+export interface StructuralQCReview {
+  dataset: string
+  subject: string
+  status: StructuralQCStatus
+  reviewer: string
+  timestamp: string
+  notes: string
+  freeview_command_used: string | null
+}
+
+// ── Post-preproc ─────────────────────────────────────────────────
+
+export interface NipypeNodeMeta {
+  name: string
+  docstring: string
+  inputs: string[]
+  outputs: string[]
+  params: ParamSchema
+}
+
+export interface PostPreprocGraphNode {
+  id: string
+  type: string
+  data: { params: Record<string, unknown> }
+  position: { x: number; y: number }
+}
+
+export interface PostPreprocGraphEdge {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string
+  targetHandle?: string
+}
+
+export interface PostPreprocGraph {
+  nodes: PostPreprocGraphNode[]
+  edges: PostPreprocGraphEdge[]
+}
+
+export interface PostPreprocRunHandle {
+  run_id: string
+  status: 'pending' | 'running' | 'done' | 'failed'
+  output_dir: string
+  error?: string | null
+  manifest?: PostPreprocManifest | null
+}
+
+export interface PostPreprocManifest {
+  subject: string
+  dataset: string
+  source_manifest_path: string
+  graph: PostPreprocGraph
+  nodes_run: Array<{
+    node_id: string
+    node_type: string
+    params: Record<string, unknown>
+    inputs: Record<string, string>
+    outputs: Record<string, string>
+    duration_s: number | null
+  }>
+  output_dir: string
+  created: string
+  manifest_version: number
+}
+
+// ── Post-preproc workflows (saved YAML) ───────────────────────────
+
+export interface PostPreprocWorkflowSummary {
+  name: string
+  description: string
+  inputs: string[]
+  outputs: string[]
+  n_nodes: number
+}
+
+export interface PostPreprocWorkflow {
+  name: string
+  description: string
+  inputs: Record<string, { from: string }>
+  outputs: Record<string, { from: string }>
+  graph: PostPreprocGraph
+}
+
+// ── Per-node fmriprep outputs ────────────────────────────────────
+
+export interface NodeOutputFile {
+  name: string
+  rel: string
+  suffix: string
+  size: number
+  kind: 'view' | 'pickle' | 'link'
+}
+
+export interface NodeOutputCrash {
+  name: string
+  path: string
+  size: number
+}
+
+export interface NodeOutputsList {
+  node: string
+  leaf_dir: string
+  exists: boolean
+  files: NodeOutputFile[]
+  crashes: NodeOutputCrash[]
+}
+
+export interface NodePickleResponse {
+  name: string
+  type?: string
+  value?: unknown
+  error?: string
 }

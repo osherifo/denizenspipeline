@@ -487,6 +487,14 @@ export async function fetchPreprocRun(runId: string): Promise<PreprocRunSummary>
   return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}`)
 }
 
+export async function fetchPreprocRunLive(
+  runId: string, cap: number = 200,
+): Promise<import('./types').PreprocRunLive> {
+  return json(
+    `${BASE}/preproc/runs/${encodeURIComponent(runId)}/live?cap=${cap}`,
+  )
+}
+
 export async function cancelPreprocRun(runId: string): Promise<{ cancelled: boolean }> {
   return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}/cancel`, {
     method: 'POST',

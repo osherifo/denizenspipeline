@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { useGraphStore, isValidConnection, TEMPLATES } from '../stores/graph-store'
+import { useGraphStore, isValidConnection, TEMPLATES, measuredSignature } from '../stores/graph-store'
 import { nodeTypes } from '../components/graph/StageNode'
 import { NodeDetailPanel } from '../components/graph/NodeDetailPanel'
 import { NodePalette } from '../components/graph/NodePalette'
@@ -214,6 +214,24 @@ export function PipelineGraph() {
   const [template, setTemplate] = useState('')
   const [showYaml, setShowYaml] = useState(true)
   const applyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastLayoutSig = useRef<string>('')
+
+  // Once xyflow has measured each node's real DOM size (its `measured`
+  // field), re-run dagre with those sizes so visually larger nodes
+  // get proportional spacing. Guarded by a signature so we only fire
+  // when measurements actually change.
+  useEffect(() => {
+    if (nodes.length === 0) return
+    const sig = measuredSignature(nodes)
+    if (sig === lastLayoutSig.current) return
+    const allMeasured = nodes.every((n) => {
+      const m = (n as { measured?: { width?: number; height?: number } }).measured
+      return m?.width && m.height
+    })
+    if (!allMeasured) return
+    lastLayoutSig.current = sig
+    relayout()
+  }, [nodes, relayout])
 
   // Load default template on first mount if graph is empty
   useEffect(() => {

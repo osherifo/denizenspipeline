@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import type { ManifestDetail as ManifestDetailType } from '../../api/types'
 import { usePreprocStore } from '../../stores/preproc-store'
 import { QcBadge } from './QcBadge'
+import { StructuralQCPanel } from './StructuralQCPanel'
 
 interface Props {
   manifest: ManifestDetailType
@@ -186,6 +187,9 @@ export function ManifestDetail({ manifest }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* Structural QC */}
+      <StructuralQCPanel subject={manifest.subject} />
 
       {/* Validation */}
       <div style={sectionLabel}>Validation</div>
