@@ -14,10 +14,17 @@ from fmriflow.server.services.run_store import RunStore
 from fmriflow.server.services.run_manager import RunManager
 from fmriflow.server.services.module_loader import discover_user_modules
 from fmriflow.server.services.config_store import ConfigStore
+from fmriflow.server.services.preproc_config_store import PreprocConfigStore
 from fmriflow.server.services.preproc_manager import PreprocManager
 from fmriflow.server.services.convert_manager import ConvertManager
 from fmriflow.server.services.convert_config_store import ConvertConfigStore
 from fmriflow.server.services.autoflatten_manager import AutoflattenManager
+from fmriflow.server.services.autoflatten_config_store import AutoflattenConfigStore
+from fmriflow.server.services.workflow_manager import WorkflowManager
+from fmriflow.server.services.workflow_config_store import WorkflowConfigStore
+from fmriflow.server.services.structural_qc_store import StructuralQCStore
+from fmriflow.server.services.post_preproc_manager import PostPreprocManager
+from fmriflow.server.services.post_preproc_workflow_store import PostPreprocWorkflowStore
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +33,10 @@ def create_app(
     results_dir: str = './results',
     modules_dir: str | None = None,
     configs_dir: str = './experiments',
+    preproc_configs_dir: str = './experiments/preproc',
+    convert_configs_dir: str = './experiments/convert',
+    autoflatten_configs_dir: str = './experiments/autoflatten',
+    workflow_configs_dir: str = './experiments/workflows',
     derivatives_dir: str = './derivatives',
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
@@ -57,19 +68,48 @@ def create_app(
     run_store = RunStore(Path(results_dir))
     run_manager = RunManager()
     config_store = ConfigStore(Path(configs_dir))
+    preproc_config_store = PreprocConfigStore(Path(preproc_configs_dir))
     preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
-    convert_config_store = ConvertConfigStore()
+    convert_config_store = ConvertConfigStore(Path(convert_configs_dir))
     autoflatten_manager = AutoflattenManager()
+    autoflatten_config_store = AutoflattenConfigStore(Path(autoflatten_configs_dir))
+    workflow_config_store = WorkflowConfigStore(Path(workflow_configs_dir))
+    workflow_manager = WorkflowManager()
+    structural_qc_store = StructuralQCStore(
+        Path.home() / ".fmriflow" / "structural_qc"
+    )
+    post_preproc_manager = PostPreprocManager()
+    post_preproc_workflow_store = PostPreprocWorkflowStore(
+        Path.home() / ".fmriflow" / "post_preproc_workflows"
+    )
+    post_preproc_manager.bind_dependencies(
+        registry=registry,
+        workflow_store=post_preproc_workflow_store,
+    )
+    workflow_manager.bind_stage_managers(
+        convert=convert_manager,
+        preproc=preproc_manager,
+        autoflatten=autoflatten_manager,
+        post_preproc=post_preproc_manager,
+        analysis=run_manager,
+    )
 
     app.state.registry = registry
     app.state.run_store = run_store
     app.state.run_manager = run_manager
     app.state.config_store = config_store
+    app.state.preproc_config_store = preproc_config_store
     app.state.preproc_manager = preproc_manager
     app.state.convert_manager = convert_manager
     app.state.convert_config_store = convert_config_store
     app.state.autoflatten_manager = autoflatten_manager
+    app.state.autoflatten_config_store = autoflatten_config_store
+    app.state.workflow_config_store = workflow_config_store
+    app.state.workflow_manager = workflow_manager
+    app.state.structural_qc_store = structural_qc_store
+    app.state.post_preproc_manager = post_preproc_manager
+    app.state.post_preproc_workflow_store = post_preproc_workflow_store
 
     # API routes
     from fmriflow.server.routes.modules import router as module_router
@@ -82,6 +122,11 @@ def create_app(
     from fmriflow.server.routes.convert import router as convert_router
     from fmriflow.server.routes.errors import router as errors_router
     from fmriflow.server.routes.autoflatten import router as autoflatten_router
+    from fmriflow.server.routes.workflows import router as workflows_router
+    from fmriflow.server.routes.triage import router as triage_router
+    from fmriflow.server.routes.structural_qc import router as structural_qc_router
+    from fmriflow.server.routes.post_preproc import router as post_preproc_router
+    from fmriflow.server.routes.node_outputs import router as node_outputs_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -96,6 +141,15 @@ def create_app(
     app.include_router(convert_router, prefix="/api")
     app.include_router(errors_router, prefix="/api")
     app.include_router(autoflatten_router, prefix="/api")
+    app.include_router(workflows_router, prefix="/api")
+    app.include_router(triage_router, prefix="/api")
+    app.include_router(structural_qc_router, prefix="/api")
+    app.include_router(post_preproc_router, prefix="/api")
+    # `preproc_router` only handles `/preproc/runs/{run_id}` and
+    # `/preproc/runs/{run_id}/{exact-name}` (live, cancel, …), so
+    # `/preproc/runs/{run_id}/node/...` does not collide with those
+    # patterns. Include order does not affect matching here.
+    app.include_router(node_outputs_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

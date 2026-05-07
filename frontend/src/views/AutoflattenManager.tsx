@@ -4,25 +4,20 @@ import type { CSSProperties } from 'react'
 import { useAutoflattenStore } from '../stores/autoflatten-store'
 import { AutoflattenProgress } from '../components/autoflatten/AutoflattenProgress'
 import { FlatmapPreview } from '../components/autoflatten/FlatmapPreview'
+import { AutoflattenConfigBrowser } from '../components/autoflatten/AutoflattenConfigBrowser'
 import { fetchAutoflattenVisualizations } from '../api/client'
 
-const pageTitle: CSSProperties = {
-  fontSize: 20, fontWeight: 800, color: 'var(--text-primary)',
-  marginBottom: 4, letterSpacing: 1,
+const tabBarStyle: CSSProperties = {
+  display: 'flex', gap: 4, marginBottom: 16,
 }
-const pageDesc: CSSProperties = {
-  fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20,
-}
-const tabBar: CSSProperties = {
-  display: 'flex', gap: 0, marginBottom: 20,
-  borderBottom: '1px solid var(--border)',
-}
-const tabBtn = (active: boolean): CSSProperties => ({
-  padding: '10px 20px', fontSize: 12, fontWeight: active ? 700 : 500,
-  fontFamily: 'inherit', cursor: 'pointer', border: 'none',
-  borderBottom: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-  backgroundColor: 'transparent',
+const tabStyle = (active: boolean): CSSProperties => ({
+  padding: '8px 20px', fontSize: 12, fontWeight: 600,
+  fontFamily: 'inherit',
+  border: active ? '1px solid var(--accent-cyan)' : '1px solid var(--border)',
+  borderRadius: 6, cursor: 'pointer',
+  backgroundColor: active ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
   color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+  letterSpacing: 0.5, textTransform: 'uppercase',
 })
 const card: CSSProperties = {
   backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -70,6 +65,7 @@ const resultBox: CSSProperties = {
 
 const TABS = [
   { key: 'status' as const, label: 'Status' },
+  { key: 'configs' as const, label: 'Configs' },
   { key: 'run' as const, label: 'Run / Flatten' },
   { key: 'import' as const, label: 'Import' },
 ]
@@ -416,16 +412,15 @@ export function AutoflattenManager() {
 
   return (
     <div>
-      <div style={pageTitle}>Autoflatten</div>
-      <div style={pageDesc}>Cortical surface flattening and pycortex import</div>
-      <div style={tabBar}>
+      <div style={tabBarStyle}>
         {TABS.map((t) => (
-          <button key={t.key} style={tabBtn(tab === t.key)} onClick={() => setTab(t.key)}>
+          <button key={t.key} style={tabStyle(tab === t.key)} onClick={() => setTab(t.key)}>
             {t.label}
           </button>
         ))}
       </div>
       {tab === 'status' && <StatusTab />}
+      {tab === 'configs' && <AutoflattenConfigBrowser />}
       {tab === 'run' && <RunTab />}
       {tab === 'import' && <ImportTab />}
     </div>

@@ -30,9 +30,54 @@ async def list_runs(
     return [_summarize_run(r) for r in runs]
 
 
+# ── In-flight run endpoints (declared BEFORE /runs/{run_id} so their
+#     specific prefixes aren't shadowed by the generic path param). ──
+
+@router.get("/runs/in-flight")
+async def list_in_flight_runs(request: Request, include_finished: bool = True):
+    """List active + (optionally) recent detached pipeline runs."""
+    manager = request.app.state.run_manager
+    return {"runs": manager.list_runs(include_finished=include_finished)}
+
+
+@router.get("/runs/in-flight/{run_id}")
+async def get_in_flight_run(request: Request, run_id: str):
+    """Summary + last 200 log lines for one detached pipeline run."""
+    manager = request.app.state.run_manager
+    result = manager.get_run_live(run_id)
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    return result
+
+
+@router.post("/runs/in-flight/{run_id}/cancel")
+async def cancel_in_flight_run(request: Request, run_id: str):
+    """Cancel a running pipeline subprocess (SIGTERM → SIGKILL)."""
+    manager = request.app.state.run_manager
+    result = manager.cancel_run(run_id)
+    if not result.get("cancelled"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=409, detail=result.get("reason", "could not cancel"))
+    return result
+
+
+@router.delete("/runs/in-flight/{run_id}")
+async def delete_in_flight_run(request: Request, run_id: str):
+    """Delete a finished analysis run — registry dir + per-run output subdir."""
+    manager = request.app.state.run_manager
+    result = manager.delete_run(run_id)
+    if not result.get("deleted"):
+        from fastapi import HTTPException
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
+    return result
+
+
 @router.get("/runs/{run_id}")
 async def get_run(request: Request, run_id: str):
-    """Get full detail for a single run."""
+    """Get full detail for a single historical run."""
     store = request.app.state.run_store
     run = store.get_run(run_id)
     if run is None:

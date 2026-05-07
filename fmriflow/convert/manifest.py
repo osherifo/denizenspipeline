@@ -150,9 +150,19 @@ class ConvertManifest:
 
 @dataclass(frozen=True)
 class ConvertConfig:
-    """Configuration for a DICOM-to-BIDS conversion via heudiconv."""
+    """Configuration for a DICOM-to-BIDS conversion via heudiconv.
 
-    # Source
+    ``source_dir`` is kept as a single string for backwards compatibility
+    with callers, but accepts multiple whitespace-separated paths or a
+    YAML list (see the YAML → dict adapter in ``batch.py``). When more
+    than one path is given, all are passed to heudiconv's ``--files``,
+    which is variadic. Running T1 and BOLD from different source trees
+    in one invocation is the canonical way to avoid heudiconv's
+    ``.heudiconv/<sub>/ses-<ses>/`` cache reusing stale filegroup.json
+    from an earlier same-(subject, session) job.
+    """
+
+    # Source. A single path, or whitespace-separated multiple paths.
     source_dir: str
     subject: str
 

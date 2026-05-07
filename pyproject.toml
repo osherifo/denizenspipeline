@@ -84,3 +84,10 @@ webgl = "fmriflow.modules.reporters.webgl:WebGLReporter"
 
 [tool.hatch.build.targets.wheel]
 packages = ["fmriflow"]
+
+# Force-include the built frontend bundle. Hatch's default file
+# selection skips it in some sandboxes (e.g. docker build context
+# without a .gitignore present), even though it lives under the
+# packaged tree. force-include is unconditional.
+[tool.hatch.build.targets.wheel.force-include]
+"fmriflow/server/static" = "fmriflow/server/static"

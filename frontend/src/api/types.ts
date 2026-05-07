@@ -132,6 +132,7 @@ export interface RunEvent {
   elapsed?: number
   detail?: string
   error?: string
+  message?: string
   timestamp?: number
 }
 
@@ -192,6 +193,173 @@ export interface ConfigDetail {
   path: string
   config: Record<string, unknown>
   yaml_string: string
+}
+
+export interface PreprocConfigSummary {
+  filename: string
+  path: string
+  subject: string
+  backend: string
+  bids_dir: string
+  output_dir: string
+  container: string
+  container_type: string
+  mode: string
+}
+
+export interface PreprocConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
+export interface AutoflattenConfigSummary {
+  filename: string
+  path: string
+  subject: string
+  subjects_dir: string
+  hemispheres: string
+  backend: string
+  output_dir: string
+}
+
+export interface AutoflattenConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
+export interface PreprocRunSummary {
+  run_id: string
+  subject: string
+  backend: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  manifest_path: string | null
+  error: string | null
+  config_path: string | null
+  log_path: string | null
+  log_tail?: string
+}
+
+export interface ConvertRunSummary {
+  run_id: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  manifest_path: string | null
+  error: string | null
+  log_path: string | null
+  log_tail?: string
+}
+
+export interface AutoflattenResultPayload {
+  subject: string
+  source: 'autoflatten' | 'precomputed' | 'import_only' | string
+  hemispheres: string[]
+  flat_patches: Record<string, string>
+  visualizations: Record<string, string>
+  pycortex_surface: string | null
+  elapsed_s: number
+}
+
+export interface AutoflattenRunSummary {
+  run_id: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  error: string | null
+  log_path: string | null
+  log_tail?: string
+  result?: {
+    result?: AutoflattenResultPayload
+    record?: Record<string, unknown>
+  } | null
+  /** Backing FreeSurfer subjects dir — surfaced so the Results view
+   *  can rescan surf/ for visualization PNGs when the completed run
+   *  used the precomputed path and didn't write PNGs into result. */
+  subjects_dir?: string
+}
+
+export interface AnalysisInnerStage {
+  stage: string   // 'stimuli' | 'responses' | 'features' | 'prepare' | 'model' | 'analyze' | 'report'
+  status: 'pending' | 'running' | 'ok' | 'warning' | 'failed' | string
+  started_at: number
+  finished_at: number
+  elapsed: number
+  detail: string
+  error: string | null
+}
+
+export interface AnalysisRunSummary {
+  run_id: string
+  experiment: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  is_reattached: boolean
+  error: string | null
+  config_path: string | null
+  output_dir: string | null
+  log_path: string | null
+  log_tail?: string
+  inner_stages?: AnalysisInnerStage[]
+}
+
+export interface WorkflowConfigSummary {
+  filename: string
+  path: string
+  name: string
+  n_stages: number
+  stage_names: string[]
+}
+
+export interface WorkflowConfigDetail {
+  filename: string
+  path: string
+  config: Record<string, unknown>
+  yaml_string: string
+}
+
+export interface WorkflowStageStatus {
+  stage: 'convert' | 'preproc' | 'autoflatten' | 'analysis' | string
+  config: string
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled' | string
+  run_id: string | null
+  started_at: number
+  finished_at: number
+  error: string | null
+  // Populated client-side for the analysis stage when we've fetched its
+  // inner-stage progression (stimuli / responses / features / prepare /
+  // model / analyze / report).
+  inner_stages?: AnalysisInnerStage[]
+  // Populated client-side for the preproc stage when fmriprep is the
+  // backend; the parent view polls /preproc/runs/{run_id}/live.
+  nipype_status?: NipypeStatusBlock
+}
+
+export interface WorkflowRunSummary {
+  run_id: string
+  name: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | string
+  started_at: number
+  finished_at: number
+  error: string | null
+  config_path: string | null
+  stages: WorkflowStageStatus[]
 }
 
 export interface StageStatus {
@@ -409,6 +577,7 @@ export interface BatchJobStatus {
   error: string | null
   started_at: number
   finished_at: number
+  run_id: string | null
 }
 
 export interface BatchSummary {
@@ -429,10 +598,12 @@ export interface SavedConvertConfig {
   bids_dir: string
   n_jobs?: number
   subject?: string
+  legacy?: boolean
 }
 
 export interface SavedConvertConfigDetail {
   filename: string
+  path?: string
   config: Record<string, unknown>
   yaml_string: string
 }
@@ -451,4 +622,203 @@ export interface BatchEvent {
   failed?: number
   elapsed?: number
   [key: string]: unknown
+}
+
+// ── Triage (automatic error capture) ────────────────────────────────────
+
+export interface TriageFingerprint {
+  source: string
+  hash: string
+  snippet: string
+}
+
+export interface TriageCandidateMatch {
+  id: number
+  title: string
+  confidence: number
+  match_on: string
+  matched_fingerprint_hashes: string[]
+}
+
+export interface TriageRecord {
+  run_id: string
+  kind: string
+  stage: string
+  backend: string | null
+  captured_at: string
+  failed_at: number | null
+  symptom: string
+  traceback_tail: string
+  stdout_tail: string
+  crash_files: string[]
+  fingerprints: TriageFingerprint[]
+  candidate_matches: TriageCandidateMatch[]
+  tags: string[]
+  capture_version: number
+}
+
+export interface NewErrorFromCaptureResult {
+  saved: boolean
+  id: number
+  filename: string
+  path: string
+  proposed_dir: string
+}
+
+// ── Live nipype-node monitoring ───────────────────────────────────
+
+export type NipypeNodeStatusKind =
+  | 'running' | 'ok' | 'failed' | 'completed_assumed' | 'cached'
+
+export interface NipypeWorkTree {
+  work_dir: string | null
+  leaves: string[]
+}
+
+export interface NipypeNodeStatus {
+  node: string        // full dotted path
+  leaf: string        // last segment
+  workflow: string    // parent workflow path
+  status: NipypeNodeStatusKind
+  started_at: number
+  finished_at: number
+  elapsed: number
+  crash_file: string | null
+  level: string
+}
+
+export interface NipypeStatusCounts {
+  running: number
+  ok: number
+  failed: number
+  completed_assumed: number
+  total_seen: number
+}
+
+export interface NipypeStatusBlock {
+  counts: NipypeStatusCounts
+  recent_nodes: NipypeNodeStatus[]
+}
+
+export interface PreprocRunLive extends PreprocRunSummary {
+  nipype_status: NipypeStatusBlock
+}
+
+// ── Structural QC ────────────────────────────────────────────────
+
+export type StructuralQCStatus = "pending" | "approved" | "needs_edits" | "rejected"
+
+export interface StructuralQCReview {
+  dataset: string
+  subject: string
+  status: StructuralQCStatus
+  reviewer: string
+  timestamp: string
+  notes: string
+  freeview_command_used: string | null
+}
+
+// ── Post-preproc ─────────────────────────────────────────────────
+
+export interface NipypeNodeMeta {
+  name: string
+  docstring: string
+  inputs: string[]
+  outputs: string[]
+  params: ParamSchema
+}
+
+export interface PostPreprocGraphNode {
+  id: string
+  type: string
+  data: { params: Record<string, unknown> }
+  position: { x: number; y: number }
+}
+
+export interface PostPreprocGraphEdge {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string
+  targetHandle?: string
+}
+
+export interface PostPreprocGraph {
+  nodes: PostPreprocGraphNode[]
+  edges: PostPreprocGraphEdge[]
+}
+
+export interface PostPreprocRunHandle {
+  run_id: string
+  status: 'pending' | 'running' | 'done' | 'failed'
+  output_dir: string
+  error?: string | null
+  manifest?: PostPreprocManifest | null
+}
+
+export interface PostPreprocManifest {
+  subject: string
+  dataset: string
+  source_manifest_path: string
+  graph: PostPreprocGraph
+  nodes_run: Array<{
+    node_id: string
+    node_type: string
+    params: Record<string, unknown>
+    inputs: Record<string, string>
+    outputs: Record<string, string>
+    duration_s: number | null
+  }>
+  output_dir: string
+  created: string
+  manifest_version: number
+}
+
+// ── Post-preproc workflows (saved YAML) ───────────────────────────
+
+export interface PostPreprocWorkflowSummary {
+  name: string
+  description: string
+  inputs: string[]
+  outputs: string[]
+  n_nodes: number
+}
+
+export interface PostPreprocWorkflow {
+  name: string
+  description: string
+  inputs: Record<string, { from: string }>
+  outputs: Record<string, { from: string }>
+  graph: PostPreprocGraph
+}
+
+// ── Per-node fmriprep outputs ────────────────────────────────────
+
+export interface NodeOutputFile {
+  name: string
+  rel: string
+  suffix: string
+  size: number
+  kind: 'view' | 'pickle' | 'link'
+}
+
+export interface NodeOutputCrash {
+  name: string
+  path: string
+  size: number
+}
+
+export interface NodeOutputsList {
+  node: string
+  leaf_dir: string
+  exists: boolean
+  files: NodeOutputFile[]
+  crashes: NodeOutputCrash[]
+}
+
+export interface NodePickleResponse {
+  name: string
+  type?: string
+  value?: unknown
+  error?: string
 }

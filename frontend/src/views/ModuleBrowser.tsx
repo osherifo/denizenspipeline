@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { useModuleStore } from '../stores/module-store'
 import { ModuleCard } from '../components/modules/ModuleCard'
+import { ModuleSourceEditor } from './ModuleSourceEditor'
 import type { ModuleInfo } from '../api/types'
 
 const headerStyle: CSSProperties = {
@@ -87,6 +88,7 @@ const errorStyle: CSSProperties = {
 export function ModuleBrowser() {
   const { modules, stages, loaded, loading, error } = useModuleStore()
   const [search, setSearch] = useState('')
+  const [editing, setEditing] = useState<{ category: string; name: string } | null>(null)
 
   const filteredByStage = useMemo(() => {
     const query = search.toLowerCase().trim()
@@ -107,6 +109,16 @@ export function ModuleBrowser() {
     }
     return result
   }, [modules, search])
+
+  if (editing) {
+    return (
+      <ModuleSourceEditor
+        category={editing.category}
+        name={editing.name}
+        onBack={() => setEditing(null)}
+      />
+    )
+  }
 
   if (loading) {
     return <div style={loadingStyle}>Loading modules...</div>
@@ -159,7 +171,13 @@ export function ModuleBrowser() {
                   overflowY: stageModules.length > 3 ? 'auto' : 'visible',
                   paddingRight: stageModules.length > 3 ? 4 : 0,
                 }}>
-                  {stageModules.map((p) => <ModuleCard key={`${p.category}-${p.name}`} module={p} />)}
+                  {stageModules.map((p) => (
+                    <ModuleCard
+                      key={`${p.category}-${p.name}`}
+                      module={p}
+                      onEdit={(category, name) => setEditing({ category, name })}
+                    />
+                  ))}
                 </div>
               )}
             </div>

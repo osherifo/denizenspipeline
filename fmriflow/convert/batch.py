@@ -95,6 +95,15 @@ def parse_batch_yaml(text: str) -> BatchConfig:
         if not source_dir:
             raise ValueError(f"Job {i} missing required field 'source_dir'")
 
+        # Accept a YAML list of paths too — heudiconv's --files is
+        # variadic, and running multiple DICOM roots in ONE job avoids
+        # the .heudiconv/<sub>/ses-<ses>/ cache stomping that happens
+        # when two jobs share a (subject, session) pair. Collapse to a
+        # whitespace-separated string so downstream code doesn't need
+        # to know about list form.
+        if isinstance(source_dir, (list, tuple)):
+            source_dir = " ".join(str(p) for p in source_dir)
+
         jobs.append(BatchJobConfig(
             subject=str(j["subject"]),
             source_dir=str(source_dir),

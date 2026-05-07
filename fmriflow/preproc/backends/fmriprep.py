@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -62,35 +63,59 @@ class FmriprepBackend:
         return errors
 
     def run(self, config: PreprocConfig) -> PreprocManifest:
-        params = _parse_params(config)
-        cmd = self._build_command(config, params)
-        logger.info("Running fmriprep: %s", " ".join(cmd))
-
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
-
-        tail: list[str] = []
-        for line in proc.stdout:
-            stripped = line.rstrip()
-            logger.info("[fmriprep] %s", stripped)
-            tail.append(stripped)
-            if len(tail) > 50:
-                tail.pop(0)
+        """Blocking run — spawns fmriprep and waits. Suitable for CLI use."""
+        proc = self.spawn(config, log_path=None)
         proc.wait()
-
         if proc.returncode != 0:
-            last_output = "\n".join(tail[-20:])
             raise BackendRunError(
-                f"fmriprep exited with code {proc.returncode}\n"
-                f"Last output:\n{last_output}",
+                f"fmriprep exited with code {proc.returncode}",
                 backend="fmriprep",
                 subject=config.subject,
                 returncode=proc.returncode,
-                stderr=last_output,
+            )
+        return self.collect(config)
+
+    def spawn(
+        self,
+        config: PreprocConfig,
+        log_path: Path | str | None,
+    ) -> subprocess.Popen:
+        """Spawn fmriprep as a detached subprocess and return the Popen.
+
+        When ``log_path`` is provided, stdout+stderr are redirected directly
+        to that file so the subprocess survives the server process dying
+        (``start_new_session=True`` puts it in its own process group).
+
+        Callers are responsible for ``wait()``-ing or polling on the
+        returned process.
+        """
+        params = _parse_params(config)
+
+        # Apptainer/Singularity refuse to bind-mount a source path that does
+        # not exist on the host. Ensure output_dir and work_dir exist before
+        # launching — fmriprep would create them anyway.
+        if config.output_dir:
+            Path(config.output_dir).mkdir(parents=True, exist_ok=True)
+        if config.work_dir:
+            Path(config.work_dir).mkdir(parents=True, exist_ok=True)
+
+        cmd = self._build_command(config, params)
+        logger.info("Running fmriprep: %s", " ".join(cmd))
+
+        if log_path is not None:
+            log_fh = open(log_path, "w", buffering=1)  # line-buffered
+            return subprocess.Popen(
+                cmd,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True,
             )
 
-        return self.collect(config)
+        # No detach — stream stdout through the parent for CLI ergonomics.
+        return subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
 
     def status(self, config: PreprocConfig) -> PreprocStatus:
         output_dir = Path(config.output_dir)
@@ -186,6 +211,19 @@ class FmriprepBackend:
 
     # ── Private helpers ──────────────────────────────────────────
 
+    def _singularity_binary(self) -> str | None:
+        """Resolve the Singularity-compatible runtime binary.
+
+        Resolution order:
+        1. ``$FMRIFLOW_SINGULARITY_BIN`` env var (absolute path, if set).
+        2. ``apptainer`` on PATH (modern fork, handles current OCI images).
+        3. ``singularity`` on PATH (may be stuck on an old 2.x release).
+        """
+        override = os.environ.get("FMRIFLOW_SINGULARITY_BIN")
+        if override and Path(override).exists():
+            return override
+        return shutil.which("apptainer") or shutil.which("singularity")
+
     def _find_fmriprep(self, params: FmriprepParams) -> bool:
         """Check if fmriprep is available."""
         if params.container:
@@ -193,9 +231,11 @@ class FmriprepBackend:
                 # Docker image — either already pulled or will be pulled on run
                 return shutil.which("docker") is not None
             if params.container_type == "singularity":
+                if self._singularity_binary() is None:
+                    return False
                 # Could be a .sif path OR a docker://... URI
                 if params.container.startswith(("docker://", "library://", "shub://")):
-                    return shutil.which("singularity") is not None or shutil.which("apptainer") is not None
+                    return True
                 return Path(params.container).exists()
             # bare
             return True
@@ -232,8 +272,9 @@ class FmriprepBackend:
     ) -> list[str]:
         """Build the container invocation prefix."""
         if params.container_type == "singularity":
+            binary = self._singularity_binary() or "singularity"
             cmd = [
-                "singularity", "run", "--cleanenv",
+                binary, "run", "--cleanenv",
                 "-B", f"{config.bids_dir}:/data:ro",
                 "-B", f"{config.output_dir}:/out",
             ]

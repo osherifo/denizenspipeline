@@ -8,7 +8,19 @@ fmriflow serve
 
 Then open `http://127.0.0.1:8000` in your browser.
 
-The sidebar organizes features into three groups: **Preprocessing**, **Analysis**, and **Reference**.
+The sidebar organizes features into four groups: **Pipeline**, **Preprocessing**, **Analysis**, and **Reference**.
+
+---
+
+## Pipeline
+
+### Workflows
+
+End-to-end orchestration across all four stages (convert, preproc, autoflatten, analysis). Each workflow is a single YAML under `./experiments/workflows/` that references existing per-stage configs. Clicking Run kicks off the stages in order, stopping on the first failure; each stage's child run inherits its own detach/reattach semantics. See the dedicated [Workflows guide](workflows.md) for the schema, orchestration semantics, and API.
+
+### Pipeline Graph
+
+Visual representation of the pipeline's stage graph. See the [Pipeline Graph](pipeline-graph.md) guide for details.
 
 ---
 
@@ -16,7 +28,7 @@ The sidebar organizes features into three groups: **Preprocessing**, **Analysis*
 
 ### DICOM to BIDS
 
-Convert raw DICOM images to BIDS format. Six tabs cover the full workflow:
+Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
 
 **Tools** — Shows installed conversion tools (heudiconv, dcm2niix) and their status.
 
@@ -25,6 +37,8 @@ Convert raw DICOM images to BIDS format. Six tabs cover the full workflow:
 **Scan** — Point at a DICOM directory to see what series it contains before converting.
 
 **Manifests** — Browse previously generated conversion manifests. Validate them against configs to check compatibility.
+
+**Configs** — Browse YAML conversion configs saved under `./experiments/convert/` (pre-migration configs at `~/.fmriflow/convert_configs/` are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a **Run** button that dispatches either a single or batch conversion based on the file's shape. See [DICOM → BIDS → Saved configs](dicom-to-bids.md#saved-configs) for the schema.
 
 **Convert** — Single-subject conversion form:
 
@@ -45,17 +59,20 @@ Convert raw DICOM images to BIDS format. Six tabs cover the full workflow:
 
 ### Preprocessing Manager
 
-Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Four tabs:
+Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Five tabs:
 
 **Backends** — Lists installed preprocessing backends with version and status.
 
 **Manifests** — Browse completed preprocessing outputs. Each manifest records the backend, parameters, output space, and per-run QC metrics. Validate against an analysis config to check compatibility before running the pipeline.
 
+**Configs** — Browse YAML preproc configs discovered under `./experiments/preproc/`. Each file must have a top-level `preproc:` section. Clicking a config shows a summary grid (subject, backend, container, mode, paths) and the raw YAML, with a **Run** button that launches the job and streams live fmriprep output into the progress panel below. An **In Flight** panel at the top lists running jobs (plus recent completions) with `Watch` and `Cancel` buttons — jobs launched here survive server restarts and reconnect automatically, with a `REATTACHED` tag. See [Preprocessing → Workflow 2](preprocessing.md#workflow-2-run-preprocessing-from-a-yaml-config) and [Long-running jobs](preprocessing.md#long-running-jobs--detach--reattach) for details.
+
 **Collect** — Build a manifest from existing preprocessing outputs (e.g., from a previous fmriprep run). Specify the output directory and file pattern; the tool scans and organizes the files.
 
-**Run** — Launch a preprocessing job:
+**Run** — Launch a preprocessing job from an inline form (no YAML):
 
 - Select backend, set BIDS directory, output directory, work directory, subject ID
+- Toggle options like `--skip-bids-validation` in the Advanced section
 - Click **Run** for live progress with event streaming
 - Manifest auto-refreshes on completion
 
@@ -87,6 +104,13 @@ The main control center for running experiments.
 - Event log with timestamps
 - Elapsed timer
 - Artifacts section after completion (view/download links)
+
+**In-Flight Analysis Runs panel** (top of the right pane):
+
+- Lists active + recent detached analysis runs, auto-refreshing every 5 s while anything is running.
+- `Log` opens a modal with run metadata + last 200 lines of `stdout.log`.
+- `Cancel` sends `SIGTERM` to the process group with a `SIGKILL` chaser after 5 s.
+- Runs reattached from disk (after a server restart) show a yellow `REATTACHED` tag — see the ["Long-running analysis runs" section below](#long-running-analysis-runs--detach--reattach) for details.
 
 **Run history** (bottom):
 
@@ -161,6 +185,49 @@ If you have not created any local error definitions in `devdocs/errors/`, this p
 - **Expanded view**: for available entries, full symptoms, root cause, diagnosis steps, fix instructions, config notes, references
 
 ---
+
+## Long-running analysis runs — detach & reattach
+
+Clicking **Run** on a config (or POSTing to `/api/runs/from-config`) now
+spawns `fmriflow run <config.yaml>` as a detached subprocess
+(`start_new_session=True`) with stdout+stderr captured to
+`~/.fmriflow/runs/{run_id}/stdout.log` and a sidecar `state.json`. The
+analysis subprocess survives server restarts the same way preproc,
+convert, and autoflatten do.
+
+On server startup, `RunManager._reattach_active_runs` scans the registry
+and re-registers any live pipeline PIDs. They show up in the In-Flight
+Analysis Runs panel at the top of the Dashboard right pane with a
+`REATTACHED` tag.
+
+### HTTP API
+
+```bash
+# List active + recent in-flight runs
+curl http://localhost:8000/api/runs/in-flight
+
+# Summary + last 200 log lines for one run
+curl http://localhost:8000/api/runs/in-flight/abc123def456
+
+# Cancel a running pipeline
+curl -X POST http://localhost:8000/api/runs/in-flight/abc123def456/cancel
+```
+
+### Outcome inference
+
+On reattach (PID-dead check), the monitor looks for
+`{output_dir}/run_summary.json` — present → `done` (and the Run History
+row appears on next Dashboard refresh); missing → `failed`.
+
+### Tradeoff
+
+Because the pipeline now runs in a child process, the structured stage
+events that the in-process `UICaptureProxy` used to emit no longer reach
+the server's WebSocket. The live log stream in the Log modal and In-Flight
+panel is still there, and the full stage timeline + artifacts show up in
+Run History once the pipeline writes its `run_summary.json`. If you need
+mid-run per-stage progress in the dashboard, we can add a JSON-lines
+event file the subprocess writes to — ask.
 
 ## Keyboard shortcuts and tips
 

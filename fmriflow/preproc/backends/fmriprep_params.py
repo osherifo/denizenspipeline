@@ -37,6 +37,9 @@ class FmriprepParams:
     container: str | None = None
     container_type: str = "singularity"
 
+    # ── Validation ──────────────────────────────────────────────────
+    skip_bids_validation: bool = False
+
     # ── Anatomical ──────────────────────────────────────────────────
     skull_strip: str = "auto"
     skull_strip_template: str | None = None
@@ -312,6 +315,9 @@ class FmriprepParams:
             args += ["--fs-license-file", str(self.fs_license_file)]
 
         # Escape hatch
+        if self.skip_bids_validation:
+            args.append("--skip-bids-validation")
+
         args += self.extra_args
 
         return args

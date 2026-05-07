@@ -1,0 +1,45 @@
+# fmriflow full — self-contained image with fmriprep + FreeSurfer
+# baked in. No second container runtime required.
+#
+# Usage:
+#   docker compose -f docker-compose.full.yml up
+#
+# The full image is heavy (~25 GB) because it builds on
+# nipreps/fmriprep. Use docker-compose.yml (slim) instead if you
+# already have docker or apptainer on the host and just want the
+# fmriflow orchestrator.
+
+services:
+  fmriflow:
+    container_name: fmriflow
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.full
+      args:
+        PUID: ${PUID:-1000}
+        PGID: ${PGID:-1000}
+        # Bump this to test against a newer fmriprep without
+        # editing the Dockerfile.
+        FMRIPREP_TAG: 24.1.1
+    image: fmriflow:full
+    ports:
+      - "8421:8421"
+    environment:
+      FS_LICENSE: /data/license/license.txt
+      FS_LICENSE_TEXT: ${FS_LICENSE_TEXT:-}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      - fmriflow-state:/data
+      - ./experiments:/workspace/experiments
+      - ./results:/workspace/results
+      - ./derivatives:/workspace/derivatives
+      - ./bids:/workspace/bids:ro
+      - ./dicoms:/workspace/dicoms:ro
+      - ./license:/data/license:ro
+      # No /var/run/docker.sock — fmriprep runs in-process via
+      # `container_type: bare` in your preproc YAML.
+    restart: unless-stopped
+
+volumes:
+  fmriflow-state:

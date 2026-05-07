@@ -1,0 +1,56 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Frontend build artefacts
+frontend/node_modules
+frontend/dist
+frontend/.vite
+frontend/coverage
+frontend/playwright-report
+frontend/test-results
+
+# Backend build artefacts
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+*.egg-info
+build/
+dist/
+
+# Pipeline working dirs (developers may have these locally)
+testing/
+work/
+work_dir/
+derivatives/
+results/
+experiments/
+license/
+bids/
+dicoms/
+.fmriflow/
+
+# Editor / OS noise
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Internal dev docs (gitignored anyway, but be explicit)
+devdocs/
+
+# Compose files referencing local paths
+docker-compose.override.yml
+.env
+.env.*
+!.env.example
+
+# Existing static build (we rebuild from source in the image)
+fmriflow/server/static

@@ -41,7 +41,7 @@ These are all satisfied after a successful fmriprep run with `mode: full` or `mo
 
 ## Web UI
 
-The Autoflatten view appears in the sidebar under the **Preprocessing** group, alongside DICOM → BIDS and Preproc. It has three tabs:
+The Autoflatten view appears in the sidebar under the **Preprocessing** group, alongside DICOM → BIDS and Preproc. It has four tabs:
 
 ### Status tab
 
@@ -57,6 +57,78 @@ Check what's installed and inspect a subject's state. Enter the subjects directo
 If flat patches exist, their previews render as thumbnails below the status readout. Click an image to zoom.
 
 The tab also tells you the next action: flatten, import, or "all set".
+
+### Configs tab
+
+Browse YAML autoflatten configs discovered under `./experiments/autoflatten/`.
+Each file must have a top-level `autoflatten:` section matching the
+`AutoflattenConfig` fields (see CLI section below). Clicking a config
+shows a summary grid (subject, subjects_dir, hemispheres, backend) and
+the raw YAML with a **Run** button. The same live progress panel used
+by the Run/Import tabs streams below.
+
+Schema (minimal):
+
+```yaml
+autoflatten:
+  subjects_dir: /data/derivatives/freesurfer
+  subject: sub-AN
+  hemispheres: both         # both | lh | rh
+  backend: pyflatten        # pyflatten | freesurfer
+  overwrite: false
+  import_to_pycortex: true
+  pycortex_surface_name: ANfs   # optional
+```
+
+### HTTP API
+
+```bash
+# List configs
+curl http://localhost:8000/api/autoflatten/configs
+
+# Get one
+curl http://localhost:8000/api/autoflatten/configs/ANfs.yaml
+
+# Kick off (body is optional — fields shallow-merge onto the YAML)
+curl -X POST http://localhost:8000/api/autoflatten/configs/ANfs.yaml/run
+```
+
+## Long-running runs — detach & reattach
+
+Autoflatten CLI runs (the ones that actually flatten, as opposed to
+import-only / precomputed passthroughs) spawn a detached subprocess with
+stdout+stderr captured to `~/.fmriflow/runs/{run_id}/stdout.log` and a
+sidecar `state.json`. They survive server restarts the same way preproc
+and convert runs do.
+
+On server startup, live autoflatten PIDs are re-registered. Outcome
+inference: after PID death, look for the expected
+`{subjects_dir}/{subject}/surf/{hemi}.autoflatten.flat.patch.3d` files —
+all expected hemispheres present → `done`; missing → `failed`. Note:
+pycortex import is **not** re-attempted on reattach; the patches are on
+disk and you can import them via the Import tab or CLI.
+
+Import-only and precomputed runs don't spawn a subprocess and therefore
+don't detach — they complete in seconds anyway.
+
+### UI
+
+A **Recent Runs** panel at the top of the **Configs** tab lists active
++ finished runs with:
+
+- `Log` — opens a modal with run metadata and the last 200 lines of
+  `stdout.log`.
+- `Cancel` — SIGTERM the process group, SIGKILL after 5s grace.
+
+Reattached runs show a yellow `REATTACHED` tag.
+
+### HTTP API
+
+```bash
+curl http://localhost:8000/api/autoflatten/runs
+curl http://localhost:8000/api/autoflatten/runs/autoflatten_AN_4f2b9c1a
+curl -X POST http://localhost:8000/api/autoflatten/runs/autoflatten_AN_4f2b9c1a/cancel
+```
 
 ### Run / Flatten tab
 

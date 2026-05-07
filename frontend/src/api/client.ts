@@ -29,6 +29,17 @@ import type {
   BatchSummary,
   SavedConvertConfig,
   SavedConvertConfigDetail,
+  PreprocConfigSummary,
+  PreprocConfigDetail,
+  PreprocRunSummary,
+  AutoflattenConfigSummary,
+  AutoflattenConfigDetail,
+  ConvertRunSummary,
+  AutoflattenRunSummary,
+  AnalysisRunSummary,
+  WorkflowConfigSummary,
+  WorkflowConfigDetail,
+  WorkflowRunSummary,
 } from './types'
 
 const BASE = '/api'
@@ -50,6 +61,52 @@ export async function fetchModules(): Promise<ModuleMetadata> {
 
 export async function fetchModule(category: string, name: string): Promise<ModuleInfo> {
   return json(`${BASE}/modules/${category}/${name}`)
+}
+
+export interface ModuleCode {
+  name: string
+  category: string
+  path: string
+  code: string
+  class_start: number | null
+  class_end: number | null
+}
+
+export async function fetchModuleCode(category: string, name: string): Promise<ModuleCode> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/code`)
+}
+
+export interface SaveModuleCodeResult {
+  saved: boolean
+  name: string
+  category: string
+  path: string
+  bytes: number
+  restart_required: boolean
+}
+
+export async function saveModuleCode(
+  category: string, name: string, code: string,
+): Promise<SaveModuleCodeResult> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/code`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+}
+
+export interface ReloadModuleResult {
+  reloaded: boolean
+  module: string
+  replaced: boolean
+}
+
+export async function reloadModule(
+  category: string, name: string,
+): Promise<ReloadModuleResult> {
+  return json(`${BASE}/modules/${encodeURIComponent(category)}/${encodeURIComponent(name)}/reload`, {
+    method: 'POST',
+  })
 }
 
 export async function fetchStages(): Promise<StageInfo[]> {
@@ -182,6 +239,97 @@ export async function startRunFromConfig(
   })
 }
 
+export async function fetchInFlightRuns(
+  includeFinished: boolean = true,
+): Promise<AnalysisRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: AnalysisRunSummary[] }>(`${BASE}/runs/in-flight${qs}`)
+  return r.runs
+}
+
+export async function fetchInFlightRun(runId: string): Promise<AnalysisRunSummary> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelInFlightRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteInFlightRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/runs/in-flight/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
+// ── Workflows (end-to-end orchestration) ────────────────────────────────
+
+export async function fetchWorkflowConfigs(): Promise<WorkflowConfigSummary[]> {
+  return json(`${BASE}/workflows/configs`)
+}
+
+export async function fetchWorkflowConfigDetail(filename: string): Promise<WorkflowConfigDetail> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runWorkflowConfig(
+  filename: string,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+}
+
+export async function saveWorkflowConfig(
+  filename: string, yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
+export async function copyWorkflowConfig(
+  source: string, newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/workflows/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
+  })
+}
+
+export async function fetchWorkflowRuns(
+  includeFinished: boolean = true,
+): Promise<WorkflowRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: WorkflowRunSummary[] }>(`${BASE}/workflows/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchWorkflowRun(runId: string): Promise<WorkflowRunSummary> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelWorkflowRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteWorkflowRun(runId: string): Promise<{
+  deleted: boolean
+  stage_results?: Array<{ stage: string; run_id: string; deleted: boolean; reason?: string }>
+}> {
+  return json(`${BASE}/workflows/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
 // ── Module Editor ──
 
 export async function validateModuleCode(code: string, category?: string): Promise<CodeValidationResult> {
@@ -305,6 +453,57 @@ export async function validatePreprocConfig(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
+  })
+}
+
+export async function fetchPreprocConfigs(): Promise<PreprocConfigSummary[]> {
+  return json(`${BASE}/preproc/configs`)
+}
+
+export async function fetchPreprocConfigDetail(filename: string): Promise<PreprocConfigDetail> {
+  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runPreprocConfigFile(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
+  })
+}
+
+export async function fetchPreprocRuns(
+  includeFinished: boolean = true,
+): Promise<PreprocRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: PreprocRunSummary[] }>(`${BASE}/preproc/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchPreprocRun(runId: string): Promise<PreprocRunSummary> {
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function fetchPreprocRunLive(
+  runId: string, cap: number = 200,
+): Promise<import('./types').PreprocRunLive> {
+  return json(
+    `${BASE}/preproc/runs/${encodeURIComponent(runId)}/live?cap=${cap}`,
+  )
+}
+
+export async function cancelPreprocRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function deletePreprocRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
   })
 }
 
@@ -493,6 +692,41 @@ export async function deleteSavedConvertConfig(filename: string): Promise<{ dele
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
 }
 
+export async function fetchConvertRuns(
+  includeFinished: boolean = true,
+): Promise<ConvertRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: ConvertRunSummary[] }>(`${BASE}/convert/runs${qs}`)
+  return r.runs
+}
+
+export async function fetchConvertRun(runId: string): Promise<ConvertRunSummary> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}`)
+}
+
+export async function cancelConvertRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteConvertRun(runId: string): Promise<{ deleted: boolean; removed_paths?: string[] }> {
+  return json(`${BASE}/convert/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function runSavedConvertConfig(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ kind: 'single' | 'batch'; run_id?: string; batch_id?: string; status: string; config: string }> {
+  return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
+  })
+}
+
 // ── Autoflatten ────────────────────────────────────────────────────────
 
 export async function fetchAutoflattenDoctor(): Promise<{ tools: { name: string; available: boolean; detail: string }[] }> {
@@ -514,6 +748,67 @@ export async function fetchAutoflattenStatus(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
+  })
+}
+
+export async function fetchAutoflattenRunsList(
+  includeFinished: boolean = true,
+): Promise<AutoflattenRunSummary[]> {
+  const qs = includeFinished ? '' : '?include_finished=false'
+  const r = await json<{ runs: AutoflattenRunSummary[] }>(`${BASE}/autoflatten/runs${qs}`)
+  return r.runs
+}
+
+export async function cancelAutoflattenRun(runId: string): Promise<{ cancelled: boolean }> {
+  return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteAutoflattenRun(runId: string): Promise<{ deleted: boolean }> {
+  return json(`${BASE}/autoflatten/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function fetchAutoflattenConfigs(): Promise<AutoflattenConfigSummary[]> {
+  return json(`${BASE}/autoflatten/configs`)
+}
+
+export async function fetchAutoflattenConfigDetail(filename: string): Promise<AutoflattenConfigDetail> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}`)
+}
+
+export async function runAutoflattenConfig(
+  filename: string,
+  overrides?: Record<string, unknown>,
+): Promise<{ run_id: string; status: string; config: string }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides || {}),
+  })
+}
+
+export async function saveAutoflattenConfig(
+  filename: string,
+  yamlString: string,
+): Promise<{ saved: boolean; path: string; errors: string[] }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
+export async function copyAutoflattenConfig(
+  source: string,
+  newFilename: string,
+): Promise<{ saved: boolean; path: string; filename: string; errors: string[] }> {
+  return json(`${BASE}/autoflatten/configs/${encodeURIComponent(source)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_filename: newFilename }),
   })
 }
 
@@ -581,4 +876,41 @@ export async function fetchAutoflattenVisualizations(
 ): Promise<{ images: Record<string, string> }> {
   const qs = new URLSearchParams({ subjects_dir, subject }).toString()
   return json(`${BASE}/autoflatten/visualizations?${qs}`)
+}
+
+// ── Triage (automatic error capture) ────────────────────────────────────
+
+export async function fetchTriage(
+  runId: string,
+): Promise<import('./types').TriageRecord | null> {
+  const res = await fetch(`${BASE}/triage/${encodeURIComponent(runId)}`)
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
+export async function rescanTriage(runId: string) {
+  return json<import('./types').TriageRecord>(
+    `${BASE}/triage/${encodeURIComponent(runId)}/rescan`,
+    { method: 'POST' },
+  )
+}
+
+export async function saveNewErrorFromCapture(body: {
+  run_id: string
+  title: string
+  tags?: string[]
+  root_cause?: string
+  fix?: string
+  references?: string[]
+  slug?: string
+}): Promise<import('./types').NewErrorFromCaptureResult> {
+  return json(`${BASE}/errors/from-capture`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }

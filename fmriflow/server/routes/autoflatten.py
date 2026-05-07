@@ -33,6 +33,24 @@ class StatusBody(BaseModel):
     subject: str
 
 
+class RunFromAutoflattenConfigBody(BaseModel):
+    """Overrides shallow-merged on top of the YAML's autoflatten section."""
+    subjects_dir: str | None = None
+    subject: str | None = None
+    hemispheres: str | None = None
+    backend: str | None = None
+    output_dir: str | None = None
+    overwrite: bool | None = None
+
+
+class SaveAutoflattenConfigBody(BaseModel):
+    yaml_string: str
+
+
+class CopyAutoflattenConfigBody(BaseModel):
+    new_filename: str
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/autoflatten/doctor")
@@ -83,7 +101,8 @@ async def status(body: StatusBody):
     if cx_ok:
         try:
             import cortex
-            existing = cortex.db.get_list()
+            from fmriflow.preproc.autoflatten import _pycortex_subject_list
+            existing = _pycortex_subject_list(cortex)
             candidates = [
                 f"{body.subject}fs", body.subject,
                 body.subject.replace("sub-", ""),
@@ -124,24 +143,139 @@ async def start_autoflatten(request: Request, body: RunBody):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/autoflatten/configs")
+async def list_autoflatten_configs(request: Request):
+    """List autoflatten YAML configs with a top-level autoflatten: section."""
+    store = request.app.state.autoflatten_config_store
+    summaries = store.list_configs()
+    return [
+        {
+            "filename": s.filename,
+            "path": s.path,
+            "subject": s.subject,
+            "subjects_dir": s.subjects_dir,
+            "hemispheres": s.hemispheres,
+            "backend": s.backend,
+            "output_dir": s.output_dir,
+        }
+        for s in summaries
+    ]
+
+
+@router.get("/autoflatten/configs/{filename}")
+async def get_autoflatten_config(request: Request, filename: str):
+    """Return full parsed config + raw YAML for one autoflatten config."""
+    store = request.app.state.autoflatten_config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Autoflatten config '{filename}' not found",
+        )
+    return result
+
+
+@router.put("/autoflatten/configs/{filename}")
+async def save_autoflatten_config(
+    request: Request,
+    filename: str,
+    body: SaveAutoflattenConfigBody,
+):
+    """Overwrite (or create) an autoflatten config file with raw YAML."""
+    store = request.app.state.autoflatten_config_store
+    result = store.save_config(filename, body.yaml_string)
+    if not result['saved']:
+        raise HTTPException(status_code=400, detail="; ".join(result['errors']))
+    return result
+
+
+@router.post("/autoflatten/configs/{filename}/copy")
+async def copy_autoflatten_config(
+    request: Request,
+    filename: str,
+    body: CopyAutoflattenConfigBody,
+):
+    """Duplicate an existing autoflatten config under a new filename."""
+    store = request.app.state.autoflatten_config_store
+    result = store.copy_config(filename, body.new_filename)
+    if not result['saved']:
+        status = 409 if any('already exists' in e for e in result['errors']) else 400
+        raise HTTPException(status_code=status, detail="; ".join(result['errors']))
+    return {**result, 'filename': body.new_filename}
+
+
+@router.post("/autoflatten/configs/{filename}/run")
+async def run_autoflatten_config(
+    request: Request,
+    filename: str,
+    body: RunFromAutoflattenConfigBody | None = None,
+):
+    """Start an autoflatten run from a YAML config file."""
+    store = request.app.state.autoflatten_config_store
+    info = store.get_config(filename)
+    if info is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Autoflatten config '{filename}' not found",
+        )
+    mgr = request.app.state.autoflatten_manager
+    overrides = body.model_dump(exclude_none=True) if body else None
+    try:
+        run_id = mgr.start_run_from_config_file(
+            info["path"], overrides=overrides,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"run_id": run_id, "status": "started", "config": filename}
+
+
+@router.get("/autoflatten/runs")
+async def list_autoflatten_runs(request: Request, include_finished: bool = True):
+    """List active (and optionally finished) autoflatten runs."""
+    mgr = request.app.state.autoflatten_manager
+    return {"runs": mgr.list_runs(include_finished=include_finished)}
+
+
 @router.get("/autoflatten/runs/{run_id}")
 async def get_autoflatten_run(request: Request, run_id: str):
-    """Get status and (if complete) result for an autoflatten run."""
-    mgr = request.app.state.autoflatten_manager
-    handle = mgr.active_runs.get(run_id)
-    if handle is None:
-        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    """Get status, result, events, and log tail for an autoflatten run.
 
-    return {
-        "run_id": handle.run_id,
-        "subject": handle.subject,
-        "status": handle.status,
-        "result": handle.result,
-        "error": handle.error,
-        "started_at": handle.started_at,
-        "finished_at": handle.finished_at,
-        "events": handle.events,
-    }
+    Now backed by AutoflattenManager.get_run which also resolves finished
+    runs from the on-disk registry, so polling keeps working after a
+    server restart. Response shape is a superset of the original:
+    adds pid, is_reattached, log_path, log_tail.
+    """
+    mgr = request.app.state.autoflatten_manager
+    result = mgr.get_run(run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    return result
+
+
+@router.post("/autoflatten/runs/{run_id}/cancel")
+async def cancel_autoflatten_run(request: Request, run_id: str):
+    """Cancel a running autoflatten subprocess (SIGTERM → SIGKILL)."""
+    mgr = request.app.state.autoflatten_manager
+    result = mgr.cancel_run(run_id)
+    if not result.get("cancelled"):
+        raise HTTPException(status_code=409, detail=result.get("reason", "could not cancel"))
+    return result
+
+
+@router.delete("/autoflatten/runs/{run_id}")
+async def delete_autoflatten_run(request: Request, run_id: str):
+    """Delete a finished autoflatten run — registry entry only. The
+    shared FreeSurfer subject dir and pycortex surfaces are never
+    touched (often lab-owned)."""
+    mgr = request.app.state.autoflatten_manager
+    result = mgr.delete_run(run_id)
+    if not result.get("deleted"):
+        reason = result.get("reason", "could not delete")
+        status = 409 if "running" in reason else 404
+        raise HTTPException(status_code=status, detail=reason)
+    return result
 
 
 @router.get("/autoflatten/image")

@@ -82,13 +82,30 @@ export function isValidConnection(connection: Connection | Edge, nodes: Node[]):
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 120
 
+type Measured = { width?: number; height?: number } | undefined
+
+function _sizeOf(node: Node): { w: number; h: number } {
+  // xyflow v12 fills `measured` after the first render with the real
+  // DOM size. Fall back to defaults on the first pass.
+  const m = (node as Node & { measured?: Measured }).measured
+  return {
+    w: m?.width && m.width > 0 ? m.width : NODE_WIDTH,
+    h: m?.height && m.height > 0 ? m.height : NODE_HEIGHT,
+  }
+}
+
 export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', ranksep: 80, nodesep: 60 })
+  // Generous separators so even worst-case nodes have breathing room;
+  // dagre uses these as minimums, not maximums.
+  g.setGraph({ rankdir: 'TB', ranksep: 120, nodesep: 80 })
 
+  const sizes = new Map<string, { w: number; h: number }>()
   nodes.forEach((node) => {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+    const s = _sizeOf(node)
+    sizes.set(node.id, s)
+    g.setNode(node.id, { width: s.w, height: s.h })
   })
   edges.forEach((edge) => {
     g.setEdge(edge.source, edge.target)
@@ -98,14 +115,27 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
 
   return nodes.map((node) => {
     const pos = g.node(node.id)
+    const s = sizes.get(node.id) ?? { w: NODE_WIDTH, h: NODE_HEIGHT }
     return {
       ...node,
       position: {
-        x: pos.x - NODE_WIDTH / 2,
-        y: pos.y - NODE_HEIGHT / 2,
+        x: pos.x - s.w / 2,
+        y: pos.y - s.h / 2,
       },
     }
   })
+}
+
+/** Signature of all nodes' measured sizes; changes when the DOM
+ *  measures something new. Used by callers to decide whether a
+ *  re-layout pass is worth running. */
+export function measuredSignature(nodes: Node[]): string {
+  return nodes
+    .map((n) => {
+      const m = (n as Node & { measured?: Measured }).measured
+      return `${n.id}:${m?.width ?? 0}x${m?.height ?? 0}`
+    })
+    .join('|')
 }
 
 // ── Default edge style ──────────────────────────────────────────────────
