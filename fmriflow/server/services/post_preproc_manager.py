@@ -176,12 +176,19 @@ class PostPreprocManager:
                     )
                 inner_id, inner_handle = from_str.split(".", 1)
                 file_path = self._resolve_binding(binding, src_manifest)
+                found_inner_node = False
                 for node in inner_graph.get("nodes", []):
                     if node.get("id") == inner_id:
                         params = node.setdefault("data", {}).setdefault("params", {})
                         inputs_map = params.setdefault("_inputs", {})
                         inputs_map[inner_handle] = file_path
+                        found_inner_node = True
                         break
+                if not found_inner_node:
+                    raise ValueError(
+                        f"workflow {graph_name!r} input {wf_input!r} targets "
+                        f"missing inner node/handle {inner_id}.{inner_handle}"
+                    )
 
         config = PostPreprocConfig(
             subject=data.get("subject", ""),
