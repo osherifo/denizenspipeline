@@ -59,7 +59,6 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir '.[frontend,bids]'
 
 COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
-COPY heuristics/ /app/heuristics/
 
 RUN mkdir -p /workspace/experiments /workspace/results /workspace/derivatives \
              /data/.fmriflow /data/heuristics /data/modules \
