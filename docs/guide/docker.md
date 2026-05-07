@@ -126,7 +126,11 @@ FS_LICENSE_TEXT="abc123\nyou@example.com\n0001\n..."
 ```
 
 The container's entrypoint writes it into `$FS_LICENSE` on first
-boot.
+boot, but that path must be writable. If your Compose setup
+bind-mounts `./license` read-only at `/data/license` and sets
+`FS_LICENSE` inside that mount, inline mode will not work as-is.
+For `FS_LICENSE_TEXT`, remove that read-only license mount or point
+`FS_LICENSE` at a writable location under `/data` instead.
 
 ## Troubleshooting
 
