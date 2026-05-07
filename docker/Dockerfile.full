@@ -1,0 +1,79 @@
+# syntax=docker/dockerfile:1.7
+# fmriflow full — self-contained image with fmriprep + FreeSurfer
+# + ANTs + AFNI baked in (built on top of nipreps/fmriprep). Use
+# this when you don't want to manage a second container runtime;
+# preproc YAMLs can run with `container_type: bare`.
+
+ARG FMRIPREP_TAG=24.1.1
+
+# ── Stage 1: build the frontend ─────────────────────────────────────
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /build/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+RUN npm run build
+
+
+# ── Stage 2: runtime on top of fmriprep ─────────────────────────────
+FROM nipreps/fmriprep:${FMRIPREP_TAG} AS runtime
+
+USER root
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# tini + gosu for the entrypoint. The fmriprep image already ships
+# Python, FreeSurfer, fmriprep, ANTs, AFNI, and dcm2niix.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gosu \
+        tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node 20 + bids-validator. Some fmriprep tags ship an old node; use
+# NodeSource to be safe.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g bids-validator \
+    && npm cache clean --force
+
+ARG PUID=1000
+ARG PGID=1000
+RUN groupadd -g ${PGID} fmriflow \
+    && useradd -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
+
+WORKDIR /app
+
+# Install fmriflow on top of the fmriprep python env.
+COPY pyproject.toml README.md ./
+COPY fmriflow/ ./fmriflow/
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir heudiconv \
+    && pip install --no-cache-dir '.[frontend,bids]'
+
+COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
+
+RUN mkdir -p /workspace/experiments /workspace/results /workspace/derivatives \
+             /data/.fmriflow /data/heuristics /data/modules \
+    && chown -R fmriflow:fmriflow /app /workspace /data
+
+ENV HOME=/data \
+    FMRIFLOW_HEURISTICS_DIR=/data/heuristics \
+    FMRIFLOW_MODULES_DIR=/data/modules
+
+EXPOSE 8421
+
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+WORKDIR /workspace
+# Override fmriprep's default ENTRYPOINT.
+ENTRYPOINT ["tini", "--", "/usr/local/bin/entrypoint.sh"]
+CMD ["fmriflow", "serve", "--host", "0.0.0.0", "--port", "8421"]

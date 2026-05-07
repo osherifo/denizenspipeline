@@ -1,0 +1,86 @@
+# syntax=docker/dockerfile:1.7
+# fmriflow slim — orchestrator only.
+# fmriprep is delegated to the host (via /var/run/docker.sock or
+# apptainer-on-host). This image is the FastAPI backend + the built
+# Vite frontend + heudiconv + bids-validator + dcm2niix.
+
+# ── Stage 1: build the frontend ─────────────────────────────────────
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /build/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+# Build script writes to ../fmriflow/server/static (i.e. /build/fmriflow/server/static).
+RUN npm run build
+
+
+# ── Stage 2: runtime image ──────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# System deps: dcm2niix (heudiconv backend), git, tini (PID 1),
+# curl/ca-certs, gosu (drop privs in entrypoint), nodejs+npm
+# (bids-validator), docker-cli (docker-out-of-docker for fmriprep).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        dcm2niix \
+        docker.io \
+        git \
+        gosu \
+        nodejs \
+        npm \
+        tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# bids-validator (optional — fmriflow gracefully skips if missing).
+RUN npm install -g bids-validator \
+    && npm cache clean --force
+
+ARG PUID=1000
+ARG PGID=1000
+RUN groupadd -g ${PGID} fmriflow \
+    && useradd -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
+
+WORKDIR /app
+
+# Install fmriflow + heudiconv. We keep the slim image to the
+# extras the orchestrator actually needs at runtime; users can
+# pip-install more inside a derived image if they want
+# pycortex/autoflatten.
+COPY pyproject.toml README.md ./
+COPY fmriflow/ ./fmriflow/
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir heudiconv \
+    && pip install --no-cache-dir '.[frontend,bids]'
+
+# Frontend bundle from stage 1.
+COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
+
+# Default workspace + persistent state dirs. Heuristics are provided
+# via the runtime data directory rather than copied from the repo.
+RUN mkdir -p /workspace/experiments /workspace/results /workspace/derivatives \
+             /data/.fmriflow /data/heuristics /data/modules \
+    && chown -R fmriflow:fmriflow /app /workspace /data
+
+# ~/.fmriflow lives under /data so it survives container restarts
+# when /data is a volume. Heuristics + modules dirs are env-driven.
+ENV HOME=/data \
+    FMRIFLOW_HEURISTICS_DIR=/data/heuristics \
+    FMRIFLOW_MODULES_DIR=/data/modules
+
+EXPOSE 8421
+
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["tini", "--", "/usr/local/bin/entrypoint.sh"]
+CMD ["fmriflow", "serve", "--host", "0.0.0.0", "--port", "8421"]
