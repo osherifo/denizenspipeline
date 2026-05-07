@@ -24,17 +24,24 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# System deps: dcm2niix (heudiconv backend), git, tini (PID 1),
-# curl/ca-certs, gosu (drop privs in entrypoint), nodejs+npm
-# (bids-validator), docker-cli (docker-out-of-docker for fmriprep).
+# System deps:
+#  - dcm2niix (heudiconv backend), tini (PID 1), curl/ca-certs,
+#    gosu (drop privs in entrypoint), nodejs+npm (bids-validator),
+#    docker-cli (docker-out-of-docker for fmriprep).
+#  - build-essential — pycortex builds the OpenCTM C extension from
+#    source on install; python:3.11-slim has no compiler by default.
+#  - libgl1 + libglib2.0-0 — opencv-python (cv2) runtime deps.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         ca-certificates \
         curl \
         dcm2niix \
         docker.io \
         git \
         gosu \
+        libgl1 \
+        libglib2.0-0 \
         nodejs \
         npm \
         tini \
