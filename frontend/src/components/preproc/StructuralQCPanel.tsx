@@ -73,7 +73,6 @@ export function StructuralQCPanel({ subject }: Props) {
   const [freeviewErr, setFreeviewErr] = useState<string | null>(null)
   const [showReport, setShowReport] = useState(false)
   const [showViewer, setShowViewer] = useState(false)
-  const [fullscreen, setFullscreen] = useState(false)
   // Multiple surfaces can be shown at once. Each renders in its own colour.
   const [surfaces, setSurfaces] = useState<Set<SurfaceKind>>(
     () => new Set<SurfaceKind>(['pial']),
@@ -297,7 +296,7 @@ export function StructuralQCPanel({ subject }: Props) {
         </button>
         {showViewer && (
           <div
-            style={fullscreen ? {
+            style={{
               position: 'fixed',
               inset: 0,
               zIndex: 1000,
@@ -305,7 +304,7 @@ export function StructuralQCPanel({ subject }: Props) {
               padding: 12,
               display: 'flex',
               flexDirection: 'column',
-            } : { marginTop: 8 }}
+            }}
           >
             {/* Toolbar — view + surface pickers */}
             <div
@@ -431,10 +430,10 @@ export function StructuralQCPanel({ subject }: Props) {
               <span style={{ flex: 1 }} />
               <button
                 style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
-                onClick={() => setFullscreen((v) => !v)}
-                title="Pop out to fullscreen"
+                onClick={() => setShowViewer(false)}
+                title="Close 3D viewer"
               >
-                {fullscreen ? '⤢ Exit fullscreen' : '⤢ Fullscreen'}
+                ✕ Close
               </button>
             </div>
             <div
@@ -445,7 +444,7 @@ export function StructuralQCPanel({ subject }: Props) {
                 borderBottomRightRadius: 4,
                 background: '#000',
                 overflow: 'hidden',
-                flex: fullscreen ? 1 : undefined,
+                flex: 1,
                 minHeight: 0,
               }}
             >
@@ -453,7 +452,7 @@ export function StructuralQCPanel({ subject }: Props) {
                 ref={canvasRef}
                 style={{
                   width: '100%',
-                  height: fullscreen ? '100%' : '70vh',
+                  height: '100%',
                   display: 'block',
                 }}
               />
