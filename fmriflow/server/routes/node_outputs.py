@@ -173,6 +173,47 @@ def _to_jsonable(obj: Any, *, depth: int = 0, max_depth: int = 6) -> Any:
 # ── routes ──────────────────────────────────────────────────────────────
 
 
+@router.get("/preproc/runs/{run_id}/work_tree")
+async def list_work_tree(request: Request, run_id: str):
+    """Walk the run's work_dir and return every nipype leaf directory
+    discovered on disk.
+
+    A leaf is any directory containing ``_node.pklz`` (nipype writes
+    this for every executed node, cached or not) or ``result_*.pklz``.
+    Returned paths are dotted (``a.b.c``) relative to ``work_dir``.
+    """
+    summary = _summary(request, run_id)
+    work_dir = summary.get("work_dir")
+    if not work_dir:
+        return {"work_dir": None, "leaves": []}
+    root = Path(work_dir)
+    if not root.is_dir():
+        return {"work_dir": str(root), "leaves": []}
+
+    leaves: list[str] = []
+    # Limit walk to fmriprep workflow roots to bound work.
+    candidate_roots = [
+        p for p in root.iterdir()
+        if p.is_dir() and p.name.endswith("_wf")
+    ] or [root]
+
+    for wf_root in candidate_roots:
+        for p in wf_root.rglob("_node.pklz"):
+            leaf_dir = p.parent
+            try:
+                rel = leaf_dir.relative_to(root)
+            except ValueError:
+                continue
+            # Skip report sub-dirs and meta dirs.
+            parts = rel.parts
+            if any(seg.startswith("_report") for seg in parts):
+                continue
+            leaves.append(".".join(parts))
+
+    leaves = sorted(set(leaves))
+    return {"work_dir": str(root), "leaves": leaves}
+
+
 @router.get("/preproc/runs/{run_id}/node/{node_path:path}/files")
 async def list_node_files(request: Request, run_id: str, node_path: str):
     """List artefacts in a node's work_dir."""

@@ -1,6 +1,6 @@
 /** Per-node fmriprep output endpoints. */
 
-import type { NodeOutputsList, NodePickleResponse } from './types'
+import type { NipypeWorkTree, NodeOutputsList, NodePickleResponse } from './types'
 
 const BASE = '/api'
 
@@ -28,6 +28,14 @@ export async function fetchNodePickle(
 ): Promise<NodePickleResponse> {
   const res = await fetch(
     `${BASE}/preproc/runs/${encodeURIComponent(runId)}/node/${nodePath(node)}/pickle?rel=${encodeURIComponent(rel)}`,
+  )
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
+export async function fetchWorkTree(runId: string): Promise<NipypeWorkTree> {
+  const res = await fetch(
+    `${BASE}/preproc/runs/${encodeURIComponent(runId)}/work_tree`,
   )
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
   return res.json()

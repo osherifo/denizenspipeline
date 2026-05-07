@@ -668,7 +668,12 @@ export interface NewErrorFromCaptureResult {
 // ── Live nipype-node monitoring ───────────────────────────────────
 
 export type NipypeNodeStatusKind =
-  | 'running' | 'ok' | 'failed' | 'completed_assumed'
+  | 'running' | 'ok' | 'failed' | 'completed_assumed' | 'cached'
+
+export interface NipypeWorkTree {
+  work_dir: string | null
+  leaves: string[]
+}
 
 export interface NipypeNodeStatus {
   node: string        // full dotted path

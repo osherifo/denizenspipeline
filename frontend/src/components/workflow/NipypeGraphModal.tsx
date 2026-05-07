@@ -17,7 +17,8 @@ import {
 import dagre from 'dagre'
 
 import { fetchPreprocRunLive } from '../../api/client'
-import type { NipypeStatusBlock } from '../../api/types'
+import { fetchWorkTree } from '../../api/node-outputs'
+import type { NipypeNodeStatus, NipypeStatusBlock } from '../../api/types'
 import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
 import { NodeOutputsPanel } from './NodeOutputsPanel'
 import { NodeListPanel } from './NodeListPanel'
@@ -27,6 +28,7 @@ const STATUS_COLOR: Record<string, string> = {
   ok: '#00e676',
   failed: '#ff1744',
   completed_assumed: '#52c98f',
+  cached: '#888',
 }
 const NEUTRAL = 'var(--text-secondary)'
 
@@ -72,15 +74,15 @@ const LeafNode = memo(_LeafNodeInner)
 
 
 function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
-  const c = data.counts ?? { running: 0, ok: 0, failed: 0, total: 0 }
-  // Dominant color: failed > running > ok > completed_assumed > neutral.
+  const c = data.counts ?? { running: 0, ok: 0, failed: 0, completed_assumed: 0, cached: 0, total: 0 }
+  // Dominant color: failed > running > ok > completed_assumed > cached > neutral.
   const color =
     c.failed > 0 ? STATUS_COLOR.failed
     : c.running > 0 ? STATUS_COLOR.running
     : c.ok > 0 ? STATUS_COLOR.ok
-    : (c as { completed_assumed?: number }).completed_assumed
-      ? STATUS_COLOR.completed_assumed
-      : NEUTRAL
+    : c.completed_assumed > 0 ? STATUS_COLOR.completed_assumed
+    : c.cached > 0 ? STATUS_COLOR.cached
+    : NEUTRAL
   return (
     <div
       style={{
@@ -112,12 +114,12 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
         {c.running > 0 && <span>{c.running}▶</span>}
         {c.ok > 0 && <span style={{ color: STATUS_COLOR.ok }}>{c.ok}✓</span>}
         {c.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{c.failed}✗</span>}
-        {(() => {
-          const ca = (c as { completed_assumed?: number }).completed_assumed ?? 0
-          return ca > 0 ? (
-            <span style={{ color: STATUS_COLOR.completed_assumed }}>{ca}?</span>
-          ) : null
-        })()}
+        {c.completed_assumed > 0 && (
+          <span style={{ color: STATUS_COLOR.completed_assumed }}>{c.completed_assumed}?</span>
+        )}
+        {c.cached > 0 && (
+          <span style={{ color: STATUS_COLOR.cached }}>{c.cached}◌</span>
+        )}
         {c.total === 0 && <span>—</span>}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ background: color }} />
@@ -236,6 +238,7 @@ export function NipypeGraphModal({ runId, isRunning, onClose }: Props) {
 
 function Inner({ runId, isRunning, onClose }: Props) {
   const [block, setBlock] = useState<NipypeStatusBlock | null>(null)
+  const [cachedLeaves, setCachedLeaves] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [openNode, setOpenNode] = useState<string | null>(null)
   const rf = useReactFlow()
@@ -278,11 +281,43 @@ function Inner({ runId, isRunning, onClose }: Props) {
     return () => { cancelled = true; clearInterval(id) }
   }, [runId, isRunning])
 
+  // One-shot work_dir walk so cached nodes (no events emitted) still
+  // show up in the tree.
+  useEffect(() => {
+    let cancelled = false
+    fetchWorkTree(runId)
+      .then((t) => { if (!cancelled) setCachedLeaves(t.leaves) })
+      .catch(() => { /* non-fatal */ })
+    return () => { cancelled = true }
+  }, [runId])
+
+  const mergedNodes = useMemo<NipypeNodeStatus[]>(() => {
+    const live = block?.recent_nodes ?? []
+    const seen = new Set(live.map((n) => n.node))
+    const synthetic: NipypeNodeStatus[] = []
+    for (const path of cachedLeaves) {
+      if (seen.has(path)) continue
+      const segs = path.split('.')
+      synthetic.push({
+        node: path,
+        leaf: segs[segs.length - 1] ?? path,
+        workflow: segs.slice(0, -1).join('.'),
+        status: 'cached',
+        started_at: 0,
+        finished_at: 0,
+        elapsed: 0,
+        crash_file: null,
+        level: 'INFO',
+      })
+    }
+    return [...live, ...synthetic]
+  }, [block, cachedLeaves])
+
   const flow = useMemo(() => {
-    if (!block) return { nodes: [] as Node[], edges: [] as Edge[] }
-    const tree = buildNipypeTree(block.recent_nodes)
+    if (mergedNodes.length === 0) return { nodes: [] as Node[], edges: [] as Edge[] }
+    const tree = buildNipypeTree(mergedNodes)
     return _layout(tree.nodes, tree.edges)
-  }, [block])
+  }, [mergedNodes])
 
   return (
     <>
@@ -313,7 +348,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
         overflow: 'hidden',
       }}>
         <NodeListPanel
-          nodes={block?.recent_nodes ?? []}
+          nodes={mergedNodes}
           selected={openNode}
           onSelect={setOpenNode}
         />

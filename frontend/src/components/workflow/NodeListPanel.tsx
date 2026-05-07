@@ -1,7 +1,10 @@
-/** Collapsible, searchable list of nipype nodes for the DAG modal.
+/** Collapsible, searchable, hierarchical list of nipype nodes.
  *
- * Sits on the left edge of the DAG modal. Click a row → opens the
- * outputs drawer (same callback the graph uses on leaf clicks).
+ * The dotted nipype paths form a workflow tree
+ * (`fmriprep_wf.sub_AN_wf.anat_fit_wf.surface_recon_wf.autorecon1`).
+ * We render that tree as nested rows: workflow headers with rolled-up
+ * counts, expandable to reveal their children. Click a leaf → opens
+ * the outputs drawer (same callback the graph uses).
  */
 
 import { useMemo, useState } from 'react'
@@ -10,12 +13,14 @@ import type {
   NipypeNodeStatus,
   NipypeNodeStatusKind,
 } from '../../api/types'
+import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
   ok: '#00e676',
   failed: '#ff1744',
   completed_assumed: '#52c98f',
+  cached: '#888',
 }
 
 
@@ -33,8 +38,8 @@ const collapsedRail: CSSProperties = {
 }
 
 const panel: CSSProperties = {
-  width: 260,
-  minWidth: 260,
+  width: 280,
+  minWidth: 280,
   borderRight: '1px solid var(--border)',
   background: 'var(--bg-secondary)',
   display: 'flex',
@@ -53,7 +58,6 @@ const panelHeader: CSSProperties = {
 }
 
 const searchInput: CSSProperties = {
-  width: 'calc(100% - 16px)',
   padding: '4px 8px',
   fontSize: 11,
   border: '1px solid var(--border)',
@@ -85,20 +89,31 @@ const filterChip = (active: boolean, color: string): CSSProperties => ({
   fontWeight: 700,
 })
 
-const list: CSSProperties = {
+const listScroll: CSSProperties = {
   flex: 1,
   overflowY: 'auto',
 }
 
-const row = (active: boolean): CSSProperties => ({
+const leafRow = (active: boolean, depth: number): CSSProperties => ({
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-  padding: '4px 8px',
+  padding: `3px 8px 3px ${8 + depth * 12}px`,
   borderBottom: '1px solid var(--border)',
   cursor: 'pointer',
   background: active ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
   borderLeft: active ? '3px solid var(--accent-cyan)' : '3px solid transparent',
+})
+
+const wfRow = (depth: number): CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: `3px 8px 3px ${4 + depth * 12}px`,
+  borderBottom: '1px solid var(--border)',
+  cursor: 'pointer',
+  background: 'rgba(255,255,255,0.02)',
+  fontWeight: 700,
 })
 
 const dot = (color: string): CSSProperties => ({
@@ -127,6 +142,7 @@ const FILTERS: { value: FilterStatus; label: string }[] = [
   { value: 'ok', label: 'Ok' },
   { value: 'failed', label: 'Fail' },
   { value: 'completed_assumed', label: '?' },
+  { value: 'cached', label: 'Cached' },
 ]
 
 
@@ -137,28 +153,166 @@ interface Props {
 }
 
 
+function _wfColor(c: NonNullable<NipypeTreeNode['counts']>): string {
+  if (c.failed > 0) return STATUS_COLOR.failed
+  if (c.running > 0) return STATUS_COLOR.running
+  if (c.ok > 0) return STATUS_COLOR.ok
+  if (c.completed_assumed > 0) return STATUS_COLOR.completed_assumed
+  if (c.cached > 0) return STATUS_COLOR.cached
+  return 'var(--text-secondary)'
+}
+
+
 export function NodeListPanel({ nodes, selected, onSelect }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterStatus>('all')
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {
       all: nodes.length,
-      running: 0, ok: 0, failed: 0, completed_assumed: 0,
+      running: 0, ok: 0, failed: 0, completed_assumed: 0, cached: 0,
     }
     for (const n of nodes) c[n.status] = (c[n.status] ?? 0) + 1
     return c
   }, [nodes])
 
-  const filtered = useMemo(() => {
+  // Build the workflow tree from the same dotted paths the DAG uses.
+  // Then filter leaves by status + search; keep ancestors of any
+  // surviving leaf so the hierarchy is preserved.
+  const { byParent, kept } = useMemo(() => {
+    const tree = buildNipypeTree(nodes)
+    const byId = new Map(tree.nodes.map((n) => [n.id, n]))
+    const byParent = new Map<string | null, NipypeTreeNode[]>()
+    for (const n of tree.nodes) {
+      const list = byParent.get(n.parentId) ?? []
+      list.push(n)
+      byParent.set(n.parentId, list)
+    }
+    // Sort: workflows first, then leaves; alpha within each.
+    for (const list of byParent.values()) {
+      list.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'workflow' ? -1 : 1
+        return a.label.localeCompare(b.label)
+      })
+    }
+
     const q = query.trim().toLowerCase()
-    return nodes.filter((n) => {
-      if (filter !== 'all' && n.status !== filter) return false
+    const matches = (leaf: NipypeTreeNode): boolean => {
+      if (leaf.kind !== 'leaf') return false
+      if (filter !== 'all' && leaf.status !== filter) return false
       if (!q) return true
-      return n.node.toLowerCase().includes(q) || n.leaf.toLowerCase().includes(q)
-    })
+      return leaf.id.toLowerCase().includes(q)
+        || leaf.label.toLowerCase().includes(q)
+    }
+    const kept = new Set<string>()
+    for (const n of tree.nodes) {
+      if (matches(n)) {
+        let cur: NipypeTreeNode | undefined = n
+        while (cur) {
+          if (kept.has(cur.id)) break
+          kept.add(cur.id)
+          cur = cur.parentId ? byId.get(cur.parentId) : undefined
+        }
+      }
+    }
+    return { byParent, kept }
   }, [nodes, query, filter])
+
+  // When searching/filtering, auto-expand surviving workflows so
+  // matches are visible without clicking through.
+  const isSearching = query.trim() !== '' || filter !== 'all'
+
+  function isOpen(id: string): boolean {
+    // User toggle (if any) always wins, so collapse/expand keeps
+    // working during search. Default: open while searching (so hits
+    // are visible), collapsed by default otherwise so the user sees
+    // the top-level workflows first.
+    if (id in expanded) return expanded[id]
+    if (isSearching) return kept.has(id)
+    return false
+  }
+
+  function toggle(id: string) {
+    setExpanded((prev) => ({
+      ...prev,
+      [id]: !isOpen(id),
+    }))
+  }
+
+  function renderChildren(parentId: string | null, depth: number): React.ReactNode {
+    const children = byParent.get(parentId) ?? []
+    return children.map((n) => {
+      if (!kept.has(n.id) && isSearching) return null
+      if (n.kind === 'workflow') {
+        const open = isOpen(n.id)
+        const c = n.counts ?? {
+          running: 0, ok: 0, failed: 0, completed_assumed: 0, cached: 0, total: 0,
+        }
+        const color = _wfColor(c)
+        return (
+          <div key={n.id}>
+            <div
+              style={wfRow(depth)}
+              onClick={() => toggle(n.id)}
+              title={n.id}
+            >
+              <span style={{ width: 10, fontSize: 9, color: 'var(--text-secondary)' }}>
+                {open ? '▼' : '▶'}
+              </span>
+              <span style={dot(color)} />
+              <span style={{
+                fontSize: 11, flex: 1, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {n.label}
+              </span>
+              <span style={{
+                fontSize: 9, color: 'var(--text-secondary)', fontWeight: 400,
+              }}>
+                {c.running > 0 && <span style={{ color: STATUS_COLOR.running }}>{c.running}▶ </span>}
+                {c.ok > 0 && <span style={{ color: STATUS_COLOR.ok }}>{c.ok}✓ </span>}
+                {c.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{c.failed}✗ </span>}
+                {c.completed_assumed > 0 && (
+                  <span style={{ color: STATUS_COLOR.completed_assumed }}>{c.completed_assumed}? </span>
+                )}
+                {c.cached > 0 && (
+                  <span style={{ color: STATUS_COLOR.cached }}>{c.cached}◌ </span>
+                )}
+                {c.total === 0 && <span>—</span>}
+              </span>
+            </div>
+            {open && renderChildren(n.id, depth + 1)}
+          </div>
+        )
+      }
+      // Leaf
+      const color = STATUS_COLOR[n.status ?? ''] ?? 'var(--text-secondary)'
+      const active = selected === n.id
+      return (
+        <div
+          key={n.id}
+          style={leafRow(active, depth)}
+          onClick={() => onSelect(n.full_node ?? n.id)}
+          title={n.id}
+        >
+          <span style={dot(color)} />
+          <span style={{
+            fontSize: 11, fontWeight: 600, flex: 1,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {n.label}
+          </span>
+          {n.elapsed !== undefined && n.elapsed > 0 && (
+            <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
+              {n.elapsed.toFixed(1)}s
+            </span>
+          )}
+        </div>
+      )
+    })
+  }
 
   if (collapsed) {
     return (
@@ -174,6 +328,9 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
       </div>
     )
   }
+
+  const roots = byParent.get(null) ?? []
+  const anyVisible = roots.some((n) => !isSearching || kept.has(n.id))
 
   return (
     <div style={panel}>
@@ -211,36 +368,15 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
           )
         })}
       </div>
-      <div style={list}>
-        {filtered.length === 0 && (
+      <div style={listScroll}>
+        {!anyVisible && (
           <div style={{
             padding: 10, fontSize: 11, color: 'var(--text-secondary)',
           }}>
             No matches.
           </div>
         )}
-        {filtered.map((n) => {
-          const color = STATUS_COLOR[n.status] ?? 'var(--text-secondary)'
-          const active = selected === n.node
-          return (
-            <div
-              key={n.node}
-              style={row(active)}
-              onClick={() => onSelect(n.node)}
-              title={n.node}
-            >
-              <span style={dot(color)} />
-              <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {n.leaf}
-              </span>
-              {n.elapsed > 0 && (
-                <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
-                  {n.elapsed.toFixed(1)}s
-                </span>
-              )}
-            </div>
-          )
-        })}
+        {renderChildren(null, 0)}
       </div>
     </div>
   )

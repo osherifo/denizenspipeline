@@ -22,7 +22,7 @@ export interface NipypeTreeNode {
   parentId: string | null
   kind: TreeNodeKind
   // Leaf-only fields (mirrored from NipypeNodeStatus for rendering).
-  status?: 'running' | 'ok' | 'failed' | 'completed_assumed'
+  status?: 'running' | 'ok' | 'failed' | 'completed_assumed' | 'cached'
   elapsed?: number
   level?: string
   full_node?: string
@@ -32,6 +32,7 @@ export interface NipypeTreeNode {
     ok: number
     failed: number
     completed_assumed: number
+    cached: number
     total: number
   }
 }
@@ -73,7 +74,7 @@ export function buildNipypeTree(leaves: NipypeNodeStatus[]): NipypeTree {
       parentId,
       kind,
       counts: kind === 'workflow'
-        ? { running: 0, ok: 0, failed: 0, completed_assumed: 0, total: 0 }
+        ? { running: 0, ok: 0, failed: 0, completed_assumed: 0, cached: 0, total: 0 }
         : undefined,
     }
     all.set(path, existing)
@@ -104,6 +105,7 @@ export function buildNipypeTree(leaves: NipypeNodeStatus[]): NipypeTree {
         else if (leaf.status === 'ok') p.counts.ok += 1
         else if (leaf.status === 'failed') p.counts.failed += 1
         else if (leaf.status === 'completed_assumed') p.counts.completed_assumed += 1
+        else if (leaf.status === 'cached') p.counts.cached += 1
       }
       parent = p.parentId
     }

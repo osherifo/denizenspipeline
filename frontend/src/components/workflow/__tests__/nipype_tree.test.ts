@@ -58,7 +58,7 @@ describe('buildNipypeTree', () => {
     const root = tree.nodes.find((n) => n.id === 'wf')!
     expect(root.kind).toBe('workflow')
     expect(root.counts).toEqual({
-      running: 1, ok: 1, failed: 1, completed_assumed: 0, total: 3,
+      running: 1, ok: 1, failed: 1, completed_assumed: 0, cached: 0, total: 3,
     })
   })
 
@@ -72,13 +72,13 @@ describe('buildNipypeTree', () => {
     const ab = tree.nodes.find((n) => n.id === 'a.b')!
     const abc = tree.nodes.find((n) => n.id === 'a.b.c')!
     expect(a.counts).toEqual({
-      running: 1, ok: 1, failed: 1, completed_assumed: 0, total: 3,
+      running: 1, ok: 1, failed: 1, completed_assumed: 0, cached: 0, total: 3,
     })
     expect(ab.counts).toEqual({
-      running: 1, ok: 1, failed: 1, completed_assumed: 0, total: 3,
+      running: 1, ok: 1, failed: 1, completed_assumed: 0, cached: 0, total: 3,
     })
     expect(abc.counts).toEqual({
-      running: 0, ok: 1, failed: 1, completed_assumed: 0, total: 2,
+      running: 0, ok: 1, failed: 1, completed_assumed: 0, cached: 0, total: 2,
     })
   })
 
