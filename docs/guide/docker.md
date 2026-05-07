@@ -111,7 +111,7 @@ Bind-mounted directories pick up the uid/gid of the in-container
 host user with:
 
 ```bash
-UID=$(id -u) GID=$(id -g) docker compose up
+PUID=$(id -u) PGID=$(id -g) docker compose up
 ```
 
 This is sticky in the named volume, so set it once at first launch.
@@ -145,5 +145,5 @@ For `FS_LICENSE_TEXT`, remove that read-only license mount or point
   removed it, reinstall.
 - **`mkdir: cannot create /data/.fmriflow`** — the named volume
   isn't writable by the in-container user. Re-run with
-  `UID=$(id -u) GID=$(id -g) docker compose up` so the entrypoint
+  `PUID=$(id -u) PGID=$(id -g) docker compose up` so the entrypoint
   picks up the right uid/gid.

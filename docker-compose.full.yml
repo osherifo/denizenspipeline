@@ -16,8 +16,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.full
       args:
-        PUID: ${UID:-1000}
-        PGID: ${GID:-1000}
+        PUID: ${PUID:-1000}
+        PGID: ${PGID:-1000}
         # Bump this to test against a newer fmriprep without
         # editing the Dockerfile.
         FMRIPREP_TAG: 24.1.1
@@ -27,8 +27,8 @@ services:
     environment:
       FS_LICENSE: /data/license/license.txt
       FS_LICENSE_TEXT: ${FS_LICENSE_TEXT:-}
-      PUID: ${UID:-1000}
-      PGID: ${GID:-1000}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
     volumes:
       - fmriflow-state:/data
       - ./experiments:/workspace/experiments

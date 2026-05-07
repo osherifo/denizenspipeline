@@ -17,8 +17,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.slim
       args:
-        PUID: ${UID:-1000}
-        PGID: ${GID:-1000}
+        PUID: ${PUID:-1000}
+        PGID: ${PGID:-1000}
     image: fmriflow:slim
     ports:
       - "8421:8421"
@@ -29,8 +29,8 @@ services:
       #   - set FS_LICENSE_TEXT in your shell / .env to pass the content inline.
       FS_LICENSE: /data/license/license.txt
       FS_LICENSE_TEXT: ${FS_LICENSE_TEXT:-}
-      PUID: ${UID:-1000}
-      PGID: ${GID:-1000}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
     volumes:
       # Persistent state: ~/.fmriflow/ (run registry, modules, QC,
       # workflows, registered heuristics).
