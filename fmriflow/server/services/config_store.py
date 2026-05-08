@@ -30,21 +30,56 @@ class ConfigSummary:
 
 
 class ConfigStore:
-    """Indexes experiment config files from a directory."""
+    """Indexes experiment config files from a directory.
+
+    Also scans a legacy ``./experiments/`` location read-only (top-
+    level YAMLs only) so analysis configs from before the
+    working-dir consolidation still show up. Same-name files in the
+    primary ``configs_dir`` shadow the legacy versions. Writes
+    always go to the primary dir.
+    """
 
     def __init__(self, configs_dir: Path):
         self.configs_dir = configs_dir
         self._cache: list[ConfigSummary] = []
         self._last_scan = 0.0
+        # Legacy read-only fallback. Analysis YAMLs lived at the
+        # top of ``./experiments/`` before the working-dir
+        # consolidation; ``glob("*.yaml")`` is top-level only, so
+        # the stage subdirs (convert/, preproc/, …) are naturally
+        # excluded.
+        self._legacy_dirs = [Path("./experiments").resolve()]
+
+    def _yamls_with_legacy_fallback(self) -> list[Path]:
+        """Return YAML paths to scan, primary-tier first, no dups."""
+        seen: set[str] = set()
+        out: list[Path] = []
+        if self.configs_dir.is_dir():
+            for p in sorted(self.configs_dir.glob("*.yaml")):
+                if p.name not in seen:
+                    seen.add(p.name)
+                    out.append(p)
+        for legacy in self._legacy_dirs:
+            if not legacy.is_dir():
+                continue
+            try:
+                if legacy.resolve() == self.configs_dir.resolve():
+                    continue  # same dir, already scanned
+            except Exception:
+                pass
+            for p in sorted(legacy.glob("*.yaml")):
+                # Skip stage-specific YAMLs in legacy/<stage>/
+                # (handled by their respective stores).
+                if p.name in seen:
+                    continue
+                seen.add(p.name)
+                out.append(p)
+        return out
 
     def scan(self) -> None:
         """Re-scan configs directory for .yaml files."""
         self._cache = []
-        if not self.configs_dir.is_dir():
-            logger.warning("Configs directory not found: %s", self.configs_dir)
-            return
-
-        for yaml_path in sorted(self.configs_dir.glob('*.yaml')):
+        for yaml_path in self._yamls_with_legacy_fallback():
             try:
                 summary = self._extract_summary(yaml_path)
                 if summary:
@@ -53,7 +88,9 @@ class ConfigStore:
                 logger.debug("Skipping %s: %s", yaml_path, e)
 
         self._last_scan = time.time()
-        logger.info("Scanned %d config(s) from %s", len(self._cache), self.configs_dir)
+        logger.info(
+            "Scanned %d config(s) (primary: %s)", len(self._cache), self.configs_dir,
+        )
 
     def _maybe_rescan(self) -> None:
         """Re-scan if cache is stale (>10s)."""
