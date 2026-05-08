@@ -144,6 +144,7 @@ def create_app(
     from fmriflow.server.routes.structural_qc import router as structural_qc_router
     from fmriflow.server.routes.post_preproc import router as post_preproc_router
     from fmriflow.server.routes.node_outputs import router as node_outputs_router
+    from fmriflow.server.routes.settings import router as settings_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -167,6 +168,7 @@ def create_app(
     # `/preproc/runs/{run_id}/node/...` does not collide with those
     # patterns. Include order does not affect matching here.
     app.include_router(node_outputs_router, prefix="/api")
+    app.include_router(settings_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

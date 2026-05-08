@@ -109,6 +109,7 @@ const groups = [
     label: 'Reference',
     items: [
       { key: 'errors', label: 'Errors', hash: '#errors' },
+      { key: 'settings', label: 'Settings', hash: '#settings' },
     ],
   },
 ]

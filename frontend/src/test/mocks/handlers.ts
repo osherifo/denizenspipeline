@@ -5,6 +5,7 @@ import { preprocHandlers } from './handlers.preproc'
 import { autoflattenHandlers } from './handlers.autoflatten'
 import { convertHandlers } from './handlers.convert'
 import { errorsHandlers } from './handlers.errors'
+import { settingsHandlers } from './handlers.settings'
 
 export const handlers = [
   ...modulesHandlers,
@@ -14,4 +15,5 @@ export const handlers = [
   ...autoflattenHandlers,
   ...convertHandlers,
   ...errorsHandlers,
+  ...settingsHandlers,
 ]
