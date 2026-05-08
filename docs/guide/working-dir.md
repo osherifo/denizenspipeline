@@ -131,3 +131,35 @@ locations stay intact until you delete them yourself.
 
 `fmriflow paths` prints all resolved paths; the server logs them
 on startup too.
+
+## Editing paths from the Settings tab
+
+The Web UI has a **Reference → Settings** view that wraps the
+same env vars. It writes a small JSON file at
+`~/.config/fmriflow/settings.json`; the runtime resolves each
+value as **env var → persisted → default**, so a shell-exported
+env var still wins.
+
+- Each row shows a **source badge** (`env` / `persisted` /
+  `default`) — the tier currently in effect for the running
+  server.
+- Rows shadowed by an env var are **locked**. Unset the var in
+  your shell to edit the persisted value here.
+- **Saved values do not apply live.** Services cache the
+  resolved layout at startup, so the Settings UI shows a
+  *restart fmriflow* banner after a successful save.
+- The **Resolved layout** table at the bottom mirrors
+  `fmriflow paths` plus diagnostics (FreeSurfer license present?
+  `subjects.json` present + subject count).
+
+For a one-off invocation, env vars on the command line still
+work:
+
+```bash
+FMRIFLOW_HOME=/path/to/lab-data fmriflow serve
+```
+
+For persistent shell-level config, export in `~/.bashrc` (or
+equivalent) so every fmriflow process sees the same value. The
+Settings tab is the right tool when you want a per-machine value
+without touching shell rc files.
