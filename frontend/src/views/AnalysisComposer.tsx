@@ -14,6 +14,7 @@ import { StageCard } from '../components/composer/StageCard'
 import type { StageStatus } from '../components/composer/StageCard'
 import { ModuleSlot } from '../components/composer/ModuleSlot'
 import { ModuleStack } from '../components/composer/ModuleStack'
+import { SingleModuleSlot } from '../components/composer/SingleModuleSlot'
 import { FeatureKindSlot } from '../components/composer/FeatureKindSlot'
 import { YamlEditor } from '../components/composer/YamlEditor'
 import { StageStripPreview } from '../components/composer/StageStripPreview'
@@ -233,11 +234,15 @@ function summaryFor(stage: typeof STAGE_DEFS[number]['key'], config: any): { sum
     }
     case 'preparation': {
       const prep = config.preparation || {}
-      const type = prep.type || 'default'
+      const type = prep.type
       const stepCount = (prep.steps || []).length
       return {
-        summary: type === 'pipeline' ? `pipeline (${stepCount} steps)` : 'default',
-        status: 'filled', // preparation always has a default
+        summary: !type
+          ? 'Pick a preparer'
+          : type === 'pipeline'
+            ? `pipeline (${stepCount} steps)`
+            : type,
+        status: type ? 'filled' : 'empty',
       }
     }
     case 'model': {
@@ -295,66 +300,44 @@ function StimulusBody() {
   const setField = useConfigStore((s) => s.setField)
 
   const available = modulesIn(modules, ['stimulus_loaders'])
-  const selected = config.stimulus?.loader || ''
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'stimulus'), [fieldValues])
 
   return (
-    <ModuleSlot
-      label="Loader"
+    <SingleModuleSlot
       available={available}
-      selectedName={selected}
-      values={config.stimulus || {}}
-      onSelect={(v) => setField('stimulus.loader', v)}
-      onParamChange={(k, v) => setField(`stimulus.${k}`, v)}
+      value={config.stimulus || {}}
+      selectorKey="loader"
+      onChange={(next) => setField('stimulus', next)}
+      addLabel="Add stimulus loader"
       suggestions={hints}
-      placeholder="-- select loader --"
     />
   )
 }
 
 function ResponseBody() {
-  // Two ModuleSlots stacked: pick a loader, then optionally pick a
-  // reader. Always show both so the layout is symmetric with every
-  // other stage. The reader is meaningful for loaders that delegate
-  // voxel reading (e.g. `local`); for the others, leaving it empty
-  // is the right default.
+  // Single-pick "Loader" slot. Same "+ Add" affordance as every
+  // other stage. The reader is loader-specific (only meaningful for
+  // `local`) and lives inside the loader's params via the schema, so
+  // we don't surface it as a separate slot here — that would imply
+  // the reader is always relevant. If a loader exposes a `reader`
+  // field, ParamForm renders it normally.
   const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
   const loaders = modulesIn(modules, ['response_loaders'])
-  const readers = modulesIn(modules, ['response_readers'])
-  const loaderName = config.response?.loader || ''
-  const readerName = (config.response?.reader as string) || ''
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'response'), [fieldValues])
 
   return (
-    <div>
-      <ModuleSlot
-        label="Loader"
-        available={loaders}
-        selectedName={loaderName}
-        values={config.response || {}}
-        onSelect={(v) => setField('response.loader', v)}
-        onParamChange={(k, v) => setField(`response.${k}`, v)}
-        suggestions={hints}
-        placeholder="-- select loader --"
-        hiddenFields={['reader']}
-      />
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-        <ModuleSlot
-          label="Reader (optional)"
-          available={readers}
-          selectedName={readerName === 'auto' ? '' : readerName}
-          values={config.response || {}}
-          onSelect={(v) => setField('response.reader', v || 'auto')}
-          onParamChange={(k, v) => setField(`response.${k}`, v)}
-          suggestions={hints}
-          placeholder="-- none / auto --"
-        />
-      </div>
-    </div>
+    <SingleModuleSlot
+      available={loaders}
+      value={config.response || {}}
+      selectorKey="loader"
+      onChange={(next) => setField('response', next)}
+      addLabel="Add response loader"
+      suggestions={hints}
+    />
   )
 }
 
@@ -388,43 +371,46 @@ function FeaturesBody() {
 }
 
 function PreparationBody() {
-  // One ModuleSlot picks the preparer module (default, pipeline, ...)
-  // — same shape as every other stage. The pipeline preparer's
-  // `steps` field is a list-of-dicts that ParamForm can't render
-  // sensibly, so we hide it from ParamForm and render an inline
-  // ModuleStack of preparation_step modules below.
+  // SingleModuleSlot picks the preparer (default, pipeline, …) with
+  // the same "+ Add" affordance as the other single-pick stages.
+  // The pipeline preparer's `steps` is a list-of-dicts ParamForm
+  // can't sensibly render; we hide it and surface an inline
+  // ModuleStack of preparation_step modules below when type=pipeline.
   const modules = useModuleStore((s) => s.modules)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
   const { addStep, removeStep, updateStep, reorderSteps } = useConfigStore()
 
   const prep = config.preparation || {}
-  const prepType = (prep.type as string) || 'default'
+  const prepType = (prep.type as string) || ''
   const steps: StepConfig[] = (prep.steps as StepConfig[]) || []
   const preparers = modulesIn(modules, ['preparers'])
   const stepModules = modulesIn(modules, ['preparation_steps'])
 
   return (
     <div>
-      <ModuleSlot
-        label="Preparer"
+      <SingleModuleSlot
         available={preparers}
-        selectedName={prepType}
-        values={prep}
-        onSelect={(v) => {
-          // Reset list-of-dict fields when swapping preparers so we
-          // don't accidentally write the old shape under a new type.
-          if (v === 'pipeline' && !prep.steps) {
-            setField('preparation', { type: v, steps: [] })
-          } else if (v !== 'pipeline' && prep.steps) {
-            const { steps: _drop, ...rest } = prep
-            setField('preparation', { ...rest, type: v })
+        value={prep as Record<string, unknown>}
+        selectorKey="type"
+        onChange={(next) => {
+          if (!next || !('type' in next)) {
+            setField('preparation', {})
+            return
+          }
+          const newType = next.type as string
+          // Reset list-of-dict fields when swapping preparers.
+          if (newType === 'pipeline') {
+            setField('preparation', {
+              ...next,
+              steps: (next.steps as StepConfig[]) || [],
+            })
           } else {
-            setField('preparation.type', v)
+            const { steps: _drop, ...rest } = next as Record<string, unknown>
+            setField('preparation', rest)
           }
         }}
-        onParamChange={(k, v) => setField(`preparation.${k}`, v)}
-        placeholder="-- select preparer --"
+        addLabel="Add preparer"
         hiddenFields={['steps']}
       />
       {prepType === 'pipeline' && (
@@ -467,25 +453,42 @@ function PreparationBody() {
 }
 
 function ModelBody() {
+  // Model is `{type, params}` on disk. The SingleModuleSlot wrapper
+  // wants a flat object with the selector key at the top level, so
+  // we pass `{type, ...params}` as the slot's value and re-split
+  // when writing back.
   const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
 
   const available = modulesIn(modules, ['models'])
-  const selected = config.model?.type || ''
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'model.params'), [fieldValues])
 
+  // Build the SingleModuleSlot's value: empty {} when no model is
+  // picked (so we get the "+ Add" affordance), or {type, ...params}
+  // when one is.
+  const m = config.model || {}
+  const slotValue: Record<string, unknown> = m.type
+    ? { type: m.type, ...(m.params || {}) }
+    : {}
+
   return (
-    <ModuleSlot
-      label="Model"
+    <SingleModuleSlot
       available={available}
-      selectedName={selected}
-      values={config.model?.params || {}}
-      onSelect={(v) => setField('model.type', v)}
-      onParamChange={(k, v) => setField(`model.params.${k}`, v)}
+      value={slotValue}
+      selectorKey="type"
+      onChange={(next) => {
+        // Empty object → clear the model.
+        if (!next || !('type' in next)) {
+          setField('model', { type: '', params: {} })
+          return
+        }
+        const { type, ...params } = next
+        setField('model', { type: type as string, params })
+      }}
+      addLabel="Add model"
       suggestions={hints}
-      placeholder="-- select model --"
     />
   )
 }

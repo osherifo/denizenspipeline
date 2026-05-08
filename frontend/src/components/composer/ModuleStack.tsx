@@ -27,6 +27,13 @@ interface ModuleStackProps<T> {
   emptyMessage?: string
   /** Index that should start expanded (e.g. just-added entry). */
   initialOpenIndex?: number | null
+  /** Max number of entries the stack will allow. The "+ Add" button
+   * disappears once items.length reaches this value. Use 1 to model
+   * single-pick stages (stimulus, response, model) with the same
+   * "+ Add" affordance the multi-pick stages have. */
+  maxItems?: number
+  /** Hide the up/down reorder controls (pointless when maxItems === 1). */
+  hideMove?: boolean
 }
 
 const itemStyle: CSSProperties = {
@@ -119,6 +126,8 @@ export function ModuleStack<T>({
   addLabel,
   emptyMessage,
   initialOpenIndex = null,
+  maxItems,
+  hideMove = false,
 }: ModuleStackProps<T>) {
   const [openIndex, setOpenIndex] = useState<number | null>(initialOpenIndex)
 
@@ -128,6 +137,7 @@ export function ModuleStack<T>({
   }
 
   const stop = (e: React.MouseEvent) => e.stopPropagation()
+  const canAdd = maxItems == null || items.length < maxItems
 
   return (
     <div>
@@ -141,26 +151,30 @@ export function ModuleStack<T>({
             <div style={itemHeaderStyle} onClick={() => setOpenIndex(isOpen ? null : i)}>
               <div style={summaryWrap}>{renderSummary(item, i)}</div>
               <div style={buttonGroup} onClick={stop}>
-                <button
-                  type="button"
-                  style={iconBtn(i === 0)}
-                  onClick={() => i > 0 && onMove(i, i - 1)}
-                  disabled={i === 0}
-                  title="Move up"
-                  aria-label="Move up"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  style={iconBtn(i === items.length - 1)}
-                  onClick={() => i < items.length - 1 && onMove(i, i + 1)}
-                  disabled={i === items.length - 1}
-                  title="Move down"
-                  aria-label="Move down"
-                >
-                  ↓
-                </button>
+                {!hideMove && (
+                  <>
+                    <button
+                      type="button"
+                      style={iconBtn(i === 0)}
+                      onClick={() => i > 0 && onMove(i, i - 1)}
+                      disabled={i === 0}
+                      title="Move up"
+                      aria-label="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      style={iconBtn(i === items.length - 1)}
+                      onClick={() => i < items.length - 1 && onMove(i, i + 1)}
+                      disabled={i === items.length - 1}
+                      title="Move down"
+                      aria-label="Move down"
+                    >
+                      ↓
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   style={removeBtn}
@@ -179,9 +193,11 @@ export function ModuleStack<T>({
           </div>
         )
       })}
-      <button type="button" style={addBtnStyle} onClick={handleAdd}>
-        + {addLabel}
-      </button>
+      {canAdd && (
+        <button type="button" style={addBtnStyle} onClick={handleAdd}>
+          + {addLabel}
+        </button>
+      )}
     </div>
   )
 }
