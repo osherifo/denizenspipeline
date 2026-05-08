@@ -846,6 +846,9 @@ export interface SettingsSnapshot {
   subjects_db_exists: boolean
   subjects_db_count?: number | null
   restart_required?: boolean
+  created?: string[]
 }
 
-export type SettingsUpdate = Partial<Record<SettingsKey, string>>
+export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
+  create_missing?: boolean
+}

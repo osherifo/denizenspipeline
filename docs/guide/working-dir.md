@@ -148,6 +148,11 @@ env var still wins.
 - **Saved values do not apply live.** Services cache the
   resolved layout at startup, so the Settings UI shows a
   *restart fmriflow* banner after a successful save.
+- **Create directories if they don't exist** (checkbox by Save) —
+  on, the backend `mkdir -p`s the directory-shaped fields
+  (`FMRIFLOW_HOME`, `FMRIFLOW_DATA`) when they don't exist yet.
+  File-shaped fields (`FS_LICENSE`, `FMRIFLOW_SINGULARITY_BIN`)
+  are not created automatically.
 - The **Resolved layout** table at the bottom mirrors
   `fmriflow paths` plus diagnostics (FreeSurfer license present?
   `subjects.json` present + subject count).

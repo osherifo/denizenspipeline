@@ -202,10 +202,12 @@ const resolvedKey: CSSProperties = {
 export function Settings() {
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | null>(null)
   const [edits, setEdits] = useState<SettingsUpdate>({})
+  const [createMissing, setCreateMissing] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [createdDirs, setCreatedDirs] = useState<string[]>([])
 
   const reload = () => {
     setLoading(true)
@@ -246,7 +248,7 @@ export function Settings() {
       // Submit only fields that were touched. Empty string clears
       // the persisted value (the snapshot then falls back to env or
       // default).
-      const payload: SettingsUpdate = {}
+      const payload: SettingsUpdate = { create_missing: createMissing }
       for (const f of SETTINGS_FIELDS) {
         if (Object.prototype.hasOwnProperty.call(edits, f.key)) {
           payload[f.key] = edits[f.key] ?? ''
@@ -256,6 +258,7 @@ export function Settings() {
       setSnapshot(next)
       setEdits({})
       setSaved(true)
+      setCreatedDirs(next.created ?? [])
     } catch (e) {
       setError(String(e))
     } finally {
@@ -284,6 +287,11 @@ export function Settings() {
         <div style={bannerStyle('success')}>
           Saved. <strong>Restart fmriflow</strong> for the new paths to apply —
           services cache the resolved layout at startup.
+          {createdDirs.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              Created on disk: {createdDirs.map((d) => <code key={d}>{d}</code>)}
+            </div>
+          )}
         </div>
       )}
 
@@ -343,6 +351,23 @@ export function Settings() {
         >
           {saving ? 'Saving…' : 'Save settings'}
         </button>
+        <label
+          style={{
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={createMissing}
+            onChange={(e) => setCreateMissing(e.target.checked)}
+          />
+          Create directories if they don't exist
+        </label>
         {dirty && (
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
             Unsaved changes

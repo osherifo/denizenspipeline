@@ -191,6 +191,7 @@ Browser UI for the working-directory env vars: `FMRIFLOW_HOME`, `FMRIFLOW_DATA`,
 - Each row shows a **source badge** (`env` / `persisted` / `default`) so you can tell which tier the running server is using.
 - Rows shadowed by a shell-exported env var are **locked** — unset the var in your shell to edit the persisted value.
 - **Save** writes `~/.config/fmriflow/settings.json` and shows a "restart fmriflow" banner — services cache the resolved layout at startup, so live re-apply is not safe.
+- **Create directories if they don't exist** checkbox (default on) — `mkdir -p`s `FMRIFLOW_HOME` / `FMRIFLOW_DATA` if they don't exist yet, so you don't have to drop into a terminal.
 - The **Resolved layout** table at the bottom mirrors `fmriflow paths` plus FreeSurfer-license and `subjects.json` presence.
 
 ---
