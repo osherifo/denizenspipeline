@@ -53,8 +53,8 @@ describe('<AnalysisComposer />', () => {
       config: {
         ...useConfigStore.getState().config,
         features: [
-          { name: 'numwords', source: 'compute', extractor: 'numwords' },
-          { name: 'english1000', source: 'compute', extractor: 'english1000' },
+          { name: 'word_rate', source: 'compute', extractor: 'word_rate' },
+          { name: 'phoneme_rate', source: 'compute', extractor: 'phoneme_rate' },
         ],
       },
     })
@@ -63,7 +63,33 @@ describe('<AnalysisComposer />', () => {
       // The "(2)" badge appears at least once in the header and again
       // as a ghost-graph node label.
       expect(screen.getAllByText('(2)').length).toBeGreaterThan(0)
-      expect(screen.getByText(/numwords, english1000/)).toBeInTheDocument()
+      expect(screen.getByText(/word_rate, phoneme_rate/)).toBeInTheDocument()
     })
+  })
+
+  it('uses the same "pick module → params" interaction for features and analyzers', async () => {
+    await loadModules()
+    useConfigStore.setState({
+      config: {
+        ...useConfigStore.getState().config,
+        // One feature + one analyzer so both stage cards have an
+        // entry whose editor is open by default after the user
+        // clicks Add. The interaction shape (a select followed by a
+        // ParamForm) should be identical across the two — the
+        // earlier UX had a free-text "Name" input for features and
+        // didn't for analyzers.
+        features: [
+          { name: 'word_rate', source: 'compute', extractor: 'word_rate' },
+        ],
+      },
+    })
+    renderWithProviders(<AnalysisComposer />)
+    await waitFor(() => {
+      expect(screen.getByText('Analysis Composer')).toBeInTheDocument()
+    })
+    // Features stage no longer renders a free-text "Name" input;
+    // FeatureKindSlot uses a single dropdown labelled "Feature".
+    // The legacy editor had a "Source" label; verify it's gone.
+    expect(screen.queryByText('Source')).not.toBeInTheDocument()
   })
 })

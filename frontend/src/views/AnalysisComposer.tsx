@@ -10,11 +10,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useConfigStore } from '../stores/config-store'
 import { useModuleStore } from '../stores/module-store'
-import { ParamForm } from '../components/composer/ParamForm'
 import { StageCard } from '../components/composer/StageCard'
 import type { StageStatus } from '../components/composer/StageCard'
 import { ModuleSlot } from '../components/composer/ModuleSlot'
 import { ModuleStack } from '../components/composer/ModuleStack'
+import { FeatureKindSlot } from '../components/composer/FeatureKindSlot'
 import { YamlEditor } from '../components/composer/YamlEditor'
 import { StageStripPreview } from '../components/composer/StageStripPreview'
 import type { PreviewStage } from '../components/composer/StageStripPreview'
@@ -207,18 +207,6 @@ function modulesIn(modules: Record<string, ModuleInfo[]>, categories: string[]):
   return out
 }
 
-function findModule(
-  modules: Record<string, ModuleInfo[]>,
-  categories: string[],
-  name: string,
-): ModuleInfo | undefined {
-  for (const c of categories) {
-    const found = (modules[c] || []).find((m) => m.name === name)
-    if (found) return found
-  }
-  return undefined
-}
-
 function suggestionsForPrefix(fv: FieldValues, prefix: string): Record<string, string[]> {
   const out: Record<string, string[]> = {}
   const dot = prefix + '.'
@@ -385,20 +373,14 @@ function ResponseBody() {
 }
 
 function FeaturesBody() {
-  const modules = useModuleStore((s) => s.modules)
-  const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
   const { addFeature, removeFeature, updateFeature, reorderFeatures } = useConfigStore()
-
-  const sources = modulesIn(modules, ['feature_sources'])
-  const extractors = modulesIn(modules, ['feature_extractors'])
   const features = config.features || []
-  const featureHints = useMemo(() => suggestionsForPrefix(fieldValues, 'features'), [fieldValues])
 
   return (
     <ModuleStack
       items={features}
-      onAdd={() => addFeature({ name: '', source: 'compute' })}
+      onAdd={() => addFeature({ name: '' })}
       onRemove={removeFeature}
       onMove={reorderFeatures}
       addLabel="Add feature"
@@ -412,80 +394,9 @@ function FeaturesBody() {
           </span>
         </span>
       )}
-      renderEditor={(f, i) => {
-        const source = f.source || 'compute'
-        const isCompute = source === 'compute'
-        const extractorName = f.extractor || (isCompute ? f.name : '')
-        const sourceModule = findModule(modules, ['feature_sources'], source)
-        const extractorModule = isCompute
-          ? findModule(modules, ['feature_extractors'], extractorName)
-          : null
-
-        return (
-          <div>
-            {/* Name */}
-            <div style={{ marginBottom: 10 }}>
-              <label style={labelSmall}>Name</label>
-              <input
-                type="text"
-                value={f.name}
-                style={inputStyle}
-                onChange={(e) => updateFeature(i, { ...f, name: e.target.value })}
-                placeholder="e.g. english1000"
-              />
-            </div>
-            {/* Source */}
-            <div style={{ marginBottom: 10 }}>
-              <label style={labelSmall}>Source</label>
-              <select
-                style={selectStyle}
-                value={source}
-                onChange={(e) => {
-                  const newSource = e.target.value
-                  const updated: FeatureConfig = { name: f.name, source: newSource }
-                  if (newSource === 'compute') {
-                    updated.extractor = f.name
-                    updated.params = {}
-                  }
-                  updateFeature(i, updated)
-                }}
-              >
-                {sources.map((s) => (
-                  <option key={s.name} value={s.name}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-            {/* Compute → extractor selector + params */}
-            {isCompute && (
-              <ModuleSlot
-                label="Extractor"
-                available={extractors}
-                selectedName={extractorName}
-                values={f.params || {}}
-                onSelect={(v) => {
-                  const updated = { ...f, source: 'compute', extractor: v }
-                  // Auto-name when the user hasn't customised it.
-                  if (f.name === '' || f.name === f.extractor) updated.name = v
-                  updateFeature(i, updated)
-                }}
-                onParamChange={(k, v) =>
-                  updateFeature(i, { ...f, params: { ...(f.params || {}), [k]: v } })
-                }
-                placeholder="-- select extractor --"
-              />
-            )}
-            {/* Non-compute source params */}
-            {!isCompute && sourceModule && Object.keys(sourceModule.params).length > 0 && (
-              <ParamForm
-                schema={sourceModule.params}
-                values={f as unknown as Record<string, unknown>}
-                onChange={(k, v) => updateFeature(i, { ...f, [k]: v })}
-                suggestions={featureHints}
-              />
-            )}
-          </div>
-        )
-      }}
+      renderEditor={(f, i) => (
+        <FeatureKindSlot value={f} onChange={(next) => updateFeature(i, next)} />
+      )}
     />
   )
 }
