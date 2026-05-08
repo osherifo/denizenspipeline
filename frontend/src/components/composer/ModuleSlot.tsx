@@ -33,6 +33,9 @@ interface ModuleSlotProps {
   placeholder?: string
   /** When true, hide the docstring panel even if available. */
   hideDocstring?: boolean
+  /** Schema fields to hide from the ParamForm (rendered separately by the
+   * caller, e.g. a list-of-dicts field handled as a ModuleStack). */
+  hiddenFields?: string[]
 }
 
 const wrapperStyle: CSSProperties = {
@@ -84,11 +87,22 @@ export function ModuleSlot({
   suggestions,
   placeholder = '-- select --',
   hideDocstring = false,
+  hiddenFields,
 }: ModuleSlotProps) {
   const selected = useMemo(
     () => available.find((m) => m.name === selectedName),
     [available, selectedName],
   )
+
+  const visibleSchema = useMemo(() => {
+    if (!selected) return undefined
+    if (!hiddenFields || hiddenFields.length === 0) return selected.params
+    const filtered: typeof selected.params = {}
+    for (const [k, v] of Object.entries(selected.params)) {
+      if (!hiddenFields.includes(k)) filtered[k] = v
+    }
+    return filtered
+  }, [selected, hiddenFields])
 
   return (
     <div style={wrapperStyle}>
@@ -106,9 +120,9 @@ export function ModuleSlot({
       {selected && !hideDocstring && selected.docstring && (
         <div style={docstringStyle}>{selected.docstring}</div>
       )}
-      {selected && (
+      {selected && visibleSchema && (
         <ParamForm
-          schema={selected.params}
+          schema={visibleSchema}
           values={values}
           onChange={onParamChange}
           suggestions={suggestions}

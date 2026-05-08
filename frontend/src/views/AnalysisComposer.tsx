@@ -38,8 +38,6 @@ const STAGE_DEFS = [
   { num: 7, key: 'reporting',   name: 'Report',      color: '#69f0ae' },
 ] as const
 
-const REPORTER_FORMATS = ['metrics', 'flatmap', 'flatmap_mapped', 'summary', 'weights', 'html']
-
 // ── Styles ────────────────────────────────────────────────────────────
 
 const pageStyle: CSSProperties = {
@@ -144,21 +142,6 @@ const secondaryBtn: CSSProperties = {
   borderColor: 'var(--border)',
   backgroundColor: 'transparent',
   color: 'var(--text-secondary)',
-}
-
-const checkboxGroup: CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 12,
-}
-
-const checkboxItem: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  fontSize: 13,
-  color: 'var(--text-primary)',
-  cursor: 'pointer',
 }
 
 const yamlHeaderStyle: CSSProperties = {
@@ -330,6 +313,11 @@ function StimulusBody() {
 }
 
 function ResponseBody() {
+  // Two ModuleSlots stacked: pick a loader, then optionally pick a
+  // reader. Always show both so the layout is symmetric with every
+  // other stage. The reader is meaningful for loaders that delegate
+  // voxel reading (e.g. `local`); for the others, leaving it empty
+  // is the right default.
   const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
@@ -339,7 +327,6 @@ function ResponseBody() {
   const readers = modulesIn(modules, ['response_readers'])
   const loaderName = config.response?.loader || ''
   const readerName = (config.response?.reader as string) || ''
-  const showReader = readerName && readerName !== 'auto'
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'response'), [fieldValues])
 
   return (
@@ -353,21 +340,20 @@ function ResponseBody() {
         onParamChange={(k, v) => setField(`response.${k}`, v)}
         suggestions={hints}
         placeholder="-- select loader --"
+        hiddenFields={['reader']}
       />
-      {showReader && (
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <ModuleSlot
-            label={`${readerName} reader params`}
-            available={readers}
-            selectedName={readerName}
-            values={config.response || {}}
-            onSelect={(v) => setField('response.reader', v)}
-            onParamChange={(k, v) => setField(`response.${k}`, v)}
-            suggestions={hints}
-            placeholder="-- select reader --"
-          />
-        </div>
-      )}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+        <ModuleSlot
+          label="Reader (optional)"
+          available={readers}
+          selectedName={readerName === 'auto' ? '' : readerName}
+          values={config.response || {}}
+          onSelect={(v) => setField('response.reader', v || 'auto')}
+          onParamChange={(k, v) => setField(`response.${k}`, v)}
+          suggestions={hints}
+          placeholder="-- none / auto --"
+        />
+      </div>
     </div>
   )
 }
@@ -402,6 +388,11 @@ function FeaturesBody() {
 }
 
 function PreparationBody() {
+  // One ModuleSlot picks the preparer module (default, pipeline, ...)
+  // — same shape as every other stage. The pipeline preparer's
+  // `steps` field is a list-of-dicts that ParamForm can't render
+  // sensibly, so we hide it from ParamForm and render an inline
+  // ModuleStack of preparation_step modules below.
   const modules = useModuleStore((s) => s.modules)
   const config = useConfigStore((s) => s.config)
   const setField = useConfigStore((s) => s.setField)
@@ -415,65 +406,61 @@ function PreparationBody() {
 
   return (
     <div>
-      <div style={{ marginBottom: 14 }}>
-        <label style={checkboxItem}>
-          <input
-            type="checkbox"
-            checked={prepType === 'pipeline'}
-            onChange={(e) => {
-              if (e.target.checked) {
-                setField('preparation.type', 'pipeline')
-                if (!prep.steps) setField('preparation.steps', [])
-              } else {
-                setField('preparation.type', 'default')
-              }
-            }}
+      <ModuleSlot
+        label="Preparer"
+        available={preparers}
+        selectedName={prepType}
+        values={prep}
+        onSelect={(v) => {
+          // Reset list-of-dict fields when swapping preparers so we
+          // don't accidentally write the old shape under a new type.
+          if (v === 'pipeline' && !prep.steps) {
+            setField('preparation', { type: v, steps: [] })
+          } else if (v !== 'pipeline' && prep.steps) {
+            const { steps: _drop, ...rest } = prep
+            setField('preparation', { ...rest, type: v })
+          } else {
+            setField('preparation.type', v)
+          }
+        }}
+        onParamChange={(k, v) => setField(`preparation.${k}`, v)}
+        placeholder="-- select preparer --"
+        hiddenFields={['steps']}
+      />
+      {prepType === 'pipeline' && (
+        <div style={{ marginTop: 12 }}>
+          <span style={{ ...labelSmall, marginBottom: 8 }}>Steps</span>
+          <ModuleStack<StepConfig>
+            items={steps}
+            onAdd={() => addStep({ type: '', params: {} } as unknown as StepConfig)}
+            onRemove={removeStep}
+            onMove={reorderSteps}
+            addLabel="Add preparation step"
+            emptyMessage="No steps yet — add the first."
+            renderSummary={(step) => (
+              <span>
+                <strong>{(step as any).type || '<pick step>'}</strong>
+              </span>
+            )}
+            renderEditor={(step, i) => (
+              <ModuleSlot
+                available={stepModules}
+                selectedName={(step as any).type || ''}
+                values={(step as any).params || {}}
+                onSelect={(v) =>
+                  updateStep(i, { type: v, params: {} } as unknown as StepConfig)
+                }
+                onParamChange={(k, v) =>
+                  updateStep(i, {
+                    ...(step as object),
+                    params: { ...((step as any).params || {}), [k]: v },
+                  } as unknown as StepConfig)
+                }
+                placeholder="-- select step --"
+              />
+            )}
           />
-          Use pipeline of preparation steps instead of a single preparer
-        </label>
-      </div>
-
-      {prepType === 'default' ? (
-        <ModuleSlot
-          label="Preparer"
-          available={preparers}
-          selectedName={(prep.preparer as string) || 'default'}
-          values={prep}
-          onSelect={(v) => setField('preparation.preparer', v)}
-          onParamChange={(k, v) => setField(`preparation.${k}`, v)}
-          placeholder="default"
-        />
-      ) : (
-        <ModuleStack<StepConfig>
-          items={steps}
-          onAdd={() => addStep({ type: '', params: {} } as unknown as StepConfig)}
-          onRemove={removeStep}
-          onMove={reorderSteps}
-          addLabel="Add preparation step"
-          emptyMessage="No steps yet — add the first."
-          renderSummary={(step) => (
-            <span>
-              <strong>{(step as any).type || '<pick step>'}</strong>
-            </span>
-          )}
-          renderEditor={(step, i) => (
-            <ModuleSlot
-              available={stepModules}
-              selectedName={(step as any).type || ''}
-              values={(step as any).params || {}}
-              onSelect={(v) =>
-                updateStep(i, { type: v, params: {} } as unknown as StepConfig)
-              }
-              onParamChange={(k, v) =>
-                updateStep(i, {
-                  ...(step as object),
-                  params: { ...((step as any).params || {}), [k]: v },
-                } as unknown as StepConfig)
-              }
-              placeholder="-- select step --"
-            />
-          )}
-        />
+        </div>
       )}
     </div>
   )
@@ -548,31 +535,51 @@ function AnalysisBody() {
 }
 
 function ReportingBody() {
+  // ModuleStack of reporter modules, mirroring the analyze stage.
+  // Each entry is { name } (no params surfaced — most reporters
+  // don't take any). The entry list is round-tripped to/from
+  // `reporting.formats` as a flat list of strings, which is the
+  // shape every existing analysis YAML uses.
+  const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
   const config = useConfigStore((s) => s.config)
-  const toggleReporter = useConfigStore((s) => s.toggleReporter)
   const setField = useConfigStore((s) => s.setField)
 
-  const formats = config.reporting?.formats || []
+  const reporters = modulesIn(modules, ['reporters'])
+  const formats = (config.reporting?.formats || []) as string[]
   const outputDir = config.reporting?.output_dir || './results'
   const outputDirHints = fieldValues['reporting.output_dir'] || []
 
+  const setFormats = (next: string[]) => setField('reporting.formats', next)
+
   return (
     <div>
-      <label style={labelSmall}>Formats</label>
-      <div style={checkboxGroup}>
-        {REPORTER_FORMATS.map((fmt) => (
-          <label key={fmt} style={checkboxItem}>
-            <input
-              type="checkbox"
-              checked={formats.includes(fmt)}
-              onChange={() => toggleReporter(fmt)}
-              style={{ accentColor: 'var(--accent-cyan)', cursor: 'pointer' }}
-            />
-            {fmt}
-          </label>
-        ))}
-      </div>
+      <ModuleStack<{ name: string }>
+        items={formats.map((name) => ({ name }))}
+        onAdd={() => setFormats([...formats, ''])}
+        onRemove={(i) => setFormats(formats.filter((_, idx) => idx !== i))}
+        onMove={(from, to) => {
+          const next = [...formats]
+          const [m] = next.splice(from, 1)
+          next.splice(to, 0, m)
+          setFormats(next)
+        }}
+        addLabel="Add reporter"
+        emptyMessage="No reporters yet — add at least one."
+        renderSummary={(r) => <strong>{r.name || '<pick reporter>'}</strong>}
+        renderEditor={(r, i) => (
+          <ModuleSlot
+            available={reporters}
+            selectedName={r.name}
+            values={{}}
+            onSelect={(v) => setFormats(formats.map((f, idx) => (idx === i ? v : f)))}
+            onParamChange={() => {
+              /* reporters don't expose params today */
+            }}
+            placeholder="-- select reporter --"
+          />
+        )}
+      />
       <div style={{ marginTop: 14 }}>
         <label style={labelSmall}>Output directory</label>
         <input
