@@ -80,6 +80,7 @@ export function SingleModuleSlot({
       items={items}
       maxItems={1}
       hideMove
+      hideRemove
       addLabel={addLabel}
       onAdd={() => onChange({ [selectorKey]: '' })}
       onRemove={() => onChange({})}

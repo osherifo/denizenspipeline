@@ -34,6 +34,11 @@ interface ModuleStackProps<T> {
   maxItems?: number
   /** Hide the up/down reorder controls (pointless when maxItems === 1). */
   hideMove?: boolean
+  /** Hide the per-entry × remove button. Used on single-pick stages
+   * where "removing" the only entry doesn't make sense — the stage
+   * is fixed in the pipeline. To bypass a stage, the user picks the
+   * dedicated `skip` module from the dropdown (where one exists). */
+  hideRemove?: boolean
 }
 
 const itemStyle: CSSProperties = {
@@ -128,6 +133,7 @@ export function ModuleStack<T>({
   initialOpenIndex = null,
   maxItems,
   hideMove = false,
+  hideRemove = false,
 }: ModuleStackProps<T>) {
   const [openIndex, setOpenIndex] = useState<number | null>(initialOpenIndex)
 
@@ -175,18 +181,20 @@ export function ModuleStack<T>({
                     </button>
                   </>
                 )}
-                <button
-                  type="button"
-                  style={removeBtn}
-                  onClick={() => {
-                    onRemove(i)
-                    if (openIndex === i) setOpenIndex(null)
-                  }}
-                  title="Remove"
-                  aria-label="Remove"
-                >
-                  ×
-                </button>
+                {!hideRemove && (
+                  <button
+                    type="button"
+                    style={removeBtn}
+                    onClick={() => {
+                      onRemove(i)
+                      if (openIndex === i) setOpenIndex(null)
+                    }}
+                    title="Remove"
+                    aria-label="Remove"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             </div>
             {isOpen && <div style={editorBody}>{renderEditor(item, i)}</div>}
