@@ -31,6 +31,7 @@ $FMRIFLOW_HOME/
 │   ├── workflows/          # post-preproc workflow templates
 │   └── modules/            # custom Python plugins
 ├── configs/                # YAML configs
+│   ├── analysis/           # encoding-model pipelines
 │   ├── convert/
 │   ├── preproc/
 │   ├── autoflatten/

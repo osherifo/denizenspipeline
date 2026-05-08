@@ -49,7 +49,10 @@ def create_app(
     """
     results_dir = results_dir or str(paths.results_root())
     derivatives_dir = derivatives_dir or str(paths.derivatives_root())
-    configs_dir = configs_dir or str(paths.configs_root())
+    # Analysis configs now live under configs/analysis/ for symmetry
+    # with the other stage subdirs. ConfigStore reads the legacy
+    # top-level (configs/*.yaml + ./experiments/*.yaml) as fallback.
+    configs_dir = configs_dir or str(paths.config_dir("analysis"))
     preproc_configs_dir = preproc_configs_dir or str(paths.config_dir("preproc"))
     convert_configs_dir = convert_configs_dir or str(paths.config_dir("convert"))
     autoflatten_configs_dir = autoflatten_configs_dir or str(paths.config_dir("autoflatten"))

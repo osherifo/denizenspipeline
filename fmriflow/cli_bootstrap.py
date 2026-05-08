@@ -57,7 +57,7 @@ def _cmd_init(_args) -> int:
     # Touch every subdir so the layout exists even on a fresh install.
     paths.runs_dir()
     paths.configs_root()
-    for stage in ("convert", "preproc", "autoflatten", "workflows"):
+    for stage in ("analysis", "convert", "preproc", "autoflatten", "workflows"):
         paths.config_dir(stage)
     for kind in ("heuristics", "workflows", "modules"):
         paths.addons_dir(kind)
@@ -114,10 +114,18 @@ def _cmd_migrate(args) -> int:
         for stage in ("convert", "preproc", "autoflatten", "workflows"):
             plan.append((legacy_exp / stage, paths.config_dir(stage), None))
         # Top-level *.yaml files in ./experiments/ are analysis
-        # configs (the encoding-model pipelines). They live at the
-        # root of $FMRIFLOW_HOME/configs/. Filter to *.yaml so the
-        # stage subdirs already handled above don't get re-copied.
-        plan.append((legacy_exp, paths.configs_root(), "*.yaml"))
+        # configs (the encoding-model pipelines). They land under
+        # $FMRIFLOW_HOME/configs/analysis/ for symmetry with the
+        # other stage subdirs. Filter to *.yaml so the stage subdirs
+        # already handled above don't get re-copied.
+        plan.append((legacy_exp, paths.config_dir("analysis"), "*.yaml"))
+
+    # Catch users who already migrated to the prior layout (analysis
+    # YAMLs at the top of $FMRIFLOW_HOME/configs/). Move them into
+    # configs/analysis/.
+    legacy_top = paths.configs_root()
+    if legacy_top.is_dir():
+        plan.append((legacy_top, paths.config_dir("analysis"), "*.yaml"))
 
     legacy_results = Path("./results").resolve()
     if legacy_results.is_dir():

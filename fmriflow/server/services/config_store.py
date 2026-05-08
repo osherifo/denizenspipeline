@@ -30,25 +30,32 @@ class ConfigSummary:
 
 
 class ConfigStore:
-    """Indexes experiment config files from a directory.
+    """Indexes analysis config files from
+    ``$FMRIFLOW_HOME/configs/analysis/``.
 
-    Also scans a legacy ``./experiments/`` location read-only (top-
-    level YAMLs only) so analysis configs from before the
-    working-dir consolidation still show up. Same-name files in the
-    primary ``configs_dir`` shadow the legacy versions. Writes
-    always go to the primary dir.
+    Falls back read-only to two legacy locations so existing
+    installs keep working through one migration window:
+
+    1. ``$FMRIFLOW_HOME/configs/*.yaml`` — where an earlier version
+       of this code put analysis YAMLs before the
+       per-stage-subdirectory layout was finalised.
+    2. ``./experiments/*.yaml`` — the original cwd-relative layout.
+
+    Same-name files in the primary directory shadow the legacy
+    versions. Writes always go to the primary dir.
     """
 
     def __init__(self, configs_dir: Path):
         self.configs_dir = configs_dir
         self._cache: list[ConfigSummary] = []
         self._last_scan = 0.0
-        # Legacy read-only fallback. Analysis YAMLs lived at the
-        # top of ``./experiments/`` before the working-dir
-        # consolidation; ``glob("*.yaml")`` is top-level only, so
-        # the stage subdirs (convert/, preproc/, …) are naturally
-        # excluded.
-        self._legacy_dirs = [Path("./experiments").resolve()]
+        # Legacy read-only fallback. Top-level only; stage subdirs
+        # (convert/, preproc/, …) are owned by their own stores.
+        self._legacy_dirs = [
+            self.configs_dir.parent if self.configs_dir.name == "analysis" else None,
+            Path("./experiments").resolve(),
+        ]
+        self._legacy_dirs = [d for d in self._legacy_dirs if d is not None]
 
     def _yamls_with_legacy_fallback(self) -> list[Path]:
         """Return YAML paths to scan, primary-tier first, no dups."""
@@ -68,8 +75,8 @@ class ConfigStore:
             except Exception:
                 pass
             for p in sorted(legacy.glob("*.yaml")):
-                # Skip stage-specific YAMLs in legacy/<stage>/
-                # (handled by their respective stores).
+                # Top-level only — stage subdir YAMLs (convert/, …)
+                # are handled by their respective stores.
                 if p.name in seen:
                     continue
                 seen.add(p.name)
