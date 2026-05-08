@@ -40,3 +40,26 @@ if (typeof window !== 'undefined') {
     value: { ...window.location, host: 'localhost:5173', protocol: 'http:' },
   })
 }
+
+// ReactFlow uses ResizeObserver + DOMMatrix + getBoundingClientRect
+// dimensions that JSDOM doesn't implement. Provide minimal shims so
+// any component embedding @xyflow/react (e.g. AnalysisComposer's
+// ghost graph) doesn't blow up the test runner.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  ;(globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver =
+    ResizeObserverStub as unknown as typeof ResizeObserver
+}
+
+if (typeof globalThis.DOMMatrixReadOnly === 'undefined') {
+  class DOMMatrixReadOnlyStub {
+    m22 = 1
+    constructor(_init?: string) {}
+  }
+  ;(globalThis as { DOMMatrixReadOnly?: typeof DOMMatrixReadOnly }).DOMMatrixReadOnly =
+    DOMMatrixReadOnlyStub as unknown as typeof DOMMatrixReadOnly
+}

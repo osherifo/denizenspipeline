@@ -81,7 +81,6 @@ const groups = [
   {
     label: 'Pipeline',
     items: [
-      { key: 'graph', label: 'Pipeline Graph', hash: '#graph' },
       { key: 'workflows', label: 'Workflows', hash: '#workflows' },
     ],
   },
@@ -99,8 +98,8 @@ const groups = [
     label: 'Analysis',
     items: [
       { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
+      { key: 'analysis', label: 'Composer', hash: '#analysis' },
       { key: 'modules', label: 'Modules', hash: '#modules' },
-      { key: 'composer', label: 'Composer', hash: '#composer' },
       { key: 'runs', label: 'Runs', hash: '#runs' },
       { key: 'editor', label: 'Editor', hash: '#editor' },
     ],
