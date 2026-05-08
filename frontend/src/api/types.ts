@@ -822,3 +822,33 @@ export interface NodePickleResponse {
   value?: unknown
   error?: string
 }
+
+// ── Settings ──
+
+export type SettingsKey =
+  | 'FMRIFLOW_HOME'
+  | 'FMRIFLOW_DATA'
+  | 'FS_LICENSE'
+  | 'FMRIFLOW_SINGULARITY_BIN'
+
+export interface SettingValue {
+  env: string | null
+  persisted: string | null
+  effective: string
+  source: 'env' | 'persisted' | 'default'
+}
+
+export interface SettingsSnapshot {
+  runtime_config_path: string
+  values: Record<SettingsKey, SettingValue>
+  resolved: Record<string, string>
+  license_file_exists: boolean
+  subjects_db_exists: boolean
+  subjects_db_count?: number | null
+  restart_required?: boolean
+  created?: string[]
+}
+
+export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
+  create_missing?: boolean
+}

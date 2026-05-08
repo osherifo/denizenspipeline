@@ -1,8 +1,9 @@
 """ConvertConfigStore — saves and indexes conversion config YAML files.
 
-Stores both single-run and batch conversion configs in ``./experiments/convert/``
-for reproducibility and re-running. Falls back to the legacy
-``~/.fmriflow/convert_configs/`` directory for read-only backwards
+Stores both single-run and batch conversion configs under
+``$FMRIFLOW_HOME/configs/convert/`` for reproducibility and
+re-running. Falls back to legacy ``./experiments/convert/`` and
+``~/.fmriflow/convert_configs/`` (read-only) for backwards
 compatibility with pre-migration installs.
 """
 
@@ -16,19 +17,22 @@ from typing import Any
 
 import yaml
 
-logger = logging.getLogger(__name__)
+from fmriflow.core import paths
 
-DEFAULT_DIR = Path("./experiments/convert")
-LEGACY_DIR = Path.home() / ".fmriflow" / "convert_configs"
+logger = logging.getLogger(__name__)
 
 
 class ConvertConfigStore:
     """Indexes saved conversion configs from a directory."""
 
     def __init__(self, configs_dir: Path | None = None):
-        self.configs_dir = configs_dir or DEFAULT_DIR
+        self.configs_dir = configs_dir or paths.config_dir("convert")
         self.configs_dir.mkdir(parents=True, exist_ok=True)
         self._configs_dir_resolved = self.configs_dir.resolve()
+        self._legacy_dirs = [
+            paths.legacy_convert_configs_root(),
+            Path("./experiments/convert").resolve(),
+        ]
         self._cache: list[dict] | None = None
         self._cache_time: float = 0
         self._cache_ttl = 5.0
@@ -42,11 +46,12 @@ class ConvertConfigStore:
             return self._cache
 
         configs = []
-        # Scan the active dir plus the legacy dir (read-only migration bridge).
+        # Scan the active dir plus legacy dirs (read-only migration bridge).
         seen: set[str] = set()
         search_dirs = [self.configs_dir]
-        if LEGACY_DIR.is_dir() and LEGACY_DIR.resolve() != self._configs_dir_resolved:
-            search_dirs.append(LEGACY_DIR)
+        for legacy in self._legacy_dirs:
+            if legacy.is_dir() and legacy.resolve() != self._configs_dir_resolved:
+                search_dirs.append(legacy)
         for d in search_dirs:
             if not d.is_dir():
                 continue

@@ -65,13 +65,11 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir heudiconv \
     && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
 
-RUN mkdir -p /workspace/experiments /workspace/results /workspace/derivatives \
-             /data/.fmriflow /data/heuristics /data/modules \
-    && chown -R fmriflow:fmriflow /app /workspace /data
+RUN mkdir -p /workspace \
+    && chown -R fmriflow:fmriflow /app /workspace
 
-ENV HOME=/data \
-    FMRIFLOW_HEURISTICS_DIR=/data/heuristics \
-    FMRIFLOW_MODULES_DIR=/data/modules
+ENV FMRIFLOW_HOME=/workspace \
+    HOME=/workspace
 
 EXPOSE 8421
 

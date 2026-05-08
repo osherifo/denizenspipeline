@@ -1,9 +1,14 @@
 """Heuristic registry — discover, validate, match, and manage heudiconv
 heuristic files.
 
-Heuristics live in a directory (default: ``~/.fmriflow/heuristics/``,
-overridable via ``FMRIFLOW_HEURISTICS_DIR``).  Each heuristic is a Python
+Heuristics live in a directory (default:
+``$FMRIFLOW_HOME/addons/heuristics/``, overridable via
+``FMRIFLOW_HEURISTICS_DIR``).  Each heuristic is a Python
 file with an optional companion YAML sidecar containing metadata.
+
+Resolution when reading: user tier first, bundled built-ins
+(``fmriflow/builtin/heuristics/``) as fallback. Writes always go
+to the user tier.
 """
 
 from __future__ import annotations
@@ -24,6 +29,8 @@ from fmriflow.convert.manifest import HeuristicRef, ScannerInfo
 
 logger = logging.getLogger(__name__)
 
+# Kept for back-compat with anything importing this constant; the
+# actual default now flows through ``fmriflow.core.paths``.
 DEFAULT_HEURISTICS_DIR = Path("heuristics")
 
 # Allowlist: only letters, digits, underscores, and hyphens are permitted in a
@@ -60,14 +67,32 @@ def _validate_heuristic_name(name: str) -> None:
 
 
 def _heuristics_dir() -> Path:
-    """Return the heuristics registry directory, creating it if needed.
+    """Return the writable heuristics registry directory.
 
-    Defaults to ``./heuristics/`` in the current working directory.
-    Override with the ``FMRIFLOW_HEURISTICS_DIR`` environment variable.
+    Resolution order:
+    1. ``$FMRIFLOW_HEURISTICS_DIR`` (legacy env var, still honoured).
+    2. ``$FMRIFLOW_HOME/addons/heuristics/`` (new home).
     """
-    d = Path(os.environ.get("FMRIFLOW_HEURISTICS_DIR", str(DEFAULT_HEURISTICS_DIR)))
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    custom = os.environ.get("FMRIFLOW_HEURISTICS_DIR")
+    if custom:
+        d = Path(custom)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    from fmriflow.core import paths
+    return paths.addons_dir("heuristics")
+
+
+def _builtin_heuristics_dir() -> Path:
+    """Return the bundled builtin heuristics directory."""
+    from fmriflow.core import paths
+    return paths.builtin_dir("heuristics")
+
+
+def _legacy_heuristics_dirs() -> list[Path]:
+    """Read-only legacy locations for the migration window."""
+    from fmriflow.core import paths
+    candidates = [paths.legacy_heuristics_root(), Path("heuristics").resolve()]
+    return [p for p in candidates if p.is_dir()]
 
 
 # ── HeuristicInfo ────────────────────────────────────────────────────────
@@ -90,16 +115,32 @@ class HeuristicInfo:
 # ── Registry operations ─────────────────────────────────────────────────
 
 def list_heuristics(scanner_pattern: str | None = None) -> list[HeuristicInfo]:
-    """List available heuristics, optionally filtered by scanner pattern."""
-    hdir = _heuristics_dir()
-    results = []
+    """List available heuristics, optionally filtered by scanner pattern.
 
-    for py_file in sorted(hdir.glob("*.py")):
-        info = _load_heuristic_info(py_file)
-        if scanner_pattern and info.scanner_pattern:
-            if scanner_pattern.lower() not in info.scanner_pattern.lower():
+    Walks the user tier first, then the bundled builtin tier, then
+    legacy locations. Same-named files in lower tiers are shadowed.
+    """
+    seen: set[str] = set()
+    results: list[HeuristicInfo] = []
+
+    search_dirs = [
+        _heuristics_dir(),
+        _builtin_heuristics_dir(),
+        *_legacy_heuristics_dirs(),
+    ]
+
+    for hdir in search_dirs:
+        if not hdir.is_dir():
+            continue
+        for py_file in sorted(hdir.glob("*.py")):
+            if py_file.stem in seen:
                 continue
-        results.append(info)
+            seen.add(py_file.stem)
+            info = _load_heuristic_info(py_file)
+            if scanner_pattern and info.scanner_pattern:
+                if scanner_pattern.lower() not in info.scanner_pattern.lower():
+                    continue
+            results.append(info)
 
     return results
 
@@ -107,17 +148,22 @@ def list_heuristics(scanner_pattern: str | None = None) -> list[HeuristicInfo]:
 def get_heuristic(name: str) -> Path:
     """Return the path to a named heuristic file.
 
+    Resolution: user tier → bundled builtins → legacy locations.
     Raises HeuristicError if not found.
     """
     _validate_heuristic_name(name)
-    hdir = _heuristics_dir()
-    path = hdir / f"{name}.py"
-    if path.is_file():
-        return path
+    for hdir in [
+        _heuristics_dir(),
+        _builtin_heuristics_dir(),
+        *_legacy_heuristics_dirs(),
+    ]:
+        path = hdir / f"{name}.py"
+        if path.is_file():
+            return path
 
-    available = [p.stem for p in hdir.glob("*.py")]
+    available = [info.name for info in list_heuristics()]
     raise HeuristicError(
-        f"Heuristic '{name}' not found in {hdir}. "
+        f"Heuristic '{name}' not found. "
         f"Available: {', '.join(available) or '(none)'}",
         subject="",
     )

@@ -15,9 +15,10 @@ PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 
 # License-file shim: only write if FS_LICENSE doesn't already
-# point to an existing file.
+# point to an existing file. Default location moves under
+# $FMRIFLOW_HOME/secrets/ alongside other user secrets.
 if [ -n "${FS_LICENSE_TEXT:-}" ]; then
-    target="${FS_LICENSE:-/data/license/license.txt}"
+    target="${FS_LICENSE:-${FMRIFLOW_HOME:-/workspace}/secrets/freesurfer-license.txt}"
     if [ ! -f "$target" ]; then
         mkdir -p "$(dirname "$target")"
         printf '%s\n' "$FS_LICENSE_TEXT" > "$target"
@@ -39,11 +40,10 @@ if [ "$(id -u)" = "0" ]; then
         fi
     fi
 
-    mkdir -p "$HOME/.fmriflow" \
-             "${FMRIFLOW_HEURISTICS_DIR:-$HOME/heuristics}" \
-             "${FMRIFLOW_MODULES_DIR:-$HOME/modules}"
-    chown -R fmriflow:fmriflow "$HOME" 2>/dev/null || true
-    chown -R fmriflow:fmriflow /workspace 2>/dev/null || true
+    # Materialise the $FMRIFLOW_HOME layout if the bind mount is
+    # empty on first boot. ``fmriflow init`` is idempotent.
+    gosu fmriflow fmriflow init >/dev/null 2>&1 || true
+    chown -R fmriflow:fmriflow "${FMRIFLOW_HOME:-/workspace}" 2>/dev/null || true
 
     exec gosu fmriflow "$@"
 fi

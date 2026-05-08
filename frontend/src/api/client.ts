@@ -914,3 +914,19 @@ export async function saveNewErrorFromCapture(body: {
     body: JSON.stringify(body),
   })
 }
+
+// ── Settings ──
+
+export async function fetchSettings(): Promise<import('./types').SettingsSnapshot> {
+  return json(`${BASE}/settings`)
+}
+
+export async function saveSettings(
+  body: import('./types').SettingsUpdate,
+): Promise<import('./types').SettingsSnapshot> {
+  return json(`${BASE}/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

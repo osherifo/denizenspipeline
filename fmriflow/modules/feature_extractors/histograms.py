@@ -61,9 +61,9 @@ class English1000Extractor:
         return []
 
     def _load_embeddings(self):
-        """Load dense embeddings from ``data/english1000.npz``."""
-        from pathlib import Path
-        npz_path = Path(__file__).resolve().parent.parent.parent / 'data' / 'english1000.npz'
+        """Load dense embeddings from ``builtin/text/english1000.npz``."""
+        from fmriflow.core import paths
+        npz_path = paths.builtin_dir("text") / "english1000.npz"
         d = np.load(npz_path)
         keys, values = d['keys'], d['values']
         embedding_dict = {k: v for k, v in zip(keys, values)}

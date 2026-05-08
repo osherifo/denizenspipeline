@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from fmriflow.core import paths
 from fmriflow.registry import ModuleRegistry
 from fmriflow.server.services.run_store import RunStore
 from fmriflow.server.services.run_manager import RunManager
@@ -30,16 +31,35 @@ logger = logging.getLogger(__name__)
 
 
 def create_app(
-    results_dir: str = './results',
+    results_dir: str | None = None,
     modules_dir: str | None = None,
-    configs_dir: str = './experiments',
-    preproc_configs_dir: str = './experiments/preproc',
-    convert_configs_dir: str = './experiments/convert',
-    autoflatten_configs_dir: str = './experiments/autoflatten',
-    workflow_configs_dir: str = './experiments/workflows',
-    derivatives_dir: str = './derivatives',
+    configs_dir: str | None = None,
+    preproc_configs_dir: str | None = None,
+    convert_configs_dir: str | None = None,
+    autoflatten_configs_dir: str | None = None,
+    workflow_configs_dir: str | None = None,
+    derivatives_dir: str | None = None,
 ) -> FastAPI:
-    """Create and configure the FastAPI application."""
+    """Create and configure the FastAPI application.
+
+    All path arguments default to the resolved layout exposed by
+    ``fmriflow.core.paths``: ``$FMRIFLOW_HOME/configs/<stage>/`` for
+    YAMLs, ``$FMRIFLOW_HOME/data/{results,derivatives}/`` for outputs.
+    Pass an explicit value to override (e.g. for tests).
+    """
+    results_dir = results_dir or str(paths.results_root())
+    derivatives_dir = derivatives_dir or str(paths.derivatives_root())
+    # Analysis configs now live under configs/analysis/ for symmetry
+    # with the other stage subdirs. ConfigStore reads the legacy
+    # top-level (configs/*.yaml + ./experiments/*.yaml) as fallback.
+    configs_dir = configs_dir or str(paths.config_dir("analysis"))
+    preproc_configs_dir = preproc_configs_dir or str(paths.config_dir("preproc"))
+    convert_configs_dir = convert_configs_dir or str(paths.config_dir("convert"))
+    autoflatten_configs_dir = autoflatten_configs_dir or str(paths.config_dir("autoflatten"))
+    workflow_configs_dir = workflow_configs_dir or str(paths.config_dir("workflows"))
+
+    for k, v in paths.describe().items():
+        logger.info("[paths] %-15s = %s", k, v)
     app = FastAPI(
         title="fMRIflow",
         version="0.1.0",
@@ -77,11 +97,11 @@ def create_app(
     workflow_config_store = WorkflowConfigStore(Path(workflow_configs_dir))
     workflow_manager = WorkflowManager()
     structural_qc_store = StructuralQCStore(
-        Path.home() / ".fmriflow" / "structural_qc"
+        paths.store_dir("structural_qc")
     )
     post_preproc_manager = PostPreprocManager()
     post_preproc_workflow_store = PostPreprocWorkflowStore(
-        Path.home() / ".fmriflow" / "post_preproc_workflows"
+        paths.store_dir("post_preproc_workflows")
     )
     post_preproc_manager.bind_dependencies(
         registry=registry,
@@ -127,6 +147,7 @@ def create_app(
     from fmriflow.server.routes.structural_qc import router as structural_qc_router
     from fmriflow.server.routes.post_preproc import router as post_preproc_router
     from fmriflow.server.routes.node_outputs import router as node_outputs_router
+    from fmriflow.server.routes.settings import router as settings_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -150,6 +171,7 @@ def create_app(
     # `/preproc/runs/{run_id}/node/...` does not collide with those
     # patterns. Include order does not affect matching here.
     app.include_router(node_outputs_router, prefix="/api")
+    app.include_router(settings_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

@@ -184,6 +184,16 @@ If you have not created any local error definitions in `devdocs/errors/`, this p
 - **Error cards** show: ID, stage badge, title, tags, symptom preview
 - **Expanded view**: for available entries, full symptoms, root cause, diagnosis steps, fix instructions, config notes, references
 
+### Settings
+
+Browser UI for the working-directory env vars: `FMRIFLOW_HOME`, `FMRIFLOW_DATA`, `FS_LICENSE`, `FMRIFLOW_SINGULARITY_BIN`. See [Working Directory](working-dir.md#editing-paths-from-the-settings-tab) for the layout this controls.
+
+- Each row shows a **source badge** (`env` / `persisted` / `default`) so you can tell which tier the running server is using.
+- Rows shadowed by a shell-exported env var are **locked** — unset the var in your shell to edit the persisted value.
+- **Save** writes `~/.config/fmriflow/settings.json` and shows a "restart fmriflow" banner — services cache the resolved layout at startup, so live re-apply is not safe.
+- **Create directories if they don't exist** checkbox (default on) — `mkdir -p`s `FMRIFLOW_HOME` / `FMRIFLOW_DATA` if they don't exist yet, so you don't have to drop into a terminal.
+- The **Resolved layout** table at the bottom mirrors `fmriflow paths` plus FreeSurfer-license and `subjects.json` presence.
+
 ---
 
 ## Long-running analysis runs — detach & reattach

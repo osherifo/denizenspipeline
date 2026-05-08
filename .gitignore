@@ -9,11 +9,10 @@ node_modules/
 work/
 **/*.tsbuildinfo
 .claude
-heuristics/
+/heuristics/
 CHANGES
 site/
 proposals/
-fmriflow/data/subjects.json
 run_fmriprep.sh
 fmriflow/plugins/response_loaders/study_hdf.py
 heuristics/generic_heuristic.py

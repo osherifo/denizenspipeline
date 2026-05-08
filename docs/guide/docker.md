@@ -6,34 +6,52 @@ hand.
 
 | Variant | Size | Use when |
 |---|---|---|
-| **slim** | ~1–2 GB | You already have Docker (or apptainer) on the host and want fmriflow to delegate fmriprep to it. |
+| **slim** | ~3–4 GB | You already have Docker (or apptainer) on the host and want fmriflow to delegate fmriprep to it. |
 | **full** | ~25 GB | You want a single self-contained image — fmriprep + FreeSurfer + ANTs + AFNI baked in. |
 
 Both images expose the web UI on port `8421` and run as a non-root
-user. Persistent state (run registry, modules, QC store, workflow
-configs) lives on a named Docker volume so it survives container
-restarts.
+user. Persistent state lives under `$FMRIFLOW_HOME` on the host and
+is bind-mounted into the container, so it survives container
+restarts and image rebuilds.
+
+## Working directory: `$FMRIFLOW_HOME`
+
+fmriflow reads and writes everything from one host directory:
+
+```
+$FMRIFLOW_HOME/        # default ~/projects/fmriflow
+├── addons/            # your heuristics, workflows, custom modules
+├── configs/           # convert / preproc / autoflatten / workflow YAMLs
+├── runs/              # run registry — needed for reattach
+├── stores/            # structural-QC + post-preproc state
+├── secrets/           # FreeSurfer license, etc.
+├── subjects.json      # your subject metadata
+└── data/              # MRI: bids/, dicoms/, derivatives/, work/, results/
+```
+
+The compose files bind `$FMRIFLOW_HOME` to `/workspace` inside the
+container. See the [working-dir guide](working-dir.md) for the
+full layout and tier model.
 
 ## Quickstart — slim image
-
-The slim image runs fmriflow as the orchestrator and shells out to
-the host's Docker daemon to spawn fmriprep as a sibling container.
-This is the recommended path on a workstation that already runs
-Docker.
 
 ```bash
 git clone https://github.com/osherifo/denizenspipeline.git
 cd denizenspipeline
 
-# 1. Drop your FreeSurfer license under ./license/.
-mkdir -p license experiments results derivatives bids dicoms
-cp /path/to/your/freesurfer_license.txt license/license.txt
+# 1. (Optional) point fmriflow at a custom working dir.
+export FMRIFLOW_HOME=~/projects/fmriflow
 
 # 2. Bring it up.
 docker compose up --build
 ```
 
-Open `http://localhost:8421` and you should see the fmriflow UI.
+On first boot the container runs `fmriflow init` to materialise the
+empty layout under `$FMRIFLOW_HOME`. Drop your FreeSurfer license at
+`$FMRIFLOW_HOME/secrets/freesurfer-license.txt`, or set
+`FS_LICENSE_TEXT` in your shell to pass it inline.
+
+Open `http://localhost:8421`.
 
 In your preproc YAML, point fmriprep at the bidsapp image:
 
@@ -88,21 +106,29 @@ keep using the slim image and bind the apptainer binary in:
    container: /opt/fmriprep.sif
    ```
 
+## Splitting `data/` onto a separate disk
+
+Set `$FMRIFLOW_DATA` on the host to a different path (e.g. a RAID
+mount) and uncomment the matching `FMRIFLOW_DATA` env + volume in
+`docker-compose.yml`:
+
+```yaml
+environment:
+  FMRIFLOW_DATA: /data
+volumes:
+  - ${FMRIFLOW_DATA:-~/projects/fmriflow-data}:/data
+```
+
+Inside the container, BIDS / derivatives / work / results live
+under `$FMRIFLOW_DATA` instead of `$FMRIFLOW_HOME/data/`.
+
 ## Mounted paths
 
 | Host path | Container path | Purpose |
 |---|---|---|
-| `fmriflow-state` (named volume) | `/data` | `~/.fmriflow/` — run registry, modules, QC store, workflows, registered heuristics |
-| `./experiments/` | `/workspace/experiments` | Convert / preproc / autoflatten / workflow YAML configs |
-| `./derivatives/` | `/workspace/derivatives` | fmriprep + autoflatten outputs |
-| `./results/` | `/workspace/results` | Analysis run outputs |
-| `./bids/` (ro) | `/workspace/bids` | BIDS roots |
-| `./dicoms/` (ro) | `/workspace/dicoms` | DICOM roots |
-| `./license/` (ro) | `/data/license` | FreeSurfer license file |
+| `$FMRIFLOW_HOME` (default `~/projects/fmriflow`) | `/workspace` | Configs, addons, runs, stores, secrets, data subtree |
+| `$FMRIFLOW_DATA` *(optional)* | `/data` | Big-data subtree (BIDS / derivatives / work / results) on a separate disk |
 | `/var/run/docker.sock` *(slim only)* | same | docker-out-of-docker for fmriprep |
-
-Adjust the host paths in `docker-compose.yml` to match where your
-data actually lives.
 
 ## File ownership on bind mounts
 
@@ -114,36 +140,30 @@ host user with:
 PUID=$(id -u) PGID=$(id -g) docker compose up
 ```
 
-This is sticky in the named volume, so set it once at first launch.
-
 ## Passing the FreeSurfer license inline
 
-If you don't want to bind-mount a license file, set the env var
-`FS_LICENSE_TEXT` on your host (e.g. via a `.env` file):
+If you don't want to drop a license file at
+`$FMRIFLOW_HOME/secrets/freesurfer-license.txt`, set
+`FS_LICENSE_TEXT` on your host (e.g. via `.env`):
 
 ```env
 FS_LICENSE_TEXT="abc123\nyou@example.com\n0001\n..."
 ```
 
-The container's entrypoint writes it into `$FS_LICENSE` on first
-boot, but that path must be writable. If your Compose setup
-bind-mounts `./license` read-only at `/data/license` and sets
-`FS_LICENSE` inside that mount, inline mode will not work as-is.
-For `FS_LICENSE_TEXT`, remove that read-only license mount or point
-`FS_LICENSE` at a writable location under `/data` instead.
+The entrypoint writes it to `$FMRIFLOW_HOME/secrets/freesurfer-license.txt`
+on first boot.
 
 ## Troubleshooting
 
 - **fmriprep sibling container can't see /workspace** — when slim
   spawns fmriprep via the docker socket, the *host* path is what
-  the sibling container sees. Make sure your `./derivatives/` etc.
-  sit at paths that exist on the host and inside the fmriflow
-  container at the same location, or switch to the full image
-  where everything runs in one container.
+  the sibling container sees. Make sure your `$FMRIFLOW_HOME` lives
+  at the same path on the host and inside the fmriflow container,
+  or switch to the full image where everything runs in one container.
 - **Heudiconv complains about `dcm2niix`** — both slim and full
   ship `dcm2niix` on PATH; if you've forked the Dockerfile and
   removed it, reinstall.
-- **`mkdir: cannot create /data/.fmriflow`** — the named volume
-  isn't writable by the in-container user. Re-run with
-  `PUID=$(id -u) PGID=$(id -g) docker compose up` so the entrypoint
-  picks up the right uid/gid.
+- **First boot looks empty** — that's expected. The entrypoint
+  runs `fmriflow init` against the bind mount. Drop your saved
+  configs, addons, and data into the corresponding subdirs and
+  reload the UI.

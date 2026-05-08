@@ -207,6 +207,7 @@ def _triage_path_for(
             return rd / TriageFileName
 
     # Last resort: the default registry path.
-    default = Path.home() / ".fmriflow" / "runs" / run_id
+    from fmriflow.core import paths
+    default = paths.runs_dir() / run_id
     default.mkdir(parents=True, exist_ok=True)
     return default / TriageFileName
