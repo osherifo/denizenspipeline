@@ -35,19 +35,18 @@ Three entry points to the same panel:
       *Coronal*, *Sagittal*, *3D* render.
     - **Volume on / off**: hide the T1 in 3D so the cortex meshes are
       unobstructed.
-    - **Surfaces** (multi-toggle): *pial* (green), *white* (red),
-      *inflated* (blue) — colour-coded to match freeview's defaults
-      (pial=green, white=red). Toggle any combination on at once;
-      *clear* hides them all.
+    - **Surfaces** (single-select): *pial*, *white*, *inflated*.
+      Only one surface kind is shown at a time; clicking the active
+      one again hides surfaces. All surface meshes use the same
+      neutral white base colour.
     - **Curv** (on / off, default on) — shade the white + inflated
       surfaces by FreeSurfer per-vertex curvature (`?h.curv`),
-      attached as a niivue mesh layer with `colormap=gray` and
-      `cal_min/max = ±0.5` (the `recon-all` convention: sulci
-      negative → dark, gyri positive → light). Pial is unaffected
-      (curvature is less meaningful at the pial surface). The 2D
-      *real* contour overlay is also unaffected — contours stay
-      solid in their per-surface colour. Toggle flips the layer's
-      `opacity` live, no mesh reload.
+      attached as a niivue mesh layer with `colormap=gray`,
+      `colormapInvert=true`, and `cal_min=0` / `cal_max=1` (niivue's
+      normalised CURV range). This preserves the FreeSurfer QC visual
+      convention (sulci dark, gyri light). Pial is unaffected
+      (curvature is less meaningful at the pial surface). Toggle
+      flips the layer's `opacity` live, no mesh reload.
     - **Mode** — `real` (default) draws true Freeview-style 1-px
       contours by computing the actual plane-triangle intersection
       of each surface mesh against the current slice plane and

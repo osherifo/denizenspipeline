@@ -607,11 +607,14 @@ export function StructuralQCPanel({ subject }: Props) {
         const kind = surface
         // Attach FreeSurfer ?h.curv as a binary-grayscale layer on
         // white + inflated (the surfaces where curvature shading
-        // is anatomically meaningful). cal_min/max ±0.5 is the
-        // recon-all QC convention; sulci negative → dark, gyri
-        // positive → light. Always include the layer regardless of
-        // curvShaded so the toggle can flip opacity live without
-        // a mesh reload (controlled by a separate effect).
+        // is anatomically meaningful). In Niivue, CURV data is
+        // normalised per hemisphere to [0, 1], and the layer config
+        // below uses that range plus `colormapInvert: true` to keep
+        // sulci dark and gyri light, matching FreeSurfer's
+        // recon-all QC appearance. Always include the layer
+        // regardless of curvShaded so the toggle can flip opacity
+        // live without a mesh reload (controlled by a separate
+        // effect).
         const wantCurv = kind === 'white' || kind === 'inflated'
         // `name` must carry the `.curv` extension — niivue's
         // readLayer reads the extension from `name` (preferring
