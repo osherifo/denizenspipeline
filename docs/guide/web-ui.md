@@ -181,8 +181,6 @@ Write, validate, and register custom modules directly in the browser.
 
 Saved modules go to `$FMRIFLOW_HOME/addons/modules/` and are auto-loaded on server startup.
 
-Saved modules go to `~/.fmriflow/modules/` and are auto-loaded on server startup.
-
 ---
 
 ## Reference
