@@ -217,8 +217,9 @@ with the others.
   the old flat-DAG view.
 - **`Collapse all`** snaps back to the conceptual view.
 - Leaves still open the node-outputs side drawer on click; the `?`
-  doc-link icon on every node opens the fmriprep docs for that
-  step (see [ticket #8](https://fmriprep.org/en/stable/workflows.html)).
+  doc-link icon on every node opens the
+  [fmriprep workflows page](https://fmriprep.org/en/stable/workflows.html)
+  at the section for that step.
 
 All visible labels are real fmriprep workflow ids straight from
 nipype's dotted paths — no labels are renamed or rolled up

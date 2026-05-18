@@ -344,8 +344,7 @@ export function NipypeGraphModal({ runId, isRunning, onClose }: Props) {
 // Conceptual-view depth: at this depth the visible nodes are fmriprep_wf,
 // single_subject_*_wf, and the major named sub-workflows
 // (anat_preproc_wf, func_preproc_*_wf, sdc_estimate_wf, ...). User can
-// expand individual workflow nodes deeper. Per ticket #10 — the
-// collapse-by-default conceptual view.
+// expand individual workflow nodes deeper.
 const DEFAULT_VISIBLE_DEPTH = 3
 
 
