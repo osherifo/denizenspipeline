@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 _FS_ALLOWED_SUFFIXES = {
     ".nii", ".gz", ".mgz",
     ".pial", ".white", ".inflated", ".smoothwm",
+    # Per-vertex scalar overlays for niivue mesh layers
+    # (curvature shading on white/inflated, plus future toggles
+    # for cortical thickness / surface area).
+    ".curv", ".thickness", ".area",
     ".png", ".svg",
 }
 

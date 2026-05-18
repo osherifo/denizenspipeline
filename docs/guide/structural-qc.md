@@ -35,14 +35,50 @@ Three entry points to the same panel:
       *Coronal*, *Sagittal*, *3D* render.
     - **Volume on / off**: hide the T1 in 3D so the cortex meshes are
       unobstructed.
-    - **Surfaces** (multi-toggle): *pial* (green), *white* (red),
-      *inflated* (blue) — colour-coded to match freeview's defaults
-      (pial=green, white=red). Toggle any combination on at once;
-      *clear* hides them all.
-    - **X-ray** slider (0..1): drives niivue's global mesh-transparency
-      pass. Lower values = outer mesh wins (opaque); higher values =
-      inner mesh shows through. Useful when both pial and white are on
-      and you want to see one through the other in 3D.
+    - **Surfaces** (single-select): *pial*, *white*, *inflated*.
+      Only one surface kind is shown at a time; clicking the active
+      one again hides surfaces. All surface meshes use the same
+      neutral white base colour.
+    - **Curv** (on / off, default on) — shade the white + inflated
+      surfaces by FreeSurfer per-vertex curvature (`?h.curv`),
+      attached as a niivue mesh layer with `colormap=gray`,
+      `colormapInvert=true`, and `cal_min=0` / `cal_max=1` (niivue's
+      normalised CURV range). This preserves the FreeSurfer QC visual
+      convention (sulci dark, gyri light). Pial is unaffected
+      (curvature is less meaningful at the pial surface). Toggle
+      flips the layer's `opacity` live, no mesh reload.
+    - **Mode** — `real` (default) draws true Freeview-style 1-px
+      contours by computing the actual plane-triangle intersection
+      of each surface mesh against the current slice plane and
+      stroking the resulting polylines onto an overlay canvas.
+      Implementation in
+      `frontend/src/components/preproc/contourRenderer.ts`; works
+      in axial / coronal / sagittal / multiplanar. `slab` falls
+      back to niivue's `setMeshThicknessOn2D` (3D mesh clipped to
+      a band) — faster but reads as a wide blob wherever the
+      surface grazes the slice tangentially.
+    - **Contour** slider (mm, 0..10) — *only when Mode = slab.*
+      Sets the slab thickness; lower = thinner band, higher =
+      wider. Hidden in `real` mode (no equivalent knob — the
+      contour is always 1 px) and in *3D* mode.
+    - **Slice scrubbers** — one slider per visible plane (X / Y / Z),
+      shown below the canvas in all 2D modes. Drag to move through
+      slices one at a time; the readout shows
+      `current / max` voxel index. Clicking in the canvas (the
+      existing crosshair-nav) keeps the scrubbers in sync.
+    - **Zoom + pan**:
+        - Toolbar: `−` / slider / `+` / `reset`. Range 0.25× – 20×
+          in both 2D and 3D modes; buttons step ÷/× 1.5. The
+          label flips between *Zoom (2D)* and *Zoom (3D)* to
+          reflect which knob is being driven (`pan2Dxyzmm[3]` vs
+          `volScaleMultiplier`). *Reset* clears 2D pan + 2D zoom +
+          3D zoom in one go. 3D bypasses niivue's built-in
+          `[0.5, 2]` clamp so you can crank in close on the
+          surface meshes.
+        - In the 2D canvas: **click** moves the crosshair, **click
+          + drag** pans the zoomed view, **scroll-wheel** zooms
+          centred on the cursor. (Slice scrolling is on the
+          scrubbers, not the wheel.)
     - **⤢ Fullscreen**: pop the canvas out to a `position: fixed`
       overlay. Niivue stays mounted across the toggle, so the volume
       isn't re-downloaded.
