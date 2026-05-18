@@ -20,8 +20,11 @@ import { fetchPreprocRunLive } from '../../api/client'
 import { fetchWorkTree } from '../../api/node-outputs'
 import type { NipypeNodeStatus, NipypeStatusBlock } from '../../api/types'
 import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
+import { allWorkflowIds, filterVisible } from './nipype_tree_filter'
 import { NodeOutputsPanel } from './NodeOutputsPanel'
 import { NodeListPanel } from './NodeListPanel'
+import { fmriprepDocUrl } from './fmriprep_docs'
+import { inferredName } from './fmriprep_labels'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -37,7 +40,58 @@ const NEUTRAL = 'var(--text-secondary)'
 
 
 type LeafData = NipypeTreeNode & { _kind: 'leaf' }
-type WorkflowData = NipypeTreeNode & { _kind: 'workflow' }
+type WorkflowData = NipypeTreeNode & {
+  _kind: 'workflow'
+  /** True if at least one descendant of this workflow is hidden under
+   *  the current collapse-by-depth filter. */
+  hasHidden?: boolean
+  /** True if the user has explicitly expanded this workflow (i.e.
+   *  it's in the `expanded` Set). Drives the glyph: '−' if
+   *  expanded, '+' if collapsed-and-hiding-something, nothing
+   *  otherwise. */
+  isExpanded?: boolean
+}
+
+
+function _DocsLinkIcon({ label }: { label: string | undefined }) {
+  // Per-node fmriprep docs link. stopPropagation so the click doesn't
+  // bubble to the ReactFlow node and trigger the existing
+  // open-NodeOutputsPanel handler — left-clicking the link should
+  // ONLY open the docs.
+  return (
+    <a
+      href={fmriprepDocUrl(label)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      title="Open fMRIPrep docs for this node (new tab)"
+      style={{
+        position: 'absolute',
+        top: 1,
+        right: 3,
+        fontSize: 10,
+        fontWeight: 700,
+        color: 'var(--text-secondary)',
+        textDecoration: 'none',
+        opacity: 0.55,
+        lineHeight: '12px',
+        padding: '0 3px',
+        borderRadius: 3,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.opacity = '1'
+        e.currentTarget.style.color = 'var(--accent-cyan)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.opacity = '0.55'
+        e.currentTarget.style.color = 'var(--text-secondary)'
+      }}
+    >
+      ?
+    </a>
+  )
+}
+const DocsLinkIcon = memo(_DocsLinkIcon)
 
 
 function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
@@ -62,6 +116,7 @@ function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
       title={`${data.full_node ?? data.id} — ${data.status ?? ''}${elapsed}`}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
+      <DocsLinkIcon label={data.label} />
       <div>{data.label}</div>
       <div style={{ fontSize: 9, color }}>
         {data.status ?? ''}{elapsed}
@@ -83,6 +138,7 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
     : c.completed_assumed > 0 ? STATUS_COLOR.completed_assumed
     : c.cached > 0 ? STATUS_COLOR.cached
     : NEUTRAL
+  const friendly = inferredName(data.label)
   return (
     <div
       style={{
@@ -96,11 +152,51 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
         minWidth: 130,
         textAlign: 'center',
         position: 'relative',
+        cursor: data.isExpanded || data.hasHidden ? 'pointer' : 'default',
       }}
-      title={data.id}
+      title={
+        data.isExpanded
+          ? `${data.id} — click to collapse`
+          : data.hasHidden
+          ? `${data.id} — click to expand`
+          : data.id
+      }
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
-      <div>{data.label}</div>
+      <DocsLinkIcon label={data.label} />
+      {(data.isExpanded || data.hasHidden) && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: 1,
+            left: 4,
+            fontSize: 12,
+            fontWeight: 700,
+            color: 'var(--text-secondary)',
+            lineHeight: '12px',
+            opacity: 0.7,
+          }}
+        >
+          {data.isExpanded ? '−' : '+'}
+        </span>
+      )}
+      <div>
+        {data.label}
+        {friendly && (
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 500,
+              color: 'var(--text-secondary)',
+              marginTop: 1,
+              fontStyle: 'italic',
+            }}
+          >
+            [{friendly}]
+          </div>
+        )}
+      </div>
       <div
         style={{
           fontSize: 9,
@@ -204,6 +300,16 @@ const header: CSSProperties = {
   marginBottom: 8,
 }
 
+const toolBtn: CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 11,
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  background: 'var(--bg-secondary)',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+}
+
 const closeBtn: CSSProperties = {
   padding: '4px 12px',
   fontSize: 12,
@@ -212,7 +318,6 @@ const closeBtn: CSSProperties = {
   background: 'var(--bg-secondary)',
   color: 'var(--text-primary)',
   cursor: 'pointer',
-  marginLeft: 'auto',
 }
 
 
@@ -236,11 +341,23 @@ export function NipypeGraphModal({ runId, isRunning, onClose }: Props) {
 }
 
 
+// Conceptual-view depth: at this depth the visible nodes are fmriprep_wf,
+// single_subject_*_wf, and the major named sub-workflows
+// (anat_preproc_wf, func_preproc_*_wf, sdc_estimate_wf, ...). User can
+// expand individual workflow nodes deeper. Per ticket #10 — the
+// collapse-by-default conceptual view.
+const DEFAULT_VISIBLE_DEPTH = 3
+
+
 function Inner({ runId, isRunning, onClose }: Props) {
   const [block, setBlock] = useState<NipypeStatusBlock | null>(null)
   const [cachedLeaves, setCachedLeaves] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [openNode, setOpenNode] = useState<string | null>(null)
+  // Workflow ids the user has explicitly expanded beyond
+  // DEFAULT_VISIBLE_DEPTH. Click on a workflow node toggles
+  // membership.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const rf = useReactFlow()
 
   // Whenever the user picks a node (via list or graph click), pan + zoom
@@ -313,11 +430,34 @@ function Inner({ runId, isRunning, onClose }: Props) {
     return [...live, ...synthetic]
   }, [block, cachedLeaves])
 
-  const flow = useMemo(() => {
-    if (mergedNodes.length === 0) return { nodes: [] as Node[], edges: [] as Edge[] }
-    const tree = buildNipypeTree(mergedNodes)
-    return _layout(tree.nodes, tree.edges)
+  // Build the full tree once per data change, then apply the
+  // collapse-by-depth filter. Keeping the full tree around lets
+  // "Expand all" instantly restore everything without rebuilding.
+  const fullTree = useMemo(() => {
+    if (mergedNodes.length === 0) return null
+    return buildNipypeTree(mergedNodes)
   }, [mergedNodes])
+
+  const flow = useMemo(() => {
+    if (!fullTree) return { nodes: [] as Node[], edges: [] as Edge[] }
+    const { tree, hasHidden } = filterVisible(fullTree, DEFAULT_VISIBLE_DEPTH, expanded)
+    const laid = _layout(tree.nodes, tree.edges)
+    // Inject hasHidden + isExpanded into the workflow nodes' data
+    // payload so the WorkflowNode renderer can show the +/− glyph
+    // without re-deriving the state.
+    const nodes = laid.nodes.map((n) => {
+      if (n.type !== 'nipype_workflow') return n
+      return {
+        ...n,
+        data: {
+          ...(n.data as object),
+          hasHidden: hasHidden.get(n.id) ?? false,
+          isExpanded: expanded.has(n.id),
+        },
+      }
+    })
+    return { nodes, edges: laid.edges }
+  }, [fullTree, expanded])
 
   return (
     <>
@@ -337,6 +477,25 @@ function Inner({ runId, isRunning, onClose }: Props) {
             border: `1px solid ${STATUS_COLOR.running}55`,
           }}>
             LIVE
+          </span>
+        )}
+        {fullTree && (
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+            <button
+              style={toolBtn}
+              onClick={() => setExpanded(new Set(allWorkflowIds(fullTree)))}
+              title={`Show every nipype node (default depth ${DEFAULT_VISIBLE_DEPTH} = conceptual workflows only)`}
+            >
+              Expand all
+            </button>
+            <button
+              style={{ ...toolBtn, opacity: expanded.size === 0 ? 0.5 : 1 }}
+              onClick={() => setExpanded(new Set())}
+              disabled={expanded.size === 0}
+              title={`Collapse back to the conceptual view (depth ${DEFAULT_VISIBLE_DEPTH})`}
+            >
+              Collapse all
+            </button>
           </span>
         )}
         <button style={closeBtn} onClick={onClose}>Close</button>
@@ -373,10 +532,27 @@ function Inner({ runId, isRunning, onClose }: Props) {
             nodesConnectable={false}
             elementsSelectable={true}
             onNodeClick={(_e, n) => {
-              const data = n.data as unknown as NipypeTreeNode & { _kind?: string }
+              const data = n.data as unknown as NipypeTreeNode & {
+                _kind?: string
+                hasHidden?: boolean
+                isExpanded?: boolean
+              }
               const kind = data._kind ?? data.kind
               if (kind === 'leaf') {
                 setOpenNode(data.full_node ?? data.id)
+                return
+              }
+              if (kind === 'workflow') {
+                // Toggle expansion. No-op if there's nothing hidden
+                // below AND the node isn't currently expanded (the
+                // user's click would have no visible effect either way).
+                if (!data.hasHidden && !data.isExpanded) return
+                setExpanded((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(n.id)) next.delete(n.id)
+                  else next.add(n.id)
+                  return next
+                })
               }
             }}
           >

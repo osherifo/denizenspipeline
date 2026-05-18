@@ -202,6 +202,38 @@ the dotted node paths nipype prints, not from a real dependency graph
 — so it shows hierarchy, not data flow. A real-DAG view requires the
 status-callback shim in v2.
 
+**Default view is conceptual, not flat.** The modal renders the full
+nipype DAG collapsed to **depth 3** by default — typically
+`fmriprep_wf` → `single_subject_*_wf` → the major named sub-workflows
+(`anat_preproc_wf`, `func_preproc_ses_*_task_*_run_*_wf`,
+`sdc_estimate_wf`, `bold_confounds_wf`, ...). Each per-run BOLD
+workflow appears as its own sibling node rather than being tangled
+with the others.
+
+- **Click a workflow node** with a `+` glyph in its top-left to
+  expand its direct children. Click again (now showing `−`) to
+  collapse.
+- **`Expand all`** in the modal header reveals every leaf — same as
+  the old flat-DAG view.
+- **`Collapse all`** snaps back to the conceptual view.
+- Leaves still open the node-outputs side drawer on click; the `?`
+  doc-link icon on every node opens the fmriprep docs for that
+  step (see [ticket #8](https://fmriprep.org/en/stable/workflows.html)).
+
+All visible labels are real fmriprep workflow ids straight from
+nipype's dotted paths — no labels are renamed or rolled up
+synthetically. The simplification is a UI filter, not a translation.
+
+**Each node has a small `?` link in its top-right corner** that opens
+the relevant fMRIPrep documentation page in a new tab — handy for
+"what does *this* step actually do?" without leaving the dashboard.
+Known workflow names jump to specific section anchors on
+[fmriprep.org's workflows page](https://fmriprep.org/en/stable/workflows.html)
+(e.g. `bold_hmc_wf` → *Head-motion estimation*, `anat_preproc_wf` →
+*Anatomical data preprocessing*). Unknown labels fall back to the
+workflows-page TOC. Mapping lives in
+`frontend/src/components/workflow/fmriprep_docs.ts`.
+
 ## How orchestration works
 
 The `WorkflowManager` runs one background thread per active workflow. For each stage it:
