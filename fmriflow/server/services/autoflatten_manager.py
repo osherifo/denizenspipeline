@@ -400,6 +400,7 @@ class AutoflattenManager:
             stdout_log=handle.log_path or "",
             params=handle.params,
             error=handle.error,
+            result=handle.result,
         )
         self.registry.update(state)
 
@@ -462,7 +463,7 @@ class AutoflattenManager:
                     "is_reattached": False,
                     "error": state.error,
                     "log_path": state.stdout_log,
-                    "result": None,
+                    "result": state.result,
                     "subjects_dir": (state.params or {}).get("subjects_dir", ""),
                 }
         return sorted(out.values(), key=lambda r: r.get("started_at") or 0, reverse=True)
@@ -485,7 +486,7 @@ class AutoflattenManager:
                 "is_reattached": False,
                 "error": state.error,
                 "log_path": state.stdout_log,
-                "result": None,
+                "result": state.result,
                 "subjects_dir": (state.params or {}).get("subjects_dir", ""),
             }
         # Preserve existing run-detail shape: include an events list so the
