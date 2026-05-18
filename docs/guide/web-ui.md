@@ -16,11 +16,7 @@ The sidebar organizes features into four groups: **Pipeline**, **Preprocessing**
 
 ### Workflows
 
-End-to-end orchestration across all four stages (convert, preproc, autoflatten, analysis). Each workflow is a single YAML under `./experiments/workflows/` that references existing per-stage configs. Clicking Run kicks off the stages in order, stopping on the first failure; each stage's child run inherits its own detach/reattach semantics. See the dedicated [Workflows guide](workflows.md) for the schema, orchestration semantics, and API.
-
-### Pipeline Graph
-
-Visual representation of the pipeline's stage graph. See the [Pipeline Graph](pipeline-graph.md) guide for details.
+End-to-end orchestration across all four stages (convert, preproc, autoflatten, analysis). Each workflow is a single YAML under `$FMRIFLOW_HOME/configs/workflows/` that references existing per-stage configs. Clicking Run kicks off the stages in order, stopping on the first failure; each stage's child run inherits its own detach/reattach semantics. See the dedicated [Workflows guide](workflows.md) for the schema, orchestration semantics, and API.
 
 ---
 
@@ -126,26 +122,42 @@ Discover and inspect all available modules, organized by processing stage (stimu
 - Each card shows: name, category badge, dimension count, parameter count
 - Expand a card to see its full parameter table (name, type, default, required, description)
 
-### Pipeline Composer
+### Composer
 
-Visually build analysis pipelines by selecting and configuring modules.
+Build encoding-model pipelines as a vertical strip of seven
+collapsible **stage cards** (stimuli, responses, features,
+prepare, model, analyze, report). Each card holds the modules
+plugged into that stage plus their parameters.
 
-**Config builder** (left panel) — sections for each pipeline stage:
+**Stage cards** (left column):
 
-- **Stimulus loader**: select type, language, modality
-- **Response loader**: choose source (local, cloud, bids, preproc)
-- **Features**: add/remove/reorder feature extraction steps, each with configurable parameters and autocomplete suggestions from saved configs
-- **Preprocessing**: choose type (default or custom pipeline), add/remove/reorder steps
-- **Split**: configure test runs
-- **Model**: select model type and parameters
-- **Analysis**: optional analysis modules
-- **Reporting**: toggle output formats
+- The card header shows the stage number, name, fill status (badge
+  colour), and a one-line summary. Click to expand/collapse.
+- **Stimuli, Responses, Model**: pick a single module from a
+  dropdown, then fill its `ParamForm`. Response loaders that need
+  a separate reader (e.g. `local`) reveal a second slot inline.
+- **Features, Analyze**: a stack of mini-cards. Add, remove,
+  reorder (↑ / ↓ buttons), and edit each entry independently.
+- **Preparation**: a checkbox toggles between the default single
+  preparer and a pipeline of preparation steps (same stack UX as
+  Features).
+- **Reporting**: checkbox group for output formats + an output
+  directory input.
 
-**Sidebar** (right panel):
+**Pipeline preview** (below the strip): a read-only ReactFlow
+graph of the seven stages, coloured by fill status (cyan = filled,
+grey = empty, red = validation error). Clicking a node scrolls
+the matching card into view.
 
-- Experiment name and subject inputs
-- Real-time config validation with error display
-- Save, validate, and YAML import/export buttons
+**Right column**: a Monaco YAML editor that mirrors the form. The
+form is the source of truth; raw edits in YAML are applied after
+800 ms of pause. Validate, Copy YAML, and Reset live in the top
+action bar.
+
+The composer reads and writes
+`$FMRIFLOW_HOME/configs/analysis/*.yaml`. See the
+[Working Directory](working-dir.md) guide for the surrounding
+layout.
 
 ### Run Manager
 
@@ -167,7 +179,7 @@ Write, validate, and register custom modules directly in the browser.
 
 **Workflow**: pick a template (or start blank) → write code → auto-validates → name and save → module is immediately available in the Composer and Module Browser.
 
-Saved modules go to `~/.fmriflow/modules/` and are auto-loaded on server startup.
+Saved modules go to `$FMRIFLOW_HOME/addons/modules/` and are auto-loaded on server startup.
 
 ---
 

@@ -15,16 +15,20 @@ function deepSet(obj: any, path: string, value: unknown): any {
   return copy
 }
 
+// Empty defaults — every "pick a module" stage starts unselected so the
+// composer shows a "+ Add" affordance instead of a pre-filled card.
+// The user picks each module explicitly; defaults from the module's
+// PARAM_SCHEMA fill in only after a pick.
 const EMPTY_CONFIG: PipelineConfig = {
   experiment: '',
   subject: '',
-  stimulus: { loader: 'textgrid', language: 'en', modality: 'reading' },
-  response: { loader: 'local' },
+  stimulus: {},
+  response: {},
   features: [],
   split: { test_runs: [] },
-  preparation: { type: 'default', trim_start: 5, trim_end: 5, delays: [1, 2, 3, 4], zscore: true },
-  model: { type: 'bootstrap_ridge', params: {} },
-  reporting: { formats: ['metrics'], output_dir: './results' },
+  preparation: {},
+  model: { type: '', params: {} },
+  reporting: { formats: [], output_dir: './results' },
 }
 
 interface ConfigState {
