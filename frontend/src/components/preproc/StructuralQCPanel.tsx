@@ -340,6 +340,15 @@ export function StructuralQCPanel({ subject }: Props) {
       const lt = tile.leftTopMM
       const fov = tile.fovMM
 
+      // Clip drawing to the tile's screen rect so zoomed-out segments
+      // from one tile don't spill into the neighbours in multiplanar
+      // mode. Mirrors niivue's own per-tile `gl.viewport(ltwh...)` at
+      // index.js:127888.
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(ltwh[0], ltwh[1], ltwh[2], ltwh[3])
+      ctx.clip()
+
       for (const mesh of nv.meshes) {
         if (mesh.visible === false) continue
         const pts = mesh.pts
@@ -380,6 +389,8 @@ export function StructuralQCPanel({ subject }: Props) {
         }
         ctx.stroke()
       }
+
+      ctx.restore()
     }
   }, [contourMode, sliceType, surfaces, voxXYZ, showViewer, zoom2D])
 
