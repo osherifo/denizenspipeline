@@ -19,12 +19,12 @@ interface Props {
 
 type SurfaceKind = 'pial' | 'white' | 'inflated'
 
-// Match FreeSurfer's freeview palette: pial = green, white = red.
-const SURFACE_COLORS: Record<SurfaceKind, [number, number, number, number]> = {
-  pial:     [ 60, 220,  90, 255],   // green
-  white:    [255,  80,  80, 255],   // red
-  inflated: [ 80, 160, 255, 255],   // blue
-}
+// Single neutral colour for every surface — per-kind colour-coding
+// was redundant once the picker became single-select (only one
+// surface visible at a time). White reads well against the dark T1
+// in 3D and as a 1-px contour in 2D real-mode; for white +
+// inflated the curvature layer (gray cmap) overlays this base.
+const SURFACE_COLOR: [number, number, number, number] = [255, 255, 255, 255]
 
 const ALL_SURFACES: SurfaceKind[] = ['pial', 'white', 'inflated']
 
@@ -74,10 +74,10 @@ export function StructuralQCPanel({ subject }: Props) {
   const [freeviewErr, setFreeviewErr] = useState<string | null>(null)
   const [showReport, setShowReport] = useState(false)
   const [showViewer, setShowViewer] = useState(false)
-  // Multiple surfaces can be shown at once. Each renders in its own colour.
-  const [surfaces, setSurfaces] = useState<Set<SurfaceKind>>(
-    () => new Set<SurfaceKind>(['pial']),
-  )
+  // Single-select: only one surface kind is shown at a time. Picking
+  // a different one closes the previous; clicking the active one
+  // toggles it off (= no surface, just the T1).
+  const [surface, setSurface] = useState<SurfaceKind | null>('pial')
   // niivue sliceType: 0=axial 1=coronal 2=sagittal 3=multiplanar 4=render(3D)
   const [sliceType, setSliceType] = useState<number>(3)
   const [volumeVisible, setVolumeVisible] = useState<boolean>(true)
@@ -94,6 +94,17 @@ export function StructuralQCPanel({ subject }: Props) {
   // Implementation in ./contourRenderer.ts; design in
   // devdocs/proposals/frontend/true-contour-renderer.md.
   const [contourMode, setContourMode] = useState<'slab' | 'real'>('real')
+  // Shade the white + inflated meshes by FreeSurfer per-vertex
+  // curvature (?h.curv). Binary grayscale: sulci dark, gyri light —
+  // the standard recon-all QC look. Live-toggleable via
+  // nv.setMeshLayerProperty(meshId, 0, 'opacity', 0|1) without a
+  // mesh reload. 2D contour overlay is unaffected (still solid).
+  const [curvShaded, setCurvShaded] = useState<boolean>(true)
+  // Inflated "wings opening" animation. When toggled on, each
+  // hemisphere rotates 90° around the Z axis at its medial edge
+  // (smoothstep, ~800ms) so the medial cortex splays outward —
+  // book-opening look. See devnote qc-inflated-splay.md.
+  const [inflatedOpen, setInflatedOpen] = useState<boolean>(false)
   // Current voxel index per axis [X, Y, Z] for the scrubber UI.
   // Synced with niivue's crosshair via onLocationChange so clicking
   // in the canvas also moves the sliders.
@@ -111,6 +122,23 @@ export function StructuralQCPanel({ subject }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const overlayRef = useRef<HTMLCanvasElement | null>(null)
   const nvRef = useRef<Niivue | null>(null)
+  // Per-inflated-hemisphere cache: the post-offset pts (the rotation
+  // base — every frame's tween starts from this, not from the
+  // current animated pts, to avoid floating-point drift) + pivot
+  // (X = medial edge, Y = posterior edge / visual cortex) +
+  // rotation direction. The pivot is at the visual cortex so the
+  // hemispheres swing OPEN like a book hinged at the back: anterior
+  // ends swing outward (lh to -X, rh to +X) while the visual cortex
+  // stays put as the spine. Populated on inflated load; cleared on
+  // surface change.
+  const inflatedAnimCache = useRef<
+    Map<string, { originalPts: Float32Array; pivotX: number; pivotY: number; direction: 1 | -1 }>
+  >(new Map())
+  // rAF id of the in-flight splay tween (cancel on toggle / unmount).
+  const inflatedAnimRafRef = useRef<number | null>(null)
+  // Last angle written to pts (radians). Mid-tween toggles re-start
+  // from here instead of snapping to the previous end-point.
+  const inflatedAnimAngleRef = useRef<number>(0)
 
   // Load existing review
   useEffect(() => {
@@ -284,7 +312,120 @@ export function StructuralQCPanel({ subject }: Props) {
     } catch (e) {
       console.warn('niivue setMeshThicknessOn2D failed', e)
     }
-  }, [contourMm, contourMode, sliceType, surfaces, showViewer])
+  }, [contourMm, contourMode, sliceType, surface, showViewer])
+
+  // Reset the splay state whenever we leave the inflated surface,
+  // so the next time the user opens it again it starts closed.
+  useEffect(() => {
+    if (surface !== 'inflated' && inflatedOpen) {
+      setInflatedOpen(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surface])
+
+  // Inflated "wings opening" tween. Triggered on inflatedOpen change.
+  // Each frame: smoothstep-eased angle, rotate cached originalPts
+  // around the Z axis at pivotX by ±angle, write to mesh.pts, call
+  // updateMesh + drawScene. Cancels previous in-flight rAF on
+  // re-trigger so rapid toggles don't fight.
+  useEffect(() => {
+    // Cancel any in-flight animation first.
+    if (inflatedAnimRafRef.current !== null) {
+      cancelAnimationFrame(inflatedAnimRafRef.current)
+      inflatedAnimRafRef.current = null
+    }
+    const nv = nvRef.current as unknown as {
+      meshes?: Array<{
+        name?: string
+        pts?: Float32Array
+        updateMesh?: (gl: WebGL2RenderingContext) => void
+      }>
+      gl?: WebGL2RenderingContext
+      drawScene?: () => void
+    } | null
+    if (!nv?.meshes || !nv.gl) return
+    if (surface !== 'inflated') return
+    if (inflatedAnimCache.current.size === 0) return
+
+    const targetAngle = inflatedOpen ? Math.PI / 2 : 0
+    const startAngle = inflatedAnimAngleRef.current
+    if (startAngle === targetAngle) return
+    const durationMs = 800
+    const startTime = performance.now()
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - startTime) / durationMs)
+      const eased = t * t * (3 - 2 * t) // smoothstep
+      const angle = startAngle + (targetAngle - startAngle) * eased
+      inflatedAnimAngleRef.current = angle
+
+      // Rotation around the Z axis at (pivotX, pivotY) — visual-cortex
+      // hinge. Because the body extends entirely in +Y from the
+      // posterior pivot, a 90° rotation swings the whole body out to
+      // ±X without crossing the midline — no extra translation
+      // needed.
+      for (const m of nv.meshes ?? []) {
+        if (!m.name || !m.pts) continue
+        const cache = inflatedAnimCache.current.get(m.name)
+        if (!cache) continue
+        const { originalPts, pivotX, pivotY, direction } = cache
+        const theta = angle * direction
+        const c = Math.cos(theta)
+        const s = Math.sin(theta)
+        for (let i = 0; i < originalPts.length; i += 3) {
+          const dx = originalPts[i] - pivotX
+          const dy = originalPts[i + 1] - pivotY
+          m.pts[i]     = pivotX + dx * c - dy * s
+          m.pts[i + 1] = pivotY + dx * s + dy * c
+          m.pts[i + 2] = originalPts[i + 2]
+        }
+        contourIndexCache.current.delete(m.pts)
+        try { m.updateMesh?.(nv.gl!) } catch { /* */ }
+      }
+      try { nv.drawScene?.() } catch { /* */ }
+
+      if (t < 1) {
+        inflatedAnimRafRef.current = requestAnimationFrame(step)
+      } else {
+        inflatedAnimRafRef.current = null
+      }
+    }
+    inflatedAnimRafRef.current = requestAnimationFrame(step)
+
+    return () => {
+      if (inflatedAnimRafRef.current !== null) {
+        cancelAnimationFrame(inflatedAnimRafRef.current)
+        inflatedAnimRafRef.current = null
+      }
+    }
+  }, [inflatedOpen, surface, showViewer])
+
+  // Flip the curvature layer's opacity live (no mesh reload). Hits
+  // every loaded mesh that has a layer; meshes loaded without one
+  // (e.g. pial) are skipped automatically.
+  useEffect(() => {
+    const nv = nvRef.current as unknown as {
+      meshes?: Array<{ id?: string | number; layers?: Array<unknown> }>
+      setMeshLayerProperty?: (
+        meshId: string | number,
+        layerIdx: number,
+        key: string,
+        val: number,
+      ) => void
+      drawScene?: () => void
+    } | null
+    if (!nv?.meshes || !nv.setMeshLayerProperty) return
+    for (const mesh of nv.meshes) {
+      if (!mesh.layers || mesh.layers.length === 0) continue
+      if (mesh.id === undefined) continue
+      try {
+        nv.setMeshLayerProperty(mesh.id, 0, 'opacity', curvShaded ? 1 : 0)
+      } catch (e) {
+        console.warn('niivue setMeshLayerProperty failed', e)
+      }
+    }
+    try { nv.drawScene?.() } catch { /* */ }
+  }, [curvShaded, surface, showViewer])
 
   // Per-mesh AABB index cache, keyed by mesh.pts identity. WeakMap so
   // unloaded meshes garbage-collect their index automatically.
@@ -392,7 +533,7 @@ export function StructuralQCPanel({ subject }: Props) {
 
       ctx.restore()
     }
-  }, [contourMode, sliceType, surfaces, voxXYZ, showViewer, zoom2D])
+  }, [contourMode, sliceType, surface, voxXYZ, showViewer, zoom2D])
 
   // Keep the ref pointed at the latest closure, so the monkey-patch
   // below always calls the current version.
@@ -441,10 +582,11 @@ export function StructuralQCPanel({ subject }: Props) {
     } catch (e) {
       console.warn('niivue setOpacity failed', e)
     }
-  }, [volumeVisible, surfaces, sliceType, showViewer])
+  }, [volumeVisible, surface, sliceType, showViewer])
 
-  // Reload meshes when the surface set changes — supports multiple
-  // surfaces simultaneously, colour-coded per kind.
+  // Reload meshes when the selected surface changes. Single-select:
+  // there's at most one surface visible at a time, so we drop any
+  // existing meshes first then load lh + rh of the chosen kind.
   useEffect(() => {
     const nv = nvRef.current
     if (!nv || !showViewer) return
@@ -458,19 +600,120 @@ export function StructuralQCPanel({ subject }: Props) {
             (inst as unknown as { removeMesh?: (m: unknown) => void }).removeMesh?.(m)
           } catch { /* niivue versions differ — best-effort */ }
         }
-        if (cancelled || surfaces.size === 0) {
+        if (cancelled || surface === null) {
           inst.updateGLVolume()
           return
         }
-        const specs = []
-        for (const kind of surfaces) {
-          const rgba = SURFACE_COLORS[kind]
-          specs.push(
-            { url: fsFileUrl(subject, `surf/lh.${kind}`), name: `lh.${kind}`, rgba255: rgba },
-            { url: fsFileUrl(subject, `surf/rh.${kind}`), name: `rh.${kind}`, rgba255: rgba },
-          )
+        const kind = surface
+        // Attach FreeSurfer ?h.curv as a binary-grayscale layer on
+        // white + inflated (the surfaces where curvature shading
+        // is anatomically meaningful). cal_min/max ±0.5 is the
+        // recon-all QC convention; sulci negative → dark, gyri
+        // positive → light. Always include the layer regardless of
+        // curvShaded so the toggle can flip opacity live without
+        // a mesh reload (controlled by a separate effect).
+        const wantCurv = kind === 'white' || kind === 'inflated'
+        // `name` must carry the `.curv` extension — niivue's
+        // readLayer reads the extension from `name` (preferring
+        // it over `url`), and our backend URL ends in `fs-file?
+        // rel=…` so `getFileExt(url)` returns undefined and
+        // `.toUpperCase()` throws. Same gotcha the mesh `name`
+        // works around at the loadVolumes call.
+        const layerFor = (h: 'lh' | 'rh') =>
+          wantCurv
+            ? [{
+                url: fsFileUrl(subject, `surf/${h}.curv`),
+                name: `${h}.curv`,
+                colormap: 'gray',
+                // niivue's readCURV normalises every .curv file to
+                // [0, 1] AND inverts it (`f = 1 - (f-mn)/(mx-mn)`,
+                // index.js:109541), so the actual layer values are in
+                // [0, 1] per hemisphere — NOT raw signed curvature in
+                // [-1, +1]. With cal_min=-0.5, cal_max=+0.5 (what we
+                // had before), rh's values mostly sat above cal_max
+                // and clamped to the LUT's last entry, which
+                // produced the purple-tinted rendering on one
+                // hemisphere only. cal_min=0, cal_max=1 uses the
+                // full normalised range. `colormapInvert: true`
+                // flips the gray so sulci (high normalised value
+                // after niivue's inversion = originally most-negative
+                // curvature) render DARK and gyri render LIGHT,
+                // matching FreeSurfer's recon-all QC look.
+                colormapNegative: 'gray',
+                useNegativeCmap: false,
+                colormapInvert: true,
+                cal_min: 0,
+                cal_max: 1,
+                opacity: curvShaded ? 1 : 0,
+              }]
+            : []
+        const specs = [
+          { url: fsFileUrl(subject, `surf/lh.${kind}`), name: `lh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('lh') },
+          { url: fsFileUrl(subject, `surf/rh.${kind}`), name: `rh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('rh') },
+        ]
+        // Cast: NVMeshLayer requires cal_minNeg/cal_maxNeg/frame4D/
+        // nFrame4D/values in its types, but niivue fills these from
+        // defaults when only the layer URL + colormap + cal_min/max
+        // are provided. Same pattern as elsewhere in this file.
+        await inst.loadMeshes(specs as unknown as Parameters<typeof inst.loadMeshes>[0])
+
+        // Separate the two inflated hemispheres along X. FreeSurfer
+        // stores each `?h.inflated` re-centred on its own hemisphere
+        // mass, so both `lh.inflated` and `rh.inflated` occupy
+        // x∈[~-48, ~+48] and pile on top of each other. (Pial/white
+        // are in tkrSurfaceRAS and sit at the right anatomical
+        // positions already — no fix needed there.)
+        // Push lh to negative X, rh to positive X. Mutate pts in
+        // place + updateMesh to rebuild GPU buffers. Drop the
+        // contour-index cache entry because the cached AABB bins
+        // are now invalid for the new vertex positions.
+        const INFLATED_OFFSET_MM = 60
+        const meshList =
+          (inst as unknown as { meshes?: Array<{
+            name?: string
+            pts?: Float32Array
+            updateMesh?: (gl: WebGL2RenderingContext) => void
+          }> }).meshes ?? []
+        const gl = (inst as unknown as { gl?: WebGL2RenderingContext }).gl
+        inflatedAnimCache.current.clear()
+        inflatedAnimAngleRef.current = 0
+        for (const m of meshList) {
+          if (typeof m.name !== 'string') continue
+          if (!m.name.endsWith('inflated')) continue
+          const isLh = m.name.startsWith('lh')
+          const isRh = m.name.startsWith('rh')
+          if (!isLh && !isRh) continue
+          const pts = m.pts
+          if (!pts || !gl) continue
+          const dx = isLh ? -INFLATED_OFFSET_MM : INFLATED_OFFSET_MM
+          for (let i = 0; i < pts.length; i += 3) pts[i] += dx
+          // Cache the post-offset, pre-rotation pts as the splay
+          // tween's reference frame. Pivot X = medial edge (max for
+          // lh, min for rh) — sets the hinge in the side-to-side
+          // direction. Pivot Y = posterior edge (min Y) — sets the
+          // hinge at the visual cortex so the anterior swings
+          // outward when opening. Rotation direction is opposite
+          // for the two hemispheres so they swing apart symmetrically
+          // (lh CCW from above = anterior to -X, rh CW = anterior
+          // to +X).
+          let pivotXVal = isLh ? -Infinity : Infinity
+          let pivotYVal = Infinity
+          for (let i = 0; i < pts.length; i += 3) {
+            const x = pts[i]
+            const y = pts[i + 1]
+            if (isLh ? x > pivotXVal : x < pivotXVal) pivotXVal = x
+            if (y < pivotYVal) pivotYVal = y
+          }
+          inflatedAnimCache.current.set(m.name, {
+            originalPts: new Float32Array(pts),
+            pivotX: pivotXVal,
+            pivotY: pivotYVal,
+            direction: isLh ? 1 : -1,
+          })
+          contourIndexCache.current.delete(pts)
+          try { m.updateMesh?.(gl) } catch { /* */ }
         }
-        await inst.loadMeshes(specs)
+        try { (inst as unknown as { drawScene?: () => void }).drawScene?.() } catch { /* */ }
       } catch (e) {
         console.warn('niivue mesh reload failed', e)
       }
@@ -479,7 +722,7 @@ export function StructuralQCPanel({ subject }: Props) {
     return () => {
       cancelled = true
     }
-  }, [surfaces, showViewer, subject])
+  }, [surface, showViewer, subject])
 
   // sliceType → which voxel axes the visible plane(s) move through.
   // niivue: 0=axial→Z, 1=coronal→Y, 2=sagittal→X, 3=multi=all, 4=3D none.
@@ -689,10 +932,9 @@ export function StructuralQCPanel({ subject }: Props) {
                 {volumeVisible ? 'on' : 'off'}
               </button>
               <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
-              <span style={{ color: 'var(--text-secondary)' }}>Surfaces:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Surface:</span>
               {ALL_SURFACES.map((k) => {
-                const on = surfaces.has(k)
-                const color = `rgb(${SURFACE_COLORS[k].slice(0, 3).join(',')})`
+                const on = surface === k
                 return (
                   <button
                     key={k}
@@ -700,29 +942,52 @@ export function StructuralQCPanel({ subject }: Props) {
                       ...btn,
                       padding: '2px 8px',
                       fontSize: 11,
-                      background: on ? color : btn.background,
+                      background: on ? 'var(--accent-cyan)' : btn.background,
                       color: on ? '#000' : 'var(--text-primary)',
-                      borderColor: on ? color : 'var(--border)',
+                      borderColor: on ? 'var(--accent-cyan)' : 'var(--border)',
                     }}
-                    onClick={() => {
-                      setSurfaces((prev) => {
-                        const next = new Set(prev)
-                        if (next.has(k)) next.delete(k)
-                        else next.add(k)
-                        return next
-                      })
-                    }}
+                    onClick={() => setSurface((prev) => (prev === k ? null : k))}
+                    title={
+                      on
+                        ? `Hide ${k}`
+                        : `Show ${k} (closes the other surface if one is open)`
+                    }
                   >
                     {k}
                   </button>
                 )
               })}
+              {surface === 'inflated' && (
+                <button
+                  style={{
+                    ...btn,
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    background: inflatedOpen ? 'var(--accent-cyan)' : btn.background,
+                    color: inflatedOpen ? '#000' : 'var(--text-primary)',
+                    borderColor: inflatedOpen ? 'var(--accent-cyan)' : 'var(--border)',
+                  }}
+                  onClick={() => setInflatedOpen((v) => !v)}
+                  title="Splay the two inflated hemispheres outward (90° rotation around the medial-edge Z axis, smoothstep, ~800ms)"
+                >
+                  {inflatedOpen ? 'close' : 'open'}
+                </button>
+              )}
+              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+              <span style={{ color: 'var(--text-secondary)' }}>Curv</span>
               <button
-                style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
-                onClick={() => setSurfaces(new Set())}
-                title="Hide all surfaces"
+                style={{
+                  ...btn,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  background: curvShaded ? 'var(--accent-cyan)' : btn.background,
+                  color: curvShaded ? '#000' : 'var(--text-primary)',
+                  borderColor: curvShaded ? 'var(--accent-cyan)' : 'var(--border)',
+                }}
+                onClick={() => setCurvShaded((v) => !v)}
+                title="Shade white + inflated by FreeSurfer per-vertex curvature (?h.curv). Binary gray (sulci dark, gyri light). Pial unaffected; 2D real-contour overlay unaffected."
               >
-                clear
+                {curvShaded ? 'on' : 'off'}
               </button>
               {sliceType !== 4 && (
                 <span

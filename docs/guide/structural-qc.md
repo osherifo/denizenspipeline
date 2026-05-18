@@ -39,6 +39,15 @@ Three entry points to the same panel:
       *inflated* (blue) — colour-coded to match freeview's defaults
       (pial=green, white=red). Toggle any combination on at once;
       *clear* hides them all.
+    - **Curv** (on / off, default on) — shade the white + inflated
+      surfaces by FreeSurfer per-vertex curvature (`?h.curv`),
+      attached as a niivue mesh layer with `colormap=gray` and
+      `cal_min/max = ±0.5` (the `recon-all` convention: sulci
+      negative → dark, gyri positive → light). Pial is unaffected
+      (curvature is less meaningful at the pial surface). The 2D
+      *real* contour overlay is also unaffected — contours stay
+      solid in their per-surface colour. Toggle flips the layer's
+      `opacity` live, no mesh reload.
     - **Mode** — `real` (default) draws true Freeview-style 1-px
       contours by computing the actual plane-triangle intersection
       of each surface mesh against the current slice plane and
