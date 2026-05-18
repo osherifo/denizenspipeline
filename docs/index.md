@@ -50,4 +50,4 @@ pip install -e ".[all]"      # everything
 - [CLI Reference](guide/cli.md) — all available commands
 - [Writing Modules](guide/modules.md) — extend the pipeline with custom extractors, models, and reporters
 - [Autoflatten](guide/autoflatten.md) — cortical surface flattening + pycortex import
-- [Pipeline Graph](guide/pipeline-graph.md) — visual workflow builder with YAML sync
+- [Web UI → Composer](guide/web-ui.md#composer) — Linear stage strip + ghost graph + Monaco YAML

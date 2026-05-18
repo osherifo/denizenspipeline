@@ -99,6 +99,10 @@ describe('useConfigStore', () => {
     })
 
     it('toggleReporter removes when present', () => {
+      // Seed the format first — defaults are empty in the new layout
+      // (every "pick a module" stage starts unselected so the
+      // composer can show a "+ Add" affordance).
+      useConfigStore.getState().toggleReporter('metrics')
       useConfigStore.getState().toggleReporter('metrics')
       expect(useConfigStore.getState().config.reporting?.formats).not.toContain('metrics')
     })

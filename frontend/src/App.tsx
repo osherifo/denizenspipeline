@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { NavBar } from './components/layout/NavBar'
 import { ModuleBrowser } from './views/ModuleBrowser'
-import { PipelineComposer } from './views/PipelineComposer'
+import { AnalysisComposer } from './views/AnalysisComposer'
 import { RunManager } from './views/RunManager'
 import { ModuleEditor } from './views/ModuleEditor'
 import { ExperimentDashboard } from './views/ExperimentDashboard'
@@ -10,26 +10,29 @@ import { PreprocManager } from './views/PreprocManager'
 import { DicomBidsConverter } from './views/DicomBidsConverter'
 import { ErrorBrowser } from './views/ErrorBrowser'
 import { AutoflattenManager } from './views/AutoflattenManager'
-import { PipelineGraph } from './views/PipelineGraph'
 import { WorkflowsView } from './views/WorkflowsView'
 import { PostPreprocBuilder } from './views/PostPreprocBuilder'
 import { QCReviews } from './views/QCReviews'
 import { Settings } from './views/Settings'
 import { useModuleStore } from './stores/module-store'
 
-type Route = 'modules' | 'composer' | 'runs' | 'editor' | 'dashboard' | 'preproc' | 'convert' | 'autoflatten' | 'graph' | 'errors' | 'workflows' | 'post-preproc' | 'qc-reviews' | 'settings'
+type Route =
+  | 'modules' | 'analysis' | 'runs' | 'editor' | 'dashboard'
+  | 'preproc' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
+  | 'post-preproc' | 'qc-reviews' | 'settings'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
   if (hash === 'modules') return 'modules'
-  if (hash === 'composer') return 'composer'
+  // Legacy aliases — both `composer` and `graph` now point at the
+  // unified analysis composer.
+  if (hash === 'analysis' || hash === 'composer' || hash === 'graph') return 'analysis'
   if (hash === 'runs') return 'runs'
   if (hash === 'editor') return 'editor'
   if (hash === 'dashboard') return 'dashboard'
   if (hash === 'preproc') return 'preproc'
   if (hash === 'convert') return 'convert'
   if (hash === 'autoflatten') return 'autoflatten'
-  if (hash === 'graph') return 'graph'
   if (hash === 'errors') return 'errors'
   if (hash === 'workflows') return 'workflows'
   if (hash === 'post-preproc') return 'post-preproc'
@@ -125,14 +128,13 @@ export function App() {
       <NavBar currentRoute={route} />
       <div style={contentStyle}>
         {route === 'modules' && <ModuleBrowser />}
-        {route === 'composer' && <PipelineComposer />}
+        {route === 'analysis' && <AnalysisComposer />}
         {route === 'runs' && <RunManager />}
         {route === 'editor' && <ModuleEditor />}
         {route === 'dashboard' && <ExperimentDashboard />}
         {route === 'preproc' && <PreprocManager />}
         {route === 'convert' && <DicomBidsConverter />}
         {route === 'autoflatten' && <AutoflattenManager />}
-        {route === 'graph' && <PipelineGraph />}
         {route === 'errors' && <ErrorBrowser />}
         {route === 'workflows' && <WorkflowsView />}
         {route === 'post-preproc' && <PostPreprocBuilder />}
