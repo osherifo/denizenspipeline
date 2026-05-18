@@ -713,6 +713,67 @@ export function StructuralQCPanel({ subject }: Props) {
           contourIndexCache.current.delete(pts)
           try { m.updateMesh?.(gl) } catch { /* */ }
         }
+        // Joint normalisation of curvature layers across hemispheres.
+        // Niivue's readCURV normalises each .curv to [0, 1] per file
+        // using that file's own mn/mx, so the same numerical value
+        // means different actual curvature in lh vs rh and the two
+        // render with mismatched overall darkness. We can't recover
+        // the raw values from niivue's output (the original mn/mx
+        // are gone), but we can statistically align the two layers
+        // by matching their mean + std: target = average mean/std
+        // across all visible curv layers; per-layer values get
+        // z-scored then rescaled into (targetMean, targetStd).
+        // Same colormap + cal range now lands at the same shade for
+        // equivalent positions in each hemisphere's curvature
+        // distribution.
+        type CurvMesh = {
+          name?: string
+          pts?: Float32Array
+          layers?: Array<{ values?: Float32Array }>
+          updateMesh?: (gl: WebGL2RenderingContext) => void
+        }
+        const curvMeshes: CurvMesh[] = []
+        for (const m of meshList as unknown as CurvMesh[]) {
+          const v = m.layers?.[0]?.values
+          if (v && v.length > 0) curvMeshes.push(m)
+        }
+        if (gl && curvMeshes.length > 1) {
+          const stats = curvMeshes.map((m) => {
+            const v = m.layers![0].values!
+            let sum = 0
+            for (let i = 0; i < v.length; i++) sum += v[i]
+            const mean = sum / v.length
+            let sumSq = 0
+            for (let i = 0; i < v.length; i++) sumSq += (v[i] - mean) ** 2
+            const std = Math.sqrt(sumSq / v.length)
+            return { mean, std }
+          })
+          const targetMean =
+            stats.reduce((s, x) => s + x.mean, 0) / stats.length
+          // Use the *max* std (not the average) so the tighter-
+          // distribution hemisphere gets stretched up to match the
+          // wider one — preserves the visible curvature contrast on
+          // both sides. Averaging the stds pulled the high-contrast
+          // hemisphere DOWN, killing curvature visibility.
+          const targetStd = Math.max(...stats.map((s) => s.std))
+          for (let i = 0; i < curvMeshes.length; i++) {
+            const { mean, std } = stats[i]
+            if (std < 1e-6) continue
+            const m = curvMeshes[i]
+            const v = m.layers![0].values!
+            const scale = targetStd / std
+            for (let j = 0; j < v.length; j++) {
+              // Clamp to [0, 1] post-rescale: stretching can push
+              // outliers outside the cal range, which would otherwise
+              // clamp at the LUT endpoints with a sharp transition.
+              const scaled = (v[j] - mean) * scale + targetMean
+              v[j] = scaled < 0 ? 0 : scaled > 1 ? 1 : scaled
+            }
+            try { m.updateMesh?.(gl) } catch { /* */ }
+            if (m.pts) contourIndexCache.current.delete(m.pts)
+          }
+        }
+
         try { (inst as unknown as { drawScene?: () => void }).drawScene?.() } catch { /* */ }
       } catch (e) {
         console.warn('niivue mesh reload failed', e)
