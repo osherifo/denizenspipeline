@@ -331,23 +331,11 @@ export function StructuralQCPanel({ subject }: Props) {
     if (!nv?.screenSlices || !nv.meshes || !nv.scene?.crosshairPos || !nv.frac2mm) return
 
     const crossMM = nv.frac2mm(nv.scene.crosshairPos) // [x, y, z] in real RAS mm
-    // pan2Dxyzmm = [panX, panY, panZ, zoom] in real RAS mm + scalar.
-    const pan = nv.scene.pan2Dxyzmm
-    const zoom = pan ? pan[3] : 1
-    const panRAS: [number, number, number] = pan
-      ? [pan[0], pan[1], pan[2]]
-      : [0, 0, 0]
 
     for (const tile of nv.screenSlices) {
       const axisIdx = axCorSagToAxis(tile.axCorSag)
       if (axisIdx === null) continue // skip the 3D render tile in multi mode
       const sliceMM = crossMM[axisIdx]
-      // In-plane (u, v) axes match what MeshContourIndex emits:
-      // axial(2) → (x, y), coronal(1) → (x, z), sagittal(0) → (y, z).
-      const uIdx = axisIdx === 0 ? 1 : 0
-      const vIdx = axisIdx === 2 ? 1 : 2
-      const panU = panRAS[uIdx]
-      const panV = panRAS[vIdx]
       const ltwh = tile.leftTopWidthHeight
       const lt = tile.leftTopMM
       const fov = tile.fovMM
@@ -370,27 +358,23 @@ export function StructuralQCPanel({ subject }: Props) {
         ctx.strokeStyle = `rgb(${rgba[0]}, ${rgba[1]}, ${rgba[2]})`
         ctx.lineWidth = 1
         ctx.beginPath()
-        // Project each real-RAS-mm endpoint to canvas pixels.
-        //
-        // Niivue applies pan + zoom BEFORE computing leftTopMM/fovMM
-        // (see `draw2DMain` in index.js:128127-128138), so the stored
-        // leftTopMM/fovMM are in "screen mm" (post-pan, post-zoom-
-        // divide), not real RAS mm. Reproduce that transform here:
-        //   u_screen = (u_real - panU) / zoom
-        // then apply the public mm→px linear-interp at
-        // index.js:129629. Y is flipped because canvas y grows
-        // downward while the in-plane v axis grows upward on screen.
+        // Project each real-RAS-mm endpoint to canvas pixels using
+        // the same linear-interp niivue uses internally (see
+        // sliceMM2px in index.js:129629). Pan + zoom are already
+        // baked into leftTopMM and fovMM by niivue's draw2DMain
+        // (it modifies screen2.mnMM/mxMM by `(mm - pan) / zoom`
+        // before passing them to calculateMvpMatrix2D, and the
+        // resulting projection is what the slice texture is rendered
+        // through). So we plug in real mm directly — no extra
+        // transform on our end. Y is flipped because canvas y grows
+        // downward while the in-plane v axis grows upward.
         const lt0 = lt[0], lt1 = lt[1], fov0 = fov[0], fov1 = fov[1]
         const ltwh0 = ltwh[0], ltwh1 = ltwh[1], ltwh2 = ltwh[2], ltwh3 = ltwh[3]
         for (let i = 0; i < segs.length; i += 4) {
-          const u1 = (segs[i] - panU) / zoom
-          const v1 = (segs[i + 1] - panV) / zoom
-          const u2 = (segs[i + 2] - panU) / zoom
-          const v2 = (segs[i + 3] - panV) / zoom
-          const x1 = ltwh0 + ((u1 - lt0) / fov0) * ltwh2
-          const y1 = ltwh1 + ltwh3 - ((v1 - lt1) / fov1) * ltwh3
-          const x2 = ltwh0 + ((u2 - lt0) / fov0) * ltwh2
-          const y2 = ltwh1 + ltwh3 - ((v2 - lt1) / fov1) * ltwh3
+          const x1 = ltwh0 + ((segs[i] - lt0) / fov0) * ltwh2
+          const y1 = ltwh1 + ltwh3 - ((segs[i + 1] - lt1) / fov1) * ltwh3
+          const x2 = ltwh0 + ((segs[i + 2] - lt0) / fov0) * ltwh2
+          const y2 = ltwh1 + ltwh3 - ((segs[i + 3] - lt1) / fov1) * ltwh3
           ctx.moveTo(x1, y1)
           ctx.lineTo(x2, y2)
         }
