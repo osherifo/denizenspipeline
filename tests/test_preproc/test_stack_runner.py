@@ -71,13 +71,30 @@ def run_config(tmp_path):
     )
 
 
+@pytest.fixture
+def passthrough_run_config(tmp_path):
+    """Run config with a real (empty) derivatives_dir for passthrough tests."""
+    deriv = tmp_path / "derivatives"
+    (deriv / "sub-sub01").mkdir(parents=True)
+    return StackRunConfig(
+        subject="sub01",
+        output_dir=tmp_path / "out",
+        bids_dir=tmp_path / "bids",
+        derivatives_dir=deriv,
+        dataset="study1",
+        sessions=["ses01"],
+        task="story",
+    )
+
+
 # ── Happy paths ────────────────────────────────────────────────────
 
 
 class TestPassthroughBootstrap:
-    def test_no_transforms(self, runner, run_config):
+    def test_no_transforms(self, runner, passthrough_run_config):
+        # Empty derivatives_dir → empty-runs manifest + warning logged.
         stack = PreprocStack(bootstrap=BootstrapStage(kind="passthrough"))
-        result = runner.run(stack, run_config)
+        result = runner.run(stack, passthrough_run_config)
 
         assert result.status == "completed"
         assert result.errors == []
@@ -89,12 +106,19 @@ class TestPassthroughBootstrap:
         assert result.manifest.additional_steps == []
         assert result.duration_s >= 0
 
-    def test_one_identity_transform(self, runner, run_config):
+    def test_no_derivatives_dir_blocks(self, runner, run_config):
+        # Without derivatives_dir set, passthrough refuses to build.
+        stack = PreprocStack(bootstrap=BootstrapStage(kind="passthrough"))
+        result = runner.run(stack, run_config)
+        assert result.status == "failed"
+        assert any("derivatives_dir" in e for e in result.errors)
+
+    def test_one_identity_transform(self, runner, passthrough_run_config):
         stack = PreprocStack(
             bootstrap=BootstrapStage(kind="passthrough"),
             transforms=[TransformStage(name="identity")],
         )
-        result = runner.run(stack, run_config)
+        result = runner.run(stack, passthrough_run_config)
 
         assert result.status == "completed"
         assert len(result.stage_manifests) == 2
@@ -133,8 +157,11 @@ class TestNipypeIdentityBootstrap:
 
 class TestMultipleTransforms:
     def test_three_transforms_in_order(self, runner, run_config):
+        # Use nipype:identity as the bootstrap — passthrough requires
+        # a derivatives_dir, which is irrelevant to this test's focus
+        # on transform ordering.
         stack = PreprocStack(
-            bootstrap=BootstrapStage(kind="passthrough"),
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
             transforms=[
                 TransformStage(name="identity", params={"tag": "a"}),
                 TransformStage(name="identity", params={"tag": "b"}),
@@ -210,6 +237,48 @@ class TestUnknownTransform:
         # Caught in validation — no partial stages.
         assert result.stage_manifests == []
         assert any("not_a_real_transform" in e for e in result.errors)
+
+
+# ── Backend-wrapper dispatch (Phase 4b) ────────────────────────────
+
+
+class TestBackendWrapperDispatch:
+    """Confirm the runner recognises the _BackendBuildSentinel and
+    routes through to the wrapped backend's run() method."""
+
+    def test_fmriprep_kind_dispatches_through_wrapped_backend(
+        self, runner, run_config,
+    ):
+        from unittest.mock import patch
+        from fmriflow.preproc.manifest import PreprocManifest, now_iso
+
+        stub_manifest = PreprocManifest(
+            subject="sub01",
+            dataset="study1",
+            sessions=["ses01"],
+            runs=[],
+            backend="fmriprep",
+            backend_version="23.2.1",
+            parameters={},
+            space="MNI152NLin2009cAsym",
+            output_dir=str(run_config.output_dir),
+            created=now_iso(),
+        )
+
+        stack = PreprocStack(bootstrap=BootstrapStage(kind="fmriprep"))
+
+        with patch(
+            "fmriflow.preproc.backends.nipype_workflows.backend_adapters.get_backend"
+        ) as get:
+            backend = get.return_value
+            backend.validate.return_value = []
+            backend.run.return_value = stub_manifest
+            result = runner.run(stack, run_config)
+
+        assert result.status == "completed"
+        assert result.manifest is stub_manifest
+        # backend.run was called exactly once.
+        backend.run.assert_called_once()
 
 
 class TestPreflightFailureBlocks:

@@ -76,11 +76,16 @@ class _WorkflowCallConfig:
     need; the identity workflow only reads ``subject`` / ``task`` /
     ``sessions`` / ``output_dir``, while a real workflow reads
     ``backend_params["output_space"]`` etc.
+
+    The passthrough workflow reads ``derivatives_dir``; the
+    backend-wrapper workflows translate this whole object back into
+    a legacy ``PreprocConfig``.
     """
 
     subject: str
     output_dir: str
     bids_dir: str | None
+    derivatives_dir: str | None
     sessions: list[str]
     task: str | None
     dataset: str
@@ -184,6 +189,22 @@ class StackRunner:
 
     # ── Validation ────────────────────────────────────────────────
 
+    def _resolve_workflow_name(self, bootstrap: BootstrapStage) -> str | None:
+        """Map a BootstrapStage to its effective workflow-registry name.
+
+        For ``kind == "nipype"``, the user-supplied
+        ``bootstrap.workflow`` is the name. For other kinds, the kind
+        itself is the workflow name (``fmriprep`` / ``custom`` /
+        ``bids_app`` / ``passthrough``) — each of those is registered
+        as a built-in workflow that wraps the corresponding adapter.
+
+        Returns ``None`` if the kind requires a workflow name but none
+        was supplied; the caller surfaces this as a validation error.
+        """
+        if bootstrap.kind == "nipype":
+            return bootstrap.workflow or None
+        return bootstrap.kind
+
     def _validate(self, stack: PreprocStack) -> list[str]:
         errors: list[str] = []
 
@@ -193,16 +214,16 @@ class StackRunner:
                 f"Unknown bootstrap kind: '{kind}'. "
                 f"Known kinds: {', '.join(BOOTSTRAP_KINDS)}"
             )
-        elif kind == "nipype":
-            workflow_name = stack.bootstrap.workflow
-            if not workflow_name:
+        else:
+            workflow_name = self._resolve_workflow_name(stack.bootstrap)
+            if kind == "nipype" and not workflow_name:
                 errors.append(
                     "Bootstrap kind 'nipype' requires a workflow name "
                     "(set BootstrapStage.workflow)."
                 )
             elif workflow_name not in self.workflow_registry.names():
                 errors.append(
-                    f"Unknown nipype workflow: '{workflow_name}'. "
+                    f"Unknown workflow: '{workflow_name}'. "
                     f"Available: {', '.join(self.workflow_registry.names()) or '(none)'}"
                 )
             else:
@@ -233,26 +254,30 @@ class StackRunner:
     def _run_bootstrap(
         self, bootstrap: BootstrapStage, config: StackRunConfig,
     ) -> PreprocManifest:
-        if bootstrap.kind == "nipype":
-            return self._run_nipype_bootstrap(bootstrap, config)
-        if bootstrap.kind == "passthrough":
-            return self._run_passthrough_bootstrap(bootstrap, config)
-        raise NotImplementedError(
-            f"Bootstrap kind '{bootstrap.kind}' will be wired in Phase 4b "
-            f"(existing PreprocBackend adapter)."
-        )
+        """Dispatch every bootstrap kind through the workflow registry.
 
-    def _run_nipype_bootstrap(
-        self, bootstrap: BootstrapStage, config: StackRunConfig,
-    ) -> PreprocManifest:
-        # Already validated in _validate, but be defensive.
-        assert bootstrap.workflow is not None
-        workflow = self.workflow_registry.get(bootstrap.workflow)
+        Built-in wrappers cover ``fmriprep`` / ``custom`` / ``bids_app``;
+        ``passthrough`` is a built-in nipype-shaped workflow that
+        scans derivatives. ``nipype`` kind uses the user-supplied
+        ``bootstrap.workflow`` name. The dispatch is uniform from
+        here on.
+        """
+        workflow_name = self._resolve_workflow_name(bootstrap)
+        if workflow_name is None:
+            # Defensive — _validate catches this; should never reach here.
+            raise ValueError(
+                "BootstrapStage.kind='nipype' without a workflow name "
+                "should have been caught in validation."
+            )
+        workflow = self.workflow_registry.get(workflow_name)
 
         wf_config = _WorkflowCallConfig(
             subject=config.subject,
             output_dir=str(config.output_dir),
             bids_dir=str(config.bids_dir) if config.bids_dir else None,
+            derivatives_dir=(
+                str(config.derivatives_dir) if config.derivatives_dir else None
+            ),
             sessions=list(config.sessions),
             task=config.task,
             dataset=config.dataset,
@@ -262,57 +287,48 @@ class StackRunner:
         wf_errors = workflow.validate(wf_config)
         if wf_errors:
             raise ValueError(
-                f"Workflow '{bootstrap.workflow}' rejected config: "
+                f"Workflow '{workflow_name}' rejected config: "
                 + "; ".join(wf_errors)
             )
 
         built = workflow.build(wf_config)
-        outputs: dict[str, Any] = {}
-        if built is not None:
-            outputs = self._execute_workflow(built)
-
+        outputs = self._execute_workflow(built)
         return workflow.to_manifest(wf_config, outputs)
 
-    def _execute_workflow(self, built_workflow: Any) -> dict[str, Any]:
-        """Execute a built nipype workflow and return its output values.
+    def _execute_workflow(self, built: Any) -> dict[str, Any]:
+        """Execute whatever ``workflow.build()`` returned.
 
-        Phase 4a: handles only the identity workflow's sentinel
-        (``None`` → empty outputs). Real nipype execution
-        (``built_workflow.run(plugin="MultiProc")``) lands when the
-        reference workflow does.
+        Three shapes are recognised:
+
+        - ``None`` — nothing to execute (e.g. identity workflow,
+          passthrough). Outputs are empty; ``to_manifest`` builds
+          everything from config + the registry-side scan.
+        - ``_BackendBuildSentinel`` — a legacy ``PreprocBackend`` adapter
+          to invoke. The runner calls ``sentinel.backend.run`` and
+          packages the resulting manifest into
+          ``outputs["manifest"]`` so the workflow wrapper's
+          ``to_manifest`` can return it.
+        - anything else — a real nipype Workflow. Not wired yet; will
+          land when the real reference workflow does.
         """
-        if built_workflow is None:
+        if built is None:
             return {}
-        # Real nipype workflow execution will be added when the
-        # reference workflow lands (post Phase 5/6/9 per Omar's
-        # "real reference workflow after the plumbing" directive).
-        raise NotImplementedError(
-            "Real nipype workflow execution not yet wired — only the "
-            "identity placeholder (which returns None from build()) is "
-            "supported in Phase 4a."
+
+        # Import locally so this module doesn't pull the wrapper at
+        # import time (avoids the slight circularity of
+        # backend_adapters → workflow_registry → … → stack_runner).
+        from fmriflow.preproc.backends.nipype_workflows.backend_adapters import (
+            _BackendBuildSentinel,
         )
 
-    def _run_passthrough_bootstrap(
-        self, bootstrap: BootstrapStage, config: StackRunConfig,
-    ) -> PreprocManifest:
-        """Build a stub manifest from existing derivatives.
+        if isinstance(built, _BackendBuildSentinel):
+            manifest = built.backend.run(built.preproc_config)
+            return {"manifest": manifest}
 
-        Phase 4a: emits an empty-runs manifest. Phase 4b will scan
-        ``config.derivatives_dir`` and build ``RunRecord`` entries
-        from existing BIDS-derivatives files.
-        """
-        return PreprocManifest(
-            subject=config.subject,
-            dataset=config.dataset,
-            sessions=list(config.sessions),
-            runs=[],
-            backend="passthrough",
-            backend_version="0",
-            parameters=dict(bootstrap.params),
-            space=bootstrap.params.get("space", "native"),
-            output_dir=str(config.output_dir),
-            created=now_iso(),
-            additional_steps=[],
+        raise NotImplementedError(
+            "Real nipype workflow execution not yet wired — only the "
+            "identity / passthrough placeholders and the backend-wrapper "
+            "sentinels are supported in Phase 4b."
         )
 
     # ── Transform stage ───────────────────────────────────────────
