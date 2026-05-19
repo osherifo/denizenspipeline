@@ -249,3 +249,131 @@ class TestStackRunLifecycle:
         runs = c.get("/api/preproc/stack/runs").json()["runs"]
         ids = [r["run_id"] for r in runs]
         assert run_id in ids
+
+
+# ── Phase 5b: Cancel endpoint ──────────────────────────────────────
+
+
+class TestCancelEndpoint:
+    def test_cancel_unknown_run_404(self, app):
+        c = TestClient(app)
+        r = c.post("/api/preproc/stack/never_existed/cancel")
+        assert r.status_code == 404
+
+    def test_cancel_already_done_409(self, app):
+        c = TestClient(app)
+        run_id = c.post(
+            "/api/preproc/stack/run",
+            json={
+                "stack": {
+                    "bootstrap": {"kind": "nipype", "workflow": "identity"},
+                    "transforms": [],
+                },
+                "subject": "sub01",
+                "output_dir": str(app.state._test_output_root),
+            },
+        ).json()["run_id"]
+        _poll_until_done(c, run_id)
+
+        r = c.post(f"/api/preproc/stack/{run_id}/cancel")
+        assert r.status_code == 409
+        # The reason mentions the current (non-running) status.
+        assert "done" in r.json()["detail"] or "lost" in r.json()["detail"]
+
+    def test_cancel_lost_run_409(self, app):
+        # Register a state with no live pid → manager.get_run reports
+        # "lost" → cancel returns 409 (not a candidate for SIGTERM).
+        from fmriflow.server.services.run_registry import RunStateFile
+        registry = app.state.stack_manager.registry
+        registry.register(RunStateFile(
+            run_id="stack_pretend_lost",
+            kind="stack",
+            backend="nipype",
+            subject="sub01",
+            status="running",
+            pid=None,
+        ))
+        c = TestClient(app)
+        r = c.post("/api/preproc/stack/stack_pretend_lost/cancel")
+        # cancel_run reads state.status (still "running") + tries to
+        # SIGTERM pgid=None → reports "no pid recorded" → 409.
+        assert r.status_code == 409
+        assert "no pid recorded" in r.json()["detail"]
+
+
+# ── Phase 5b: WebSocket event stream ───────────────────────────────
+
+
+class TestStackWebSocket:
+    def test_ws_unknown_run_closes_with_code(self, app):
+        c = TestClient(app)
+        with pytest.raises(Exception):
+            # WebSocketDisconnect / similar — exact type varies by
+            # FastAPI/starlette version.
+            with c.websocket_connect("/ws/preproc/stack/never_existed"):
+                pass
+
+    def test_ws_streams_event_sequence_to_completion(self, app):
+        c = TestClient(app)
+        run_id = c.post(
+            "/api/preproc/stack/run",
+            json={
+                "stack": {
+                    "bootstrap": {"kind": "nipype", "workflow": "identity"},
+                    "transforms": [{"name": "identity"}],
+                },
+                "subject": "sub01",
+                "output_dir": str(app.state._test_output_root),
+            },
+        ).json()["run_id"]
+
+        received: list[dict] = []
+        with c.websocket_connect(f"/ws/preproc/stack/{run_id}") as ws:
+            while True:
+                msg = ws.receive_json()
+                received.append(msg)
+                if msg.get("event") == "_close":
+                    break
+
+        names = [e["event"] for e in received]
+        # Should see started, two stage_start/done pairs, completed,
+        # then the terminal _close. Order doesn't have to be perfect
+        # because of polling races, but we expect each event-type to
+        # appear at least once.
+        assert "started" in names
+        assert names.count("stage_start") >= 2
+        assert names.count("stage_done") >= 2
+        assert "completed" in names
+        assert names[-1] == "_close"
+        assert received[-1]["status"] == "done"
+
+    def test_ws_replays_existing_events_on_late_connect(self, app):
+        # Run a stack to completion first, then connect to its WS —
+        # all events should replay even though the run is done.
+        c = TestClient(app)
+        run_id = c.post(
+            "/api/preproc/stack/run",
+            json={
+                "stack": {
+                    "bootstrap": {"kind": "nipype", "workflow": "identity"},
+                    "transforms": [],
+                },
+                "subject": "sub01",
+                "output_dir": str(app.state._test_output_root),
+            },
+        ).json()["run_id"]
+        final = _poll_until_done(c, run_id)
+        assert final["status"] == "done"
+
+        received: list[dict] = []
+        with c.websocket_connect(f"/ws/preproc/stack/{run_id}") as ws:
+            while True:
+                msg = ws.receive_json()
+                received.append(msg)
+                if msg.get("event") == "_close":
+                    break
+
+        names = [e["event"] for e in received]
+        assert "started" in names
+        assert "completed" in names
+        assert names[-1] == "_close"

@@ -22,8 +22,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -193,6 +195,64 @@ class StackManager:
             return None
         path = Path(state.manifest_path)
         return path if path.is_file() else None
+
+    # ── Cancel ───────────────────────────────────────────────────
+
+    GRACE_PERIOD_S = 5.0
+
+    def cancel_run(self, run_id: str) -> dict:
+        """Terminate a running stack subprocess. SIGTERM, then SIGKILL
+        after a grace period if still alive.
+
+        Returns a small dict describing the outcome:
+
+            {"cancelled": True}
+            {"cancelled": False, "reason": "<why>"}
+        """
+        state = self.registry.load(run_id)
+        if state is None:
+            return {"cancelled": False, "reason": "unknown run_id"}
+        if state.status != "running":
+            return {"cancelled": False, "reason": f"status is {state.status}"}
+        pgid = state.pgid or state.pid
+        if not pgid:
+            return {"cancelled": False, "reason": "no pid recorded"}
+
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            # Already gone — reconcile state to "failed" so we don't
+            # leave a stale "running".
+            state.status = "failed"
+            state.error = "process already gone at cancel time"
+            state.finished_at = time.time()
+            self.registry.update(state)
+            return {"cancelled": True, "reason": "process already exited"}
+        except Exception as e:
+            return {"cancelled": False, "reason": str(e)}
+
+        # Grace period: if the subprocess hasn't shut down on its own
+        # within GRACE_PERIOD_S, SIGKILL the whole process group.
+        recorded_pid = state.pid
+
+        def _grace_kill() -> None:
+            time.sleep(self.GRACE_PERIOD_S)
+            if RunRegistry.pid_alive(recorded_pid):
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                except Exception:
+                    logger.warning(
+                        "Failed to SIGKILL pgid=%s after grace period", pgid,
+                        exc_info=True,
+                    )
+
+        threading.Thread(target=_grace_kill, daemon=True).start()
+
+        state.status = "cancelled"
+        state.finished_at = time.time()
+        self.registry.update(state)
+        logger.info("Cancelled stack run %s (pgid=%s).", run_id, pgid)
+        return {"cancelled": True}
 
     # ── Reconciliation ───────────────────────────────────────────
 

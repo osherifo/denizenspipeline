@@ -38,6 +38,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from fmriflow.preproc.stack import PreprocStack
+from fmriflow.preproc.stack_events import EventWriter
 from fmriflow.preproc.stack_runner import (
     StackRunConfig,
     StackRunner,
@@ -123,7 +124,14 @@ def main(argv: list[str] | None = None) -> int:
     tx_reg = TransformRegistry()
     tx_reg.discover()
 
-    runner = StackRunner(wf_reg, tx_reg, use_cache=use_cache)
+    # Stream live events into <run_dir>/events.jsonl for the
+    # server's WebSocket endpoint to tail.
+    events_path = registry.run_dir(args.run_id) / "events.jsonl"
+    event_writer = EventWriter(events_path)
+
+    runner = StackRunner(
+        wf_reg, tx_reg, use_cache=use_cache, event_sink=event_writer,
+    )
 
     try:
         result = runner.run(stack, run_config)
@@ -152,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     state.manifest_path = str(manifest_path) if manifest_path else None
     state.result = _result_payload(result)
     registry.update(state)
+    event_writer.close()
 
     return 0 if result.status == "completed" else 1
 

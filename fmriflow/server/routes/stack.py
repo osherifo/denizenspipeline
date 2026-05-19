@@ -163,6 +163,19 @@ async def get_stack_status(request: Request, run_id: str):
     return summary
 
 
+@router.post("/preproc/stack/{run_id}/cancel")
+async def cancel_stack_run(request: Request, run_id: str):
+    """SIGTERM a running stack run; SIGKILL after the manager's grace period."""
+    mgr = request.app.state.stack_manager
+    result = mgr.cancel_run(run_id)
+    if not result["cancelled"]:
+        # 404 when the run isn't known, 409 for state mismatches.
+        if result.get("reason") == "unknown run_id":
+            raise HTTPException(404, detail=f"Unknown run_id: {run_id}")
+        raise HTTPException(409, detail=result["reason"])
+    return result
+
+
 @router.get("/preproc/stack/{run_id}/manifest")
 async def get_stack_manifest(request: Request, run_id: str):
     mgr = request.app.state.stack_manager

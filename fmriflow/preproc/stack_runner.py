@@ -45,6 +45,7 @@ from fmriflow.preproc.stack import (
     TransformStage,
 )
 from fmriflow.preproc.stack_cache import StackCache
+from fmriflow.preproc.stack_events import EventSink
 from fmriflow.preproc.transform_registry import TransformRegistry
 from fmriflow.preproc.workflow_registry import WorkflowRegistry
 
@@ -140,10 +141,20 @@ class StackRunner:
         transform_registry: TransformRegistry,
         *,
         use_cache: bool = True,
+        event_sink: EventSink | None = None,
     ) -> None:
         self.workflow_registry = workflow_registry
         self.transform_registry = transform_registry
         self.use_cache = use_cache
+        self.event_sink = event_sink
+
+    def _emit(self, event: dict) -> None:
+        """Push an event to the sink if one is wired. No-op otherwise."""
+        if self.event_sink is not None:
+            try:
+                self.event_sink(event)
+            except Exception:
+                logger.exception("event sink raised — ignoring")
 
     def _cache_for(self, config: StackRunConfig) -> StackCache | None:
         if not self.use_cache:
@@ -157,6 +168,7 @@ class StackRunner:
 
         errors = self._validate(stack)
         if errors:
+            self._emit({"event": "failed", "errors": list(errors), "stage_index": None})
             return StackRunResult(
                 status="failed",
                 errors=errors,
@@ -164,6 +176,12 @@ class StackRunner:
             )
 
         cache = self._cache_for(config)
+        self._emit({
+            "event": "started",
+            "subject": config.subject,
+            "n_stages": 1 + len(stack.transforms),
+            "bootstrap_kind": stack.bootstrap.kind,
+        })
 
         # ── Bootstrap ────────────────────────────────────────────
         workflow_name = self._resolve_workflow_name(stack.bootstrap)
@@ -176,6 +194,15 @@ class StackRunner:
             derivatives_dir=config.derivatives_dir,
             subject=config.subject,
         )
+
+        self._emit({
+            "event": "stage_start",
+            "stage_index": 0,
+            "kind": "bootstrap",
+            "stage_name": workflow_name,
+            "fingerprint": boot_fp,
+        })
+        stage_started = time.monotonic()
 
         bootstrap_manifest: PreprocManifest | None = None
         bootstrap_from_cache = False
@@ -191,6 +218,14 @@ class StackRunner:
             try:
                 bootstrap_manifest = self._run_bootstrap(stack.bootstrap, config)
             except NotImplementedError as e:
+                self._emit({
+                    "event": "stage_failed",
+                    "stage_index": 0,
+                    "stage_name": workflow_name,
+                    "kind": "bootstrap",
+                    "error": f"Bootstrap not implemented: {e}",
+                })
+                self._emit({"event": "failed", "errors": [f"Bootstrap not implemented: {e}"]})
                 return StackRunResult(
                     status="failed",
                     errors=[f"Bootstrap not implemented: {e}"],
@@ -199,6 +234,14 @@ class StackRunner:
                 )
             except Exception as e:
                 logger.exception("Bootstrap stage failed")
+                self._emit({
+                    "event": "stage_failed",
+                    "stage_index": 0,
+                    "stage_name": workflow_name,
+                    "kind": "bootstrap",
+                    "error": str(e),
+                })
+                self._emit({"event": "failed", "errors": [f"Bootstrap stage failed: {e}"]})
                 return StackRunResult(
                     status="failed",
                     errors=[f"Bootstrap stage failed: {e}"],
@@ -207,6 +250,16 @@ class StackRunner:
                 )
             if cache is not None:
                 cache.store(boot_fp, bootstrap_manifest)
+
+        self._emit({
+            "event": "stage_done",
+            "stage_index": 0,
+            "stage_name": workflow_name,
+            "kind": "bootstrap",
+            "cache_hit": bootstrap_from_cache,
+            "fingerprint": boot_fp,
+            "duration_s": time.monotonic() - stage_started,
+        })
 
         stage_manifests: list[PreprocManifest] = [bootstrap_manifest]
         stage_cache_hits: list[bool] = [bootstrap_from_cache]
@@ -223,6 +276,14 @@ class StackRunner:
                 prior_fingerprint=prior_fp,
                 inputs=inputs,
             )
+            self._emit({
+                "event": "stage_start",
+                "stage_index": index,
+                "kind": "transform",
+                "stage_name": transform_stage.name,
+                "fingerprint": tx_fp,
+            })
+            stage_started = time.monotonic()
 
             next_manifest: PreprocManifest | None = None
             from_cache = False
@@ -246,6 +307,17 @@ class StackRunner:
                     logger.exception(
                         "Transform stage %d (%s) failed", index, transform_stage.name,
                     )
+                    self._emit({
+                        "event": "stage_failed",
+                        "stage_index": index,
+                        "stage_name": transform_stage.name,
+                        "kind": "transform",
+                        "error": str(e),
+                    })
+                    self._emit({
+                        "event": "failed",
+                        "errors": [f"Stage {index} ({transform_stage.name}) failed: {e}"],
+                    })
                     return StackRunResult(
                         status="failed",
                         manifest=current,
@@ -260,17 +332,33 @@ class StackRunner:
                 if cache is not None:
                     cache.store(tx_fp, next_manifest)
 
+            self._emit({
+                "event": "stage_done",
+                "stage_index": index,
+                "stage_name": transform_stage.name,
+                "kind": "transform",
+                "cache_hit": from_cache,
+                "fingerprint": tx_fp,
+                "duration_s": time.monotonic() - stage_started,
+            })
+
             stage_manifests.append(next_manifest)
             stage_cache_hits.append(from_cache)
             current = next_manifest
             prior_fp = tx_fp
 
+        total_duration = time.monotonic() - started
+        self._emit({
+            "event": "completed",
+            "n_stages": len(stage_manifests),
+            "duration_s": total_duration,
+        })
         return StackRunResult(
             status="completed",
             manifest=current,
             stage_manifests=stage_manifests,
             stage_cache_hits=stage_cache_hits,
-            duration_s=time.monotonic() - started,
+            duration_s=total_duration,
             bootstrap_fingerprint=boot_fp,
         )
 
