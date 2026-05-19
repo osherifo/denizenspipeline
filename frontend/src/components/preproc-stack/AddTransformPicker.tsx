@@ -11,6 +11,7 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { usePreprocStackStore } from '../../stores/preproc-stack-store'
 import { CustomAddonModal } from './CustomAddonModal'
+import { VisualTransformBuilder } from './VisualTransformBuilder'
 
 
 const wrapperStyle: CSSProperties = {
@@ -44,6 +45,7 @@ const buttonStyle: CSSProperties = {
 
 
 const CUSTOM_SENTINEL = '__custom__'
+const VISUAL_SENTINEL = '__visual__'
 
 
 export function AddTransformPicker() {
@@ -51,11 +53,17 @@ export function AddTransformPicker() {
   const addTransform = usePreprocStackStore((s) => s.addTransform)
   const [selected, setSelected] = useState('')
   const [customModalOpen, setCustomModalOpen] = useState(false)
+  const [visualModalOpen, setVisualModalOpen] = useState(false)
 
   const handleAdd = () => {
     if (!selected) return
     if (selected === CUSTOM_SENTINEL) {
       setCustomModalOpen(true)
+      setSelected('')
+      return
+    }
+    if (selected === VISUAL_SENTINEL) {
+      setVisualModalOpen(true)
       setSelected('')
       return
     }
@@ -77,8 +85,11 @@ export function AddTransformPicker() {
               {t.name} · {t.version} · {t.source}
             </option>
           ))}
+          <option value={VISUAL_SENTINEL}>
+            ＋ Compose custom transform (visual)...
+          </option>
           <option value={CUSTOM_SENTINEL}>
-            ＋ Author custom transform...
+            ＋ Author custom transform (Python)...
           </option>
         </select>
         <button
@@ -98,6 +109,11 @@ export function AddTransformPicker() {
         kind="transform"
         isOpen={customModalOpen}
         onClose={() => setCustomModalOpen(false)}
+      />
+
+      <VisualTransformBuilder
+        isOpen={visualModalOpen}
+        onClose={() => setVisualModalOpen(false)}
       />
     </>
   )
