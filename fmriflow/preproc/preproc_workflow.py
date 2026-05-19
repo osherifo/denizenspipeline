@@ -48,6 +48,10 @@ class WorkflowInfo:
     required_python: list[str] = field(default_factory=list)
     required_tools: list[str] = field(default_factory=list)
     required_env: list[str] = field(default_factory=list)
+    # PARAM_SCHEMA as a plain dict so the frontend can render a
+    # schema-driven form (the existing ParamForm component) instead
+    # of a raw-JSON textarea.
+    params_schema: dict = field(default_factory=dict)
 
 
 @runtime_checkable

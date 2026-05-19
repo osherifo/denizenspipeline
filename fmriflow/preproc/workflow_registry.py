@@ -306,6 +306,7 @@ class WorkflowRegistry:
             required_python=list(getattr(cls, "REQUIRED_PYTHON", []) or []),
             required_tools=list(getattr(cls, "REQUIRED_TOOLS", []) or []),
             required_env=list(getattr(cls, "REQUIRED_ENV", []) or []),
+            params_schema=dict(getattr(cls, "PARAM_SCHEMA", {}) or {}),
         )
 
     def list(self) -> list[WorkflowInfo]:

@@ -86,6 +86,20 @@ class TestWorkflowListing:
         assert identity["container_bound"] is False
         assert identity["required_python"] == []
 
+    def test_workflow_info_carries_params_schema(self, app):
+        c = TestClient(app)
+        workflows = c.get("/api/preproc/backends/workflows").json()["workflows"]
+        # Identity workflow has an empty PARAM_SCHEMA.
+        identity = next(w for w in workflows if w["name"] == "identity")
+        assert identity["params_schema"] == {}
+        # Passthrough workflow declares three params with defaults.
+        passthrough = next(w for w in workflows if w["name"] == "passthrough")
+        schema = passthrough["params_schema"]
+        assert "space" in schema
+        assert "file_pattern" in schema
+        assert "output_format" in schema
+        assert schema["space"]["default"] == "native"
+
     def test_workflow_preflight_clean(self, app):
         c = TestClient(app)
         r = c.get("/api/preproc/backends/workflows/identity/preflight")
@@ -111,6 +125,15 @@ class TestTransformListing:
         r = c.get("/api/preproc/backends/transforms/identity/preflight")
         assert r.status_code == 200
         assert r.json()["ok"] is True
+
+    def test_transform_info_carries_params_schema_field(self, app):
+        c = TestClient(app)
+        transforms = c.get("/api/preproc/backends/transforms").json()["transforms"]
+        identity = next(t for t in transforms if t["name"] == "identity")
+        # The identity transform's schema is empty; the field exists
+        # so the frontend can rely on its presence.
+        assert "params_schema" in identity
+        assert identity["params_schema"] == {}
 
 
 # ── Stack-run lifecycle ───────────────────────────────────────────

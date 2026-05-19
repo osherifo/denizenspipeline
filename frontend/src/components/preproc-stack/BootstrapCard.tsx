@@ -3,18 +3,20 @@
  *
  * The user picks a *kind* (fmriprep / nipype / custom / bids_app /
  * passthrough). When kind=nipype, a second dropdown picks the
- * registered workflow. Params are edited as JSON for v1 — a
- * schema-driven form is Phase 6b polish.
+ * registered workflow.
  *
- * A "preflight" badge surfaces the workflow's REQUIRED_PYTHON /
- * REQUIRED_TOOLS / REQUIRED_ENV status before launch, so the user
- * sees "ready" / "missing FSL" without clicking Run.
+ * Params render via the shared `ParamForm` when the chosen
+ * workflow declares a non-empty `params_schema`. For workflows
+ * that don't (the wrapped fmriprep / custom / bids_app backends,
+ * which validate via their own dataclasses) we fall back to a
+ * JSON textarea so power users can still configure them.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { usePreprocStackStore } from '../../stores/preproc-stack-store'
 import type { BootstrapKind, WorkflowInfo } from '../../api/types'
+import { ParamForm } from '../composer/ParamForm'
 
 
 const BOOTSTRAP_KINDS: { value: BootstrapKind; label: string }[] = [
@@ -67,10 +69,7 @@ const stageTagStyle: CSSProperties = {
 }
 
 
-function preflightBadge(
-  ok: boolean | null,
-  errCount: number,
-): CSSProperties {
+function preflightBadgeStyle(ok: boolean | null): CSSProperties {
   if (ok === null) {
     return {
       display: 'inline-block',
@@ -82,29 +81,15 @@ function preflightBadge(
       border: '1px solid var(--border)',
     }
   }
-  if (ok) {
-    return {
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 12,
-      fontSize: 11,
-      color: 'var(--accent-green)',
-      background: 'transparent',
-      border: '1px solid var(--accent-green)',
-    }
-  }
-  // errCount tells the call site how many errors there are; the
-  // badge text already encodes it, so we don't repeat it in a
-  // title attribute (and CSSProperties doesn't accept one).
-  void errCount
+  const accent = ok ? 'var(--accent-green)' : 'var(--accent-red)'
   return {
     display: 'inline-block',
     padding: '2px 8px',
     borderRadius: 12,
     fontSize: 11,
-    color: 'var(--accent-red)',
+    color: accent,
     background: 'transparent',
-    border: '1px solid var(--accent-red)',
+    border: `1px solid ${accent}`,
   }
 }
 
@@ -116,11 +101,6 @@ export function BootstrapCard() {
   const setBootstrap = usePreprocStackStore((s) => s.setBootstrap)
   const checkPreflight = usePreprocStackStore((s) => s.checkBootstrapPreflight)
 
-  const [paramsText, setParamsText] = useState(
-    JSON.stringify(bootstrap.params ?? {}, null, 2),
-  )
-  const [paramsError, setParamsError] = useState<string | null>(null)
-
   // Re-preflight when kind or workflow changes.
   useEffect(() => {
     void checkPreflight()
@@ -131,19 +111,15 @@ export function BootstrapCard() {
     (w) => !['fmriprep', 'custom', 'bids_app', 'passthrough'].includes(w.name),
   )
 
-  function applyParams() {
-    try {
-      const parsed = JSON.parse(paramsText)
-      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-        setParamsError('Params must be a JSON object.')
-        return
-      }
-      setParamsError(null)
-      setBootstrap({ params: parsed })
-    } catch (e) {
-      setParamsError((e as Error).message)
-    }
-  }
+  // Resolve the chosen workflow info so we can render its schema.
+  const resolvedName = isNipype ? bootstrap.workflow ?? null : bootstrap.kind
+  const resolvedInfo = useMemo(
+    () => workflows.find((w) => w.name === resolvedName) ?? null,
+    [workflows, resolvedName],
+  )
+  const schema = resolvedInfo?.params_schema ?? {}
+  const hasSchema = Object.keys(schema).length > 0
+  const params = (bootstrap.params ?? {}) as Record<string, unknown>
 
   const okBadge = preflight === null ? null : preflight.ok
   const errCount = preflight?.errors.length ?? 0
@@ -160,7 +136,7 @@ export function BootstrapCard() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={stageTagStyle}>STAGE 0 · BOOTSTRAP</span>
-          <span style={preflightBadge(okBadge, errCount)}>
+          <span style={preflightBadgeStyle(okBadge)}>
             {okBadge === null
               ? 'unchecked'
               : okBadge
@@ -203,30 +179,35 @@ export function BootstrapCard() {
         </>
       )}
 
-      <label style={labelStyle}>Params (JSON)</label>
-      <textarea
-        style={{
-          ...inputStyle,
-          minHeight: 100,
-          fontFamily:
-            "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-        }}
-        value={paramsText}
-        onChange={(e) => setParamsText(e.target.value)}
-        onBlur={applyParams}
-        spellCheck={false}
-      />
-      {paramsError && (
+      {resolvedInfo?.description && (
         <div
           style={{
-            color: 'var(--accent-red)',
-            fontSize: 11,
-            marginTop: 4,
+            marginTop: 10,
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            fontStyle: 'italic',
           }}
         >
-          {paramsError}
+          {resolvedInfo.description}
         </div>
       )}
+
+      <div style={{ marginTop: 14 }}>
+        {hasSchema ? (
+          <ParamForm
+            schema={schema}
+            values={params}
+            onChange={(key, value) =>
+              setBootstrap({ params: { ...params, [key]: value } })
+            }
+          />
+        ) : (
+          <BootstrapJsonFallback
+            value={params}
+            onChange={(next) => setBootstrap({ params: next })}
+          />
+        )}
+      </div>
 
       {preflight && !preflight.ok && (
         <div
@@ -240,9 +221,7 @@ export function BootstrapCard() {
           }}
         >
           {preflight.errors.map((err, i) => (
-            <div key={i} style={{ marginBottom: 4 }}>
-              · {err}
-            </div>
+            <div key={i} style={{ marginBottom: 4 }}>· {err}</div>
           ))}
         </div>
       )}
@@ -259,10 +238,86 @@ export function BootstrapCard() {
           }}
         >
           {preflight.warnings.map((w, i) => (
-            <div key={i} style={{ marginBottom: 4 }}>
-              · {w}
-            </div>
+            <div key={i} style={{ marginBottom: 4 }}>· {w}</div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+function BootstrapJsonFallback({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown>
+  onChange: (next: Record<string, unknown>) => void
+}) {
+  const [text, setText] = useState(JSON.stringify(value ?? {}, null, 2))
+  const [error, setError] = useState<string | null>(null)
+
+  // Reset textarea when the parent's params change (e.g. on workflow switch).
+  useEffect(() => {
+    setText(JSON.stringify(value ?? {}, null, 2))
+    setError(null)
+  }, [value])
+
+  function applyParams() {
+    try {
+      const parsed = JSON.parse(text)
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        setError('Params must be a JSON object.')
+        return
+      }
+      setError(null)
+      onChange(parsed)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <div>
+      <label
+        style={{
+          display: 'block',
+          fontSize: 11,
+          textTransform: 'uppercase',
+          letterSpacing: 1,
+          color: 'var(--text-secondary)',
+          marginBottom: 6,
+        }}
+      >
+        Params (raw JSON — no schema declared)
+      </label>
+      <textarea
+        style={{
+          width: '100%',
+          background: 'var(--bg-input)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-primary)',
+          padding: '8px 10px',
+          fontSize: 13,
+          minHeight: 100,
+          fontFamily:
+            "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+          borderRadius: 4,
+        }}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={applyParams}
+        spellCheck={false}
+      />
+      {error && (
+        <div
+          style={{
+            color: 'var(--accent-red)',
+            fontSize: 11,
+            marginTop: 4,
+          }}
+        >
+          {error}
         </div>
       )}
     </div>

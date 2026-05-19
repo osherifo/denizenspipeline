@@ -866,6 +866,7 @@ export interface WorkflowInfo {
   required_python: string[]
   required_tools: string[]
   required_env: string[]
+  params_schema: ParamSchema
 }
 
 export interface TransformInfo extends WorkflowInfo {

@@ -43,6 +43,7 @@ import { TransformCard } from '../components/preproc-stack/TransformCard'
 import { AddTransformPicker } from '../components/preproc-stack/AddTransformPicker'
 import { RunControls } from '../components/preproc-stack/RunControls'
 import { EventLog } from '../components/preproc-stack/EventLog'
+import { RecentRunsList } from '../components/preproc-stack/RecentRunsList'
 
 
 const containerStyle: CSSProperties = {
@@ -123,6 +124,8 @@ export function PreprocStackView() {
       <RunControls />
 
       <EventLog />
+
+      <RecentRunsList />
     </div>
   )
 }

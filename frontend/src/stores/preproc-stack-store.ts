@@ -160,7 +160,8 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
   },
 
   setBootstrap(patch) {
-    const merged = { ...get().bootstrap, ...patch }
+    const prev = get().bootstrap
+    const merged = { ...prev, ...patch }
     // If kind switched away from nipype, drop the workflow name so the
     // resolver picks the kind-name workflow automatically.
     if (patch.kind && patch.kind !== 'nipype') {
@@ -169,6 +170,21 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
     if (patch.kind === 'nipype' && !merged.workflow) {
       merged.workflow = 'identity'
     }
+
+    // When the resolved workflow changes (kind change or nipype
+    // workflow change), seed params from the new workflow's schema
+    // defaults — unless the caller is explicitly setting params.
+    if (patch.params === undefined) {
+      const prevName =
+        prev.kind === 'nipype' ? prev.workflow ?? null : prev.kind
+      const nextName =
+        merged.kind === 'nipype' ? merged.workflow ?? null : merged.kind
+      if (prevName !== nextName) {
+        const wf = get().workflows.find((w) => w.name === nextName)
+        merged.params = wf ? schemaDefaults(wf.params_schema) : {}
+      }
+    }
+
     set({ bootstrap: merged, bootstrapPreflight: null })
   },
 
@@ -193,7 +209,11 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
   },
 
   addTransform(name) {
-    const stack = [...get().transformsStack, { name, params: {} }]
+    // Seed params from the transform's schema defaults so the
+    // ParamForm starts with sensible values, not empty fields.
+    const info = get().transforms.find((t) => t.name === name)
+    const params = info ? schemaDefaults(info.params_schema) : {}
+    const stack = [...get().transformsStack, { name, params }]
     set({ transformsStack: stack })
   },
 
@@ -353,4 +373,21 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
 function resolveWorkflowName(b: BootstrapStageBody): string | null {
   if (b.kind === 'nipype') return b.workflow || null
   return b.kind
+}
+
+
+/** Walk a ParamSchema and return ``{ name: default }`` for fields
+ * that declare one. Used to seed param dicts when the workflow /
+ * transform changes so the form isn't blank.
+ */
+function schemaDefaults(
+  schema: Record<string, { default?: unknown }>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [name, field] of Object.entries(schema)) {
+    if (field && 'default' in field) {
+      out[name] = field.default
+    }
+  }
+  return out
 }

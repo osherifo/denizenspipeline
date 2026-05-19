@@ -210,6 +210,7 @@ def _info_to_dict(info) -> dict:
         "required_python": list(info.required_python),
         "required_tools": list(info.required_tools),
         "required_env": list(info.required_env),
+        "params_schema": dict(info.params_schema),
     }
     # TransformInfo extras
     if hasattr(info, "inputs"):
