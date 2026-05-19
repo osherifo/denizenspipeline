@@ -20,6 +20,7 @@ from fmriflow.preproc.manifest import (
     RunRecord,
     now_iso,
 )
+from fmriflow.preproc.stack import StepRecord
 
 logger = logging.getLogger(__name__)
 
@@ -410,11 +411,11 @@ class FmriprepBackend:
                     return part
         return "native"
 
-    def _resolve_steps(self, params: FmriprepParams) -> list[str]:
+    def _resolve_steps(self, params: FmriprepParams) -> list[StepRecord]:
         """Build the additional_steps list from params."""
-        steps = []
+        steps: list[StepRecord] = []
         if params.use_aroma:
-            steps.append("ica_aroma")
+            steps.append(StepRecord(name="ica_aroma"))
         if params.use_syn_sdc:
-            steps.append("syn_sdc")
+            steps.append(StepRecord(name="syn_sdc"))
         return steps

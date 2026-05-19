@@ -15,6 +15,7 @@ from fmriflow.preproc.manifest import (
     RunRecord,
     now_iso,
 )
+from fmriflow.preproc.stack import StepRecord
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,10 @@ class CustomBackend:
             space=space,
             resolution=config.backend_params.get("resolution", "native"),
             confounds_applied=[],
-            additional_steps=config.backend_params.get("steps", []),
+            additional_steps=[
+                StepRecord(name=s) if isinstance(s, str) else s
+                for s in config.backend_params.get("steps", [])
+            ],
             output_dir=str(output_dir),
             output_format=output_format,
             file_pattern=file_pattern,

@@ -340,7 +340,7 @@ def _preproc_info(args) -> int:
     if manifest.confounds_applied:
         print(f"{'Confounds:':<16}{', '.join(manifest.confounds_applied)}")
     if manifest.additional_steps:
-        print(f"{'Steps:':<16}{', '.join(manifest.additional_steps)}")
+        print(f"{'Steps:':<16}{', '.join(s.name for s in manifest.additional_steps)}")
     print(f"{'Format:':<16}{manifest.output_format}")
     print(f"{'Created:':<16}{manifest.created}")
     print(f"{'Runs:':<16}{len(manifest.runs)}")

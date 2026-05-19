@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fmriflow.preproc.stack import StepRecord
+
 
 # ── Quality metrics per run ──────────────────────────────────────────────
 
@@ -68,7 +70,10 @@ class PreprocManifest:
     space: str
     resolution: str | None = None
     confounds_applied: list[str] = field(default_factory=list)
-    additional_steps: list[str] = field(default_factory=list)
+    # Canonical provenance of executed stages. Legacy manifests stored
+    # this as list[str] (e.g. ["smoothing_5mm"]); from_dict auto-wraps
+    # those into minimal StepRecord(name=str) entries on load.
+    additional_steps: list[StepRecord] = field(default_factory=list)
 
     # Where it lives
     output_dir: str = ""
@@ -110,16 +115,41 @@ class PreprocManifest:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PreprocManifest:
-        """Build a manifest from a dict (e.g. parsed JSON)."""
+        """Build a manifest from a dict (e.g. parsed JSON).
+
+        Tolerates both the new ``additional_steps: list[StepRecord]``
+        shape and the legacy ``list[str]`` shape — string entries
+        wrap to ``StepRecord(name=str)`` so older on-disk manifests
+        load unchanged.
+        """
         runs = []
         for r in data.get("runs", []):
             qc_data = r.pop("qc", None) if isinstance(r, dict) else None
             qc = RunQC(**qc_data) if qc_data else None
             runs.append(RunRecord(**{**r, "qc": qc}))
 
-        # Remove 'runs' from data before passing to constructor
-        data = {k: v for k, v in data.items() if k != "runs"}
-        return cls(runs=runs, **data)
+        # Parse additional_steps from either legacy strings or new dicts.
+        steps_raw = data.get("additional_steps") or []
+        additional_steps: list[StepRecord] = []
+        for entry in steps_raw:
+            if isinstance(entry, str):
+                additional_steps.append(StepRecord.from_legacy_string(entry))
+            elif isinstance(entry, dict):
+                additional_steps.append(StepRecord.from_dict(entry))
+            elif isinstance(entry, StepRecord):
+                additional_steps.append(entry)
+            else:
+                raise TypeError(
+                    f"additional_steps entries must be str | dict | StepRecord, "
+                    f"got {type(entry).__name__}"
+                )
+
+        # Drop fields we've already consumed before splatting the rest.
+        rest = {
+            k: v for k, v in data.items()
+            if k not in ("runs", "additional_steps")
+        }
+        return cls(runs=runs, additional_steps=additional_steps, **rest)
 
     @classmethod
     def from_json(cls, path: str | Path) -> PreprocManifest:
