@@ -186,6 +186,73 @@ async def cancel_stack_run(request: Request, run_id: str):
     return result
 
 
+# ── Presets ───────────────────────────────────────────────────────
+
+
+class SavePresetBody(BaseModel):
+    name: str
+    description: str = ""
+    stack: dict
+
+
+@router.get("/preproc/stack/presets")
+async def list_stack_presets(request: Request):
+    store = request.app.state.stack_preset_store
+    return {
+        "presets": [
+            {
+                "name": p.name,
+                "description": p.description,
+                "n_transforms": p.n_transforms,
+                "bootstrap_kind": p.bootstrap_kind,
+            }
+            for p in store.list_presets()
+        ]
+    }
+
+
+@router.post("/preproc/stack/presets")
+async def save_stack_preset(request: Request, body: SavePresetBody):
+    store = request.app.state.stack_preset_store
+    try:
+        stack = PreprocStack.from_dict(body.stack)
+    except Exception as e:
+        raise HTTPException(400, detail=f"Invalid stack: {e}")
+    try:
+        path = store.save(body.name, stack, body.description)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    return {"saved": True, "path": str(path)}
+
+
+@router.get("/preproc/stack/presets/{name}")
+async def load_stack_preset(request: Request, name: str):
+    store = request.app.state.stack_preset_store
+    try:
+        stack, description = store.load(name)
+    except FileNotFoundError:
+        raise HTTPException(404, detail=f"Preset not found: {name}")
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    return {
+        "name": name,
+        "description": description,
+        "stack": stack.to_dict(),
+    }
+
+
+@router.delete("/preproc/stack/presets/{name}")
+async def delete_stack_preset(request: Request, name: str):
+    store = request.app.state.stack_preset_store
+    try:
+        ok = store.delete(name)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    if not ok:
+        raise HTTPException(404, detail=f"Preset not found: {name}")
+    return {"deleted": True}
+
+
 @router.get("/preproc/stack/{run_id}/manifest")
 async def get_stack_manifest(request: Request, run_id: str):
     mgr = request.app.state.stack_manager

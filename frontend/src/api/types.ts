@@ -958,6 +958,19 @@ export interface StackRunSummary {
   result: StackResultPayload | null
 }
 
+export interface PresetSummary {
+  name: string
+  description: string
+  n_transforms: number
+  bootstrap_kind: string
+}
+
+export interface PresetDetail {
+  name: string
+  description: string
+  stack: PreprocStackBody
+}
+
 export interface StackEvent {
   event:
     | 'started'

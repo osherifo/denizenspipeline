@@ -15,6 +15,7 @@ import type {
   BootstrapKind,
   BootstrapStageBody,
   PreflightResult,
+  PresetSummary,
   StackEvent,
   StackResultPayload,
   StackRunSummary,
@@ -24,12 +25,16 @@ import type {
 } from '../api/types'
 import {
   cancelStackRun,
+  deleteStackPreset,
   fetchStackRun,
   fetchStackRuns,
   fetchStackTransforms,
   fetchStackWorkflows,
   launchStackRun,
+  listStackPresets,
+  loadStackPreset,
   openStackEventsSocket,
+  saveStackPreset,
   transformPreflight,
   workflowPreflight,
 } from '../api/client'
@@ -72,6 +77,10 @@ interface PreprocStackState {
   websocket: WebSocket | null
   runHistory: StackRunSummary[]
 
+  // ── Presets ──────────────────────────────────────────────────
+  presets: PresetSummary[]
+  presetError: string | null
+
   // ── Actions ──────────────────────────────────────────────────
   loadCatalogue: () => Promise<void>
   setBootstrap: (b: Partial<BootstrapStageBody>) => void
@@ -99,6 +108,11 @@ interface PreprocStackState {
   refreshActiveRun: () => Promise<void>
   refreshHistory: () => Promise<void>
   clearActiveRun: () => void
+
+  refreshPresets: () => Promise<void>
+  savePreset: (name: string, description: string) => Promise<void>
+  loadPreset: (name: string) => Promise<void>
+  deletePreset: (name: string) => Promise<void>
 }
 
 
@@ -135,6 +149,9 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
   activeError: null,
   websocket: null,
   runHistory: [],
+
+  presets: [],
+  presetError: null,
 
   async loadCatalogue() {
     try {
@@ -399,6 +416,62 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
       activeError: null,
       websocket: null,
     })
+  },
+
+  // ── Presets ────────────────────────────────────────────────
+
+  async refreshPresets() {
+    try {
+      const res = await listStackPresets()
+      set({ presets: res.presets, presetError: null })
+    } catch (e) {
+      set({ presetError: (e as Error).message })
+    }
+  },
+
+  async savePreset(name, description) {
+    const s = get()
+    try {
+      await saveStackPreset({
+        name,
+        description,
+        stack: {
+          bootstrap: s.bootstrap,
+          transforms: s.transformsStack,
+        },
+      })
+      await get().refreshPresets()
+    } catch (e) {
+      set({ presetError: (e as Error).message })
+    }
+  },
+
+  async loadPreset(name) {
+    try {
+      const detail = await loadStackPreset(name)
+      // Rebuild the parallel transformIds array so dnd-kit has
+      // stable handles for the freshly-loaded transforms.
+      const ids = detail.stack.transforms.map((_, i) => `tx-loaded-${i}-${Date.now()}`)
+      set({
+        bootstrap: detail.stack.bootstrap,
+        transformsStack: detail.stack.transforms,
+        transformIds: ids,
+        bootstrapPreflight: null,
+        presetError: null,
+      })
+      void get().checkBootstrapPreflight()
+    } catch (e) {
+      set({ presetError: (e as Error).message })
+    }
+  },
+
+  async deletePreset(name) {
+    try {
+      await deleteStackPreset(name)
+      await get().refreshPresets()
+    } catch (e) {
+      set({ presetError: (e as Error).message })
+    }
   },
 }))
 

@@ -27,6 +27,7 @@ from fmriflow.server.services.structural_qc_store import StructuralQCStore
 from fmriflow.server.services.post_preproc_manager import PostPreprocManager
 from fmriflow.server.services.post_preproc_workflow_store import PostPreprocWorkflowStore
 from fmriflow.server.services.stack_manager import StackManager
+from fmriflow.server.services.stack_preset_store import StackPresetStore
 from fmriflow.preproc.workflow_registry import WorkflowRegistry
 from fmriflow.preproc.transform_registry import TransformRegistry
 
@@ -113,6 +114,7 @@ def create_app(
     transform_registry = TransformRegistry()
     transform_registry.discover()
     stack_manager = StackManager()
+    stack_preset_store = StackPresetStore()
     n_orphans = stack_manager.scan_for_orphans()
     if n_orphans:
         logger.warning(
@@ -153,6 +155,7 @@ def create_app(
     app.state.workflow_registry = workflow_registry
     app.state.transform_registry = transform_registry
     app.state.stack_manager = stack_manager
+    app.state.stack_preset_store = stack_preset_store
 
     # API routes
     from fmriflow.server.routes.modules import router as module_router

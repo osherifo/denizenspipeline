@@ -987,6 +987,32 @@ export async function cancelStackRun(
   })
 }
 
+export async function listStackPresets(): Promise<{ presets: import('./types').PresetSummary[] }> {
+  return json(`${BASE}/preproc/stack/presets`)
+}
+
+export async function loadStackPreset(name: string): Promise<import('./types').PresetDetail> {
+  return json(`${BASE}/preproc/stack/presets/${encodeURIComponent(name)}`)
+}
+
+export async function saveStackPreset(body: {
+  name: string
+  description: string
+  stack: import('./types').PreprocStackBody
+}): Promise<{ saved: boolean; path: string }> {
+  return json(`${BASE}/preproc/stack/presets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteStackPreset(name: string): Promise<{ deleted: boolean }> {
+  return json(`${BASE}/preproc/stack/presets/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+}
+
 /** Open a WebSocket to stream events from a running stack.
  *
  * Caller is responsible for closing the socket when done. The URL is

@@ -58,6 +58,7 @@ import { AddTransformPicker } from '../components/preproc-stack/AddTransformPick
 import { RunControls } from '../components/preproc-stack/RunControls'
 import { EventLog } from '../components/preproc-stack/EventLog'
 import { RecentRunsList } from '../components/preproc-stack/RecentRunsList'
+import { PresetsPanel } from '../components/preproc-stack/PresetsPanel'
 
 
 const containerStyle: CSSProperties = {
@@ -167,6 +168,8 @@ export function PreprocStackView() {
       <RunControls />
 
       <EventLog />
+
+      <PresetsPanel />
 
       <RecentRunsList />
     </div>
