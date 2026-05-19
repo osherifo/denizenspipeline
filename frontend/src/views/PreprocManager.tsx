@@ -39,11 +39,54 @@ function tabStyle(active: boolean): CSSProperties {
   }
 }
 
+const deprecationBannerStyle: CSSProperties = {
+  background: 'var(--bg-card)',
+  border: '1px solid var(--accent-yellow)',
+  borderRadius: 6,
+  padding: '10px 14px',
+  marginBottom: 14,
+  fontSize: 12,
+  color: 'var(--text-primary)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+}
+
+const bannerLinkStyle: CSSProperties = {
+  color: 'var(--accent-cyan)',
+  fontWeight: 600,
+  textDecoration: 'none',
+  border: '1px solid var(--accent-cyan)',
+  padding: '4px 10px',
+  borderRadius: 4,
+  fontSize: 11,
+  whiteSpace: 'nowrap',
+}
+
+
 export function PreprocManager() {
   const { tab, setTab } = usePreprocStore()
 
   return (
     <div>
+      <div style={deprecationBannerStyle}>
+        <div>
+          <strong style={{ color: 'var(--accent-yellow)' }}>
+            Legacy — moving to Preproc (stack)
+          </strong>
+          <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+            This page wraps the single-backend preproc API. New work
+            should use the unified preprocessing-stack page, which
+            supports cached re-runs, mid-pipeline transforms, and
+            schema-driven param forms.
+          </div>
+        </div>
+        <a href="#preproc-stack" style={bannerLinkStyle}>
+          Open new page →
+        </a>
+      </div>
+
       <div style={tabBarStyle}>
         {tabs.map((t) => (
           <button key={t.key} style={tabStyle(tab === t.key)} onClick={() => setTab(t.key)}>

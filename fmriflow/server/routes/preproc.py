@@ -1,11 +1,30 @@
-"""API routes for fMRI preprocessing management."""
+"""API routes for fMRI preprocessing management.
+
+NOTE (Stage 7c-7): This module is **deprecated** in favour of the
+unified preproc-stack routes in ``routes/stack.py``. The legacy
+endpoints stay live for one release so existing CI / saved
+configs / scripts that call them aren't broken. New work should
+use ``POST /api/preproc/stack/run`` and the surrounding
+``/api/preproc/stack/...`` surface.
+
+A deprecation log fires the first time ``POST /api/preproc/run``
+is called per server lifetime so the user notices in the logs.
+"""
 
 from __future__ import annotations
+
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["preproc"])
+
+# Module-level flag so the deprecation log fires once per server
+# lifetime, not on every request (which would be noise).
+_LEGACY_RUN_WARNED = False
 
 
 # ── Request models ───────────────────────────────────────────────────────
@@ -114,7 +133,23 @@ async def collect_outputs(request: Request, body: CollectBody):
 
 @router.post("/preproc/run")
 async def start_run(request: Request, body: RunBody):
-    """Start a preprocessing run."""
+    """Start a preprocessing run.
+
+    DEPRECATED: prefer ``POST /api/preproc/stack/run`` (see the
+    "Preproc (stack)" view in the frontend). This endpoint will be
+    removed in a future release once any remaining callers have
+    migrated.
+    """
+    global _LEGACY_RUN_WARNED
+    if not _LEGACY_RUN_WARNED:
+        logger.warning(
+            "DEPRECATED: POST /api/preproc/run is deprecated; "
+            "migrate callers to POST /api/preproc/stack/run "
+            "(see docs/devnotes/preprocessing-stack-*). "
+            "This warning fires once per server lifetime."
+        )
+        _LEGACY_RUN_WARNED = True
+
     mgr = request.app.state.preproc_manager
     try:
         run_id = mgr.start_run(body.model_dump(exclude_none=True))
