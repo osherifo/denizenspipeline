@@ -26,6 +26,9 @@ from fmriflow.server.services.workflow_config_store import WorkflowConfigStore
 from fmriflow.server.services.structural_qc_store import StructuralQCStore
 from fmriflow.server.services.post_preproc_manager import PostPreprocManager
 from fmriflow.server.services.post_preproc_workflow_store import PostPreprocWorkflowStore
+from fmriflow.server.services.stack_manager import StackManager
+from fmriflow.preproc.workflow_registry import WorkflowRegistry
+from fmriflow.preproc.transform_registry import TransformRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +106,23 @@ def create_app(
     post_preproc_workflow_store = PostPreprocWorkflowStore(
         paths.store_dir("post_preproc_workflows")
     )
+
+    # Preprocessing-stack registries + manager (Phase 5).
+    workflow_registry = WorkflowRegistry()
+    workflow_registry.discover()
+    transform_registry = TransformRegistry()
+    transform_registry.discover()
+    stack_manager = StackManager()
+    n_orphans = stack_manager.scan_for_orphans()
+    if n_orphans:
+        logger.warning(
+            "Reconciled %d orphaned stack runs from prior server lifetime.",
+            n_orphans,
+        )
+    logger.info(
+        "Stack registries discovered: %d workflow(s), %d transform(s).",
+        len(workflow_registry.names()), len(transform_registry.names()),
+    )
     post_preproc_manager.bind_dependencies(
         registry=registry,
         workflow_store=post_preproc_workflow_store,
@@ -130,6 +150,9 @@ def create_app(
     app.state.structural_qc_store = structural_qc_store
     app.state.post_preproc_manager = post_preproc_manager
     app.state.post_preproc_workflow_store = post_preproc_workflow_store
+    app.state.workflow_registry = workflow_registry
+    app.state.transform_registry = transform_registry
+    app.state.stack_manager = stack_manager
 
     # API routes
     from fmriflow.server.routes.modules import router as module_router
@@ -147,6 +170,7 @@ def create_app(
     from fmriflow.server.routes.structural_qc import router as structural_qc_router
     from fmriflow.server.routes.post_preproc import router as post_preproc_router
     from fmriflow.server.routes.node_outputs import router as node_outputs_router
+    from fmriflow.server.routes.stack import router as stack_router
     from fmriflow.server.routes.settings import router as settings_router
     from fmriflow.server.ws import router as ws_router
 
@@ -166,6 +190,10 @@ def create_app(
     app.include_router(triage_router, prefix="/api")
     app.include_router(structural_qc_router, prefix="/api")
     app.include_router(post_preproc_router, prefix="/api")
+    # Stack-runner routes — declared before preproc_router so the
+    # nested /preproc/stack/* paths don't get shadowed by
+    # preproc_router's /preproc/runs/* catch-alls.
+    app.include_router(stack_router, prefix="/api")
     # `preproc_router` only handles `/preproc/runs/{run_id}` and
     # `/preproc/runs/{run_id}/{exact-name}` (live, cancel, …), so
     # `/preproc/runs/{run_id}/node/...` does not collide with those

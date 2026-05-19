@@ -54,6 +54,11 @@ class RunStateFile:
     params: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
     manifest_path: str | None = None
+    # Kind-specific structured output (e.g. stack runner's per-stage
+    # manifests + cache hits, autoflatten's flat patches). Persisted
+    # so finished runs can re-render their results after the live
+    # handle is gone.
+    result: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
