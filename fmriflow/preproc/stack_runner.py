@@ -142,11 +142,18 @@ class StackRunner:
         *,
         use_cache: bool = True,
         event_sink: EventSink | None = None,
+        force_from_stage: int | None = None,
     ) -> None:
+        """``force_from_stage`` makes the runner ignore cache hits
+        for any stage index >= the given value (i.e. those stages
+        always re-execute). Stages before it still hit cache normally.
+        ``None`` disables the override; ``0`` forces a full re-run of
+        every stage."""
         self.workflow_registry = workflow_registry
         self.transform_registry = transform_registry
         self.use_cache = use_cache
         self.event_sink = event_sink
+        self.force_from_stage = force_from_stage
 
     def _emit(self, event: dict) -> None:
         """Push an event to the sink if one is wired. No-op otherwise."""
@@ -206,7 +213,12 @@ class StackRunner:
 
         bootstrap_manifest: PreprocManifest | None = None
         bootstrap_from_cache = False
-        if cache is not None:
+        # ``force_from_stage <= 0`` means "re-run bootstrap and
+        # everything after"; skip the cache lookup in that case.
+        bootstrap_forced = (
+            self.force_from_stage is not None and self.force_from_stage <= 0
+        )
+        if cache is not None and not bootstrap_forced:
             bootstrap_manifest = cache.lookup(boot_fp)
             if bootstrap_manifest is not None:
                 bootstrap_from_cache = True
@@ -287,7 +299,12 @@ class StackRunner:
 
             next_manifest: PreprocManifest | None = None
             from_cache = False
-            if cache is not None:
+            # Skip the cache lookup when the user explicitly asked
+            # to re-run this stage onwards.
+            stage_forced = (
+                self.force_from_stage is not None and index >= self.force_from_stage
+            )
+            if cache is not None and not stage_forced:
                 next_manifest = cache.lookup(tx_fp)
                 if next_manifest is not None:
                     from_cache = True

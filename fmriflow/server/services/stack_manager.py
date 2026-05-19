@@ -61,6 +61,7 @@ class StackManager:
         run_config: dict[str, Any],
         *,
         use_cache: bool = True,
+        force_from_stage: int | None = None,
     ) -> str:
         """Spawn a detached subprocess to execute ``stack``.
 
@@ -104,6 +105,7 @@ class StackManager:
                     "stack": stack.to_dict(),
                     "run_config": dict(run_config),
                     "use_cache": use_cache,
+                    "force_from_stage": force_from_stage,
                 },
                 indent=2,
                 default=str,

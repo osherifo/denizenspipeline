@@ -366,6 +366,49 @@ class TestCacheBehavior:
         cache_files = list(cache_dir.glob("*.json"))
         assert len(cache_files) == 2
 
+    def test_force_from_stage_skips_cache_for_that_stage_onward(
+        self, registries, run_config,
+    ):
+        """`force_from_stage=N` makes stages >= N always re-execute,
+        even when the cache would hit. Stages before N still use the
+        cache normally."""
+        wf_reg, tx_reg = registries
+        stack = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[
+                TransformStage(name="identity"),
+                TransformStage(name="identity"),
+            ],
+        )
+
+        # Prime the cache.
+        StackRunner(wf_reg, tx_reg, use_cache=True).run(stack, run_config)
+
+        # Re-run forcing stage 1 onward: bootstrap (0) hits cache,
+        # stages 1+ skip the lookup and re-execute.
+        result = StackRunner(
+            wf_reg, tx_reg, use_cache=True, force_from_stage=1,
+        ).run(stack, run_config)
+
+        assert result.status == "completed"
+        # bootstrap cached, both transforms re-ran.
+        assert result.stage_cache_hits == [True, False, False]
+
+    def test_force_from_stage_zero_invalidates_everything(
+        self, registries, run_config,
+    ):
+        wf_reg, tx_reg = registries
+        stack = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity")],
+        )
+        StackRunner(wf_reg, tx_reg, use_cache=True).run(stack, run_config)
+
+        result = StackRunner(
+            wf_reg, tx_reg, use_cache=True, force_from_stage=0,
+        ).run(stack, run_config)
+        assert result.stage_cache_hits == [False, False]
+
     def test_per_fingerprint_outdir_isolation(self, registries, run_config):
         """Different transform params should produce different out_dirs
         so the prior run's outputs aren't clobbered."""

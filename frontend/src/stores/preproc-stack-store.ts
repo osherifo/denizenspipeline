@@ -94,7 +94,7 @@ interface PreprocStackState {
     useCache: boolean
   }>) => void
 
-  launch: () => Promise<void>
+  launch: (opts?: { forceFromStage?: number | null }) => Promise<void>
   cancel: () => Promise<void>
   refreshActiveRun: () => Promise<void>
   refreshHistory: () => Promise<void>
@@ -280,7 +280,7 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
     set(patch as Partial<PreprocStackState>)
   },
 
-  async launch() {
+  async launch(opts) {
     const s = get()
     if (!s.subject || !s.outputDir) {
       set({ activeError: 'Subject and output_dir are required.' })
@@ -313,6 +313,7 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
         sessions: [],
         task: s.task || null,
         use_cache: s.useCache,
+        force_from_stage: opts?.forceFromStage ?? null,
       })
 
       const ws = openStackEventsSocket(result.run_id)

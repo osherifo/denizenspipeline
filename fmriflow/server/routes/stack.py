@@ -69,6 +69,11 @@ class StackRunBody(BaseModel):
     sessions: list[str] = []
     task: str | None = None
     use_cache: bool = True
+    # "Run from here" semantics: when set, the runner ignores cache
+    # hits for stages whose index >= this value, so they always
+    # re-execute. None / unset → normal cache behaviour. 0 → re-run
+    # every stage (equivalent to use_cache=False).
+    force_from_stage: int | None = None
 
 
 # ── Backend (workflow + transform) listings ───────────────────────
@@ -141,7 +146,12 @@ async def launch_stack_run(request: Request, body: StackRunBody):
     }
 
     try:
-        run_id = mgr.start_run(stack, run_config, use_cache=body.use_cache)
+        run_id = mgr.start_run(
+            stack,
+            run_config,
+            use_cache=body.use_cache,
+            force_from_stage=body.force_from_stage,
+        )
     except ValueError as e:
         raise HTTPException(400, detail=str(e))
 

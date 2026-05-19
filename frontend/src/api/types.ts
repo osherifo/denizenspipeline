@@ -906,6 +906,9 @@ export interface StackRunBody {
   sessions?: string[]
   task?: string | null
   use_cache?: boolean
+  /** "Run from here": stages with index >= this value always
+   *  re-execute even if the cache would hit. */
+  force_from_stage?: number | null
 }
 
 export interface StackStepRecord {

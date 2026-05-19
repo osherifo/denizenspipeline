@@ -116,7 +116,30 @@ export function TransformCard({
   const moveUp = usePreprocStackStore((s) => s.moveTransformUp)
   const moveDown = usePreprocStackStore((s) => s.moveTransformDown)
   const remove = usePreprocStackStore((s) => s.removeTransform)
+  const launch = usePreprocStackStore((s) => s.launch)
+  const subject = usePreprocStackStore((s) => s.subject)
+  const outputDir = usePreprocStackStore((s) => s.outputDir)
   const total = usePreprocStackStore((s) => s.transformsStack.length)
+  const totalTransforms = total
+
+  const canRunFromHere = !!subject && !!outputDir
+
+  function onRunFromHere() {
+    const earlier = index === 0 ? 'bootstrap' : `stages 0–${index}`
+    const downstream =
+      totalTransforms - 1 === index
+        ? `stage ${index + 1}`
+        : `stages ${index + 1}–${totalTransforms}`
+    const msg = (
+      `Run from stage ${index + 1}?\n\n` +
+      `${earlier} will reuse cached outputs (when fingerprints match).\n` +
+      `${downstream} will re-execute, ignoring cache.\n\n` +
+      `Subject: ${subject}\nOutput: ${outputDir}`
+    )
+    if (window.confirm(msg)) {
+      void launch({ forceFromStage: index + 1 })
+    }
+  }
   const events = usePreprocStackStore((s) => s.activeEvents)
   const result = usePreprocStackStore((s) => s.activeResult)
   const transforms = usePreprocStackStore((s) => s.transforms)
@@ -205,6 +228,24 @@ export function TransformCard({
           </span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            style={{
+              ...buttonStyle,
+              color: canRunFromHere ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+              borderColor: canRunFromHere ? 'var(--accent-cyan)' : 'var(--border)',
+              opacity: canRunFromHere ? 1 : 0.5,
+              cursor: canRunFromHere ? 'pointer' : 'not-allowed',
+            }}
+            onClick={onRunFromHere}
+            disabled={!canRunFromHere}
+            title={
+              canRunFromHere
+                ? `Run from stage ${index + 1} — cache earlier, re-run this and later`
+                : 'Set subject + output dir to enable'
+            }
+          >
+            ▶ from here
+          </button>
           <button
             style={buttonStyle}
             onClick={() => moveUp(index)}

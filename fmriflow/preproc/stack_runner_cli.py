@@ -50,7 +50,9 @@ from fmriflow.server.services.run_registry import RunRegistry
 logger = logging.getLogger(__name__)
 
 
-def _load_job(path: Path) -> tuple[PreprocStack, StackRunConfig, bool]:
+def _load_job(
+    path: Path,
+) -> tuple[PreprocStack, StackRunConfig, bool, int | None]:
     data = json.loads(path.read_text())
     stack = PreprocStack.from_dict(data["stack"])
 
@@ -68,7 +70,10 @@ def _load_job(path: Path) -> tuple[PreprocStack, StackRunConfig, bool]:
     )
 
     use_cache = bool(data.get("use_cache", True))
-    return stack, run_config, use_cache
+    force_from_stage = data.get("force_from_stage")
+    if force_from_stage is not None:
+        force_from_stage = int(force_from_stage)
+    return stack, run_config, use_cache, force_from_stage
 
 
 def _result_payload(result) -> dict:
@@ -109,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        stack, run_config, use_cache = _load_job(args.config)
+        stack, run_config, use_cache, force_from_stage = _load_job(args.config)
     except Exception as e:
         logger.exception("Could not load job config %s", args.config)
         state.status = "failed"
@@ -130,7 +135,10 @@ def main(argv: list[str] | None = None) -> int:
     event_writer = EventWriter(events_path)
 
     runner = StackRunner(
-        wf_reg, tx_reg, use_cache=use_cache, event_sink=event_writer,
+        wf_reg, tx_reg,
+        use_cache=use_cache,
+        event_sink=event_writer,
+        force_from_stage=force_from_stage,
     )
 
     try:
