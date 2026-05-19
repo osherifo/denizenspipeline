@@ -8,6 +8,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { usePreprocStackStore } from '../../stores/preproc-stack-store'
 import type { StackEvent, StackResultPayload } from '../../api/types'
 import { ParamForm } from '../composer/ParamForm'
@@ -88,14 +90,28 @@ const buttonStyle: CSSProperties = {
 
 
 export function TransformCard({
+  id,
   index,
   name,
   params,
 }: {
+  id: string                      // stable id for dnd-kit sortable
   index: number
   name: string
   params: Record<string, unknown>
 }) {
+  // useSortable wires up the drag interactions and gives us style
+  // transforms to apply during dragging. The accessible up/down
+  // buttons below are kept as a keyboard / a11y fallback.
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
   const setParams = usePreprocStackStore((s) => s.setTransformParams)
   const moveUp = usePreprocStackStore((s) => s.moveTransformUp)
   const moveDown = usePreprocStackStore((s) => s.moveTransformDown)
@@ -123,8 +139,26 @@ export function TransformCard({
   const schema = info?.params_schema ?? {}
   const hasSchema = Object.keys(schema).length > 0
 
+  const wrapperStyle: CSSProperties = {
+    ...cardStyle,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+    boxShadow: isDragging
+      ? '0 6px 18px rgba(0, 229, 255, 0.25)'
+      : undefined,
+  }
+
+  const dragHandleStyle: CSSProperties = {
+    cursor: 'grab',
+    color: 'var(--text-secondary)',
+    fontSize: 14,
+    padding: '0 4px',
+    userSelect: 'none',
+  }
+
   return (
-    <div style={cardStyle}>
+    <div ref={setNodeRef} style={wrapperStyle}>
       <div
         style={{
           display: 'flex',
@@ -134,6 +168,14 @@ export function TransformCard({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            style={dragHandleStyle}
+            title="Drag to reorder"
+            {...attributes}
+            {...listeners}
+          >
+            ⋮⋮
+          </span>
           <span
             style={{
               fontSize: 11,

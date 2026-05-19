@@ -47,7 +47,12 @@ interface PreprocStackState {
   bootstrapPreflight: PreflightResult | null
 
   // ── Transform list ───────────────────────────────────────────
+  // ``transformIds`` is a parallel array of stable ids dnd-kit
+  // needs to track items across reorders. Kept in lockstep with
+  // ``transformsStack``; ids are never sent to the backend.
   transformsStack: TransformStageBody[]
+  transformIds: string[]
+  _nextTransformId: number
 
   // ── Run binding ──────────────────────────────────────────────
   subject: string
@@ -76,6 +81,7 @@ interface PreprocStackState {
   removeTransform: (index: number) => void
   moveTransformUp: (index: number) => void
   moveTransformDown: (index: number) => void
+  moveTransform: (from: number, to: number) => void
   setTransformParams: (index: number, params: Record<string, unknown>) => void
 
   setRunBinding: (patch: Partial<{
@@ -111,6 +117,8 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
   bootstrapPreflight: null,
 
   transformsStack: [],
+  transformIds: [],
+  _nextTransformId: 0,
 
   subject: '',
   outputDir: '',
@@ -209,32 +217,56 @@ export const usePreprocStackStore = create<PreprocStackState>((set, get) => ({
   },
 
   addTransform(name) {
-    // Seed params from the transform's schema defaults so the
-    // ParamForm starts with sensible values, not empty fields.
-    const info = get().transforms.find((t) => t.name === name)
+    const s = get()
+    const info = s.transforms.find((t) => t.name === name)
     const params = info ? schemaDefaults(info.params_schema) : {}
-    const stack = [...get().transformsStack, { name, params }]
-    set({ transformsStack: stack })
+    const id = `tx-${s._nextTransformId}`
+    set({
+      transformsStack: [...s.transformsStack, { name, params }],
+      transformIds: [...s.transformIds, id],
+      _nextTransformId: s._nextTransformId + 1,
+    })
   },
 
   removeTransform(index) {
-    const next = get().transformsStack.filter((_, i) => i !== index)
-    set({ transformsStack: next })
+    const s = get()
+    set({
+      transformsStack: s.transformsStack.filter((_, i) => i !== index),
+      transformIds: s.transformIds.filter((_, i) => i !== index),
+    })
   },
 
   moveTransformUp(index) {
     if (index <= 0) return
-    const next = [...get().transformsStack]
-    ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-    set({ transformsStack: next })
+    const s = get()
+    const stack = [...s.transformsStack]
+    const ids = [...s.transformIds]
+    ;[stack[index - 1], stack[index]] = [stack[index], stack[index - 1]]
+    ;[ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]
+    set({ transformsStack: stack, transformIds: ids })
   },
 
   moveTransformDown(index) {
-    const stack = get().transformsStack
-    if (index >= stack.length - 1) return
-    const next = [...stack]
-    ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
-    set({ transformsStack: next })
+    const s = get()
+    if (index >= s.transformsStack.length - 1) return
+    const stack = [...s.transformsStack]
+    const ids = [...s.transformIds]
+    ;[stack[index], stack[index + 1]] = [stack[index + 1], stack[index]]
+    ;[ids[index], ids[index + 1]] = [ids[index + 1], ids[index]]
+    set({ transformsStack: stack, transformIds: ids })
+  },
+
+  moveTransform(from, to) {
+    const s = get()
+    if (from === to || from < 0 || to < 0) return
+    if (from >= s.transformsStack.length || to >= s.transformsStack.length) return
+    const stack = [...s.transformsStack]
+    const ids = [...s.transformIds]
+    const [stackItem] = stack.splice(from, 1)
+    const [idItem] = ids.splice(from, 1)
+    stack.splice(to, 0, stackItem)
+    ids.splice(to, 0, idItem)
+    set({ transformsStack: stack, transformIds: ids })
   },
 
   setTransformParams(index, params) {

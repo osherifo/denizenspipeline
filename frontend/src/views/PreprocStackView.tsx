@@ -37,6 +37,20 @@
 
 import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import { usePreprocStackStore } from '../stores/preproc-stack-store'
 import { BootstrapCard } from '../components/preproc-stack/BootstrapCard'
 import { TransformCard } from '../components/preproc-stack/TransformCard'
@@ -79,6 +93,23 @@ export function PreprocStackView() {
   const catalogueLoaded = usePreprocStackStore((s) => s.catalogueLoaded)
   const catalogueError = usePreprocStackStore((s) => s.catalogueError)
   const transformsStack = usePreprocStackStore((s) => s.transformsStack)
+  const transformIds = usePreprocStackStore((s) => s.transformIds)
+  const moveTransform = usePreprocStackStore((s) => s.moveTransform)
+
+  // dnd-kit sensors — Pointer for mouse/touch, Keyboard for a11y.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const from = transformIds.indexOf(String(active.id))
+    const to = transformIds.indexOf(String(over.id))
+    if (from < 0 || to < 0) return
+    moveTransform(from, to)
+  }
 
   useEffect(() => {
     void loadCatalogue()
@@ -110,14 +141,26 @@ export function PreprocStackView() {
 
       <BootstrapCard />
 
-      {transformsStack.map((t, i) => (
-        <TransformCard
-          key={i}
-          index={i}
-          name={t.name}
-          params={t.params ?? {}}
-        />
-      ))}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={transformIds}
+          strategy={verticalListSortingStrategy}
+        >
+          {transformsStack.map((t, i) => (
+            <TransformCard
+              key={transformIds[i]}
+              id={transformIds[i]}
+              index={i}
+              name={t.name}
+              params={t.params ?? {}}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
 
       <AddTransformPicker />
 
