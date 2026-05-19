@@ -1,5 +1,16 @@
 # fMRI Preprocessing
 
+!!! info "New page: Preprocessing (stack)"
+    The unified **[Preproc (stack)](preproc-stack.md)** page is now the
+    recommended way to launch preprocessing runs. It supports cached
+    re-runs, mid-pipeline transforms (smooth, mask, regress
+    confounds), schema-driven param forms, and presets.
+
+    This page describes the underlying preprocessing module + the
+    `PreprocManifest` contract. The legacy single-backend launch
+    form was removed; the manifest / collect / backend-status
+    surfaces below still work.
+
 A standalone module for managing fMRI preprocessing (fmriprep, custom scripts, BIDS-Apps). It produces a `PreprocManifest` — a JSON contract between preprocessing and the analysis pipeline — providing provenance tracking, validation, and reproducibility.
 
 ## Environment setup
