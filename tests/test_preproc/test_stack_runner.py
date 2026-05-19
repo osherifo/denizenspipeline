@@ -281,6 +281,116 @@ class TestBackendWrapperDispatch:
         backend.run.assert_called_once()
 
 
+# ── Fingerprint cache (Phase 4c) ──────────────────────────────────
+
+
+class TestCacheBehavior:
+    """Caching is enabled by default. These tests verify the runner
+    actually skips execution on a cache hit, re-runs on cache miss
+    (params change), and can be opted-out via use_cache=False."""
+
+    def _make_runner(self, registries, use_cache):
+        wf_reg, tx_reg = registries
+        return StackRunner(wf_reg, tx_reg, use_cache=use_cache)
+
+    def test_identical_stack_second_run_skips_transform(self, registries, run_config):
+        runner = self._make_runner(registries, use_cache=True)
+        stack = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity")],
+        )
+
+        # First run: caches both bootstrap + transform.
+        first = runner.run(stack, run_config)
+        assert first.status == "completed"
+        assert first.stage_cache_hits == [False, False]
+        assert first.bootstrap_fingerprint
+        assert first.manifest.additional_steps[0].fingerprint  # non-empty
+
+        # Second run: both stages should hit cache.
+        second = runner.run(stack, run_config)
+        assert second.status == "completed"
+        assert second.stage_cache_hits == [True, True]
+        assert second.bootstrap_fingerprint == first.bootstrap_fingerprint
+        # Same fingerprint on the transform's StepRecord.
+        assert (
+            second.manifest.additional_steps[0].fingerprint
+            == first.manifest.additional_steps[0].fingerprint
+        )
+
+    def test_changing_transform_params_invalidates(self, registries, run_config):
+        runner = self._make_runner(registries, use_cache=True)
+        first_stack = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity", params={"variant": "a"})],
+        )
+        second_stack = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity", params={"variant": "b"})],
+        )
+
+        first = runner.run(first_stack, run_config)
+        second = runner.run(second_stack, run_config)
+
+        # Bootstrap is unchanged → cached. Transform's params changed → miss.
+        assert second.stage_cache_hits == [True, False]
+        assert (
+            first.manifest.additional_steps[0].fingerprint
+            != second.manifest.additional_steps[0].fingerprint
+        )
+
+    def test_use_cache_false_disables_caching(self, registries, run_config):
+        runner = self._make_runner(registries, use_cache=False)
+        stack = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity")],
+        )
+
+        first = runner.run(stack, run_config)
+        second = runner.run(stack, run_config)
+        # No hits despite identical inputs — cache disabled.
+        assert first.stage_cache_hits == [False, False]
+        assert second.stage_cache_hits == [False, False]
+
+    def test_cache_files_written_to_output_dir(self, registries, run_config):
+        runner = self._make_runner(registries, use_cache=True)
+        stack = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity")],
+        )
+        runner.run(stack, run_config)
+
+        cache_dir = run_config.output_dir / runner.CACHE_DIR_NAME
+        assert cache_dir.is_dir()
+        # One file per cached stage (bootstrap + 1 transform = 2).
+        cache_files = list(cache_dir.glob("*.json"))
+        assert len(cache_files) == 2
+
+    def test_per_fingerprint_outdir_isolation(self, registries, run_config):
+        """Different transform params should produce different out_dirs
+        so the prior run's outputs aren't clobbered."""
+        runner = self._make_runner(registries, use_cache=True)
+
+        stack_a = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity", params={"variant": "a"})],
+        )
+        stack_b = PreprocStack(
+            bootstrap=BootstrapStage(kind="nipype", workflow="identity"),
+            transforms=[TransformStage(name="identity", params={"variant": "b"})],
+        )
+
+        result_a = runner.run(stack_a, run_config)
+        result_b = runner.run(stack_b, run_config)
+
+        out_a = Path(result_a.manifest.additional_steps[0].output_dir)
+        out_b = Path(result_b.manifest.additional_steps[0].output_dir)
+        # Distinct directories, both still on disk.
+        assert out_a != out_b
+        assert out_a.is_dir()
+        assert out_b.is_dir()
+
+
 class TestPreflightFailureBlocks:
     def test_workflow_with_missing_tool_blocks(self, runner, run_config, registries, caplog):
         """If a workflow declares a missing tool, the runner refuses

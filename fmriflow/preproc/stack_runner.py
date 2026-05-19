@@ -31,6 +31,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from fmriflow.preproc.fingerprint import (
+    bootstrap_fingerprint,
+    transform_fingerprint,
+)
 from fmriflow.preproc.manifest import PreprocManifest, now_iso
 from fmriflow.preproc.preflight import preflight
 from fmriflow.preproc.stack import (
@@ -40,6 +44,7 @@ from fmriflow.preproc.stack import (
     StepRecord,
     TransformStage,
 )
+from fmriflow.preproc.stack_cache import StackCache
 from fmriflow.preproc.transform_registry import TransformRegistry
 from fmriflow.preproc.workflow_registry import WorkflowRegistry
 
@@ -107,6 +112,13 @@ class StackRunResult:
     stage_manifests: list[PreprocManifest] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     duration_s: float = 0.0
+    # Fingerprint of the bootstrap stage's manifest. Useful for tests
+    # and for "stale badge" UI in Phase 6 — the transform fingerprints
+    # already live on each StepRecord.
+    bootstrap_fingerprint: str | None = None
+    # True for each stage that was served from cache (skipped execution).
+    # Indexed parallel to stage_manifests: index 0 = bootstrap, 1..N = transforms.
+    stage_cache_hits: list[bool] = field(default_factory=list)
 
 
 # ── Runner ────────────────────────────────────────────────────────
@@ -120,13 +132,23 @@ class StackRunner:
     construction so tests can inject isolated instances.
     """
 
+    CACHE_DIR_NAME = ".preproc_stack_cache"
+
     def __init__(
         self,
         workflow_registry: WorkflowRegistry,
         transform_registry: TransformRegistry,
+        *,
+        use_cache: bool = True,
     ) -> None:
         self.workflow_registry = workflow_registry
         self.transform_registry = transform_registry
+        self.use_cache = use_cache
+
+    def _cache_for(self, config: StackRunConfig) -> StackCache | None:
+        if not self.use_cache:
+            return None
+        return StackCache(root_dir=Path(config.output_dir) / self.CACHE_DIR_NAME)
 
     # ── Entry point ───────────────────────────────────────────────
 
@@ -141,50 +163,115 @@ class StackRunner:
                 duration_s=time.monotonic() - started,
             )
 
-        try:
-            bootstrap_manifest = self._run_bootstrap(stack.bootstrap, config)
-        except NotImplementedError as e:
-            return StackRunResult(
-                status="failed",
-                errors=[f"Bootstrap not implemented: {e}"],
-                duration_s=time.monotonic() - started,
-            )
-        except Exception as e:
-            logger.exception("Bootstrap stage failed")
-            return StackRunResult(
-                status="failed",
-                errors=[f"Bootstrap stage failed: {e}"],
-                duration_s=time.monotonic() - started,
-            )
+        cache = self._cache_for(config)
 
-        stage_manifests: list[PreprocManifest] = [bootstrap_manifest]
-        current = bootstrap_manifest
+        # ── Bootstrap ────────────────────────────────────────────
+        workflow_name = self._resolve_workflow_name(stack.bootstrap)
+        # _validate already guarantees this resolves cleanly.
+        workflow = self.workflow_registry.get(workflow_name)  # type: ignore[arg-type]
+        boot_fp = bootstrap_fingerprint(
+            stack.bootstrap,
+            workflow,
+            bids_dir=config.bids_dir,
+            derivatives_dir=config.derivatives_dir,
+            subject=config.subject,
+        )
 
-        for index, transform_stage in enumerate(stack.transforms, start=1):
+        bootstrap_manifest: PreprocManifest | None = None
+        bootstrap_from_cache = False
+        if cache is not None:
+            bootstrap_manifest = cache.lookup(boot_fp)
+            if bootstrap_manifest is not None:
+                bootstrap_from_cache = True
+                logger.info(
+                    "Bootstrap cache hit (%s) — skipping execution.", boot_fp,
+                )
+
+        if bootstrap_manifest is None:
             try:
-                current = self._run_transform(
-                    transform_stage, current, config, stage_index=index,
-                )
-            except Exception as e:
-                logger.exception(
-                    "Transform stage %d (%s) failed", index, transform_stage.name,
-                )
+                bootstrap_manifest = self._run_bootstrap(stack.bootstrap, config)
+            except NotImplementedError as e:
                 return StackRunResult(
                     status="failed",
-                    manifest=current,
-                    stage_manifests=stage_manifests,
-                    errors=[
-                        f"Stage {index} ({transform_stage.name}) failed: {e}"
-                    ],
+                    errors=[f"Bootstrap not implemented: {e}"],
                     duration_s=time.monotonic() - started,
+                    bootstrap_fingerprint=boot_fp,
                 )
-            stage_manifests.append(current)
+            except Exception as e:
+                logger.exception("Bootstrap stage failed")
+                return StackRunResult(
+                    status="failed",
+                    errors=[f"Bootstrap stage failed: {e}"],
+                    duration_s=time.monotonic() - started,
+                    bootstrap_fingerprint=boot_fp,
+                )
+            if cache is not None:
+                cache.store(boot_fp, bootstrap_manifest)
+
+        stage_manifests: list[PreprocManifest] = [bootstrap_manifest]
+        stage_cache_hits: list[bool] = [bootstrap_from_cache]
+        current = bootstrap_manifest
+        prior_fp = boot_fp
+
+        # ── Transform stages ─────────────────────────────────────
+        for index, transform_stage in enumerate(stack.transforms, start=1):
+            transform = self.transform_registry.get(transform_stage.name)
+            inputs = self._collect_inputs(current, transform)
+            tx_fp = transform_fingerprint(
+                transform_stage,
+                transform,
+                prior_fingerprint=prior_fp,
+                inputs=inputs,
+            )
+
+            next_manifest: PreprocManifest | None = None
+            from_cache = False
+            if cache is not None:
+                next_manifest = cache.lookup(tx_fp)
+                if next_manifest is not None:
+                    from_cache = True
+                    logger.info(
+                        "Transform stage %d (%s) cache hit (%s) — skipping execution.",
+                        index, transform_stage.name, tx_fp,
+                    )
+
+            if next_manifest is None:
+                try:
+                    next_manifest = self._run_transform(
+                        transform_stage, current, config,
+                        stage_index=index, fingerprint=tx_fp,
+                        transform=transform, inputs=inputs,
+                    )
+                except Exception as e:
+                    logger.exception(
+                        "Transform stage %d (%s) failed", index, transform_stage.name,
+                    )
+                    return StackRunResult(
+                        status="failed",
+                        manifest=current,
+                        stage_manifests=stage_manifests,
+                        stage_cache_hits=stage_cache_hits,
+                        errors=[
+                            f"Stage {index} ({transform_stage.name}) failed: {e}"
+                        ],
+                        duration_s=time.monotonic() - started,
+                        bootstrap_fingerprint=boot_fp,
+                    )
+                if cache is not None:
+                    cache.store(tx_fp, next_manifest)
+
+            stage_manifests.append(next_manifest)
+            stage_cache_hits.append(from_cache)
+            current = next_manifest
+            prior_fp = tx_fp
 
         return StackRunResult(
             status="completed",
             manifest=current,
             stage_manifests=stage_manifests,
+            stage_cache_hits=stage_cache_hits,
             duration_s=time.monotonic() - started,
+            bootstrap_fingerprint=boot_fp,
         )
 
     # ── Validation ────────────────────────────────────────────────
@@ -340,12 +427,18 @@ class StackRunner:
         config: StackRunConfig,
         *,
         stage_index: int,
+        fingerprint: str,
+        transform: Any,
+        inputs: dict[str, Any],
     ) -> PreprocManifest:
-        transform = self.transform_registry.get(stage.name)
-
-        inputs = self._collect_inputs(prior_manifest, transform)
-
-        out_dir = config.output_dir / f"stage_{stage_index:02d}_{stage.name}"
+        # ``out_dir`` includes the fingerprint prefix so distinct
+        # configurations of the same stage index produce distinct
+        # outputs — both can coexist on disk and the cache can hit
+        # against either without one stomping the other.
+        out_dir = (
+            config.output_dir
+            / f"stage_{stage_index:02d}_{stage.name}_{fingerprint[:8]}"
+        )
         out_dir.mkdir(parents=True, exist_ok=True)
 
         started = time.monotonic()
@@ -359,7 +452,7 @@ class StackRunner:
             input_stage=stage_index - 1,
             output_dir=str(out_dir),
             duration_s=duration,
-            fingerprint="",  # Phase 4b adds fingerprinting
+            fingerprint=fingerprint,
         )
 
         return self._extend_manifest(prior_manifest, step, outputs, out_dir)
