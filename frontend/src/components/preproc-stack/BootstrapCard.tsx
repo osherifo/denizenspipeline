@@ -22,6 +22,10 @@ import type {
   WorkflowInfo,
 } from '../../api/types'
 import { ParamForm } from '../composer/ParamForm'
+import { CustomAddonModal } from './CustomAddonModal'
+
+
+const CUSTOM_WORKFLOW_SENTINEL = '__custom_workflow__'
 
 
 type StageStatus =
@@ -148,6 +152,7 @@ export function BootstrapCard() {
   const checkPreflight = usePreprocStackStore((s) => s.checkBootstrapPreflight)
   const events = usePreprocStackStore((s) => s.activeEvents)
   const result = usePreprocStackStore((s) => s.activeResult)
+  const [customModalOpen, setCustomModalOpen] = useState(false)
 
   const stageStatus: StageStatus =
     events.length > 0
@@ -233,7 +238,14 @@ export function BootstrapCard() {
           <select
             style={inputStyle}
             value={bootstrap.workflow ?? ''}
-            onChange={(e) => setBootstrap({ workflow: e.target.value })}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === CUSTOM_WORKFLOW_SENTINEL) {
+                setCustomModalOpen(true)
+                return
+              }
+              setBootstrap({ workflow: value })
+            }}
           >
             {nipypeWorkflows.length === 0 && (
               <option value="">(no nipype workflows registered)</option>
@@ -243,9 +255,18 @@ export function BootstrapCard() {
                 {w.name} · {w.version} · {w.source}
               </option>
             ))}
+            <option value={CUSTOM_WORKFLOW_SENTINEL}>
+              ＋ Author custom workflow...
+            </option>
           </select>
         </>
       )}
+
+      <CustomAddonModal
+        kind="workflow"
+        isOpen={customModalOpen}
+        onClose={() => setCustomModalOpen(false)}
+      />
 
       {resolvedInfo?.description && (
         <div

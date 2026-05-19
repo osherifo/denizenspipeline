@@ -173,6 +173,75 @@ async def get_stack_status(request: Request, run_id: str):
     return summary
 
 
+# ── Custom workflow / transform authoring (Python scaffold) ───────
+
+
+class SaveCustomBody(BaseModel):
+    name: str                     # slug for the .py filename
+    code: str                     # full Python source
+
+
+def _save_custom_addon(kind: str, body: SaveCustomBody) -> dict:
+    """Write ``body.code`` to ``$FMRIFLOW_HOME/addons/{kind}/{name}.py``.
+
+    ``kind`` is ``"workflows"`` or ``"transforms"``. Validates the
+    slug + that the code compiles before writing. Caller triggers
+    a registry rescan after save.
+    """
+    import re
+    from fmriflow.core import paths
+
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*$", body.name):
+        raise HTTPException(
+            400,
+            detail=(
+                f"Invalid name {body.name!r}: must start with a letter "
+                f"and contain only letters / digits / underscores."
+            ),
+        )
+    if not body.code.strip():
+        raise HTTPException(400, detail="Code body is empty.")
+
+    # Syntax check before persisting — the user gets a clean error
+    # instead of a broken file that crashes the registry on rescan.
+    try:
+        compile(body.code, f"<{kind}/{body.name}.py>", "exec")
+    except SyntaxError as e:
+        raise HTTPException(400, detail=f"Python syntax error: {e}")
+
+    target = paths.addons_dir(kind) / f"{body.name}.py"   # type: ignore[arg-type]
+    target.write_text(body.code)
+    return {"saved": True, "path": str(target)}
+
+
+@router.post("/preproc/backends/workflows/custom")
+async def save_custom_workflow(request: Request, body: SaveCustomBody):
+    result = _save_custom_addon("workflows", body)
+    # Re-run discovery so the new workflow shows up in subsequent
+    # GET /backends/workflows responses.
+    request.app.state.workflow_registry.discover()
+    return result
+
+
+@router.post("/preproc/backends/transforms/custom")
+async def save_custom_transform(request: Request, body: SaveCustomBody):
+    result = _save_custom_addon("transforms", body)
+    request.app.state.transform_registry.discover()
+    return result
+
+
+@router.post("/preproc/backends/rescan")
+async def rescan_backends(request: Request):
+    """Re-run discovery on both registries. Useful after dropping
+    a ``.py`` file into ``$FMRIFLOW_HOME/addons/`` by hand."""
+    request.app.state.workflow_registry.discover()
+    request.app.state.transform_registry.discover()
+    return {
+        "workflows": len(request.app.state.workflow_registry.names()),
+        "transforms": len(request.app.state.transform_registry.names()),
+    }
+
+
 @router.post("/preproc/stack/{run_id}/cancel")
 async def cancel_stack_run(request: Request, run_id: str):
     """SIGTERM a running stack run; SIGKILL after the manager's grace period."""

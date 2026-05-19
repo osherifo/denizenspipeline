@@ -1013,6 +1013,26 @@ export async function deleteStackPreset(name: string): Promise<{ deleted: boolea
   })
 }
 
+export async function saveCustomWorkflow(
+  name: string, code: string,
+): Promise<{ saved: boolean; path: string }> {
+  return json(`${BASE}/preproc/backends/workflows/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, code }),
+  })
+}
+
+export async function saveCustomTransform(
+  name: string, code: string,
+): Promise<{ saved: boolean; path: string }> {
+  return json(`${BASE}/preproc/backends/transforms/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, code }),
+  })
+}
+
 /** Open a WebSocket to stream events from a running stack.
  *
  * Caller is responsible for closing the socket when done. The URL is
