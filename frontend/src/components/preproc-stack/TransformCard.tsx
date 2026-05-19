@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { usePreprocStackStore } from '../../stores/preproc-stack-store'
-import type { StackEvent } from '../../api/types'
+import type { StackEvent, StackResultPayload } from '../../api/types'
 import { ParamForm } from '../composer/ParamForm'
 
 
@@ -33,6 +33,29 @@ function statusFromEvents(
     else if (ev.event === 'stage_failed') status = 'failed'
   }
   return status
+}
+
+
+/** When the live event log is empty but a historical run is loaded
+ * (RecentRunsList click), derive per-stage status from the run's
+ * persisted ``stage_cache_hits`` so cards show "done"/"cached" rather
+ * than staying "pending". A failed run gets its terminal stage marked
+ * "failed"; intermediate stages still show their cache state.
+ */
+function statusFromHistoricalResult(
+  result: StackResultPayload,
+  stageIndex: number,
+): StageStatus {
+  if (stageIndex >= result.stage_cache_hits.length) {
+    // The stage didn't run (run failed before reaching it).
+    return result.status === 'failed' ? 'failed' : 'pending'
+  }
+  // The stage_cache_hits array only covers successful stages, so any
+  // entry here means the stage completed. Failed run + last entry =
+  // failed terminal; otherwise honour the cache hit.
+  const isLast = stageIndex === result.stage_cache_hits.length - 1
+  if (result.status === 'failed' && isLast) return 'failed'
+  return result.stage_cache_hits[stageIndex] ? 'cached' : 'done'
 }
 
 
@@ -79,11 +102,19 @@ export function TransformCard({
   const remove = usePreprocStackStore((s) => s.removeTransform)
   const total = usePreprocStackStore((s) => s.transformsStack.length)
   const events = usePreprocStackStore((s) => s.activeEvents)
+  const result = usePreprocStackStore((s) => s.activeResult)
   const transforms = usePreprocStackStore((s) => s.transforms)
 
   // stage_index in events is 1-based for transforms (0 = bootstrap),
   // so this transform's index in the stage list is index + 1.
-  const status = statusFromEvents(events, index + 1)
+  // Prefer the live event log when present; fall back to the
+  // historical result for runs loaded from RecentRunsList.
+  const status =
+    events.length > 0
+      ? statusFromEvents(events, index + 1)
+      : result
+      ? statusFromHistoricalResult(result, index + 1)
+      : 'pending'
 
   const info = useMemo(
     () => transforms.find((t) => t.name === name) ?? null,

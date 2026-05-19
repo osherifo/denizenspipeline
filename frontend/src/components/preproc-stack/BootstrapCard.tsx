@@ -15,8 +15,54 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { usePreprocStackStore } from '../../stores/preproc-stack-store'
-import type { BootstrapKind, WorkflowInfo } from '../../api/types'
+import type {
+  BootstrapKind,
+  StackEvent,
+  StackResultPayload,
+  WorkflowInfo,
+} from '../../api/types'
 import { ParamForm } from '../composer/ParamForm'
+
+
+type StageStatus =
+  | 'pending'
+  | 'running'
+  | 'done'
+  | 'cached'
+  | 'failed'
+
+
+function bootstrapStatusFromEvents(events: StackEvent[]): StageStatus {
+  let status: StageStatus = 'pending'
+  for (const ev of events) {
+    if (ev.stage_index !== 0) continue
+    if (ev.event === 'stage_start') status = 'running'
+    else if (ev.event === 'stage_done') status = ev.cache_hit ? 'cached' : 'done'
+    else if (ev.event === 'stage_failed') status = 'failed'
+  }
+  return status
+}
+
+
+function bootstrapStatusFromHistorical(
+  result: StackResultPayload,
+): StageStatus {
+  if (result.stage_cache_hits.length === 0) {
+    return result.status === 'failed' ? 'failed' : 'pending'
+  }
+  const isOnlyStage = result.stage_cache_hits.length === 1
+  if (result.status === 'failed' && isOnlyStage) return 'failed'
+  return result.stage_cache_hits[0] ? 'cached' : 'done'
+}
+
+
+const STATUS_COLOR: Record<StageStatus, string> = {
+  pending: 'var(--text-secondary)',
+  running: 'var(--accent-yellow)',
+  done: 'var(--accent-green)',
+  cached: 'var(--accent-cyan)',
+  failed: 'var(--accent-red)',
+}
 
 
 const BOOTSTRAP_KINDS: { value: BootstrapKind; label: string }[] = [
@@ -100,6 +146,15 @@ export function BootstrapCard() {
   const preflight = usePreprocStackStore((s) => s.bootstrapPreflight)
   const setBootstrap = usePreprocStackStore((s) => s.setBootstrap)
   const checkPreflight = usePreprocStackStore((s) => s.checkBootstrapPreflight)
+  const events = usePreprocStackStore((s) => s.activeEvents)
+  const result = usePreprocStackStore((s) => s.activeResult)
+
+  const stageStatus: StageStatus =
+    events.length > 0
+      ? bootstrapStatusFromEvents(events)
+      : result
+      ? bootstrapStatusFromHistorical(result)
+      : 'pending'
 
   // Re-preflight when kind or workflow changes.
   useEffect(() => {
@@ -136,6 +191,19 @@ export function BootstrapCard() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={stageTagStyle}>STAGE 0 · BOOTSTRAP</span>
+          {stageStatus !== 'pending' && (
+            <span
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                border: `1px solid ${STATUS_COLOR[stageStatus]}`,
+                borderRadius: 12,
+                color: STATUS_COLOR[stageStatus],
+              }}
+            >
+              {stageStatus}
+            </span>
+          )}
           <span style={preflightBadgeStyle(okBadge)}>
             {okBadge === null
               ? 'unchecked'
