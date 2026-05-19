@@ -72,13 +72,14 @@ describe('usePreprocStore', () => {
     expect(usePreprocStore.getState().collecting).toBe(false)
   })
 
-  it('startRun sets runId and tracks events via WS', async () => {
+  // The launch path (startRun / runPreprocConfig) was hard-removed
+  // in Stage 7d-A. attachToRun is the remaining WS-tailing entry
+  // point — same event-handling logic, exercised here so the
+  // tail-progress / tail-done / tail-failed coverage isn't lost.
+
+  it('attachToRun tracks events via WS', async () => {
     const conn = mockWsServer('ws://localhost:5173/ws/preproc/preproc-1')
-    await usePreprocStore.getState().startRun({
-      backend: 'mock',
-      output_dir: '/tmp',
-      subject: 'sub-01',
-    })
+    usePreprocStore.getState().attachToRun('preproc-1')
     await new Promise((r) => setTimeout(r, 10))
     conn.send({ event: 'progress', message: 'half' })
     await new Promise((r) => setTimeout(r, 10))
@@ -86,26 +87,18 @@ describe('usePreprocStore', () => {
     expect(usePreprocStore.getState().runId).toBe('preproc-1')
   })
 
-  it('startRun handles done event', async () => {
+  it('attachToRun handles done event', async () => {
     const conn = mockWsServer('ws://localhost:5173/ws/preproc/preproc-1')
-    await usePreprocStore.getState().startRun({
-      backend: 'mock',
-      output_dir: '/tmp',
-      subject: 'sub-01',
-    })
+    usePreprocStore.getState().attachToRun('preproc-1')
     await new Promise((r) => setTimeout(r, 10))
     conn.send({ event: 'done' })
     await new Promise((r) => setTimeout(r, 10))
     expect(usePreprocStore.getState().running).toBe(false)
   })
 
-  it('startRun handles failed event with error', async () => {
+  it('attachToRun handles failed event with error', async () => {
     const conn = mockWsServer('ws://localhost:5173/ws/preproc/preproc-1')
-    await usePreprocStore.getState().startRun({
-      backend: 'mock',
-      output_dir: '/tmp',
-      subject: 'sub-01',
-    })
+    usePreprocStore.getState().attachToRun('preproc-1')
     await new Promise((r) => setTimeout(r, 10))
     conn.send({ event: 'failed', error: 'oom' })
     await new Promise((r) => setTimeout(r, 10))

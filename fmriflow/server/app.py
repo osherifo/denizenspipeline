@@ -15,7 +15,6 @@ from fmriflow.server.services.run_store import RunStore
 from fmriflow.server.services.run_manager import RunManager
 from fmriflow.server.services.module_loader import discover_user_modules
 from fmriflow.server.services.config_store import ConfigStore
-from fmriflow.server.services.preproc_config_store import PreprocConfigStore
 from fmriflow.server.services.preproc_manager import PreprocManager
 from fmriflow.server.services.convert_manager import ConvertManager
 from fmriflow.server.services.convert_config_store import ConvertConfigStore
@@ -38,7 +37,6 @@ def create_app(
     results_dir: str | None = None,
     modules_dir: str | None = None,
     configs_dir: str | None = None,
-    preproc_configs_dir: str | None = None,
     convert_configs_dir: str | None = None,
     autoflatten_configs_dir: str | None = None,
     workflow_configs_dir: str | None = None,
@@ -57,7 +55,6 @@ def create_app(
     # with the other stage subdirs. ConfigStore reads the legacy
     # top-level (configs/*.yaml + ./experiments/*.yaml) as fallback.
     configs_dir = configs_dir or str(paths.config_dir("analysis"))
-    preproc_configs_dir = preproc_configs_dir or str(paths.config_dir("preproc"))
     convert_configs_dir = convert_configs_dir or str(paths.config_dir("convert"))
     autoflatten_configs_dir = autoflatten_configs_dir or str(paths.config_dir("autoflatten"))
     workflow_configs_dir = workflow_configs_dir or str(paths.config_dir("workflows"))
@@ -92,7 +89,6 @@ def create_app(
     run_store = RunStore(Path(results_dir))
     run_manager = RunManager()
     config_store = ConfigStore(Path(configs_dir))
-    preproc_config_store = PreprocConfigStore(Path(preproc_configs_dir))
     preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
     convert_config_store = ConvertConfigStore(Path(convert_configs_dir))
@@ -141,7 +137,6 @@ def create_app(
     app.state.run_store = run_store
     app.state.run_manager = run_manager
     app.state.config_store = config_store
-    app.state.preproc_config_store = preproc_config_store
     app.state.preproc_manager = preproc_manager
     app.state.convert_manager = convert_manager
     app.state.convert_config_store = convert_config_store

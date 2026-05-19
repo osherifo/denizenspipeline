@@ -29,8 +29,6 @@ import type {
   BatchSummary,
   SavedConvertConfig,
   SavedConvertConfigDetail,
-  PreprocConfigSummary,
-  PreprocConfigDetail,
   PreprocRunSummary,
   AutoflattenConfigSummary,
   AutoflattenConfigDetail,
@@ -418,60 +416,6 @@ export async function collectPreprocOutputs(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
-  })
-}
-
-export async function startPreprocRun(params: {
-  backend: string
-  output_dir: string
-  subject: string
-  bids_dir?: string
-  raw_dir?: string
-  work_dir?: string
-  task?: string
-  sessions?: string[]
-  run_map?: Record<string, string>
-  backend_params?: Record<string, unknown>
-  confounds?: Record<string, unknown>
-}): Promise<{ run_id: string; status: string }> {
-  return json(`${BASE}/preproc/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-}
-
-export async function validatePreprocConfig(params: {
-  backend: string
-  output_dir: string
-  subject: string
-  bids_dir?: string
-  raw_dir?: string
-  backend_params?: Record<string, unknown>
-}): Promise<{ valid: boolean; errors: string[] }> {
-  return json(`${BASE}/preproc/validate-config`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-}
-
-export async function fetchPreprocConfigs(): Promise<PreprocConfigSummary[]> {
-  return json(`${BASE}/preproc/configs`)
-}
-
-export async function fetchPreprocConfigDetail(filename: string): Promise<PreprocConfigDetail> {
-  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}`)
-}
-
-export async function runPreprocConfigFile(
-  filename: string,
-  overrides?: Record<string, unknown>,
-): Promise<{ run_id: string; status: string; config: string }> {
-  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(overrides || {}),
   })
 }
 

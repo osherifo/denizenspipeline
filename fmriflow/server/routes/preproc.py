@@ -1,30 +1,32 @@
-"""API routes for fMRI preprocessing management.
+"""API routes for fMRI preprocessing — manifest browsing + run inspection.
 
-NOTE (Stage 7c-7): This module is **deprecated** in favour of the
-unified preproc-stack routes in ``routes/stack.py``. The legacy
-endpoints stay live for one release so existing CI / saved
-configs / scripts that call them aren't broken. New work should
-use ``POST /api/preproc/stack/run`` and the surrounding
-``/api/preproc/stack/...`` surface.
+The legacy single-backend launch surface (``POST /preproc/run``,
+``POST /preproc/configs/{f}/run``, the YAML config browse +
+``POST /preproc/validate-config``) was retired in Stage 7d-A. All
+new launches go through the preproc-stack routes in ``routes/stack.py``
+(``POST /api/preproc/stack/run`` and friends).
 
-A deprecation log fires the first time ``POST /api/preproc/run``
-is called per server lifetime so the user notices in the logs.
+What remains here is the read side:
+
+- ``GET /preproc/backends`` — backend availability check (informational).
+- ``GET /preproc/manifests`` and friends — browse / rescan / validate
+  ``PreprocManifest`` files on disk. Used by the stack UI and other
+  views to discover existing fmriprep outputs.
+- ``POST /preproc/collect`` — build a manifest from existing
+  preprocessed outputs (still standalone-useful; orthogonal to the
+  legacy launch path).
+- ``GET /preproc/runs[*]`` + cancel + delete — browse / manage runs
+  already on disk. Stays so in-progress fmriprep jobs from the
+  legacy launch surface can finish gracefully even after this
+  cleanup.
 """
 
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(tags=["preproc"])
-
-# Module-level flag so the deprecation log fires once per server
-# lifetime, not on every request (which would be noise).
-_LEGACY_RUN_WARNED = False
 
 
 # ── Request models ───────────────────────────────────────────────────────
@@ -40,42 +42,8 @@ class CollectBody(BaseModel):
     backend_params: dict | None = None
 
 
-class RunBody(BaseModel):
-    backend: str
-    output_dir: str
-    subject: str
-    bids_dir: str | None = None
-    raw_dir: str | None = None
-    work_dir: str | None = None
-    task: str | None = None
-    sessions: list[str] | None = None
-    run_map: dict[str, str] | None = None
-    backend_params: dict | None = None
-    confounds: dict | None = None
-
-
 class ValidateBody(BaseModel):
     config_filename: str | None = None
-
-
-class ValidateConfigBody(BaseModel):
-    backend: str
-    output_dir: str
-    subject: str
-    bids_dir: str | None = None
-    raw_dir: str | None = None
-    backend_params: dict | None = None
-
-
-class RunFromConfigBody(BaseModel):
-    """Overrides shallow-merged on top of the YAML's preproc section."""
-    subject: str | None = None
-    bids_dir: str | None = None
-    output_dir: str | None = None
-    work_dir: str | None = None
-    sessions: list[str] | None = None
-    task: str | None = None
-    backend_params: dict | None = None
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────
@@ -122,38 +90,16 @@ async def rescan_manifests(request: Request):
 
 @router.post("/preproc/collect")
 async def collect_outputs(request: Request, body: CollectBody):
-    """Collect existing preprocessing outputs into a manifest."""
+    """Collect existing preprocessing outputs into a manifest.
+
+    Standalone helper that scans a directory of finished
+    preprocessed outputs and emits a manifest. Distinct from the
+    deleted launch surface — this only reads, never spawns work.
+    """
     mgr = request.app.state.preproc_manager
     try:
         result = mgr.collect(body.model_dump(exclude_none=True))
         return result
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/preproc/run")
-async def start_run(request: Request, body: RunBody):
-    """Start a preprocessing run.
-
-    DEPRECATED: prefer ``POST /api/preproc/stack/run`` (see the
-    "Preproc (stack)" view in the frontend). This endpoint will be
-    removed in a future release once any remaining callers have
-    migrated.
-    """
-    global _LEGACY_RUN_WARNED
-    if not _LEGACY_RUN_WARNED:
-        logger.warning(
-            "DEPRECATED: POST /api/preproc/run is deprecated; "
-            "migrate callers to POST /api/preproc/stack/run "
-            "(see docs/devnotes/preprocessing-stack-*). "
-            "This warning fires once per server lifetime."
-        )
-        _LEGACY_RUN_WARNED = True
-
-    mgr = request.app.state.preproc_manager
-    try:
-        run_id = mgr.start_run(body.model_dump(exclude_none=True))
-        return {"run_id": run_id, "status": "started"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -236,87 +182,3 @@ async def delete_preproc_run(request: Request, run_id: str):
         status = 409 if "running" in reason else 404
         raise HTTPException(status_code=status, detail=reason)
     return result
-
-
-@router.get("/preproc/configs")
-async def list_preproc_configs(request: Request):
-    """List preprocessing YAML configs (with a top-level preproc: section)."""
-    store = request.app.state.preproc_config_store
-    summaries = store.list_configs()
-    return [
-        {
-            "filename": s.filename,
-            "path": s.path,
-            "subject": s.subject,
-            "backend": s.backend,
-            "bids_dir": s.bids_dir,
-            "output_dir": s.output_dir,
-            "container": s.container,
-            "container_type": s.container_type,
-            "mode": s.mode,
-        }
-        for s in summaries
-    ]
-
-
-@router.get("/preproc/configs/{filename}")
-async def get_preproc_config(request: Request, filename: str):
-    """Return full parsed config + raw YAML for one preproc config file."""
-    store = request.app.state.preproc_config_store
-    result = store.get_config(filename)
-    if result is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Preproc config '{filename}' not found",
-        )
-    return result
-
-
-@router.post("/preproc/configs/{filename}/run")
-async def run_preproc_config(
-    request: Request,
-    filename: str,
-    body: RunFromConfigBody | None = None,
-):
-    """Start a preprocessing run from a YAML config file's preproc: section."""
-    store = request.app.state.preproc_config_store
-    config_info = store.get_config(filename)
-    if config_info is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Preproc config '{filename}' not found",
-        )
-
-    mgr = request.app.state.preproc_manager
-    overrides = body.model_dump(exclude_none=True) if body else None
-    try:
-        run_id = mgr.start_run_from_config_file(
-            config_info["path"], overrides=overrides,
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"run_id": run_id, "status": "started", "config": filename}
-
-
-@router.post("/preproc/validate-config")
-async def validate_preproc_config(request: Request, body: ValidateConfigBody):
-    """Validate a preprocessing config without running."""
-    from fmriflow.preproc.backends import get_backend
-    from fmriflow.preproc.manifest import PreprocConfig
-
-    try:
-        config = PreprocConfig(
-            subject=body.subject,
-            backend=body.backend,
-            output_dir=body.output_dir,
-            bids_dir=body.bids_dir,
-            raw_dir=body.raw_dir,
-            backend_params=body.backend_params or {},
-        )
-        backend = get_backend(body.backend)
-        errors = backend.validate(config)
-        return {"valid": len(errors) == 0, "errors": errors}
-    except Exception as e:
-        return {"valid": False, "errors": [str(e)]}
