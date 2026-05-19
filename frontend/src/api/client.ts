@@ -930,3 +930,70 @@ export async function saveSettings(
     body: JSON.stringify(body),
   })
 }
+
+// ── Preproc stack ────────────────────────────────────────────────────
+
+export async function fetchStackWorkflows(): Promise<{ workflows: import('./types').WorkflowInfo[] }> {
+  return json(`${BASE}/preproc/backends/workflows`)
+}
+
+export async function fetchStackTransforms(): Promise<{ transforms: import('./types').TransformInfo[] }> {
+  return json(`${BASE}/preproc/backends/transforms`)
+}
+
+export async function workflowPreflight(
+  name: string,
+): Promise<import('./types').PreflightResult> {
+  return json(`${BASE}/preproc/backends/workflows/${encodeURIComponent(name)}/preflight`)
+}
+
+export async function transformPreflight(
+  name: string,
+): Promise<import('./types').PreflightResult> {
+  return json(`${BASE}/preproc/backends/transforms/${encodeURIComponent(name)}/preflight`)
+}
+
+export async function launchStackRun(
+  body: import('./types').StackRunBody,
+): Promise<{ run_id: string; status: string }> {
+  return json(`${BASE}/preproc/stack/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function fetchStackRuns(): Promise<{ runs: import('./types').StackRunSummary[] }> {
+  return json(`${BASE}/preproc/stack/runs`)
+}
+
+export async function fetchStackRun(
+  runId: string,
+): Promise<import('./types').StackRunSummary> {
+  return json(`${BASE}/preproc/stack/${encodeURIComponent(runId)}/status`)
+}
+
+export async function fetchStackManifest(
+  runId: string,
+): Promise<Record<string, unknown>> {
+  return json(`${BASE}/preproc/stack/${encodeURIComponent(runId)}/manifest`)
+}
+
+export async function cancelStackRun(
+  runId: string,
+): Promise<{ cancelled: boolean; reason?: string }> {
+  return json(`${BASE}/preproc/stack/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+/** Open a WebSocket to stream events from a running stack.
+ *
+ * Caller is responsible for closing the socket when done. The URL is
+ * derived from window.location so dev and prod both work.
+ */
+export function openStackEventsSocket(runId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = `${proto}//${window.location.host}/ws/preproc/stack/${encodeURIComponent(runId)}`
+  return new WebSocket(url)
+}

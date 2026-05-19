@@ -852,3 +852,129 @@ export interface SettingsSnapshot {
 export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
   create_missing?: boolean
 }
+
+// ── Preproc stack ────────────────────────────────────────────────────
+
+export type BootstrapKind = 'fmriprep' | 'nipype' | 'custom' | 'bids_app' | 'passthrough'
+
+export interface WorkflowInfo {
+  name: string
+  version: string
+  description: string
+  source: string                // "built-in" | "user" | "pip:<name>"
+  container_bound: boolean
+  required_python: string[]
+  required_tools: string[]
+  required_env: string[]
+}
+
+export interface TransformInfo extends WorkflowInfo {
+  inputs: string[]
+  outputs: string[]
+}
+
+export interface PreflightResult {
+  ok: boolean
+  errors: string[]
+  warnings: string[]
+}
+
+export interface BootstrapStageBody {
+  kind: BootstrapKind
+  workflow?: string | null
+  params?: Record<string, unknown>
+}
+
+export interface TransformStageBody {
+  name: string
+  params?: Record<string, unknown>
+}
+
+export interface PreprocStackBody {
+  bootstrap: BootstrapStageBody
+  transforms: TransformStageBody[]
+}
+
+export interface StackRunBody {
+  stack: PreprocStackBody
+  subject: string
+  output_dir: string
+  bids_dir?: string | null
+  derivatives_dir?: string | null
+  dataset?: string
+  sessions?: string[]
+  task?: string | null
+  use_cache?: boolean
+}
+
+export interface StackStepRecord {
+  name: string
+  version: string
+  params: Record<string, unknown>
+  input_stage: number
+  output_dir: string
+  duration_s: number
+  fingerprint: string
+}
+
+export interface StackStageManifest {
+  subject: string
+  dataset: string
+  sessions: string[]
+  runs: unknown[]
+  backend: string
+  backend_version: string
+  space: string
+  output_dir: string
+  additional_steps: StackStepRecord[]
+}
+
+export interface StackResultPayload {
+  status: 'completed' | 'failed'
+  bootstrap_fingerprint: string | null
+  stage_cache_hits: boolean[]
+  duration_s: number
+  errors: string[]
+  n_stages: number
+  stage_manifests: StackStageManifest[]
+}
+
+export interface StackRunSummary {
+  run_id: string
+  kind: string
+  backend: string
+  subject: string
+  status: 'running' | 'done' | 'failed' | 'cancelled' | 'lost' | string
+  pid: number | null
+  started_at: number
+  finished_at: number
+  manifest_path: string | null
+  error: string | null
+  params: Record<string, unknown>
+  result: StackResultPayload | null
+}
+
+export interface StackEvent {
+  event:
+    | 'started'
+    | 'stage_start'
+    | 'stage_done'
+    | 'stage_failed'
+    | 'completed'
+    | 'failed'
+    | '_close'
+    | string
+  timestamp?: number
+  stage_index?: number
+  stage_name?: string
+  kind?: 'bootstrap' | 'transform' | string
+  cache_hit?: boolean
+  duration_s?: number
+  fingerprint?: string
+  error?: string
+  errors?: string[]
+  subject?: string
+  n_stages?: number
+  bootstrap_kind?: string
+  status?: string
+}
