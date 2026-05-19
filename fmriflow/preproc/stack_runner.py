@@ -550,22 +550,29 @@ class StackRunner:
     ) -> dict[str, Any]:
         """Build the ``inputs`` dict the transform's ``run`` expects.
 
-        Phase 4a: for each key in ``transform.INPUTS``, look up the
-        path in the prior manifest's first ``RunRecord.output_file``
-        (the "preprocessed BOLD"). If the manifest has no runs (e.g.
-        identity bootstrap), inputs are empty paths — the identity
-        transform tolerates that, real transforms wouldn't.
+        For each key in ``transform.INPUTS``, look up the path in
+        the prior manifest's first ``RunRecord.output_file`` (the
+        "preprocessed BOLD") and resolve relative paths against
+        ``manifest.output_dir`` (the BIDS convention: RunRecord
+        paths are relative to the manifest's root). If the manifest
+        has no runs (e.g. identity bootstrap), inputs are ``None``
+        — the identity transform tolerates that, real transforms
+        wouldn't.
         """
         wanted = list(getattr(transform, "INPUTS", []) or [])
         if not wanted:
             return {}
-        # For now, a naive mapping: first input key → first run's output file.
         if not manifest.runs:
             return {key: None for key in wanted}
         first_run = manifest.runs[0]
-        # Single input → first run output; multiple inputs → user-supplied transforms
-        # need richer wiring (Phase 4b/5 — wiring config in the stack).
-        return {wanted[0]: Path(first_run.output_file)}
+        # Resolve relative → absolute against the manifest's output_dir.
+        # Absolute paths pass through unchanged.
+        raw = Path(first_run.output_file)
+        if not raw.is_absolute() and manifest.output_dir:
+            raw = Path(manifest.output_dir) / raw
+        # Single input → first run output; multiple inputs → user-supplied
+        # transforms need richer wiring (a separate stage on the roadmap).
+        return {wanted[0]: raw}
 
     def _extend_manifest(
         self,

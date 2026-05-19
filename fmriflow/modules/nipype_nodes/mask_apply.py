@@ -12,6 +12,15 @@ from fmriflow.modules._decorators import nipype_node
 class MaskApplyNode:
     """Multiply ``in_file`` voxels by a binary mask."""
 
+    # ── Transform Protocol metadata ────────────────────────────────
+    name = "mask_apply"
+    version = "0.1.0"
+    description = "Apply a binary brain mask — zero voxels outside the mask."
+    REQUIRED_PYTHON: list[str] = []
+    REQUIRED_TOOLS: list[str] = []
+    REQUIRED_ENV: list[str] = []
+    CONTAINER: str | None = None
+
     INPUTS = ["in_file", "mask_file"]
     OUTPUTS = ["out_file"]
 
