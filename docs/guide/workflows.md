@@ -208,21 +208,32 @@ nipype DAG collapsed to **depth 3** by default — typically
 (`anat_preproc_wf`, `func_preproc_ses_*_task_*_run_*_wf`,
 `sdc_estimate_wf`, `bold_confounds_wf`, ...).
 
-**Per-run lanes.** When a subject has multiple BOLD runs, the modal
-groups the depth-3 workflows into stacked **lanes**:
+**Lane selector.** When a subject has multiple BOLD runs, the modal
+sorts the depth-3 workflows into named **lanes** and exposes them
+as a chip strip below the toolbar:
 
-- **Shared upstream** lane (top) — anatomical, fieldmap, and
-  surface-recon workflows that feed every run.
-- One **`Run N · ses-X task-Y run-Z`** lane per BOLD run, with the
-  BIDS entities (`ses`, `task`, `run`) decoded straight from the
-  `func_preproc_*_wf` workflow id. The entity values are literal
-  substrings of the workflow id — re-spaced for reading, not renamed.
+```
+[ All lanes ] [ Shared upstream ] [ Run 1 · ses-1 task-x run-1 ] [ Run 2 · ... ] ...
+```
 
-Per-run dagre layout is run independently inside each lane, so
-expanding a workflow in `Run 1` doesn't push the boxes in `Run 2`
-sideways. Shared dependencies that cross lanes (e.g. anatomical
-output feeding a BOLD step) are still drawn, just dashed and at
-half opacity so it's obvious they're a shared-input edge.
+- **Shared upstream** — anatomical, fieldmap, and surface-recon
+  workflows that feed every run.
+- **`Run N · ses-X task-Y run-Z`** — one chip per BOLD run, with
+  the BIDS entities (`ses`, `task`, `run`) decoded straight from
+  the `func_preproc_*_wf` workflow id. The entity values are
+  literal substrings of the workflow id — re-spaced for reading,
+  not renamed.
+
+Click a chip to **focus** the canvas on that lane — only its
+members are laid out, plus the always-visible ancestor chain
+(`fmriprep_wf` → `single_subject_*_wf`) at the top. Focusing on
+one run keeps the layout small and unambiguous; switching runs is
+a single click. **`All lanes`** restores the unfiltered view (every
+depth-3 sub-workflow at once).
+
+The selector is hidden when there's only one lane (typical for
+anatomical-only runs or single-BOLD subjects) — the canvas just
+shows everything.
 
 **Friendly vs Raw labels.** A `[ Friendly | Raw ]` segmented control
 in the modal header switches between two label layouts (persisted
@@ -255,10 +266,10 @@ documented conceptual stages.
   [fmriprep workflows page](https://fmriprep.org/en/stable/workflows.html)
   at the section for that step.
 
-The lane grouping and friendly labels are fmriprep-specific. Other
+The lane selector and friendly labels are fmriprep-specific. Other
 nipype backends (a future hand-rolled preproc-stack workflow) get a
-single fallback `Workflow` lane plus raw labels — we don't pretend
-to know their conceptual stages.
+single fallback `Workflow` lane (so the selector hides) plus raw
+labels — we don't pretend to know their conceptual stages.
 
 **Each node has a small `?` link in its top-right corner** that opens
 the relevant fMRIPrep documentation page in a new tab — handy for

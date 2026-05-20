@@ -242,69 +242,9 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
 const WorkflowNode = memo(_WorkflowNodeInner)
 
 
-// ── Lane group node ─────────────────────────────────────────────────────
-
-
-type LaneData = { _kind: 'lane'; title: string; counts: NipypeLane['counts'] }
-
-
-function _LaneNodeInner({ data }: NodeProps & { data: LaneData }) {
-  const c = data.counts
-  const titleColor =
-    c.failed > 0 ? STATUS_COLOR.failed
-    : c.running > 0 ? STATUS_COLOR.running
-    : c.ok > 0 ? STATUS_COLOR.ok
-    : c.completed_assumed > 0 ? STATUS_COLOR.completed_assumed
-    : c.cached > 0 ? STATUS_COLOR.cached
-    : NEUTRAL
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        background: 'rgba(26, 26, 46, 0.4)',
-        border: '1px dashed var(--border)',
-        borderRadius: 8,
-        position: 'relative',
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute', top: 0, left: 0, right: 0,
-          padding: '6px 12px',
-          fontSize: 11, fontWeight: 700,
-          color: titleColor,
-          background: 'var(--bg-secondary)',
-          borderBottom: '1px solid var(--border)',
-          borderTopLeftRadius: 7, borderTopRightRadius: 7,
-          display: 'flex', justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span>{data.title}</span>
-        <span style={{ fontSize: 10, fontWeight: 600, display: 'inline-flex', gap: 6 }}>
-          {c.ok > 0 && <span style={{ color: STATUS_COLOR.ok }}>{c.ok}✓</span>}
-          {c.running > 0 && <span style={{ color: STATUS_COLOR.running }}>{c.running}▶</span>}
-          {c.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{c.failed}✗</span>}
-          {c.completed_assumed > 0 && (
-            <span style={{ color: STATUS_COLOR.completed_assumed }}>{c.completed_assumed}?</span>
-          )}
-          {c.cached > 0 && (
-            <span style={{ color: STATUS_COLOR.cached }}>{c.cached}◌</span>
-          )}
-        </span>
-      </div>
-    </div>
-  )
-}
-const LaneNode = memo(_LaneNodeInner)
-
-
 const nodeTypes = {
   nipype_leaf: LeafNode,
   nipype_workflow: WorkflowNode,
-  nipype_lane: LaneNode,
 }
 
 
@@ -313,117 +253,93 @@ const nodeTypes = {
 
 const NODE_WIDTH = 150
 const NODE_HEIGHT = 56
-const LANE_PADDING_X = 24
-const LANE_PADDING_TOP = 32
-const LANE_PADDING_BOTTOM = 16
-const LANE_GAP = 20
 
 
-/** Lay out a filtered tree as a stack of lane group nodes, each
- *  containing its own dagre-laid-out subgraph.
+/** Lane id sentinel for the "show all lanes" selector option. */
+export const SHOW_ALL_LANES = 'all'
+
+
+/** Walk up the dotted-path hierarchy and add every ancestor id (down
+ *  to but excluding the root segment, since the root IS the top).
+ *  Used to keep `fmriprep_wf` and `single_subject_*_wf` always
+ *  visible at the top of the canvas even when the user has focused
+ *  on a single run/lane below them. */
+function _addAncestors(id: string, out: Set<string>): void {
+  const segs = id.split('.')
+  for (let i = 1; i < segs.length; i++) {
+    out.add(segs.slice(0, i).join('.'))
+  }
+}
+
+
+/** Lay out a filtered tree as a single dagre TB graph. When
+ *  `selectedLane` is set to a real lane id, only that lane's
+ *  members (plus the always-visible ancestor chain) are kept. When
+ *  it's `SHOW_ALL_LANES`, every visible node is laid out together.
  *
- *  Cross-lane edges (e.g. `anat_preproc_wf → bold_reg`) are kept but
- *  rendered dashed so they're clearly a shared dependency rather
- *  than a sibling connection.
+ *  No ReactFlow parent/child group nodes are used — the lane
+ *  selector handles separation by FILTERING rather than visually
+ *  wrapping.
  */
-function _layout(tree: NipypeTree): { nodes: Node[]; edges: Edge[] } {
-  const lanes = partitionLanes(tree)
-  if (lanes.length === 0) return { nodes: [], edges: [] }
+function _layout(
+  tree: NipypeTree,
+  lanes: NipypeLane[],
+  selectedLane: string,
+): { nodes: Node[]; edges: Edge[] } {
+  if (tree.nodes.length === 0) return { nodes: [], edges: [] }
 
-  // Index for O(1) lookups + edge filtering.
-  const visibleIds = new Set(tree.nodes.map((n) => n.id))
-  const visibleEdges = tree.edges.filter(
-    (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
-  )
-  const nodeById = new Map(tree.nodes.map((n) => [n.id, n]))
-  const memberToLane = new Map<string, string>()
+  const focusLanes = selectedLane === SHOW_ALL_LANES
+    ? lanes
+    : lanes.filter((l) => l.id === selectedLane)
 
-  const outNodes: Node[] = []
-  let yOffset = 0
-
-  for (const lane of lanes) {
-    const memberSet = new Set(lane.memberIds)
-    for (const id of lane.memberIds) memberToLane.set(id, lane.id)
-
-    // Per-lane dagre layout in lane-local coordinates.
-    const g = new dagre.graphlib.Graph()
-    g.setDefaultEdgeLabel(() => ({}))
-    g.setGraph({ rankdir: 'TB', nodesep: 18, ranksep: 36 })
+  // Build the visible-id set: every focus-lane member + every
+  // ancestor up the dotted path (fmriprep_wf, single_subject_*_wf).
+  const includeIds = new Set<string>()
+  for (const lane of focusLanes) {
     for (const id of lane.memberIds) {
-      g.setNode(id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+      includeIds.add(id)
+      _addAncestors(id, includeIds)
     }
-    for (const e of visibleEdges) {
-      if (memberSet.has(e.source) && memberSet.has(e.target)) g.setEdge(e.source, e.target)
-    }
-    dagre.layout(g)
-
-    // Compute the lane's interior bounding box.
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const id of lane.memberIds) {
-      const pos = g.node(id)
-      if (!pos) continue
-      minX = Math.min(minX, pos.x - NODE_WIDTH / 2)
-      maxX = Math.max(maxX, pos.x + NODE_WIDTH / 2)
-      minY = Math.min(minY, pos.y - NODE_HEIGHT / 2)
-      maxY = Math.max(maxY, pos.y + NODE_HEIGHT / 2)
-    }
-    if (!isFinite(minX)) { minX = 0; maxX = NODE_WIDTH; minY = 0; maxY = NODE_HEIGHT }
-    const innerWidth = Math.max(maxX - minX, NODE_WIDTH)
-    const innerHeight = Math.max(maxY - minY, NODE_HEIGHT)
-    const laneWidth = innerWidth + LANE_PADDING_X * 2
-    const laneHeight = innerHeight + LANE_PADDING_TOP + LANE_PADDING_BOTTOM
-
-    // Emit the lane wrapper FIRST so ReactFlow has it available as
-    // the parent when children are added.
-    outNodes.push({
-      id: lane.id,
-      type: 'nipype_lane',
-      data: { _kind: 'lane', title: lane.title, counts: lane.counts } as LaneData,
-      position: { x: 0, y: yOffset },
-      style: { width: laneWidth, height: laneHeight },
-      draggable: false,
-      selectable: false,
-      // Keep the lane behind its children for z-ordering.
-      zIndex: 0,
-    })
-
-    // Member nodes (workflows + expanded leaves) as children.
-    for (const id of lane.memberIds) {
-      const node = nodeById.get(id)
-      if (!node) continue
-      const pos = g.node(id)
-      if (!pos) continue
-      const localX = pos.x - minX - NODE_WIDTH / 2 + LANE_PADDING_X
-      const localY = pos.y - minY - NODE_HEIGHT / 2 + LANE_PADDING_TOP
-      outNodes.push({
-        id: node.id,
-        type: node.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
-        data: { ...node, _kind: node.kind },
-        position: { x: localX, y: localY },
-        parentId: lane.id,
-        extent: 'parent',
-        zIndex: 1,
-      })
-    }
-
-    yOffset += laneHeight + LANE_GAP
+  }
+  // If the focus is "all" but no lanes exist (empty / non-fmriprep
+  // edge), fall back to every visible node so we still render
+  // something.
+  if (includeIds.size === 0) {
+    for (const n of tree.nodes) includeIds.add(n.id)
   }
 
-  const flowEdges: Edge[] = visibleEdges.map((e) => {
-    const sLane = memberToLane.get(e.source)
-    const tLane = memberToLane.get(e.target)
-    const crossLane = sLane !== tLane
+  const nodeById = new Map(tree.nodes.map((n) => [n.id, n]))
+  const visibleNodes = Array.from(includeIds)
+    .map((id) => nodeById.get(id))
+    .filter((n): n is NipypeTreeNode => !!n)
+  const visibleIdSet = new Set(visibleNodes.map((n) => n.id))
+  const visibleEdges = tree.edges.filter(
+    (e) => visibleIdSet.has(e.source) && visibleIdSet.has(e.target),
+  )
+
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'TB', nodesep: 20, ranksep: 40 })
+  for (const n of visibleNodes) g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+  for (const e of visibleEdges) g.setEdge(e.source, e.target)
+  dagre.layout(g)
+
+  const flowNodes: Node[] = visibleNodes.map((n) => {
+    const pos = g.node(n.id) ?? { x: 0, y: 0 }
     return {
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      style: crossLane
-        ? { stroke: 'var(--border)', strokeDasharray: '4 4', opacity: 0.5 }
-        : { stroke: 'var(--border)' },
+      id: n.id,
+      type: n.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
+      data: { ...n, _kind: n.kind },
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
     }
   })
-
-  return { nodes: outNodes, edges: flowEdges }
+  const flowEdges: Edge[] = visibleEdges.map((e) => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    style: { stroke: 'var(--border)' },
+  }))
+  return { nodes: flowNodes, edges: flowEdges }
 }
 
 
@@ -490,6 +406,79 @@ function _segmentBtn(active: boolean): CSSProperties {
     cursor: 'pointer',
     transition: 'background 0.12s ease, color 0.12s ease',
   }
+}
+
+
+function _laneChipStyle(active: boolean): CSSProperties {
+  return {
+    padding: '4px 10px',
+    fontSize: 11,
+    fontWeight: active ? 700 : 500,
+    border: active ? '1px solid var(--accent-cyan)' : '1px solid var(--border)',
+    background: active ? 'rgba(0, 229, 255, 0.12)' : 'var(--bg-secondary)',
+    color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+    borderRadius: 999,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
+  }
+}
+
+
+function LaneSelector({
+  lanes,
+  selected,
+  onSelect,
+}: {
+  lanes: NipypeLane[]
+  selected: string
+  onSelect: (id: string) => void
+}) {
+  if (lanes.length <= 1) return null
+  return (
+    <div
+      role="tablist"
+      aria-label="Lane selector"
+      style={{
+        display: 'flex', gap: 6, flexWrap: 'wrap',
+        padding: '6px 0',
+        borderBottom: '1px solid var(--border)',
+        marginBottom: 6,
+      }}
+    >
+      <button
+        role="tab"
+        aria-selected={selected === SHOW_ALL_LANES}
+        style={_laneChipStyle(selected === SHOW_ALL_LANES)}
+        onClick={() => onSelect(SHOW_ALL_LANES)}
+        title="Show every lane in one canvas"
+      >
+        All lanes
+      </button>
+      {lanes.map((l) => (
+        <button
+          key={l.id}
+          role="tab"
+          aria-selected={selected === l.id}
+          style={_laneChipStyle(selected === l.id)}
+          onClick={() => onSelect(l.id)}
+          title={`Focus on ${l.title}`}
+        >
+          {l.title}
+          {l.counts.total > 0 && (
+            <span style={{
+              marginLeft: 6,
+              fontSize: 9,
+              opacity: 0.7,
+              fontWeight: 600,
+            }}>
+              {l.counts.total}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 
@@ -564,6 +553,10 @@ function Inner({ runId, isRunning, onClose }: Props) {
   // membership.
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [labelMode, setLabelMode] = useLabelMode()
+  // Lane focus: SHOW_ALL_LANES = render every lane (the default
+  // overview), else a specific lane id (e.g. 'lane:run-1') filters
+  // the canvas to that lane + the ancestor chain.
+  const [selectedLane, setSelectedLane] = useState<string>(SHOW_ALL_LANES)
   const rf = useReactFlow()
 
   // Whenever the user picks a node (via list or graph click), pan + zoom
@@ -644,10 +637,30 @@ function Inner({ runId, isRunning, onClose }: Props) {
     return buildNipypeTree(mergedNodes)
   }, [mergedNodes])
 
+  // Compute lanes once per filtered-tree change. The selector pulls
+  // its options from this list, and `_layout` filters by the active
+  // lane id.
+  const filterResult = useMemo(() => {
+    if (!fullTree) return null
+    return filterVisible(fullTree, DEFAULT_VISIBLE_DEPTH, expanded)
+  }, [fullTree, expanded])
+
+  const lanes = useMemo<NipypeLane[]>(() => {
+    if (!filterResult) return []
+    return partitionLanes(filterResult.tree)
+  }, [filterResult])
+
+  // If the currently-selected lane no longer exists (e.g. expansion
+  // changed which lanes are populated, or we switched runs and the
+  // stored id is stale), reset to the overview.
+  useEffect(() => {
+    if (selectedLane === SHOW_ALL_LANES) return
+    if (!lanes.some((l) => l.id === selectedLane)) setSelectedLane(SHOW_ALL_LANES)
+  }, [lanes, selectedLane])
+
   const flow = useMemo(() => {
-    if (!fullTree) return { nodes: [] as Node[], edges: [] as Edge[] }
-    const { tree, hasHidden } = filterVisible(fullTree, DEFAULT_VISIBLE_DEPTH, expanded)
-    const laid = _layout(tree)
+    if (!filterResult) return { nodes: [] as Node[], edges: [] as Edge[] }
+    const laid = _layout(filterResult.tree, lanes, selectedLane)
     // Inject hasHidden + isExpanded into the workflow nodes' data
     // payload so the WorkflowNode renderer can show the +/− glyph
     // without re-deriving the state.
@@ -657,14 +670,14 @@ function Inner({ runId, isRunning, onClose }: Props) {
         ...n,
         data: {
           ...(n.data as object),
-          hasHidden: hasHidden.get(n.id) ?? false,
+          hasHidden: filterResult.hasHidden.get(n.id) ?? false,
           isExpanded: expanded.has(n.id),
           labelMode,
         },
       }
     })
     return { nodes, edges: laid.edges }
-  }, [fullTree, expanded, labelMode])
+  }, [filterResult, lanes, selectedLane, expanded, labelMode])
 
   return (
     <>
@@ -708,6 +721,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
         )}
         <button style={closeBtn} onClick={onClose}>Close</button>
       </div>
+      <LaneSelector lanes={lanes} selected={selectedLane} onSelect={setSelectedLane} />
       <div style={{
         flex: 1, minHeight: 0, display: 'flex',
         border: '1px solid var(--border)',
