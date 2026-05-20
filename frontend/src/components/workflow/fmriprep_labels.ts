@@ -3,9 +3,17 @@
  * The dotted nipype path segments (e.g. `anat_preproc_wf`,
  * `single_subject_01_wf`, `func_preproc_ses_1_task_x_run_1_wf`) are
  * unambiguous but cryptic. This helper returns a plain-English name
- * we display in brackets next to the real label — augmentation, not
- * replacement. If we can't infer anything reasonable, we return
- * `null` and the caller renders no brackets.
+ * the modal can use either as the primary label (friendly mode) or
+ * as a small subtitle (raw mode). If we can't infer anything
+ * reasonable, we return `null` and the caller falls back to the raw
+ * label.
+ *
+ * SOURCE RULE — every EXACT_NAMES entry must correspond 1:1 to a
+ * section heading on https://fmriprep.org/en/stable/workflows.html
+ * (or the equivalent stage name in fmriprep's CLI / docs). Do NOT
+ * invent conceptual names. If a workflow id has no documented
+ * conceptual stage, leave it out and let the caller fall back to
+ * the raw id.
  *
  * Mapping is split into two layers:
  *   1. EXACT_NAMES — hand-curated for the well-known fmriprep
@@ -13,7 +21,9 @@
  *   2. PATTERN_RULES — regex matches for parameterised names like
  *      `single_subject_{id}_wf` or
  *      `func_preproc_ses_{x}_task_{y}_run_{z}_wf`, with the captured
- *      parts interpolated into the output.
+ *      parts interpolated into the output. The captured parts are
+ *      literal substrings of the real workflow id — re-spaced for
+ *      reading, not renamed.
  *
  * Order: exact match first, then patterns, then null.
  */

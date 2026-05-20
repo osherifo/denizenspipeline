@@ -1,0 +1,28 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`inferredName > curated dictionary snapshot — guards against accidental adds 1`] = `
+{
+  "anat_norm_wf": "Spatial normalisation",
+  "anat_preproc_wf": "Anatomical preprocessing",
+  "bold_carpetplot_wf": "Carpet plot",
+  "bold_confounds_wf": "Confounds",
+  "bold_hmc_wf": "Head motion correction",
+  "bold_mni_trans_wf": "BOLD in MNI space",
+  "bold_preproc_wf": "BOLD preprocessing",
+  "bold_reference_wf": "BOLD reference image",
+  "bold_reg_wf": "BOLD-to-T1 registration",
+  "bold_sdc_wf": "BOLD distortion correction",
+  "bold_stc_wf": "Slice-timing correction",
+  "bold_std_trans_wf": "BOLD in standard space",
+  "bold_surf_wf": "BOLD on surface",
+  "bold_t1_trans_wf": "BOLD in T1 space",
+  "brain_extraction_wf": "Brain extraction",
+  "fmap_wf": "Fieldmap",
+  "fmriprep_wf": "fMRIPrep",
+  "func_preproc_wf": "Functional preprocessing",
+  "refinement_wf": "Brain mask refinement",
+  "sdc_estimate_wf": "Distortion-correction estimate",
+  "sdc_wf": "Distortion correction",
+  "surface_recon_wf": "Surface reconstruction",
+}
+`;

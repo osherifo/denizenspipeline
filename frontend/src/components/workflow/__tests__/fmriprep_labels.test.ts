@@ -46,4 +46,37 @@ describe('inferredName', () => {
     expect(inferredName(undefined)).toBeNull()
     expect(inferredName('')).toBeNull()
   })
+
+  // Snapshot of the curated dictionary. Adding a new entry should be a
+  // deliberate act — the new name must map to a section heading on
+  // fmriprep.org/workflows.html (or fmriprep's CLI). Update the
+  // snapshot only when extending the dictionary intentionally.
+  it('curated dictionary snapshot — guards against accidental adds', () => {
+    const probes = [
+      'fmriprep_wf',
+      'anat_preproc_wf',
+      'anat_norm_wf',
+      'brain_extraction_wf',
+      'surface_recon_wf',
+      'refinement_wf',
+      'func_preproc_wf',
+      'bold_preproc_wf',
+      'bold_reference_wf',
+      'bold_hmc_wf',
+      'bold_stc_wf',
+      'bold_reg_wf',
+      'bold_t1_trans_wf',
+      'bold_std_trans_wf',
+      'bold_mni_trans_wf',
+      'bold_confounds_wf',
+      'bold_carpetplot_wf',
+      'bold_surf_wf',
+      'sdc_wf',
+      'sdc_estimate_wf',
+      'bold_sdc_wf',
+      'fmap_wf',
+    ]
+    const mapping = Object.fromEntries(probes.map((p) => [p, inferredName(p)]))
+    expect(mapping).toMatchSnapshot()
+  })
 })

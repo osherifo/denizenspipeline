@@ -206,9 +206,43 @@ status-callback shim in v2.
 nipype DAG collapsed to **depth 3** by default — typically
 `fmriprep_wf` → `single_subject_*_wf` → the major named sub-workflows
 (`anat_preproc_wf`, `func_preproc_ses_*_task_*_run_*_wf`,
-`sdc_estimate_wf`, `bold_confounds_wf`, ...). Each per-run BOLD
-workflow appears as its own sibling node rather than being tangled
-with the others.
+`sdc_estimate_wf`, `bold_confounds_wf`, ...).
+
+**Per-run lanes.** When a subject has multiple BOLD runs, the modal
+groups the depth-3 workflows into stacked **lanes**:
+
+- **Shared upstream** lane (top) — anatomical, fieldmap, and
+  surface-recon workflows that feed every run.
+- One **`Run N · ses-X task-Y run-Z`** lane per BOLD run, with the
+  BIDS entities (`ses`, `task`, `run`) decoded straight from the
+  `func_preproc_*_wf` workflow id. The entity values are literal
+  substrings of the workflow id — re-spaced for reading, not renamed.
+
+Per-run dagre layout is run independently inside each lane, so
+expanding a workflow in `Run 1` doesn't push the boxes in `Run 2`
+sideways. Shared dependencies that cross lanes (e.g. anatomical
+output feeding a BOLD step) are still drawn, just dashed and at
+half opacity so it's obvious they're a shared-input edge.
+
+**Friendly vs Raw labels.** A `[ Friendly | Raw ]` segmented control
+in the modal header switches between two label layouts (persisted
+in `localStorage`, default `Friendly`):
+
+- **Friendly** (default) leads with the conceptual fmriprep stage
+  name (`Head motion correction`), with the raw nipype id
+  (`bold_hmc_wf`) as a small mono-font subtitle.
+- **Raw** leads with the nipype id and demotes the conceptual name
+  to an italic subtitle (the pre-2026-05 rendering — useful when
+  matching against log lines or filing a fmriprep bug).
+
+The conceptual names come 1:1 from
+[fmriprep.org/workflows.html](https://fmriprep.org/en/stable/workflows.html)
+— the section headings fmriprep itself uses for each stage. If a
+workflow id has no documented conceptual name, the label falls
+back to the raw id in both modes. **No labels are ever invented.**
+Leaf nodes (atomic nipype interfaces like `bold_split`,
+`merge_xforms`) keep their raw label in both modes — they're not
+documented conceptual stages.
 
 - **Click a workflow node** with a `+` glyph in its top-left to
   expand its direct children. Click again (now showing `−`) to
@@ -221,9 +255,10 @@ with the others.
   [fmriprep workflows page](https://fmriprep.org/en/stable/workflows.html)
   at the section for that step.
 
-All visible labels are real fmriprep workflow ids straight from
-nipype's dotted paths — no labels are renamed or rolled up
-synthetically. The simplification is a UI filter, not a translation.
+The lane grouping and friendly labels are fmriprep-specific. Other
+nipype backends (a future hand-rolled preproc-stack workflow) get a
+single fallback `Workflow` lane plus raw labels — we don't pretend
+to know their conceptual stages.
 
 **Each node has a small `?` link in its top-right corner** that opens
 the relevant fMRIPrep documentation page in a new tab — handy for

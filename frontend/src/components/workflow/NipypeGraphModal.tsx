@@ -19,12 +19,14 @@ import dagre from 'dagre'
 import { fetchPreprocRunLive } from '../../api/client'
 import { fetchWorkTree } from '../../api/node-outputs'
 import type { NipypeNodeStatus, NipypeStatusBlock } from '../../api/types'
-import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
+import { buildNipypeTree, type NipypeTree, type NipypeTreeNode } from './nipype_tree'
 import { allWorkflowIds, filterVisible } from './nipype_tree_filter'
+import { partitionLanes, type NipypeLane } from './nipype_lanes'
 import { NodeOutputsPanel } from './NodeOutputsPanel'
 import { NodeListPanel } from './NodeListPanel'
 import { fmriprepDocUrl } from './fmriprep_docs'
 import { inferredName } from './fmriprep_labels'
+import { useLabelMode, type LabelMode } from './use_label_mode'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -50,6 +52,9 @@ type WorkflowData = NipypeTreeNode & {
    *  expanded, '+' if collapsed-and-hiding-something, nothing
    *  otherwise. */
   isExpanded?: boolean
+  /** Friendly vs raw label rendering. Injected by the modal so the
+   *  node renderer doesn't have to subscribe to the hook. */
+  labelMode?: LabelMode
 }
 
 
@@ -139,6 +144,15 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
     : c.cached > 0 ? STATUS_COLOR.cached
     : NEUTRAL
   const friendly = inferredName(data.label)
+  const mode: LabelMode = data.labelMode ?? 'friendly'
+  // Friendly mode promotes the conceptual fmriprep name to the
+  // primary label and demotes the raw id to a small subtitle. If we
+  // have no curated friendly name for this label, we fall back to
+  // the raw id in both modes — we don't invent a name.
+  const primary = mode === 'friendly' && friendly ? friendly : data.label
+  const secondary = mode === 'friendly'
+    ? (friendly ? data.label : null)
+    : (friendly ? `[${friendly}]` : null)
   return (
     <div
       style={{
@@ -182,18 +196,21 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
         </span>
       )}
       <div>
-        {data.label}
-        {friendly && (
+        {primary}
+        {secondary && (
           <div
             style={{
               fontSize: 9,
               fontWeight: 500,
               color: 'var(--text-secondary)',
               marginTop: 1,
-              fontStyle: 'italic',
+              fontStyle: mode === 'raw' ? 'italic' : 'normal',
+              fontFamily: mode === 'friendly'
+                ? "'JetBrains Mono', monospace"
+                : undefined,
             }}
           >
-            [{friendly}]
+            {secondary}
           </div>
         )}
       </div>
@@ -225,7 +242,70 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
 const WorkflowNode = memo(_WorkflowNodeInner)
 
 
-const nodeTypes = { nipype_leaf: LeafNode, nipype_workflow: WorkflowNode }
+// ── Lane group node ─────────────────────────────────────────────────────
+
+
+type LaneData = { _kind: 'lane'; title: string; counts: NipypeLane['counts'] }
+
+
+function _LaneNodeInner({ data }: NodeProps & { data: LaneData }) {
+  const c = data.counts
+  const titleColor =
+    c.failed > 0 ? STATUS_COLOR.failed
+    : c.running > 0 ? STATUS_COLOR.running
+    : c.ok > 0 ? STATUS_COLOR.ok
+    : c.completed_assumed > 0 ? STATUS_COLOR.completed_assumed
+    : c.cached > 0 ? STATUS_COLOR.cached
+    : NEUTRAL
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        background: 'rgba(26, 26, 46, 0.4)',
+        border: '1px dashed var(--border)',
+        borderRadius: 8,
+        position: 'relative',
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute', top: 0, left: 0, right: 0,
+          padding: '6px 12px',
+          fontSize: 11, fontWeight: 700,
+          color: titleColor,
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border)',
+          borderTopLeftRadius: 7, borderTopRightRadius: 7,
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span>{data.title}</span>
+        <span style={{ fontSize: 10, fontWeight: 600, display: 'inline-flex', gap: 6 }}>
+          {c.ok > 0 && <span style={{ color: STATUS_COLOR.ok }}>{c.ok}✓</span>}
+          {c.running > 0 && <span style={{ color: STATUS_COLOR.running }}>{c.running}▶</span>}
+          {c.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{c.failed}✗</span>}
+          {c.completed_assumed > 0 && (
+            <span style={{ color: STATUS_COLOR.completed_assumed }}>{c.completed_assumed}?</span>
+          )}
+          {c.cached > 0 && (
+            <span style={{ color: STATUS_COLOR.cached }}>{c.cached}◌</span>
+          )}
+        </span>
+      </div>
+    </div>
+  )
+}
+const LaneNode = memo(_LaneNodeInner)
+
+
+const nodeTypes = {
+  nipype_leaf: LeafNode,
+  nipype_workflow: WorkflowNode,
+  nipype_lane: LaneNode,
+}
 
 
 // ── Layout ──────────────────────────────────────────────────────────────
@@ -233,39 +313,117 @@ const nodeTypes = { nipype_leaf: LeafNode, nipype_workflow: WorkflowNode }
 
 const NODE_WIDTH = 150
 const NODE_HEIGHT = 56
+const LANE_PADDING_X = 24
+const LANE_PADDING_TOP = 32
+const LANE_PADDING_BOTTOM = 16
+const LANE_GAP = 20
 
 
-function _layout(
-  nodes: NipypeTreeNode[],
-  edges: { id: string; source: string; target: string }[],
-): { nodes: Node[]; edges: Edge[] } {
-  const g = new dagre.graphlib.Graph()
-  g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 18, ranksep: 36 })
-  for (const n of nodes) {
-    g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+/** Lay out a filtered tree as a stack of lane group nodes, each
+ *  containing its own dagre-laid-out subgraph.
+ *
+ *  Cross-lane edges (e.g. `anat_preproc_wf → bold_reg`) are kept but
+ *  rendered dashed so they're clearly a shared dependency rather
+ *  than a sibling connection.
+ */
+function _layout(tree: NipypeTree): { nodes: Node[]; edges: Edge[] } {
+  const lanes = partitionLanes(tree)
+  if (lanes.length === 0) return { nodes: [], edges: [] }
+
+  // Index for O(1) lookups + edge filtering.
+  const visibleIds = new Set(tree.nodes.map((n) => n.id))
+  const visibleEdges = tree.edges.filter(
+    (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
+  )
+  const nodeById = new Map(tree.nodes.map((n) => [n.id, n]))
+  const memberToLane = new Map<string, string>()
+
+  const outNodes: Node[] = []
+  let yOffset = 0
+
+  for (const lane of lanes) {
+    const memberSet = new Set(lane.memberIds)
+    for (const id of lane.memberIds) memberToLane.set(id, lane.id)
+
+    // Per-lane dagre layout in lane-local coordinates.
+    const g = new dagre.graphlib.Graph()
+    g.setDefaultEdgeLabel(() => ({}))
+    g.setGraph({ rankdir: 'TB', nodesep: 18, ranksep: 36 })
+    for (const id of lane.memberIds) {
+      g.setNode(id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+    }
+    for (const e of visibleEdges) {
+      if (memberSet.has(e.source) && memberSet.has(e.target)) g.setEdge(e.source, e.target)
+    }
+    dagre.layout(g)
+
+    // Compute the lane's interior bounding box.
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const id of lane.memberIds) {
+      const pos = g.node(id)
+      if (!pos) continue
+      minX = Math.min(minX, pos.x - NODE_WIDTH / 2)
+      maxX = Math.max(maxX, pos.x + NODE_WIDTH / 2)
+      minY = Math.min(minY, pos.y - NODE_HEIGHT / 2)
+      maxY = Math.max(maxY, pos.y + NODE_HEIGHT / 2)
+    }
+    if (!isFinite(minX)) { minX = 0; maxX = NODE_WIDTH; minY = 0; maxY = NODE_HEIGHT }
+    const innerWidth = Math.max(maxX - minX, NODE_WIDTH)
+    const innerHeight = Math.max(maxY - minY, NODE_HEIGHT)
+    const laneWidth = innerWidth + LANE_PADDING_X * 2
+    const laneHeight = innerHeight + LANE_PADDING_TOP + LANE_PADDING_BOTTOM
+
+    // Emit the lane wrapper FIRST so ReactFlow has it available as
+    // the parent when children are added.
+    outNodes.push({
+      id: lane.id,
+      type: 'nipype_lane',
+      data: { _kind: 'lane', title: lane.title, counts: lane.counts } as LaneData,
+      position: { x: 0, y: yOffset },
+      style: { width: laneWidth, height: laneHeight },
+      draggable: false,
+      selectable: false,
+      // Keep the lane behind its children for z-ordering.
+      zIndex: 0,
+    })
+
+    // Member nodes (workflows + expanded leaves) as children.
+    for (const id of lane.memberIds) {
+      const node = nodeById.get(id)
+      if (!node) continue
+      const pos = g.node(id)
+      if (!pos) continue
+      const localX = pos.x - minX - NODE_WIDTH / 2 + LANE_PADDING_X
+      const localY = pos.y - minY - NODE_HEIGHT / 2 + LANE_PADDING_TOP
+      outNodes.push({
+        id: node.id,
+        type: node.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
+        data: { ...node, _kind: node.kind },
+        position: { x: localX, y: localY },
+        parentId: lane.id,
+        extent: 'parent',
+        zIndex: 1,
+      })
+    }
+
+    yOffset += laneHeight + LANE_GAP
   }
-  for (const e of edges) {
-    g.setEdge(e.source, e.target)
-  }
-  dagre.layout(g)
 
-  const flowNodes: Node[] = nodes.map((n) => {
-    const pos = g.node(n.id) ?? { x: 0, y: 0 }
+  const flowEdges: Edge[] = visibleEdges.map((e) => {
+    const sLane = memberToLane.get(e.source)
+    const tLane = memberToLane.get(e.target)
+    const crossLane = sLane !== tLane
     return {
-      id: n.id,
-      type: n.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
-      data: { ...n, _kind: n.kind },
-      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      style: crossLane
+        ? { stroke: 'var(--border)', strokeDasharray: '4 4', opacity: 0.5 }
+        : { stroke: 'var(--border)' },
     }
   })
-  const flowEdges: Edge[] = edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    style: { stroke: 'var(--border)' },
-  }))
-  return { nodes: flowNodes, edges: flowEdges }
+
+  return { nodes: outNodes, edges: flowEdges }
 }
 
 
@@ -321,6 +479,54 @@ const closeBtn: CSSProperties = {
 }
 
 
+function _segmentBtn(active: boolean): CSSProperties {
+  return {
+    padding: '3px 10px',
+    fontSize: 11,
+    fontWeight: active ? 700 : 500,
+    border: 'none',
+    background: active ? 'var(--accent-cyan)' : 'transparent',
+    color: active ? 'var(--bg-primary)' : 'var(--text-secondary)',
+    cursor: 'pointer',
+    transition: 'background 0.12s ease, color 0.12s ease',
+  }
+}
+
+
+function LabelModeToggle({ mode, onChange }: { mode: LabelMode; onChange: (m: LabelMode) => void }) {
+  return (
+    <span
+      role="group"
+      aria-label="Workflow label mode"
+      style={{
+        display: 'inline-flex',
+        border: '1px solid var(--border)',
+        borderRadius: 4,
+        overflow: 'hidden',
+        background: 'var(--bg-secondary)',
+      }}
+    >
+      <button
+        style={_segmentBtn(mode === 'friendly')}
+        onClick={() => onChange('friendly')}
+        title="Show conceptual fmriprep stage names as the primary label"
+        aria-pressed={mode === 'friendly'}
+      >
+        Friendly
+      </button>
+      <button
+        style={_segmentBtn(mode === 'raw')}
+        onClick={() => onChange('raw')}
+        title="Show raw nipype workflow ids as the primary label"
+        aria-pressed={mode === 'raw'}
+      >
+        Raw
+      </button>
+    </span>
+  )
+}
+
+
 interface Props {
   runId: string
   isRunning: boolean
@@ -357,6 +563,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
   // DEFAULT_VISIBLE_DEPTH. Click on a workflow node toggles
   // membership.
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [labelMode, setLabelMode] = useLabelMode()
   const rf = useReactFlow()
 
   // Whenever the user picks a node (via list or graph click), pan + zoom
@@ -440,7 +647,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
   const flow = useMemo(() => {
     if (!fullTree) return { nodes: [] as Node[], edges: [] as Edge[] }
     const { tree, hasHidden } = filterVisible(fullTree, DEFAULT_VISIBLE_DEPTH, expanded)
-    const laid = _layout(tree.nodes, tree.edges)
+    const laid = _layout(tree)
     // Inject hasHidden + isExpanded into the workflow nodes' data
     // payload so the WorkflowNode renderer can show the +/− glyph
     // without re-deriving the state.
@@ -452,11 +659,12 @@ function Inner({ runId, isRunning, onClose }: Props) {
           ...(n.data as object),
           hasHidden: hasHidden.get(n.id) ?? false,
           isExpanded: expanded.has(n.id),
+          labelMode,
         },
       }
     })
     return { nodes, edges: laid.edges }
-  }, [fullTree, expanded])
+  }, [fullTree, expanded, labelMode])
 
   return (
     <>
@@ -479,7 +687,8 @@ function Inner({ runId, isRunning, onClose }: Props) {
           </span>
         )}
         {fullTree && (
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            <LabelModeToggle mode={labelMode} onChange={setLabelMode} />
             <button
               style={toolBtn}
               onClick={() => setExpanded(new Set(allWorkflowIds(fullTree)))}
