@@ -83,25 +83,13 @@ export function StructuralQCPanel({ subject }: Props) {
   // niivue sliceType: 0=axial 1=coronal 2=sagittal 3=multiplanar 4=render(3D)
   const [sliceType, setSliceType] = useState<number>(3)
   const [volumeVisible, setVolumeVisible] = useState<boolean>(true)
-  // Freeview-style mesh-on-slice contours: niivue clips the 3D mesh
-  // to a slab of this thickness (in mm, world space) around the
-  // slice plane. 2mm reads as a thin band; in 3D mode we force
-  // Infinity so the full mesh shows.
-  const [contourMm, setContourMm] = useState<number>(2.0)
-  // 'slab' = niivue's setMeshThicknessOn2D (3D mesh clipped to a
-  // band around the slice plane — fast, but tangential crossings
-  // become wide blobs); 'real' = true plane-triangle intersection
-  // computed in JS and drawn as 1-px polylines on an overlay canvas
-  // (Freeview-style; the right shape).
-  // Implementation in ./contourRenderer.ts; design in
-  // devdocs/proposals/frontend/true-contour-renderer.md.
-  const [contourMode, setContourMode] = useState<'slab' | 'real'>('real')
   // Shade the white + inflated meshes by FreeSurfer per-vertex
   // curvature (?h.curv). Binary grayscale: sulci dark, gyri light —
   // the standard recon-all QC look. Live-toggleable via
   // nv.setMeshLayerProperty(meshId, 0, 'opacity', 0|1) without a
   // mesh reload. 2D contour overlay is unaffected (still solid).
   const [curvShaded, setCurvShaded] = useState<boolean>(true)
+  const [meshOpacity, setMeshOpacity] = useState<number>(1.0)
   // Volume drawing mode — paint voxel annotations on slices, save as
   // NIfTI for import into freeview as an overlay.
   const [drawingEnabled, setDrawingEnabled] = useState(false)
@@ -320,27 +308,19 @@ export function StructuralQCPanel({ subject }: Props) {
     }
   }, [zoom3D, sliceType, showViewer])
 
-  // Clip meshes to a slab around the slice plane so they read as
-  // Freeview-style pial/white contours on 2D slices. In pure 3D
-  // render mode (sliceType 4) we show the full mesh (Infinity).
-  // When contourMode === 'real' AND we're in any 2D mode, we hide
-  // niivue's slab (thickness 0) so only the true polyline overlay
-  // shows; the contour-thickness slider therefore only applies to
-  // slab mode.
+  // Hide niivue's built-in mesh slab in 2D (thickness 0) so only the
+  // true polyline contour overlay shows. In 3D mode show the full mesh.
   useEffect(() => {
     const nv = nvRef.current as unknown as {
       setMeshThicknessOn2D?: (n: number) => void
     } | null
     if (!nv?.setMeshThicknessOn2D) return
-    const realActive = contourMode === 'real' && sliceType !== 4
-    const thickness =
-      sliceType === 4 ? Infinity : realActive ? 0 : contourMm
     try {
-      nv.setMeshThicknessOn2D(thickness)
+      nv.setMeshThicknessOn2D(sliceType === 4 ? Infinity : 0)
     } catch (e) {
       console.warn('niivue setMeshThicknessOn2D failed', e)
     }
-  }, [contourMm, contourMode, sliceType, surface, showViewer])
+  }, [sliceType, surface, showViewer])
 
   // Reset the splay state whenever we leave the inflated surface,
   // so the next time the user opens it again it starts closed.
@@ -484,6 +464,17 @@ export function StructuralQCPanel({ subject }: Props) {
     try { nv.drawScene?.() } catch { /* */ }
   }, [curvMidpoint, curvSlope, surface, showViewer])
 
+  // Live-update mesh opacity via niivue's meshXRay option.
+  useEffect(() => {
+    const nv = nvRef.current as unknown as {
+      opts?: { meshXRay?: number }
+      drawScene?: () => void
+    } | null
+    if (!nv?.opts) return
+    nv.opts.meshXRay = meshOpacity < 1 ? meshOpacity : 0
+    try { nv.drawScene?.() } catch { /* */ }
+  }, [meshOpacity, showViewer])
+
   // Sync drawing mode + pen + options with niivue.
   useEffect(() => {
     const nv = nvRef.current as unknown as {
@@ -542,7 +533,7 @@ export function StructuralQCPanel({ subject }: Props) {
     overlay.style.height = nvCanvas.style.height || `${nvCanvas.clientHeight}px`
     ctx.clearRect(0, 0, overlay.width, overlay.height)
 
-    if (!showViewer || contourMode !== 'real' || sliceType === 4) return
+    if (!showViewer || sliceType === 4) return
     if (!nv?.screenSlices || !nv.meshes || !nv.scene?.crosshairPos || !nv.frac2mm) return
 
     const crossMM = nv.frac2mm(nv.scene.crosshairPos) // [x, y, z] in real RAS mm
@@ -607,7 +598,7 @@ export function StructuralQCPanel({ subject }: Props) {
 
       ctx.restore()
     }
-  }, [contourMode, sliceType, surface, voxXYZ, showViewer, zoom2D])
+  }, [sliceType, surface, voxXYZ, showViewer, zoom2D])
 
   // Keep the ref pointed at the latest closure, so the monkey-patch
   // below always calls the current version.
@@ -637,8 +628,7 @@ export function StructuralQCPanel({ subject }: Props) {
     }
   }, [showViewer])
 
-  // Toggle volume opacity (0 = invisible, 1 = full). Lets the user
-  // hide the T1 "skull" in 3D mode so the cortex meshes are unobstructed.
+  // Toggle volume opacity (0 = invisible, 1 = full).
   useEffect(() => {
     const nv = nvRef.current as unknown as {
       volumes?: Array<unknown>
@@ -1019,7 +1009,7 @@ export function StructuralQCPanel({ subject }: Props) {
                 }}
                 onClick={() => setVolumeVisible((v) => !v)}
                 title={volumeVisible
-                  ? 'Hide the T1 — useful in 3D mode so the cortex meshes are unobstructed'
+                  ? 'Hide the T1'
                   : 'Show the T1 volume'}
               >
                 {volumeVisible ? 'on' : 'off'}
@@ -1050,6 +1040,19 @@ export function StructuralQCPanel({ subject }: Props) {
                   </button>
                 )
               })}
+              {sliceType === 4 && surface && (
+                <label style={{ color: 'var(--text-secondary)', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 2 }} title="Surface opacity in the 3D view. Lower to see drawings or volume underneath the mesh.">
+                  opacity
+                  <input
+                    type="range"
+                    min={0} max={1} step={0.05}
+                    value={meshOpacity}
+                    onChange={(e) => setMeshOpacity(Number(e.target.value))}
+                    style={{ width: 50, verticalAlign: 'middle' }}
+                  />
+                  <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 24 }}>{meshOpacity.toFixed(2)}</span>
+                </label>
+              )}
               {surface === 'inflated' && (
                 <button
                   style={{
@@ -1110,62 +1113,6 @@ export function StructuralQCPanel({ subject }: Props) {
                     />
                     <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 20, display: 'inline-block' }}>{curvSlope}</span>
                   </label>
-                </span>
-              )}
-              {sliceType !== 4 && (
-                <span
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6 }}
-                  title="Contour rendering: 'real' = true plane-triangle intersection drawn on an overlay canvas (Freeview-style, the correct shape); 'slab' = niivue's setMeshThicknessOn2D (3D mesh clipped to a band, fast but wide at tangential crossings)."
-                >
-                  <span style={{ color: 'var(--text-secondary)' }}>Mode</span>
-                  {(['real', 'slab'] as const).map((m) => (
-                    <button
-                      key={m}
-                      style={{
-                        ...btn,
-                        padding: '2px 8px',
-                        fontSize: 11,
-                        background: contourMode === m ? 'var(--accent-cyan)' : btn.background,
-                        color: contourMode === m ? '#000' : 'var(--text-primary)',
-                        borderColor: contourMode === m ? 'var(--accent-cyan)' : 'var(--border)',
-                      }}
-                      onClick={() => setContourMode(m)}
-                      title={m === 'real' ? 'True plane-triangle contour' : 'Niivue slab clip'}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </span>
-              )}
-              {sliceType !== 4 && contourMode === 'slab' && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    marginLeft: 6,
-                  }}
-                  title="Mesh contour thickness on 2D slices (mm). Lower = thinner Freeview-style contour, higher = wider slab."
-                >
-                  <span style={{ color: 'var(--text-secondary)' }}>Contour</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={10}
-                    step={0.5}
-                    value={contourMm}
-                    onChange={(e) => setContourMm(parseFloat(e.target.value))}
-                    style={{ width: 90 }}
-                  />
-                  <span
-                    style={{
-                      fontVariantNumeric: 'tabular-nums',
-                      color: 'var(--text-secondary)',
-                      minWidth: 36,
-                    }}
-                  >
-                    {contourMm.toFixed(1)}mm
-                  </span>
                 </span>
               )}
               <span
@@ -1460,7 +1407,7 @@ export function StructuralQCPanel({ subject }: Props) {
                   height: '100%',
                   pointerEvents: 'none',
                   display:
-                    contourMode === 'real' && sliceType !== 4 ? 'block' : 'none',
+                    sliceType !== 4 ? 'block' : 'none',
                 }}
               />
             </div>
