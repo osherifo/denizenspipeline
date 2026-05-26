@@ -1078,7 +1078,7 @@ export function StructuralQCPanel({ subject }: Props) {
                   borderColor: curvShaded ? 'var(--accent-cyan)' : 'var(--border)',
                 }}
                 onClick={() => setCurvShaded((v) => !v)}
-                title="Shade surfaces by FreeSurfer per-vertex curvature. Binary gray (sulci dark, gyri light)."
+                title="Shade surfaces by FreeSurfer per-vertex curvature using a green→gray→red threshold colormap. Adjust midpoint (sulcus/gyrus boundary) and slope (transition sharpness) below."
               >
                 {curvShaded ? 'on' : 'off'}
               </button>
