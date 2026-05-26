@@ -8,10 +8,12 @@ import {
   fetchReview,
   saveReview,
   fetchFreeviewCommand,
+  uploadDrawing,
   reportUrl,
   fsFileUrl,
 } from '../../api/structural-qc'
 import type { StructuralQCReview, StructuralQCStatus } from '../../api/types'
+import { parseFreeSurferCurv } from './curv_parser'
 
 interface Props {
   subject: string
@@ -100,6 +102,17 @@ export function StructuralQCPanel({ subject }: Props) {
   // nv.setMeshLayerProperty(meshId, 0, 'opacity', 0|1) without a
   // mesh reload. 2D contour overlay is unaffected (still solid).
   const [curvShaded, setCurvShaded] = useState<boolean>(true)
+  // Volume drawing mode — paint voxel annotations on slices, save as
+  // NIfTI for import into freeview as an overlay.
+  const [drawingEnabled, setDrawingEnabled] = useState(false)
+  const [penValue, setPenValue] = useState<number>(1) // 1=draw, 0=erase
+  const [isFilledPen, setIsFilledPen] = useState(false) // drag → flood-filled shape
+  const [drawOpacity, setDrawOpacity] = useState(0.5)
+  // Freeview-style curvature threshold: midpoint shifts the
+  // sulcus/gyrus boundary, slope controls transition sharpness.
+  // cal_min = midpoint - 1/slope, cal_max = midpoint + 1/slope.
+  const [curvMidpoint, setCurvMidpoint] = useState<number>(0)
+  const [curvSlope, setCurvSlope] = useState<number>(10)
   // Inflated "wings opening" animation. When toggled on, each
   // hemisphere rotates 90° around the Z axis at its medial edge
   // (smoothstep, ~800ms) so the medial cortex splays outward —
@@ -165,6 +178,18 @@ export function StructuralQCPanel({ subject }: Props) {
     nvRef.current = nv
     nv.attachToCanvas(canvasRef.current)
 
+    // Freeview-style green→gray→red curvature colormap (CM_Threshold).
+    // Green = gyri (negative curvature), gray = midpoint, red = sulci
+    // (positive curvature). Freeview uses base gray (0.4, 0.4, 0.4) =
+    // (102, 102, 102) at the transition center.
+    ;(nv as unknown as { addColormap?: (k: string, c: unknown) => void }).addColormap?.('freeview_curv', {
+      R: [0, 102, 255],
+      G: [255, 102, 0],
+      B: [0, 102, 0],
+      A: [255, 255, 255],
+      I: [0, 128, 255],
+    })
+
     // World-space slices (mm) are required for meshThicknessOn2D to
     // clip the mesh correctly. Voxel-space mode disables mesh
     // visibility entirely per the niivue API note.
@@ -179,8 +204,11 @@ export function StructuralQCPanel({ subject }: Props) {
     // which only zooms when dragMode === pan). Slice scrolling moves to
     // the scrubbers and click-to-navigate.
     try {
-      const inst = nv as unknown as { opts?: { dragMode?: number } }
-      if (inst.opts) inst.opts.dragMode = 3 /* DRAG_MODE.pan */
+      const inst = nv as unknown as { opts?: { dragMode?: number; multiplanarForceRender?: boolean } }
+      if (inst.opts) {
+        inst.opts.dragMode = 3 /* DRAG_MODE.pan */
+        inst.opts.multiplanarForceRender = true
+      }
     } catch { /* */ }
 
     // Sync the slice scrubbers when the user clicks/scrolls inside
@@ -401,8 +429,7 @@ export function StructuralQCPanel({ subject }: Props) {
   }, [inflatedOpen, surface, showViewer])
 
   // Flip the curvature layer's opacity live (no mesh reload). Hits
-  // every loaded mesh that has a layer; meshes loaded without one
-  // (e.g. pial) are skipped automatically.
+  // every loaded mesh that has a layer.
   useEffect(() => {
     const nv = nvRef.current as unknown as {
       meshes?: Array<{ id?: string | number; layers?: Array<unknown> }>
@@ -426,6 +453,53 @@ export function StructuralQCPanel({ subject }: Props) {
     }
     try { nv.drawScene?.() } catch { /* */ }
   }, [curvShaded, surface, showViewer])
+
+  // Live-update curvature threshold (cal_min / cal_max) without
+  // reloading meshes. Mirrors freeview's midpoint + slope controls.
+  useEffect(() => {
+    const nv = nvRef.current as unknown as {
+      meshes?: Array<{ id?: string | number; layers?: Array<unknown> }>
+      setMeshLayerProperty?: (
+        meshId: string | number,
+        layerIdx: number,
+        key: string,
+        val: number,
+      ) => void
+      drawScene?: () => void
+    } | null
+    if (!nv?.meshes || !nv.setMeshLayerProperty) return
+    const dSlope = curvSlope === 0 ? 1e8 : 1.0 / curvSlope
+    const calMin = curvMidpoint - dSlope
+    const calMax = curvMidpoint + dSlope
+    for (const mesh of nv.meshes) {
+      if (!mesh.layers || mesh.layers.length === 0) continue
+      if (mesh.id === undefined) continue
+      try {
+        nv.setMeshLayerProperty(mesh.id, 0, 'cal_min', calMin)
+        nv.setMeshLayerProperty(mesh.id, 0, 'cal_max', calMax)
+      } catch (e) {
+        console.warn('niivue setMeshLayerProperty cal range failed', e)
+      }
+    }
+    try { nv.drawScene?.() } catch { /* */ }
+  }, [curvMidpoint, curvSlope, surface, showViewer])
+
+  // Sync drawing mode + pen + options with niivue.
+  useEffect(() => {
+    const nv = nvRef.current as unknown as {
+      setDrawingEnabled?: (v: boolean) => void
+      setPenValue?: (v: number, filled?: boolean) => void
+      setDrawOpacity?: (v: number) => void
+      drawScene?: () => void
+    } | null
+    if (!nv) return
+    nv.setDrawingEnabled?.(drawingEnabled)
+    if (drawingEnabled) {
+      nv.setPenValue?.(penValue, isFilledPen)
+      nv.setDrawOpacity?.(drawOpacity)
+    }
+    try { nv.drawScene?.() } catch { /* */ }
+  }, [drawingEnabled, penValue, isFilledPen, drawOpacity, showViewer])
 
   // Per-mesh AABB index cache, keyed by mesh.pts identity. WeakMap so
   // unloaded meshes garbage-collect their index automatically.
@@ -605,51 +679,32 @@ export function StructuralQCPanel({ subject }: Props) {
           return
         }
         const kind = surface
-        // Attach FreeSurfer ?h.curv as a binary-grayscale layer on
-        // white + inflated (the surfaces where curvature shading
-        // is anatomically meaningful). In Niivue, CURV data is
-        // normalised per hemisphere to [0, 1], and the layer config
-        // below uses that range plus `colormapInvert: true` to keep
-        // sulci dark and gyri light, matching FreeSurfer's
-        // recon-all QC appearance. Always include the layer
-        // regardless of curvShaded so the toggle can flip opacity
-        // live without a mesh reload (controlled by a separate
-        // effect).
-        const wantCurv = kind === 'white' || kind === 'inflated'
+        // Attach FreeSurfer curvature as a binary-grayscale layer.
+        // White + inflated use ?h.curv; pial uses ?h.curv.pial
+        // (pial-surface-specific curvature from recon-all).
+        // Always include the layer regardless of curvShaded so the
+        // toggle can flip opacity live without a mesh reload.
+        const curvFile = (h: 'lh' | 'rh') =>
+          kind === 'pial' ? `surf/${h}.curv.pial` : `surf/${h}.curv`
         // `name` must carry the `.curv` extension — niivue's
         // readLayer reads the extension from `name` (preferring
-        // it over `url`), and our backend URL ends in `fs-file?
-        // rel=…` so `getFileExt(url)` returns undefined and
-        // `.toUpperCase()` throws. Same gotcha the mesh `name`
-        // works around at the loadVolumes call.
+        // it over `url`). .curv.pial is the same binary format.
+        // After loadMeshes we overwrite niivue's normalised values
+        // with raw signed curvature from our own parser. cal range
+        // is derived from the threshold controls (midpoint ± 1/slope).
+        const dSlope = curvSlope === 0 ? 1e8 : 1.0 / curvSlope
         const layerFor = (h: 'lh' | 'rh') =>
-          wantCurv
-            ? [{
-                url: fsFileUrl(subject, `surf/${h}.curv`),
+            [{
+                url: fsFileUrl(subject, curvFile(h)),
                 name: `${h}.curv`,
-                colormap: 'gray',
-                // niivue's readCURV normalises every .curv file to
-                // [0, 1] AND inverts it (`f = 1 - (f-mn)/(mx-mn)`,
-                // index.js:109541), so the actual layer values are in
-                // [0, 1] per hemisphere — NOT raw signed curvature in
-                // [-1, +1]. With cal_min=-0.5, cal_max=+0.5 (what we
-                // had before), rh's values mostly sat above cal_max
-                // and clamped to the LUT's last entry, which
-                // produced the purple-tinted rendering on one
-                // hemisphere only. cal_min=0, cal_max=1 uses the
-                // full normalised range. `colormapInvert: true`
-                // flips the gray so sulci (high normalised value
-                // after niivue's inversion = originally most-negative
-                // curvature) render DARK and gyri render LIGHT,
-                // matching FreeSurfer's recon-all QC look.
-                colormapNegative: 'gray',
+                colormap: 'freeview_curv',
+                colormapNegative: '',
                 useNegativeCmap: false,
-                colormapInvert: true,
-                cal_min: 0,
-                cal_max: 1,
+                colormapInvert: false,
+                cal_min: curvMidpoint - dSlope,
+                cal_max: curvMidpoint + dSlope,
                 opacity: curvShaded ? 1 : 0,
               }]
-            : []
         const specs = [
           { url: fsFileUrl(subject, `surf/lh.${kind}`), name: `lh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('lh') },
           { url: fsFileUrl(subject, `surf/rh.${kind}`), name: `rh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('rh') },
@@ -716,65 +771,39 @@ export function StructuralQCPanel({ subject }: Props) {
           contourIndexCache.current.delete(pts)
           try { m.updateMesh?.(gl) } catch { /* */ }
         }
-        // Joint normalisation of curvature layers across hemispheres.
-        // Niivue's readCURV normalises each .curv to [0, 1] per file
-        // using that file's own mn/mx, so the same numerical value
-        // means different actual curvature in lh vs rh and the two
-        // render with mismatched overall darkness. We can't recover
-        // the raw values from niivue's output (the original mn/mx
-        // are gone), but we can statistically align the two layers
-        // by matching their mean + std: target = average mean/std
-        // across all visible curv layers; per-layer values get
-        // z-scored then rescaled into (targetMean, targetStd).
-        // Same colormap + cal range now lands at the same shade for
-        // equivalent positions in each hemisphere's curvature
-        // distribution.
+        // Replace niivue's normalised [0,1] layer values with raw
+        // signed curvature parsed from the FreeSurfer binary. This
+        // gives both hemispheres the same physical scale (no per-file
+        // normalisation drift) and enables freeview-style thresholding.
         type CurvMesh = {
           name?: string
           pts?: Float32Array
           layers?: Array<{ values?: Float32Array }>
           updateMesh?: (gl: WebGL2RenderingContext) => void
         }
-        const curvMeshes: CurvMesh[] = []
+        const curvUrls: [CurvMesh, string][] = []
         for (const m of meshList as unknown as CurvMesh[]) {
-          const v = m.layers?.[0]?.values
-          if (v && v.length > 0) curvMeshes.push(m)
+          if (!m.layers?.[0]?.values || !m.name) continue
+          const h = m.name.startsWith('lh') ? 'lh' : m.name.startsWith('rh') ? 'rh' : null
+          if (!h) continue
+          curvUrls.push([m, fsFileUrl(subject, curvFile(h))])
         }
-        if (gl && curvMeshes.length > 1) {
-          const stats = curvMeshes.map((m) => {
-            const v = m.layers![0].values!
-            let sum = 0
-            for (let i = 0; i < v.length; i++) sum += v[i]
-            const mean = sum / v.length
-            let sumSq = 0
-            for (let i = 0; i < v.length; i++) sumSq += (v[i] - mean) ** 2
-            const std = Math.sqrt(sumSq / v.length)
-            return { mean, std }
-          })
-          const targetMean =
-            stats.reduce((s, x) => s + x.mean, 0) / stats.length
-          // Use the *max* std (not the average) so the tighter-
-          // distribution hemisphere gets stretched up to match the
-          // wider one — preserves the visible curvature contrast on
-          // both sides. Averaging the stds pulled the high-contrast
-          // hemisphere DOWN, killing curvature visibility.
-          const targetStd = Math.max(...stats.map((s) => s.std))
-          for (let i = 0; i < curvMeshes.length; i++) {
-            const { mean, std } = stats[i]
-            if (std < 1e-6) continue
-            const m = curvMeshes[i]
-            const v = m.layers![0].values!
-            const scale = targetStd / std
-            for (let j = 0; j < v.length; j++) {
-              // Clamp to [0, 1] post-rescale: stretching can push
-              // outliers outside the cal range, which would otherwise
-              // clamp at the LUT endpoints with a sharp transition.
-              const scaled = (v[j] - mean) * scale + targetMean
-              v[j] = scaled < 0 ? 0 : scaled > 1 ? 1 : scaled
+        if (gl && curvUrls.length > 0) {
+          const fetches = curvUrls.map(async ([m, url]) => {
+            try {
+              const resp = await fetch(url)
+              if (!resp.ok) return
+              const raw = parseFreeSurferCurv(await resp.arrayBuffer())
+              const vals = m.layers![0].values!
+              if (raw.length !== vals.length) return
+              for (let j = 0; j < vals.length; j++) vals[j] = raw[j]
+              try { m.updateMesh?.(gl) } catch { /* */ }
+              if (m.pts) contourIndexCache.current.delete(m.pts)
+            } catch (e) {
+              console.warn('raw curv injection failed for', m.name, e)
             }
-            try { m.updateMesh?.(gl) } catch { /* */ }
-            if (m.pts) contourIndexCache.current.delete(m.pts)
-          }
+          })
+          await Promise.all(fetches)
         }
 
         try { (inst as unknown as { drawScene?: () => void }).drawScene?.() } catch { /* */ }
@@ -1049,10 +1078,40 @@ export function StructuralQCPanel({ subject }: Props) {
                   borderColor: curvShaded ? 'var(--accent-cyan)' : 'var(--border)',
                 }}
                 onClick={() => setCurvShaded((v) => !v)}
-                title="Shade white + inflated by FreeSurfer per-vertex curvature (?h.curv). Binary gray (sulci dark, gyri light). Pial unaffected; 2D real-contour overlay unaffected."
+                title="Shade surfaces by FreeSurfer per-vertex curvature. Binary gray (sulci dark, gyri light)."
               >
                 {curvShaded ? 'on' : 'off'}
               </button>
+              {curvShaded && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <label style={{ color: 'var(--text-secondary)', fontSize: 10 }} title="Shift the sulcus/gyrus boundary (curvature value at the transition center)">
+                    mid
+                    <input
+                      type="range"
+                      min={-0.5}
+                      max={0.5}
+                      step={0.01}
+                      value={curvMidpoint}
+                      onChange={(e) => setCurvMidpoint(Number(e.target.value))}
+                      style={{ width: 60, verticalAlign: 'middle', marginLeft: 2 }}
+                    />
+                    <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 36, display: 'inline-block' }}>{curvMidpoint.toFixed(2)}</span>
+                  </label>
+                  <label style={{ color: 'var(--text-secondary)', fontSize: 10 }} title="Transition sharpness (higher = sharper boundary between sulci and gyri coloring)">
+                    slope
+                    <input
+                      type="range"
+                      min={1}
+                      max={50}
+                      step={1}
+                      value={curvSlope}
+                      onChange={(e) => setCurvSlope(Number(e.target.value))}
+                      style={{ width: 60, verticalAlign: 'middle', marginLeft: 2 }}
+                    />
+                    <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 20, display: 'inline-block' }}>{curvSlope}</span>
+                  </label>
+                </span>
+              )}
               {sliceType !== 4 && (
                 <span
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6 }}
@@ -1166,6 +1225,173 @@ export function StructuralQCPanel({ subject }: Props) {
                   reset
                 </button>
               </span>
+              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+              <span style={{ color: 'var(--text-secondary)' }}>Draw</span>
+              <button
+                style={{
+                  ...btn,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  background: drawingEnabled ? 'var(--accent-yellow)' : btn.background,
+                  color: drawingEnabled ? '#000' : 'var(--text-primary)',
+                  borderColor: drawingEnabled ? 'var(--accent-yellow)' : 'var(--border)',
+                }}
+                onClick={() => setDrawingEnabled((v) => !v)}
+                title="Enable voxel drawing on 2D slices. Paint annotations, then save as NIfTI to open in freeview."
+              >
+                {drawingEnabled ? 'on' : 'off'}
+              </button>
+              {drawingEnabled && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  {/* ── Tool select ── */}
+                  {([
+                    { v: 1, filled: false, label: 'pen', title: 'Freehand draw (paint voxels under cursor)' },
+                    { v: 1, filled: true, label: 'fill pen', title: 'Filled pen — drag draws an outline, release flood-fills the enclosed region' },
+                    { v: 0, filled: false, label: 'erase', title: 'Erase painted voxels' },
+                  ] as const).map((t) => (
+                    <button
+                      key={`${t.v}-${t.filled}`}
+                      style={{
+                        ...btn,
+                        padding: '2px 8px',
+                        fontSize: 11,
+                        background: penValue === t.v && isFilledPen === t.filled ? 'var(--accent-cyan)' : btn.background,
+                        color: penValue === t.v && isFilledPen === t.filled ? '#000' : 'var(--text-primary)',
+                        borderColor: penValue === t.v && isFilledPen === t.filled ? 'var(--accent-cyan)' : 'var(--border)',
+                      }}
+                      onClick={() => { setPenValue(t.v); setIsFilledPen(t.filled) }}
+                      title={t.title}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                  {/* ── Pen color (1–7) ── */}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>color</span>
+                    {[
+                      { v: 1, c: '#ff0000' },
+                      { v: 2, c: '#00ff00' },
+                      { v: 3, c: '#0000ff' },
+                      { v: 4, c: '#ff00ff' },
+                      { v: 5, c: '#00ffff' },
+                      { v: 6, c: '#ffff00' },
+                      { v: 7, c: '#ff8800' },
+                    ].map((swatch) => (
+                      <button
+                        key={swatch.v}
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: 3,
+                          border: penValue === swatch.v ? '2px solid #fff' : '1px solid var(--border)',
+                          background: swatch.c,
+                          cursor: 'pointer',
+                          padding: 0,
+                          opacity: penValue === 0 ? 0.4 : 1,
+                        }}
+                        onClick={() => { if (penValue !== 0) setPenValue(swatch.v) }}
+                        title={`Color ${swatch.v}`}
+                        disabled={penValue === 0}
+                      />
+                    ))}
+                  </span>
+                  {/* ── Opacity ── */}
+                  <label style={{ color: 'var(--text-secondary)', fontSize: 10 }} title="Drawing overlay opacity (0 = transparent, 1 = opaque)">
+                    opacity
+                    <input
+                      type="range"
+                      min={0} max={1} step={0.05}
+                      value={drawOpacity}
+                      onChange={(e) => setDrawOpacity(Number(e.target.value))}
+                      style={{ width: 50, verticalAlign: 'middle', marginLeft: 2 }}
+                    />
+                    <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 24, display: 'inline-block' }}>{drawOpacity.toFixed(2)}</span>
+                  </label>
+                  {/* ── Undo ── */}
+                  <button
+                    style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
+                    onClick={() => {
+                      const nv = nvRef.current as unknown as { drawUndo?: () => void }
+                      nv?.drawUndo?.()
+                    }}
+                    title="Undo last drawing action (max 8 levels)"
+                  >
+                    undo
+                  </button>
+                  {/* ── Clear ── */}
+                  <button
+                    style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
+                    onClick={() => {
+                      const nv = nvRef.current as unknown as {
+                        drawBitmap?: Uint8Array | null
+                        refreshDrawing?: (force?: boolean) => void
+                      }
+                      if (nv?.drawBitmap) {
+                        nv.drawBitmap.fill(0)
+                        nv.refreshDrawing?.(true)
+                      }
+                    }}
+                    title="Clear the entire drawing"
+                  >
+                    clear
+                  </button>
+                  {/* ── Save ── */}
+                  <button
+                    style={{ ...btn, padding: '2px 8px', fontSize: 11, background: 'var(--accent-green)', color: '#000', border: 'none' }}
+                    onClick={async () => {
+                      const nv = nvRef.current as unknown as {
+                        saveImage?: (opts: { isSaveDrawing: boolean }) => Uint8Array | boolean
+                        drawBitmap?: Uint8Array | null
+                        volumes?: Array<{ dims?: number[] }>
+                        frac2mm?: (f: Float32Array) => number[]
+                      }
+                      if (!nv) return
+                      const bmp = nv.drawBitmap
+                      const dims = nv.volumes?.[0]?.dims
+                      if (!bmp || !dims || dims.length < 4) return
+
+                      // Compute centroid of drawn voxels in voxel space
+                      const nx = dims[1], ny = dims[2], nz = dims[3]
+                      let sx = 0, sy = 0, sz = 0, count = 0
+                      for (let idx = 0; idx < bmp.length; idx++) {
+                        if (bmp[idx] === 0) continue
+                        const z = Math.floor(idx / (nx * ny))
+                        const rem = idx - z * nx * ny
+                        const y = Math.floor(rem / nx)
+                        const x = rem - y * nx
+                        sx += x; sy += y; sz += z; count++
+                      }
+                      if (count === 0) return
+
+                      // Centroid in fractional [0,1] → RAS mm
+                      const cx = (sx / count) / (nx - 1)
+                      const cy = (sy / count) / (ny - 1)
+                      const cz = (sz / count) / (nz - 1)
+                      let ras: [number, number, number] = [0, 0, 0]
+                      if (nv.frac2mm) {
+                        const mm = nv.frac2mm(new Float32Array([cx, cy, cz]))
+                        ras = [mm[0], mm[1], mm[2]]
+                      }
+
+                      // Get NIfTI bytes of drawing
+                      const bytes = nv.saveImage?.({ isSaveDrawing: true })
+                      if (!bytes || typeof bytes === 'boolean') return
+
+                      try {
+                        const result = await uploadDrawing(subject, bytes, ras)
+                        setFreeviewCmd(result.command)
+                        await navigator.clipboard.writeText(result.command)
+                      } catch (e) {
+                        console.warn('drawing upload failed, falling back to download', e)
+                        nv.saveImage?.({ isSaveDrawing: true } as never)
+                      }
+                    }}
+                    title="Save the drawing to the FS subject dir and copy a freeview command (with -c centered on the annotation) to clipboard."
+                  >
+                    save + freeview cmd
+                  </button>
+                </span>
+              )}
               <span style={{ flex: 1 }} />
               <button
                 style={{ ...btn, padding: '2px 8px', fontSize: 11 }}
@@ -1175,11 +1401,32 @@ export function StructuralQCPanel({ subject }: Props) {
                 ✕ Close
               </button>
             </div>
+            {freeviewCmd && (
+              <div
+                style={{
+                  padding: '4px 8px',
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  background: 'var(--bg-secondary)',
+                  borderLeft: '1px solid var(--border)',
+                  borderRight: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  cursor: 'pointer',
+                }}
+                onClick={() => navigator.clipboard.writeText(freeviewCmd)}
+                title="Click to copy freeview command"
+              >
+                <span style={{ color: 'var(--accent-green)', marginRight: 6 }}>freeview cmd (click to copy):</span>
+                {freeviewCmd}
+              </div>
+            )}
             <div
               style={{
                 position: 'relative',
                 border: '1px solid var(--border)',
-                borderTop: 'none',
+                borderTop: freeviewCmd ? 'none' : undefined,
                 borderBottomLeftRadius: sliceType === 4 ? 4 : 0,
                 borderBottomRightRadius: sliceType === 4 ? 4 : 0,
                 background: '#000',
