@@ -44,10 +44,11 @@ Three entry points to the same panel:
       pial uses `?h.curv.pial`. Raw signed curvature values are
       parsed directly from the FreeSurfer binary (bypassing niivue's
       lossy normalisation) and injected into the mesh layer, giving
-      both hemispheres the same physical scale. The gray colormap
-      renders sulci dark and gyri light, matching FreeSurfer's
-      recon-all QC convention. Toggle flips the layer's `opacity`
-      live, no mesh reload.
+      both hemispheres the same physical scale. A Freeview-style
+      green→gray→red threshold colormap is applied: sulci render
+      green, gyri render red, with a gray transition zone whose
+      center and sharpness are controlled by **Mid** and **Slope**.
+      Toggle flips the layer's `opacity` live, no mesh reload.
         - **Mid** slider (−0.5 to +0.5, default 0) — shifts the
           sulcus/gyrus colour boundary. Maps to freeview's
           `ThresholdMidPoint`.
@@ -58,13 +59,21 @@ Three entry points to the same panel:
     - **Draw** (on / off, default off) — enable voxel drawing on 2D
       slices. Paint annotations directly onto the T1 volume to mark
       regions that need surface edits. Controls:
-        - **pen** / **erase** — switch between painting and erasing
-          voxels.
+        - **pen** — freehand draw (paint voxels under cursor).
+        - **fill pen** — drag to draw an outline; releasing
+          flood-fills the enclosed region.
+        - **erase** — erase painted voxels.
+        - **color** — seven colour swatches (red, green, blue,
+          magenta, cyan, yellow, orange) to select the active pen
+          colour. Disabled while **erase** is selected.
+        - **opacity** slider (0 – 1) — controls the transparency of
+          the drawing overlay. Default 0.5.
         - **undo** — undo the last stroke (up to 8 levels).
-        - **save .nii** — download the drawing as a NIfTI file
-          (`<subject>_drawing.nii`). Load it in freeview as a volume
-          overlay (`freeview -v T1.mgz <subject>_drawing.nii:colormap=lut`)
-          to guide manual surface edits.
+        - **clear** — erase the entire drawing at once.
+        - **save + freeview cmd** — downloads the drawing as a NIfTI
+          file (`<subject>_drawing.nii`), uploads it to the backend,
+          and copies a ready-made `freeview` command (with `-c`
+          centred on the annotation centroid) to clipboard.
     - **Mode** — `real` (default) draws true Freeview-style 1-px
       contours by computing the actual plane-triangle intersection
       of each surface mesh against the current slice plane and
