@@ -1377,13 +1377,21 @@ export function StructuralQCPanel({ subject }: Props) {
                       const bytes = nv.saveImage?.({ isSaveDrawing: true })
                       if (!bytes || typeof bytes === 'boolean') return
 
+                      // Browser download
+                      const blob = new Blob([new Uint8Array(bytes)], { type: 'application/octet-stream' })
+                      const a = document.createElement('a')
+                      a.href = URL.createObjectURL(blob)
+                      a.download = `${subject}_drawing.nii`
+                      a.click()
+                      URL.revokeObjectURL(a.href)
+
+                      // Upload to backend + get freeview command
                       try {
                         const result = await uploadDrawing(subject, bytes, ras)
                         setFreeviewCmd(result.command)
                         await navigator.clipboard.writeText(result.command)
                       } catch (e) {
-                        console.warn('drawing upload failed, falling back to download', e)
-                        nv.saveImage?.({ isSaveDrawing: true } as never)
+                        console.warn('drawing upload failed', e)
                       }
                     }}
                     title="Save the drawing to the FS subject dir and copy a freeview command (with -c centered on the annotation) to clipboard."
