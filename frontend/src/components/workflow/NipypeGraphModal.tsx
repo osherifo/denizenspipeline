@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react'
 import dagre from 'dagre'
 
-import { fetchPreprocRunLive } from '../../api/client'
+import { fetchPreprocRunLive, fetchLabelMap } from '../../api/client'
 import { fetchWorkTree } from '../../api/node-outputs'
 import type { NipypeNodeStatus, NipypeStatusBlock } from '../../api/types'
 import { buildNipypeTree, type NipypeTree, type NipypeTreeNode } from './nipype_tree'
@@ -25,7 +25,7 @@ import { partitionLanes, type NipypeLane } from './nipype_lanes'
 import { NodeOutputsPanel } from './NodeOutputsPanel'
 import { NodeListPanel } from './NodeListPanel'
 import { fmriprepDocUrl } from './fmriprep_docs'
-import { inferredName } from './fmriprep_labels'
+import { inferredName, setRuntimeMap } from './fmriprep_labels'
 import { useLabelMode, type LabelMode } from './use_label_mode'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -251,8 +251,18 @@ const nodeTypes = {
 // ── Layout ──────────────────────────────────────────────────────────────
 
 
-const NODE_WIDTH = 150
+const NODE_MIN_WIDTH = 130
 const NODE_HEIGHT = 56
+const CHAR_WIDTH = 6.6
+const NODE_H_PAD = 24
+
+function _estimateNodeWidth(node: NipypeTreeNode): number {
+  const friendly = inferredName(node.label)
+  const primary = friendly ?? node.label
+  const secondary = friendly ? node.label : ''
+  const longest = Math.max(primary.length, secondary.length)
+  return Math.max(NODE_MIN_WIDTH, longest * CHAR_WIDTH + NODE_H_PAD)
+}
 
 
 /** Lane id sentinel for the "show all lanes" selector option. */
@@ -317,26 +327,31 @@ function _layout(
     (e) => visibleIdSet.has(e.source) && visibleIdSet.has(e.target),
   )
 
+  const nodeWidths = new Map<string, number>()
+  for (const nd of visibleNodes) nodeWidths.set(nd.id, _estimateNodeWidth(nd))
+
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 20, ranksep: 40 })
-  for (const n of visibleNodes) g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60 })
+  for (const nd of visibleNodes) g.setNode(nd.id, { width: nodeWidths.get(nd.id)!, height: NODE_HEIGHT })
   for (const e of visibleEdges) g.setEdge(e.source, e.target)
   dagre.layout(g)
 
-  const flowNodes: Node[] = visibleNodes.map((n) => {
-    const pos = g.node(n.id) ?? { x: 0, y: 0 }
+  const flowNodes: Node[] = visibleNodes.map((nd) => {
+    const pos = g.node(nd.id) ?? { x: 0, y: 0 }
+    const w = nodeWidths.get(nd.id)!
     return {
-      id: n.id,
-      type: n.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
-      data: { ...n, _kind: n.kind },
-      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+      id: nd.id,
+      type: nd.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
+      data: { ...nd, _kind: nd.kind },
+      position: { x: pos.x - w / 2, y: pos.y - NODE_HEIGHT / 2 },
     }
   })
   const flowEdges: Edge[] = visibleEdges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
+    type: 'smoothstep',
     style: { stroke: 'var(--border)' },
   }))
   return { nodes: flowNodes, edges: flowEdges }
@@ -607,6 +622,15 @@ function Inner({ runId, isRunning, onClose }: Props) {
     return () => { cancelled = true }
   }, [runId])
 
+  // Load the version-specific label map from the backend so friendly
+  // names stay correct across fmriprep upgrades. Falls back to the
+  // embedded v25 map on failure.
+  useEffect(() => {
+    fetchLabelMap()
+      .then((r) => setRuntimeMap(r.labels))
+      .catch(() => { /* non-fatal — embedded fallback */ })
+  }, [])
+
   const mergedNodes = useMemo<NipypeNodeStatus[]>(() => {
     const live = block?.recent_nodes ?? []
     const seen = new Set(live.map((n) => n.node))
@@ -732,6 +756,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
           nodes={mergedNodes}
           selected={openNode}
           onSelect={setOpenNode}
+          labelMode={labelMode}
         />
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {error && (
