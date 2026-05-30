@@ -1,12 +1,12 @@
 # Group Analysis
 
-!!! note "Phase 3 — bidirectional flow shipped"
-    Phase 3 adds the **stacked-weights PCA** group analyzer and the
-    **`project_to_subspace`** subject-scope analyzer that consumes its
-    output. Together they implement the Deniz 2019 Fig 4 pattern:
-    aggregate weights across subjects → derive a shared semantic basis →
-    project each subject's voxels into that basis. Phase 4 will add the
-    in-browser UI.
+!!! success "All four phases shipped"
+    Group analysis is feature-complete for v1: a CLI to launch group runs,
+    five built-in plugins (`voxelwise_mean`, `significance_count`,
+    `scalar_summary`, `stacked_weights_pca`, `group_summary_html`), a
+    subject-scope `project_to_subspace` analyzer wired into the
+    bidirectional second pass, and an in-browser **Group Runs** view at
+    `#group-runs`.
 
     Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`)
     intentionally do not ship — the built-in analyzers operate on whatever
@@ -147,8 +147,9 @@ Override the location with `output_dir:` in the group config or by setting
 | `group_summary_html` group reporter | ✅ Phase 2 |
 | `stacked_weights_pca` + `project_to_subspace` (bidirectional, Deniz Fig 4) | ✅ Phase 3 |
 | `SemanticSubspace` core type | ✅ Phase 3 |
-| Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`) | ⏳ Phase 2b (TBD) |
-| Group results UI | ✅ Phase 4 |
+| Group Runs view (`#group-runs`) — per-subject status, group-stage timings, HTML report link | ✅ Phase 4 |
+| `GET /api/group-runs` + `GET /api/group-runs/{name}` | ✅ Phase 4 |
+| Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`) | ⏳ Future (TBD) |
 
 ## Built-in group analyzers
 

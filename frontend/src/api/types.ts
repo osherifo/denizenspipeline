@@ -852,3 +852,54 @@ export interface SettingsSnapshot {
 export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
   create_missing?: boolean
 }
+
+// ── Group runs ───────────────────────────────────────────────────
+
+export interface GroupStatusCounts {
+  ok: number
+  warning: number
+  failed: number
+  unknown: number
+}
+
+export interface GroupRunListing {
+  group_name: string
+  run_dir: string
+  subjects: string[]
+  n_subjects: number
+  status_counts: GroupStatusCounts
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  has_html_report: boolean
+}
+
+export interface GroupSubjectStage {
+  name: string
+  status: string
+  elapsed_s: number
+  detail: string
+}
+
+export interface GroupSubjectSummary {
+  experiment: string
+  subject: string
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+}
+
+export interface GroupRunDetail {
+  group_name: string
+  subjects: string[]
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  subject_summaries: GroupSubjectSummary[]
+  group_stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+  run_dir: string
+  html_report?: string
+}
