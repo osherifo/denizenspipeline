@@ -1,0 +1,324 @@
+# fMRIPrep node rename mapping
+# Maps original fMRIPrep / sMRIPrep / SDCFlows workflow + node names
+# to friendlier, descriptive names suitable for non-developer audiences.
+#
+# Scope: full fMRIPrep functional preprocessing run, including the FreeSurfer
+# surface_recon_wf branch. Set target_config.fs_no_reconall=true and skip the
+# surface_recon section if running with --fs-no-reconall.
+#
+# Convention:
+#   - workflows: verb-first ("estimate_", "register_", "resample_", ...)
+#   - reference data / leaves: noun-first ("motion_reference", ...)
+#   - datasinks: "save_*" and "save_report_*"
+#   - nipype mechanics (_wf, inputnode, outputnode) dropped
+
+schema_version: 1
+
+# Pin the upstream versions this map was validated against.
+# Node and workflow names can change across major releases (fMRIPrep moved to
+# the fit/native/apply split in 23.1.x and the per-space ds_volumes_wf pattern
+# around the same time). Bump these when re-validating against a newer release.
+source_versions:
+  fmriprep: 25.1.3
+  # Bundled / pinned dependencies (these track fMRIPrep, not user environment):
+  smriprep: ">=0.15"        # provides anat_preproc_wf and friends
+  sdcflows: ">=2.10"        # provides unwarp_wf (skipped on no-fieldmap configs)
+  niworkflows: ">=1.11"     # provides enhance_and_skullstrip_bold_wf, reportlets
+  nipype: ">=1.8"
+
+target_config:
+  fs_no_reconall: false        # FreeSurfer surface_recon_wf is active
+  fieldmaps: false
+  multi_echo: false
+  cifti_output: false          # set true if --cifti-output is passed
+
+# ---------------------------------------------------------------------------
+# Top-level orchestration
+# ---------------------------------------------------------------------------
+top_level:
+  fmriprep_wf: preprocess_dataset
+  single_subject_wf: preprocess_subject
+  bidssrc: find_subject_files
+  bids_info: read_subject_metadata
+  summary: write_run_summary
+  about: write_version_info
+
+# ---------------------------------------------------------------------------
+# Per-run BOLD workflow instance names
+# ---------------------------------------------------------------------------
+# Each BOLD series gets its own bold_wf instance, named by interpolating the
+# BIDS entities of the source file. Pattern:
+#
+#   bold_<entities>_wf  ->  preprocess_run__<entities>
+#
+# Examples:
+#   bold_ses_01_task_rest_wf            -> preprocess_run__ses-01_task-rest
+#   bold_ses_02_task_movie_run_3_wf     -> preprocess_run__ses-02_task-movie_run-3
+#   bold_task_nback_acq_mb4_run_1_wf    -> preprocess_run__task-nback_acq-mb4_run-1
+#   bold_ses_01_task_rest_echo_2_wf     -> preprocess_run__ses-01_task-rest_echo-2
+#
+# Rules for rewriting:
+#   1. Strip leading "bold_" and trailing "_wf".
+#   2. The remaining tokens are pairs: <entity>_<value>_<entity>_<value>...
+#      Pair them up and rejoin with hyphens, separated by underscores:
+#      "ses_01_task_rest" -> "ses-01_task-rest"
+#   3. Prefix with "preprocess_run__" (double underscore to visually separate
+#      the verb from the BIDS entities).
+#
+# The same per-run instancing applies to subworkflows inside each bold_wf;
+# they inherit the run-level name as a prefix. For example:
+#   bold_fit_ses_01_task_rest_wf -> estimate_bold_transforms__ses-01_task-rest
+#
+# The instance-name renames are pattern-based, not enumerable, so they live
+# here as documentation rather than under a flat mapping.
+per_run_pattern:
+  workflow_prefix: bold_
+  workflow_suffix: _wf
+  friendly_prefix: preprocess_run__
+  entity_separator: "-"          # bids style: ses-01, task-rest
+  pair_separator: "_"            # joins entity-value pairs
+  inherited_by:
+    bold_fit_<entities>_wf: estimate_bold_transforms__<entities>
+    bold_native_<entities>_wf: apply_bold_corrections__<entities>
+    bold_<space>_<entities>_wf: resample_bold_to_space__<space>__<entities>
+    bold_confounds_<entities>_wf: compute_nuisance_regressors__<entities>
+    bold_confs_<entities>_wf: compute_nuisance_regressors__<entities>
+    carpetplot_<entities>_wf: render_carpetplot__<entities>
+
+# ---------------------------------------------------------------------------
+# Anatomical stream (sMRIPrep)
+# ---------------------------------------------------------------------------
+anatomical:
+  anat_preproc_wf: prepare_anatomy
+  anat_template_wf: build_t1w_reference
+  brain_extraction_wf: skull_strip_t1w
+  t1w_dseg: segment_tissues
+  anat_norm_wf: register_t1w_to_mni
+  # Active when FreeSurfer is enabled (no --fs-no-reconall):
+  surface_recon_wf: reconstruct_surfaces
+  anat_ribbon_wf: build_cortical_ribbon
+  refine_brain_mask: refine_brain_mask_with_aseg
+
+# ---------------------------------------------------------------------------
+# Surface reconstruction internals (sMRIPrep surface_recon_wf + anat_ribbon_wf)
+# ---------------------------------------------------------------------------
+# These nodes live inside reconstruct_surfaces and build_cortical_ribbon.
+# Many are MapNodes iterating over hemispheres (lh, rh) -- the 0/1 suffix
+# is the hemi index. A few iterate over surface types (white, pial,
+# midthickness x 2 hemis -> 6 instances, indices 0..5).
+#
+# Source: smriprep.workflows.surfaces, smriprep.interfaces.surf,
+# smriprep.interfaces.freesurfer (validated against v0.15+).
+surface_recon:
+  # --- recon-all stages ---
+  autorecon1: run_recon_all_stage1                # T1w init, skull-strip skipped (handled by ANTs)
+  autorecon_surfs: run_recon_all_surfaces         # _autorecon_surfs{0,1}: lh/rh, white+pial gen
+  autorecon_resume_wf: finalize_recon_all         # parcellation, stats; runs to completion
+  fs_base_inputs: load_freesurfer_subject         # passthrough when surfaces already exist
+  get_surfaces: gather_freesurfer_surfaces        # collect lh/rh white, pial, graymid from SUBJECTS_DIR
+  inu_n4_final: bias_correct_t1w                  # _inu_n4_final{0}: ANTs N4 on T1w for recon-all
+  fsnative2t1w_xfm: estimate_fsnative_to_t1w_xfm  # LTA mapping fsnative -> sMRIPrep T1w
+
+  # --- midthickness surface generation ---
+  # FreeSurfer doesn't produce a "midthickness" by default; sMRIPrep does.
+  midthickness: build_midthickness_surface        # _midthickness{0,1}: lh/rh, halfway between white & pial
+  save_midthickness: save_midthickness_to_subjects_dir  # writes lh/rh.midthickness into SUBJECTS_DIR/surf
+
+  # --- surface format conversion: FreeSurfer .surf -> GIFTI ---
+  fs2gii: convert_surface_to_gifti                # _fs2gii{0..5}: white/pial/midthick x lh/rh -> .surf.gii
+  morphs2gii: convert_morphometrics_to_gifti      # _morphs2gii{0..3}: thickness/curv/sulc -> .shape.gii
+  fix_surfs: fix_gifti_surface_metadata           # _fix_surfs{0..5}: re-center coords, fix metadata
+  apply_surface_affine: align_surface_to_t1w      # _apply_surface_affine{0,1}: lh/rh, apply fsnative->T1w xfm
+
+  # --- sphere / inflated surfaces ---
+  modify_sphere: rescale_sphere_surface           # _modify_sphere{0,1}: lh/rh, normalize sphere radius
+  invert_sulc: invert_sulcal_depth                # _invert_sulc{0,1}: sign-flip so sulci are positive
+
+  # --- cortical ribbon (anat_ribbon_wf) ---
+  # The "distance volume" approach: signed-distance fields from white and pial
+  # surfaces -> threshold and combine to mark ribbon voxels.
+  create_wm_distvol: signed_distance_white         # _create_wm_distvol{0,1}: lh/rh, SDF from white surface
+  create_pial_distvol: signed_distance_pial        # _create_pial_distvol{0,1}: lh/rh, SDF from pial surface
+  make_ribbon: combine_distvols_to_ribbon         # SDFs -> binary GM ribbon mask
+  apply_mask: mask_volume_with_brain_mask         # _apply_mask{0}: AND with brain mask
+
+  # --- TPM resampling (shared with confounds workflow) ---
+  anat2std_tpms: resample_tissue_prob_to_template  # _anat2std_tpms{0,1,2}: GM/WM/CSF -> template
+
+  outputs:
+    subjects_dir: freesurfer_subjects_dir
+    subject_id: freesurfer_subject_id
+    t1w_preproc: t1w_preprocessed
+    t1w_mask: t1w_brain_mask
+    t1w_dseg: tissue_segmentation
+    surfaces: cortical_surfaces                    # white, pial, midthickness, inflated GIFTIs
+    morphometrics: cortical_morphometrics          # thickness, curv, sulc GIFTIs
+    out_aseg: freesurfer_aseg
+    out_aparc: freesurfer_aparc_aseg
+    anat_ribbon: cortical_ribbon_mask
+
+# ---------------------------------------------------------------------------
+# BOLD run -- fit stage (estimate transforms and references; no resampling)
+# ---------------------------------------------------------------------------
+bold_fit:
+  workflow:
+    bold_fit_wf: estimate_bold_transforms
+  subworkflows:
+    raw_boldref_wf: build_bold_reference
+    enhance_and_skullstrip_bold_wf: mask_bold_reference
+    bold_hmc_wf: estimate_head_motion
+    unwarp_wf: estimate_distortion_correction   # SKIPPED if no fieldmaps
+    bold_reg_wf: register_bold_to_t1w
+    fsl_bbr_wf: register_bold_to_t1w_fsl        # active path under --fs-no-reconall
+    bbreg_wf: register_bold_to_t1w_freesurfer   # SKIPPED under --fs-no-reconall
+  outputs:
+    hmc_boldref: motion_reference
+    coreg_boldref: registration_reference
+    bold_mask: bold_brain_mask
+    motion_xfm: per_volume_motion_transforms
+    boldref2anat_xfm: bold_to_anat_transform
+    boldref2fmap_xfm: bold_to_fieldmap_transform  # None without fieldmaps
+    dummy_scans: nonsteady_state_count
+
+# ---------------------------------------------------------------------------
+# BOLD run -- native resampling (STC + HMC + SDC in one interpolation)
+# ---------------------------------------------------------------------------
+bold_native:
+  workflow:
+    bold_native_wf: apply_bold_corrections
+  subworkflows:
+    bold_stc_wf: correct_slice_timing
+    boldbuffer: select_stc_or_raw
+    bold_native_resample: resample_bold_native
+  outputs:
+    bold_native: preproc_bold_native            # matches BIDS desc-preproc_bold (no space entity)
+    metadata: updated_bold_sidecar
+    motion_xfm: per_volume_motion_transforms    # passthrough from fit stage
+    # Multi-echo only (SKIPPED for single-echo):
+    bold_echos: preproc_echo_series             # per-echo preproc BOLD in native grid
+    t2star_map: t2star_map
+
+# ---------------------------------------------------------------------------
+# BOLD run -- volumetric resampling (one instance per output space)
+# ---------------------------------------------------------------------------
+bold_resample:
+  workflow:
+    bold_volumetric_resample_wf: resample_bold_to_space
+  # Instance names: init_bold_volumetric_resample_wf is called multiple times
+  # in init_bold_wf, once per output space. Each call passes a different `name`
+  # argument, producing these instance workflows in the graph:
+  instances:
+    bold_anat_wf: resample_bold_to_anat_space       # T1w / anatomical-space resampling
+    bold_std_wf: resample_bold_to_template_space    # MNI / template-space resampling (one per template)
+  outputs:
+    bold_file: bold_in_target_space
+    resampling_reference: target_space_grid
+
+# ---------------------------------------------------------------------------
+# Surface / CIFTI resampling -- ALL SKIPPED under --fs-no-reconall
+# ---------------------------------------------------------------------------
+surface_cifti:
+  bold_surf_wf: resample_bold_to_surfaces       # SKIPPED
+  bold_fsLR_resampling_wf: resample_bold_to_fsLR # SKIPPED
+  bold_grayords_wf: build_cifti_grayordinates   # SKIPPED
+
+# ---------------------------------------------------------------------------
+# Confounds and QC
+# ---------------------------------------------------------------------------
+confounds_qc:
+  workflows:
+    bold_confs_wf: compute_nuisance_regressors
+    bold_confounds_wf: compute_nuisance_regressors   # alias / instance name used in some graphs
+    carpetplot_wf: render_carpetplot
+    bold_carpetplot_wf: render_carpetplot            # alias
+  # Internal nodes inside compute_nuisance_regressors (bold_confs_wf).
+  # MapNode suffixes (0/1/2) iterate over tissue types -- typically CSF, WM,
+  # combined CSF+WM -- one node instance per tissue. These prep the aCompCor
+  # tissue masks in BOLD space.
+  internal_nodes:
+    # aCompCor mask preparation chain (per-tissue MapNode iterations):
+    acc_msk_tfm: resample_tissue_prob_to_bold     # _acc_msk_tfm{0,1,2}: anat->BOLD warp of TPMs
+    acc_msk_bin: binarize_tissue_prob             # _acc_msk_bin{0,1,2}: threshold TPM to binary mask
+    acc_msk_brain: intersect_with_brain_mask      # _acc_msk_brain{0,1,2}: AND with BOLD brain mask
+    # Other helpers inside the confounds workflow:
+    anat2std_tpms: resample_tissue_prob_to_template  # _anat2std_tpms{0,1,2}: TPMs into standard space
+    fsl_to_lta: convert_fsl_to_lta                # _fsl_to_lta{0,1}: affine format conversion
+    gen_ref: build_resampling_grid                # GenerateSamplingReference
+    mask_anat: mask_anatomy_with_bold_mask        # apply BOLD brain mask to anat
+    subtract_mask: subtract_tissue_masks          # set-difference between tissue masks (drops GM overlap)
+  outputs:
+    confounds_file: nuisance_regressors_table
+    confounds_metadata: nuisance_regressors_sidecar
+    acompcor_masks: anatomical_compcor_masks
+    tcompcor_mask: temporal_compcor_mask
+    crown_mask: brain_boundary_mask
+    rois_report: report_compcor_rois
+
+# ---------------------------------------------------------------------------
+# Datasinks (uniform rule: ds_* -> save_*, ds_report_* -> save_report_*)
+# ---------------------------------------------------------------------------
+datasinks:
+  # Anatomical
+  ds_t1w_preproc: save_t1w_preprocessed
+  ds_t1w_mask: save_t1w_brain_mask
+  ds_t1w_dseg: save_tissue_segmentation
+  ds_t1w_tpms: save_tissue_probabilities
+  ds_std_t1w: save_t1w_in_mni
+  ds_std_mask: save_brain_mask_in_mni
+  ds_t1w_mni_xfm: save_t1w_to_mni_transform
+  ds_report_t1_2_mni: save_report_mni_registration
+  ds_report_seg: save_report_segmentation
+  ds_report_t1w_dseg_mask: save_report_brain_mask_overlay
+
+  # BOLD fit-stage outputs
+  ds_boldref: save_bold_reference
+  ds_boldmask: save_bold_brain_mask
+  ds_hmc_xfm: save_motion_transforms
+  ds_coreg_xfm: save_bold_to_anat_transform
+  ds_report_validation: save_report_bold_validation
+  ds_report_bold_rois: save_report_compcor_rois
+  ds_report_reg: save_report_bold_to_anat
+  ds_report_sdc: save_report_distortion_correction  # SKIPPED without fieldmaps
+
+  # BOLD resampled outputs
+  # Note: in current fMRIPrep, the per-space datasink is wrapped in a workflow
+  # generated by init_ds_volumes_wf, instantiated once per output space with
+  # names like ds_bold_std_wf (template spaces) and ds_bold_t1_wf (anatomical).
+  # The native-space write is wrapped by init_ds_bold_native_wf -> ds_bold_native_wf.
+  ds_bold_native_wf: save_bold_in_native_space   # wraps init_ds_bold_native_wf
+  ds_bold_t1_wf: save_bold_in_anat_space         # wraps init_ds_volumes_wf for T1w
+  ds_bold_std_wf: save_bold_in_template_space    # wraps init_ds_volumes_wf for each template
+  ds_bold_std: save_bold_in_template
+  ds_bold_std_ref: save_bold_reference_in_template
+  ds_bold_mask_std: save_brain_mask_in_template
+
+  # Confounds and QC
+  ds_confounds: save_nuisance_regressors
+  ds_report_bold_conf: save_report_confounds
+  ds_report_carpetplot: save_report_carpetplot
+
+  # Run-level
+  ds_report_summary: save_report_run_summary
+  ds_report_about: save_report_version_info
+
+# ---------------------------------------------------------------------------
+# Naming conventions (for extending this map to subworkflows not listed)
+# ---------------------------------------------------------------------------
+conventions:
+  processing_nodes:
+    prefix_verbs: [estimate, register, resample, compute, apply, build, correct, save]
+    rule: "verb-first; describes what happens"
+  reference_data:
+    examples: [motion_reference, target_space_grid, bold_brain_mask]
+    rule: "noun-first; describes what exists"
+  abbreviations_to_expand:
+    hmc: head_motion
+    stc: slice_timing
+    sdc: distortion_correction
+    bbr: drop (registration method, not a concept worth surfacing)
+    mni: keep (widely recognized)
+    t1w: keep (BIDS-standard)
+  suffixes_to_drop:
+    - _wf       # nipype workflow marker
+    - inputnode # nipype mechanics
+    - outputnode

@@ -1,6 +1,6 @@
 /** Modal showing the live nipype DAG (tree-from-paths) for a Preproc run. */
 
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   ReactFlow,
@@ -10,21 +10,24 @@ import {
   Position,
   Handle,
   useReactFlow,
+  useNodesState,
   type Node,
   type Edge,
   type NodeProps,
 } from '@xyflow/react'
 import dagre from 'dagre'
 
-import { fetchPreprocRunLive } from '../../api/client'
+import { fetchPreprocRunLive, fetchLabelMap } from '../../api/client'
 import { fetchWorkTree } from '../../api/node-outputs'
 import type { NipypeNodeStatus, NipypeStatusBlock } from '../../api/types'
-import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
+import { buildNipypeTree, type NipypeTree, type NipypeTreeNode } from './nipype_tree'
 import { allWorkflowIds, filterVisible } from './nipype_tree_filter'
+import { partitionLanes, type NipypeLane } from './nipype_lanes'
 import { NodeOutputsPanel } from './NodeOutputsPanel'
 import { NodeListPanel } from './NodeListPanel'
 import { fmriprepDocUrl } from './fmriprep_docs'
-import { inferredName } from './fmriprep_labels'
+import { inferredName, setRuntimeMap } from './fmriprep_labels'
+import { useLabelMode, type LabelMode } from './use_label_mode'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -50,6 +53,9 @@ type WorkflowData = NipypeTreeNode & {
    *  expanded, '+' if collapsed-and-hiding-something, nothing
    *  otherwise. */
   isExpanded?: boolean
+  /** Friendly vs raw label rendering. Injected by the modal so the
+   *  node renderer doesn't have to subscribe to the hook. */
+  labelMode?: LabelMode
 }
 
 
@@ -99,6 +105,7 @@ function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
   const elapsed = data.elapsed && data.elapsed > 0
     ? ` · ${data.elapsed.toFixed(1)}s`
     : ''
+  const w = (data as Record<string, unknown>)._allocatedWidth as number | undefined
   return (
     <div
       style={{
@@ -109,15 +116,18 @@ function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
         padding: '4px 8px',
         fontSize: 11,
         fontWeight: 600,
+        width: w ? w - 2 : undefined,
         minWidth: 110,
         textAlign: 'center',
         position: 'relative',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
       }}
       title={`${data.full_node ?? data.id} — ${data.status ?? ''}${elapsed}`}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
       <DocsLinkIcon label={data.label} />
-      <div>{data.label}</div>
+      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.label}</div>
       <div style={{ fontSize: 9, color }}>
         {data.status ?? ''}{elapsed}
       </div>
@@ -139,6 +149,12 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
     : c.cached > 0 ? STATUS_COLOR.cached
     : NEUTRAL
   const friendly = inferredName(data.label)
+  const mode: LabelMode = data.labelMode ?? 'friendly'
+  const primary = mode === 'friendly' && friendly ? friendly : data.label
+  const secondary = mode === 'friendly'
+    ? (friendly ? data.label : null)
+    : (friendly ? `[${friendly}]` : null)
+  const w = (data as Record<string, unknown>)._allocatedWidth as number | undefined
   return (
     <div
       style={{
@@ -149,9 +165,12 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
         padding: '6px 10px',
         fontSize: 11,
         fontWeight: 700,
+        width: w ? w - 2 : undefined,
         minWidth: 130,
         textAlign: 'center',
         position: 'relative',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
         cursor: data.isExpanded || data.hasHidden ? 'pointer' : 'default',
       }}
       title={
@@ -181,22 +200,28 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
           {data.isExpanded ? '−' : '+'}
         </span>
       )}
-      <div>
-        {data.label}
-        {friendly && (
-          <div
-            style={{
-              fontSize: 9,
-              fontWeight: 500,
-              color: 'var(--text-secondary)',
-              marginTop: 1,
-              fontStyle: 'italic',
-            }}
-          >
-            [{friendly}]
-          </div>
-        )}
+      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {primary}
       </div>
+      {secondary && (
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 500,
+            color: 'var(--text-secondary)',
+            marginTop: 1,
+            fontStyle: mode === 'raw' ? 'italic' : 'normal',
+            fontFamily: mode === 'friendly'
+              ? "'JetBrains Mono', monospace"
+              : undefined,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {secondary}
+        </div>
+      )}
       <div
         style={{
           fontSize: 9,
@@ -225,44 +250,167 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
 const WorkflowNode = memo(_WorkflowNodeInner)
 
 
-const nodeTypes = { nipype_leaf: LeafNode, nipype_workflow: WorkflowNode }
+const nodeTypes = {
+  nipype_leaf: LeafNode,
+  nipype_workflow: WorkflowNode,
+}
 
 
 // ── Layout ──────────────────────────────────────────────────────────────
 
 
-const NODE_WIDTH = 150
+const NODE_MIN_WIDTH = 140
 const NODE_HEIGHT = 56
+const CHAR_WIDTH = 7.5
+const NODE_H_PAD = 40
+
+function _estimateNodeWidth(node: NipypeTreeNode): number {
+  const friendly = inferredName(node.label)
+  const primary = friendly ?? node.label
+  const secondary = friendly ? node.label : ''
+  const longest = Math.max(primary.length, secondary.length)
+  return Math.max(NODE_MIN_WIDTH, longest * CHAR_WIDTH + NODE_H_PAD)
+}
 
 
+/** Iterative AABB push-apart collision resolver (ReactFlow pattern).
+ *  Mutates node positions in place. */
+const COLLISION_MARGIN = 20
+const COLLISION_MAX_ITER = 50
+
+function _resolveCollisions(nodes: Node[]): void {
+  for (let iter = 0; iter < COLLISION_MAX_ITER; iter++) {
+    let moved = false
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i]
+        const b = nodes[j]
+        const aw = (a.width ?? NODE_MIN_WIDTH) + COLLISION_MARGIN
+        const ah = (a.height ?? NODE_HEIGHT) + COLLISION_MARGIN
+        const bw = (b.width ?? NODE_MIN_WIDTH) + COLLISION_MARGIN
+        const bh = (b.height ?? NODE_HEIGHT) + COLLISION_MARGIN
+
+        const acx = a.position.x + aw / 2
+        const acy = a.position.y + ah / 2
+        const bcx = b.position.x + bw / 2
+        const bcy = b.position.y + bh / 2
+
+        const dx = bcx - acx
+        const dy = bcy - acy
+        const overlapX = (aw + bw) / 2 - Math.abs(dx)
+        const overlapY = (ah + bh) / 2 - Math.abs(dy)
+
+        if (overlapX > 0.5 && overlapY > 0.5) {
+          moved = true
+          if (overlapX < overlapY) {
+            const shift = overlapX / 2
+            const sign = dx >= 0 ? 1 : -1
+            a.position.x -= shift * sign
+            b.position.x += shift * sign
+          } else {
+            const shift = overlapY / 2
+            const sign = dy >= 0 ? 1 : -1
+            a.position.y -= shift * sign
+            b.position.y += shift * sign
+          }
+        }
+      }
+    }
+    if (!moved) break
+  }
+}
+
+
+/** Lane id sentinel for the "show all lanes" selector option. */
+export const SHOW_ALL_LANES = 'all'
+
+
+/** Walk up the dotted-path hierarchy and add every ancestor id (down
+ *  to but excluding the root segment, since the root IS the top).
+ *  Used to keep `fmriprep_wf` and `single_subject_*_wf` always
+ *  visible at the top of the canvas even when the user has focused
+ *  on a single run/lane below them. */
+function _addAncestors(id: string, out: Set<string>): void {
+  const segs = id.split('.')
+  for (let i = 1; i < segs.length; i++) {
+    out.add(segs.slice(0, i).join('.'))
+  }
+}
+
+
+/** Lay out a filtered tree as a single dagre TB graph. When
+ *  `selectedLane` is set to a real lane id, only that lane's
+ *  members (plus the always-visible ancestor chain) are kept. When
+ *  it's `SHOW_ALL_LANES`, every visible node is laid out together.
+ *
+ *  No ReactFlow parent/child group nodes are used — the lane
+ *  selector handles separation by FILTERING rather than visually
+ *  wrapping.
+ */
 function _layout(
-  nodes: NipypeTreeNode[],
-  edges: { id: string; source: string; target: string }[],
+  tree: NipypeTree,
+  lanes: NipypeLane[],
+  selectedLane: string,
 ): { nodes: Node[]; edges: Edge[] } {
+  if (tree.nodes.length === 0) return { nodes: [], edges: [] }
+
+  const focusLanes = selectedLane === SHOW_ALL_LANES
+    ? lanes
+    : lanes.filter((l) => l.id === selectedLane)
+
+  // Build the visible-id set: every focus-lane member + every
+  // ancestor up the dotted path (fmriprep_wf, single_subject_*_wf).
+  const includeIds = new Set<string>()
+  for (const lane of focusLanes) {
+    for (const id of lane.memberIds) {
+      includeIds.add(id)
+      _addAncestors(id, includeIds)
+    }
+  }
+  // If the focus is "all" but no lanes exist (empty / non-fmriprep
+  // edge), fall back to every visible node so we still render
+  // something.
+  if (includeIds.size === 0) {
+    for (const n of tree.nodes) includeIds.add(n.id)
+  }
+
+  const nodeById = new Map(tree.nodes.map((n) => [n.id, n]))
+  const visibleNodes = Array.from(includeIds)
+    .map((id) => nodeById.get(id))
+    .filter((n): n is NipypeTreeNode => !!n)
+  const visibleIdSet = new Set(visibleNodes.map((n) => n.id))
+  const visibleEdges = tree.edges.filter(
+    (e) => visibleIdSet.has(e.source) && visibleIdSet.has(e.target),
+  )
+
+  const nodeWidths = new Map<string, number>()
+  for (const nd of visibleNodes) nodeWidths.set(nd.id, _estimateNodeWidth(nd))
+
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 18, ranksep: 36 })
-  for (const n of nodes) {
-    g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
-  }
-  for (const e of edges) {
-    g.setEdge(e.source, e.target)
-  }
+  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60 })
+  for (const nd of visibleNodes) g.setNode(nd.id, { width: nodeWidths.get(nd.id)!, height: NODE_HEIGHT })
+  for (const e of visibleEdges) g.setEdge(e.source, e.target)
   dagre.layout(g)
 
-  const flowNodes: Node[] = nodes.map((n) => {
-    const pos = g.node(n.id) ?? { x: 0, y: 0 }
+  const flowNodes: Node[] = visibleNodes.map((nd) => {
+    const pos = g.node(nd.id) ?? { x: 0, y: 0 }
+    const w = nodeWidths.get(nd.id)!
     return {
-      id: n.id,
-      type: n.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
-      data: { ...n, _kind: n.kind },
-      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+      id: nd.id,
+      type: nd.kind === 'leaf' ? 'nipype_leaf' : 'nipype_workflow',
+      data: { ...nd, _kind: nd.kind, _allocatedWidth: w },
+      position: { x: pos.x - w / 2, y: pos.y - NODE_HEIGHT / 2 },
+      width: w,
+      height: NODE_HEIGHT,
     }
   })
-  const flowEdges: Edge[] = edges.map((e) => ({
+
+  const flowEdges: Edge[] = visibleEdges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
+    type: 'smoothstep',
     style: { stroke: 'var(--border)' },
   }))
   return { nodes: flowNodes, edges: flowEdges }
@@ -321,6 +469,127 @@ const closeBtn: CSSProperties = {
 }
 
 
+function _segmentBtn(active: boolean): CSSProperties {
+  return {
+    padding: '3px 10px',
+    fontSize: 11,
+    fontWeight: active ? 700 : 500,
+    border: 'none',
+    background: active ? 'var(--accent-cyan)' : 'transparent',
+    color: active ? 'var(--bg-primary)' : 'var(--text-secondary)',
+    cursor: 'pointer',
+    transition: 'background 0.12s ease, color 0.12s ease',
+  }
+}
+
+
+function _laneChipStyle(active: boolean): CSSProperties {
+  return {
+    padding: '4px 10px',
+    fontSize: 11,
+    fontWeight: active ? 700 : 500,
+    border: active ? '1px solid var(--accent-cyan)' : '1px solid var(--border)',
+    background: active ? 'rgba(0, 229, 255, 0.12)' : 'var(--bg-secondary)',
+    color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+    borderRadius: 999,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
+  }
+}
+
+
+function LaneSelector({
+  lanes,
+  selected,
+  onSelect,
+}: {
+  lanes: NipypeLane[]
+  selected: string
+  onSelect: (id: string) => void
+}) {
+  if (lanes.length <= 1) return null
+  return (
+    <div
+      role="tablist"
+      aria-label="Lane selector"
+      style={{
+        display: 'flex', gap: 6, flexWrap: 'wrap',
+        padding: '6px 0',
+        borderBottom: '1px solid var(--border)',
+        marginBottom: 6,
+      }}
+    >
+      <button
+        role="tab"
+        aria-selected={selected === SHOW_ALL_LANES}
+        style={_laneChipStyle(selected === SHOW_ALL_LANES)}
+        onClick={() => onSelect(SHOW_ALL_LANES)}
+        title="Show every lane in one canvas"
+      >
+        All lanes
+      </button>
+      {lanes.map((l) => (
+        <button
+          key={l.id}
+          role="tab"
+          aria-selected={selected === l.id}
+          style={_laneChipStyle(selected === l.id)}
+          onClick={() => onSelect(l.id)}
+          title={`Focus on ${l.title}`}
+        >
+          {l.title}
+          {l.counts.total > 0 && (
+            <span style={{
+              marginLeft: 6,
+              fontSize: 9,
+              opacity: 0.7,
+              fontWeight: 600,
+            }}>
+              {l.counts.total}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+
+function LabelModeToggle({ mode, onChange }: { mode: LabelMode; onChange: (m: LabelMode) => void }) {
+  return (
+    <span
+      role="group"
+      aria-label="Workflow label mode"
+      style={{
+        display: 'inline-flex',
+        border: '1px solid var(--border)',
+        borderRadius: 4,
+        overflow: 'hidden',
+        background: 'var(--bg-secondary)',
+      }}
+    >
+      <button
+        style={_segmentBtn(mode === 'friendly')}
+        onClick={() => onChange('friendly')}
+        title="Show conceptual fmriprep stage names as the primary label"
+        aria-pressed={mode === 'friendly'}
+      >
+        Friendly
+      </button>
+      <button
+        style={_segmentBtn(mode === 'raw')}
+        onClick={() => onChange('raw')}
+        title="Show raw nipype workflow ids as the primary label"
+        aria-pressed={mode === 'raw'}
+      >
+        Raw
+      </button>
+    </span>
+  )
+}
+
+
 interface Props {
   runId: string
   isRunning: boolean
@@ -357,14 +626,48 @@ function Inner({ runId, isRunning, onClose }: Props) {
   // DEFAULT_VISIBLE_DEPTH. Click on a workflow node toggles
   // membership.
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [labelMode, setLabelMode] = useLabelMode()
+  // Lane focus: SHOW_ALL_LANES = render every lane (the default
+  // overview), else a specific lane id (e.g. 'lane:run-1') filters
+  // the canvas to that lane + the ancestor chain.
+  const [selectedLane, setSelectedLane] = useState<string>(SHOW_ALL_LANES)
+  const [sidebarWidth, setSidebarWidth] = useState(280)
   const rf = useReactFlow()
 
-  // Whenever the user picks a node (via list or graph click), pan + zoom
-  // the canvas to centre that node. fitView with a single-node selector
-  // does both at once and animates smoothly.
+  const handlePanTo = (nodeId: string) => {
+    setTimeout(() => {
+      try {
+        const node = rf.getNode(nodeId)
+        if (!node) return
+        const zoom = rf.getZoom()
+        rf.setCenter(
+          node.position.x + (node.measured?.width ?? node.width ?? 150) / 2,
+          node.position.y + (node.measured?.height ?? node.height ?? 56) / 2,
+          { zoom, duration: 300 },
+        )
+      } catch { /* ignore */ }
+    }, 60)
+  }
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (ev: MouseEvent) => {
+      setSidebarWidth(Math.max(160, Math.min(600, startW + ev.clientX - startX)))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  // When the user selects a leaf (via list or graph click), pan to
+  // centre that node without changing zoom.
   useEffect(() => {
     if (!openNode) return
-    // Defer one tick so the layout has the node by the time we pan.
     const t = setTimeout(() => {
       try {
         rf.fitView({
@@ -377,6 +680,28 @@ function Inner({ runId, isRunning, onClose }: Props) {
     }, 50)
     return () => clearTimeout(t)
   }, [openNode, rf])
+
+  // When a workflow node is expanded/collapsed, keep the viewport
+  // centred on the node the user clicked instead of refitting.
+  const lastExpandToggle = useRef<string | null>(null)
+  useEffect(() => {
+    const target = lastExpandToggle.current
+    if (!target) return
+    lastExpandToggle.current = null
+    const t = setTimeout(() => {
+      try {
+        const node = rf.getNode(target)
+        if (!node) return
+        const zoom = rf.getZoom()
+        rf.setCenter(
+          node.position.x + (node.measured?.width ?? 150) / 2,
+          node.position.y + (node.measured?.height ?? 56) / 2,
+          { zoom, duration: 200 },
+        )
+      } catch { /* ignore */ }
+    }, 50)
+    return () => clearTimeout(t)
+  }, [expanded, rf])
 
   useEffect(() => {
     let cancelled = false
@@ -406,6 +731,15 @@ function Inner({ runId, isRunning, onClose }: Props) {
       .catch(() => { /* non-fatal */ })
     return () => { cancelled = true }
   }, [runId])
+
+  // Load the version-specific label map from the backend so friendly
+  // names stay correct across fmriprep upgrades. Falls back to the
+  // embedded v25 map on failure.
+  useEffect(() => {
+    fetchLabelMap()
+      .then((r) => setRuntimeMap(r.labels))
+      .catch(() => { /* non-fatal — embedded fallback */ })
+  }, [])
 
   const mergedNodes = useMemo<NipypeNodeStatus[]>(() => {
     const live = block?.recent_nodes ?? []
@@ -437,10 +771,70 @@ function Inner({ runId, isRunning, onClose }: Props) {
     return buildNipypeTree(mergedNodes)
   }, [mergedNodes])
 
+  // Compute lanes once per filtered-tree change. The selector pulls
+  // its options from this list, and `_layout` filters by the active
+  // lane id.
+  const filterResult = useMemo(() => {
+    if (!fullTree) return null
+    return filterVisible(fullTree, DEFAULT_VISIBLE_DEPTH, expanded)
+  }, [fullTree, expanded])
+
+  const lanes = useMemo<NipypeLane[]>(() => {
+    if (!filterResult) return []
+    return partitionLanes(filterResult.tree)
+  }, [filterResult])
+
+  // If the currently-selected lane no longer exists (e.g. expansion
+  // changed which lanes are populated, or we switched runs and the
+  // stored id is stale), reset to the overview.
+  useEffect(() => {
+    if (selectedLane === SHOW_ALL_LANES) return
+    if (!lanes.some((l) => l.id === selectedLane)) setSelectedLane(SHOW_ALL_LANES)
+  }, [lanes, selectedLane])
+
+  const prevPositions = useRef<Map<string, { x: number; y: number }>>(new Map())
+
   const flow = useMemo(() => {
-    if (!fullTree) return { nodes: [] as Node[], edges: [] as Edge[] }
-    const { tree, hasHidden } = filterVisible(fullTree, DEFAULT_VISIBLE_DEPTH, expanded)
-    const laid = _layout(tree.nodes, tree.edges)
+    if (!filterResult) return { nodes: [] as Node[], edges: [] as Edge[] }
+    const laid = _layout(filterResult.tree, lanes, selectedLane)
+
+    // Stabilize: nodes that existed in the previous layout keep their
+    // x-position within the same rank so expanding a single workflow
+    // doesn't rearrange unrelated siblings.
+    const prev = prevPositions.current
+    if (prev.size > 0) {
+      // Group new layout nodes by rank (y)
+      const byRank = new Map<number, typeof laid.nodes>()
+      for (const n of laid.nodes) {
+        const list = byRank.get(n.position.y) ?? []
+        list.push(n)
+        byRank.set(n.position.y, list)
+      }
+      for (const [, rankNodes] of byRank) {
+        // Only stabilize ranks where every node existed before.
+        // Ranks with new nodes get dagre's layout as-is to avoid
+        // swapping a returning node into a position that overlaps
+        // with a newly inserted child.
+        const hasNewNodes = rankNodes.some((n) => !prev.has(n.id))
+        if (hasNewNodes) continue
+        const returning = rankNodes
+        if (returning.length < 2) continue
+        const newXs = returning.map((n) => n.position.x).sort((a, b) => a - b)
+        returning.sort((a, b) => prev.get(a.id)!.x - prev.get(b.id)!.x)
+        for (let i = 0; i < returning.length; i++) {
+          returning[i].position.x = newXs[i]
+        }
+      }
+    }
+
+    // Resolve any overlaps introduced by stabilization or dagre.
+    _resolveCollisions(laid.nodes)
+
+    // Save positions for next render
+    const next = new Map<string, { x: number; y: number }>()
+    for (const n of laid.nodes) next.set(n.id, { x: n.position.x, y: n.position.y })
+    prevPositions.current = next
+
     // Inject hasHidden + isExpanded into the workflow nodes' data
     // payload so the WorkflowNode renderer can show the +/− glyph
     // without re-deriving the state.
@@ -450,13 +844,33 @@ function Inner({ runId, isRunning, onClose }: Props) {
         ...n,
         data: {
           ...(n.data as object),
-          hasHidden: hasHidden.get(n.id) ?? false,
+          hasHidden: filterResult.hasHidden.get(n.id) ?? false,
           isExpanded: expanded.has(n.id),
+          labelMode,
         },
       }
     })
     return { nodes, edges: laid.edges }
-  }, [fullTree, expanded])
+  }, [filterResult, lanes, selectedLane, expanded, labelMode])
+
+  // useNodesState makes dragging work — it tracks position changes
+  // from user drags while still accepting layout-computed positions
+  // when the graph changes (expand/collapse/new data).
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState(flow.nodes)
+  useEffect(() => { setRfNodes(flow.nodes) }, [flow.nodes, setRfNodes])
+
+  // Initial fit: fit the whole graph once when nodes first appear,
+  // but not on subsequent layout changes (expand/collapse).
+  const didInitialFit = useRef(false)
+  useEffect(() => {
+    if (rfNodes.length === 0 || didInitialFit.current) return
+    didInitialFit.current = true
+    const t = setTimeout(() => {
+      try { rf.fitView({ duration: 300, padding: 0.2 }) }
+      catch { /* ignore */ }
+    }, 50)
+    return () => clearTimeout(t)
+  }, [flow.nodes.length, rf])
 
   return (
     <>
@@ -479,7 +893,8 @@ function Inner({ runId, isRunning, onClose }: Props) {
           </span>
         )}
         {fullTree && (
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            <LabelModeToggle mode={labelMode} onChange={setLabelMode} />
             <button
               style={toolBtn}
               onClick={() => setExpanded(new Set(allWorkflowIds(fullTree)))}
@@ -499,6 +914,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
         )}
         <button style={closeBtn} onClick={onClose}>Close</button>
       </div>
+      <LaneSelector lanes={lanes} selected={selectedLane} onSelect={setSelectedLane} />
       <div style={{
         flex: 1, minHeight: 0, display: 'flex',
         border: '1px solid var(--border)',
@@ -509,6 +925,10 @@ function Inner({ runId, isRunning, onClose }: Props) {
           nodes={mergedNodes}
           selected={openNode}
           onSelect={setOpenNode}
+          onPanTo={handlePanTo}
+          labelMode={labelMode}
+          width={sidebarWidth}
+          onResizeStart={handleResizeStart}
         />
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {error && (
@@ -521,13 +941,20 @@ function Inner({ runId, isRunning, onClose }: Props) {
             No nipype nodes parsed yet — log lines may not have arrived.
           </div>
         )}
-        {flow.nodes.length > 0 && (
+        {rfNodes.length > 0 && (
           <ReactFlow
-            nodes={flow.nodes}
+            nodes={rfNodes}
             edges={flow.edges}
             nodeTypes={nodeTypes}
-            fitView
-            nodesDraggable={false}
+            onNodesChange={onNodesChange}
+            onNodeDragStop={() => {
+              setRfNodes((prev) => {
+                const copy = prev.map((n) => ({ ...n, position: { ...n.position } }))
+                _resolveCollisions(copy)
+                return copy
+              })
+            }}
+            nodesDraggable={true}
             nodesConnectable={false}
             elementsSelectable={true}
             onNodeClick={(_e, n) => {
@@ -546,6 +973,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
                 // below AND the node isn't currently expanded (the
                 // user's click would have no visible effect either way).
                 if (!data.hasHidden && !data.isExpanded) return
+                lastExpandToggle.current = n.id
                 setExpanded((prev) => {
                   const next = new Set(prev)
                   if (next.has(n.id)) next.delete(n.id)

@@ -507,6 +507,14 @@ export async function deletePreprocRun(runId: string): Promise<{ deleted: boolea
   })
 }
 
+// ── Label Maps ──
+
+export async function fetchLabelMap(
+  version: string = '25',
+): Promise<{ version: string; labels: Record<string, string> }> {
+  return json(`${BASE}/preproc/label-map?version=${encodeURIComponent(version)}`)
+}
+
 // ── Error Knowledge Base ──
 
 export async function fetchErrors(opts?: {
