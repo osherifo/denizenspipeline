@@ -76,20 +76,32 @@ class ProjectToFsaverageAnalyzer:
     }
 
     def analyze(self, context, config: dict) -> None:
+        # The whole body is wrapped: a failure here must NOT take down the
+        # analyze stage (which would also skip the report stage). The
+        # analyzer is best-effort — its absence is recoverable downstream.
+        try:
+            self._do_analyze(context, config)
+        except _SkipFsaverage as exc:
+            logger.warning("project_to_fsaverage: skipped (%s)", exc)
+        except Exception:
+            logger.warning(
+                "project_to_fsaverage: unexpected error — skipping. "
+                "(See the traceback below; the report stage will still run.)",
+                exc_info=True)
+
+    def _do_analyze(self, context, config: dict) -> None:
         acfg = _my_cfg(config, self.name)
         input_key = acfg.get("input_key", "result.scores")
         output_key = acfg.get("output_key", "analysis.fsaverage_scores")
 
         scores = _resolve_subject_key(context, input_key)
         if scores is None:
-            logger.warning(
-                "project_to_fsaverage: '%s' not in context — skipping", input_key)
-            return
+            raise _SkipFsaverage(
+                f"'{input_key}' not in context — nothing to project")
         scores = np.asarray(scores).astype(np.float32)
 
         if not context.has("responses"):
-            logger.warning("project_to_fsaverage: 'responses' missing — skipping")
-            return
+            raise _SkipFsaverage("'responses' missing from context")
         resp_data = context.get("responses", ResponseData)
         surface = resp_data.surface
         transform = resp_data.transform
@@ -97,17 +109,11 @@ class ProjectToFsaverageAnalyzer:
         fs_subject = acfg.get("freesurfer_subject") or surface
         subjects_dir = acfg.get("subjects_dir") or os.environ.get("SUBJECTS_DIR")
 
-        try:
-            fsaverage = _project_to_fsaverage(
-                scores, surface=surface, transform=transform,
-                fs_subject=fs_subject, subjects_dir=subjects_dir,
-                resp_mask=resp_data.mask,
-            )
-        except _SkipFsaverage as exc:
-            logger.warning(
-                "project_to_fsaverage: skipped (%s, surface=%s, transform=%s, "
-                "fs_subject=%s)", exc, surface, transform, fs_subject)
-            return
+        fsaverage = _project_to_fsaverage(
+            scores, surface=surface, transform=transform,
+            fs_subject=fs_subject, subjects_dir=subjects_dir,
+            resp_mask=resp_data.mask,
+        )
 
         context.put(output_key, fsaverage)
         logger.info(
@@ -182,7 +188,9 @@ def _project_to_fsaverage(scores: np.ndarray, *, surface: str, transform: str,
     # Step 2: volume → subject native vertices.
     mapper = cortex.get_mapper(surface, transform, "nearest")
     vertex = mapper(vol)
-    data_lh, data_rh = vertex.data  # tuple of (n_lh,), (n_rh,)
+    # Vertex.data is a flat (n_lh + n_rh,) array; .left and .right slice it.
+    data_lh = np.asarray(vertex.left)
+    data_rh = np.asarray(vertex.right)
 
     # Step 3: subject-native vertices → fsaverage vertices via FreeSurfer.
     if not subjects_dir:
