@@ -1,4 +1,4 @@
-"""HTTP route tests for the Group Runs view (Phase 4 backend)."""
+"""HTTP route tests for the Group Runs view."""
 
 from __future__ import annotations
 
@@ -10,16 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-def _make_group_run(group_root: Path, name: str,
-                    subjects: list[tuple[str, str]],
-                    write_html: bool = False) -> Path:
-    """Materialise a fake group_summary.json under group_root/<name>/.
-
-    `subjects` is a list of (subject_id, status) pairs — status drives the
-    stage record that gets written.
-    """
-    rd = group_root / name
-    rd.mkdir(parents=True)
+def _summary_payload(name: str, subjects: list[tuple[str, str]],
+                     run_id: str = "") -> dict:
+    """Build a ``GroupRunSummary``-shaped dict."""
     now = datetime.now(timezone.utc).isoformat()
     subject_summaries = []
     for sid, status in subjects:
@@ -47,33 +40,60 @@ def _make_group_run(group_root: Path, name: str,
              "elapsed_s": 0.1, "detail": ""}
         ],
         "config_snapshot": {"group": name},
+        "run_id": run_id,
     }
-    (rd / "group_summary.json").write_text(json.dumps(data))
+    return data
+
+
+def _write_run(group_dir: Path, run_id: str, name: str,
+               subjects: list[tuple[str, str]],
+               write_html: bool = False, write_log: bool = False) -> Path:
+    """New layout: <group_dir>/<run_id>/group_summary.json + optionally log/html."""
+    rd = group_dir / run_id
+    rd.mkdir(parents=True)
+    (rd / "group_summary.json").write_text(
+        json.dumps(_summary_payload(name, subjects, run_id=run_id)))
     if write_html:
         (rd / "group_summary.html").write_text("<html>ok</html>")
+    if write_log:
+        (rd / "group.log").write_text("INFO group log\n")
     return rd
+
+
+def _write_legacy(group_dir: Path, name: str,
+                  subjects: list[tuple[str, str]]) -> Path:
+    """Legacy layout: <group_dir>/group_summary.json (no timestamped subdir)."""
+    group_dir.mkdir(parents=True, exist_ok=True)
+    (group_dir / "group_summary.json").write_text(
+        json.dumps(_summary_payload(name, subjects)))
+    return group_dir
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """A TestClient whose $FMRIFLOW_HOME points at a tmpdir.
+    """TestClient whose $FMRIFLOW_HOME points at a tmpdir.
 
-    We seed two group runs and let the routes scan them via
-    ``paths.group_runs_root()``.
+    Seeds:
+    - alpha:  two timestamped runs (20260530T100000Z, 20260530T120000Z)
+    - beta:   one timestamped run + a legacy summary
+    - gamma:  legacy layout only
     """
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "fhome"))
-    # Force a fresh import path cache so paths.home() rereads the env.
     group_root = tmp_path / "fhome" / "group_runs"
     group_root.mkdir(parents=True)
 
-    _make_group_run(group_root, "alpha",
-                    subjects=[("S1", "ok"), ("S2", "ok")],
-                    write_html=True)
-    _make_group_run(group_root, "beta",
-                    subjects=[("S1", "ok"), ("S2", "failed"), ("S3", "ok")])
+    _write_run(group_root / "alpha", "20260530T100000Z", "alpha",
+               [("S1", "ok"), ("S2", "ok")],
+               write_html=True, write_log=True)
+    _write_run(group_root / "alpha", "20260530T120000Z", "alpha",
+               [("S1", "ok"), ("S2", "ok")])
+    _write_run(group_root / "beta", "20260530T130000Z", "beta",
+               [("S1", "ok"), ("S2", "failed"), ("S3", "ok")])
+    _write_legacy(group_root / "beta", "beta",
+                  [("S1", "ok"), ("S2", "warning")])
+    _write_legacy(group_root / "gamma", "gamma",
+                  [("S1", "ok")])
 
-    # Don't spin up the full app — it pulls in form-data parsing etc.
-    # Just mount the one router we need under /api against a bare FastAPI.
     from fastapi import FastAPI
     from fmriflow.server.routes.group import router as group_router
     app = FastAPI()
@@ -81,44 +101,78 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
-def test_list_group_runs(client):
-    response = client.get("/api/group-runs")
-    assert response.status_code == 200
-    runs = response.json()
-    assert len(runs) == 2
-    names = {r["group_name"] for r in runs}
-    assert names == {"alpha", "beta"}
+def test_list_includes_new_and_legacy_runs(client):
+    runs = client.get("/api/group-runs").json()
+    # Two for alpha + two for beta (timestamped + legacy) + one for gamma = 5
+    assert len(runs) == 5
 
-    alpha = next(r for r in runs if r["group_name"] == "alpha")
-    assert alpha["n_subjects"] == 2
-    assert alpha["status_counts"]["ok"] == 2
-    assert alpha["status_counts"]["failed"] == 0
-    assert alpha["has_html_report"] is True
+    names = [r["group_name"] for r in runs]
+    assert names.count("alpha") == 2
+    assert names.count("beta") == 2
+    assert names.count("gamma") == 1
 
-    beta = next(r for r in runs if r["group_name"] == "beta")
-    assert beta["n_subjects"] == 3
-    assert beta["status_counts"]["ok"] == 2
-    assert beta["status_counts"]["failed"] == 1
-    assert beta["has_html_report"] is False
+    # New-layout runs carry their run_id; legacy runs have empty run_id.
+    alpha_runs = [r for r in runs if r["group_name"] == "alpha"]
+    assert sorted(r["run_id"] for r in alpha_runs) == [
+        "20260530T100000Z", "20260530T120000Z",
+    ]
+    gamma = next(r for r in runs if r["group_name"] == "gamma")
+    assert gamma["run_id"] == ""
 
 
-def test_get_group_run_detail(client):
-    response = client.get("/api/group-runs/alpha")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["group_name"] == "alpha"
-    assert data["subjects"] == ["S1", "S2"]
-    assert len(data["subject_summaries"]) == 2
-    assert "run_dir" in data
-    assert data.get("html_report") == "group_summary.html"
+def test_list_advertises_html_and_log(client):
+    runs = client.get("/api/group-runs").json()
+    a100 = next(r for r in runs
+                if r["group_name"] == "alpha"
+                and r["run_id"] == "20260530T100000Z")
+    assert a100["has_html_report"] is True
+    assert a100["has_log"] is True
+    a120 = next(r for r in runs
+                if r["group_name"] == "alpha"
+                and r["run_id"] == "20260530T120000Z")
+    assert a120["has_html_report"] is False
+    assert a120["has_log"] is False
 
 
-def test_get_group_run_missing(client):
-    response = client.get("/api/group-runs/nope")
-    assert response.status_code == 404
+def test_list_status_counts(client):
+    runs = client.get("/api/group-runs").json()
+    beta_new = next(r for r in runs
+                    if r["group_name"] == "beta"
+                    and r["run_id"] == "20260530T130000Z")
+    assert beta_new["status_counts"]["ok"] == 2
+    assert beta_new["status_counts"]["failed"] == 1
 
 
-def test_get_group_run_rejects_path_traversal(client):
-    response = client.get("/api/group-runs/..%2Fetc")
-    # Path-traversal lookups must not escape group_runs_root.
-    assert response.status_code in (400, 404)
+def test_get_new_layout_detail(client):
+    r = client.get("/api/group-runs/alpha/20260530T100000Z")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["group_name"] == "alpha"
+    assert d.get("html_report") == "group_summary.html"
+    assert d.get("group_log") == "group.log"
+    assert d["run_id"] == "20260530T100000Z"
+
+
+def test_get_legacy_layout_detail(client):
+    r = client.get("/api/group-runs/gamma")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["group_name"] == "gamma"
+    # Legacy summary has no run_id field set.
+    assert d.get("run_id", "") == ""
+
+
+def test_get_missing_run_id_404(client):
+    assert client.get("/api/group-runs/alpha/does-not-exist").status_code == 404
+
+
+def test_get_missing_group_legacy_404(client):
+    assert client.get("/api/group-runs/nope").status_code == 404
+
+
+def test_path_traversal_rejected(client):
+    # ".." in either segment must not escape the canonical root.
+    assert client.get("/api/group-runs/..%2Fetc").status_code in (400, 404)
+    # URL-encoded ".." gets through path-normalisation as a real segment.
+    assert client.get("/api/group-runs/alpha/%2E%2E").status_code in (400, 404)
+    assert client.get("/api/group-runs/.hidden/x").status_code in (400, 404)

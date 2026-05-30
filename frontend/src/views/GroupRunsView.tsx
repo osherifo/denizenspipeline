@@ -156,7 +156,9 @@ function RunListItem({
       <td style={tdStyle}>
         <div style={{ fontWeight: 600 }}>{run.group_name}</div>
         <div style={monoSmall}>
-          {run.n_subjects} subjects · {formatTimestamp(run.started_at)}
+          {run.run_id ? <code>{run.run_id}</code> : <em>legacy</em>}
+          {' · '}{run.n_subjects} subjects
+          {' · '}{formatTimestamp(run.started_at)}
         </div>
       </td>
       <td style={{ ...tdStyle, textAlign: 'right' }}>
@@ -235,11 +237,25 @@ function StagesTable({ stages }: { stages: GroupSubjectStage[] }) {
   )
 }
 
+const linkBtn: CSSProperties = {
+  color: 'var(--accent-cyan)',
+  fontSize: 12,
+  textDecoration: 'none',
+  border: '1px solid rgba(0, 229, 255, 0.25)',
+  padding: '4px 10px',
+  borderRadius: 4,
+}
+
 function DetailPanel({ detail }: { detail: GroupRunDetail }) {
   return (
     <div style={cardStyle}>
       <div style={{ padding: '16px 18px' }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>{detail.group_name}</div>
+        {detail.run_id && (
+          <div style={{ ...monoSmall, marginTop: 2 }}>
+            <code>{detail.run_id}</code>
+          </div>
+        )}
         <div style={{ ...monoSmall, marginTop: 4 }}>
           {detail.subjects.length} subjects · started{' '}
           {formatTimestamp(detail.started_at)} · {formatElapsed(detail.total_elapsed_s)} total
@@ -247,25 +263,28 @@ function DetailPanel({ detail }: { detail: GroupRunDetail }) {
         <div style={{ ...monoSmall, marginTop: 4 }}>
           <code>{detail.run_dir}</code>
         </div>
-        {detail.html_report && (
-          <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+          {detail.html_report && (
             <a
               href={`file://${detail.run_dir}/${detail.html_report}`}
               target="_blank"
               rel="noreferrer"
-              style={{
-                color: 'var(--accent-cyan)',
-                fontSize: 12,
-                textDecoration: 'none',
-                border: '1px solid rgba(0, 229, 255, 0.25)',
-                padding: '4px 10px',
-                borderRadius: 4,
-              }}
+              style={linkBtn}
             >
               Open HTML report ↗
             </a>
-          </div>
-        )}
+          )}
+          {detail.group_log && (
+            <a
+              href={`file://${detail.run_dir}/${detail.group_log}`}
+              target="_blank"
+              rel="noreferrer"
+              style={linkBtn}
+            >
+              Open group.log ↗
+            </a>
+          )}
+        </div>
       </div>
       <div style={sectionTitle}>Subjects</div>
       <SubjectsTable detail={detail} />
@@ -279,7 +298,7 @@ function DetailPanel({ detail }: { detail: GroupRunDetail }) {
 
 export function GroupRunsView() {
   const {
-    runs, selected, selectedName, loading, loadingDetail, error,
+    runs, selected, selectedKey, loading, loadingDetail, error,
     loadRuns, selectRun,
   } = useGroupRunsStore()
 
@@ -325,14 +344,17 @@ export function GroupRunsView() {
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r) => (
-                  <RunListItem
-                    key={r.group_name}
-                    run={r}
-                    selected={selectedName === r.group_name}
-                    onClick={() => selectRun(r.group_name)}
-                  />
-                ))}
+                {runs.map((r) => {
+                  const key = r.run_id ? `${r.group_name}/${r.run_id}` : r.group_name
+                  return (
+                    <RunListItem
+                      key={key}
+                      run={r}
+                      selected={selectedKey === key}
+                      onClick={() => selectRun(r.group_name, r.run_id)}
+                    />
+                  )
+                })}
               </tbody>
             </table>
           )}

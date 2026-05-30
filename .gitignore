@@ -17,3 +17,4 @@ run_fmriprep.sh
 fmriflow/plugins/response_loaders/study_hdf.py
 heuristics/generic_heuristic.py
 heuristics/generic_heuristic.yaml
+testing/

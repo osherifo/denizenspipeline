@@ -23,6 +23,7 @@ from fmriflow.core import paths
 from fmriflow.core.group_types import (
     GroupResult, SubjectResult,
 )
+from fmriflow.core.log_capture import capture_logs_to
 from fmriflow.core.run_summary import GroupRunSummary, RunSummary, StageRecord
 from fmriflow.exceptions import ConfigError
 from fmriflow.orchestrator import PipelineOrchestrator
@@ -61,13 +62,17 @@ class GroupOrchestrator:
     6. Persists ``group_summary.json`` to the group output directory.
     """
 
-    def __init__(self, group_config: dict, registry: ModuleRegistry):
+    def __init__(self, group_config: dict, registry: ModuleRegistry,
+                 run_id: str | None = None):
         self.config = group_config
         self.registry = registry
         self.group_name = group_config.get('group') or group_config.get('group_name')
         if not self.group_name:
             raise ConfigError("Group config missing 'group' (name) field")
-        self.group_dir = self._resolve_group_dir()
+        # ISO-ish UTC timestamp, path-safe. One run_id per orchestrator
+        # instance, so re-runs land in distinct timestamped subdirs.
+        self.run_id = run_id or group_config.get('run_id') or _make_run_id()
+        self.parent_dir, self.group_dir = self._resolve_group_dir()
         self.group: GroupResult = GroupResult(group_name=self.group_name)
         self._stage_records: list[StageRecord] = []
 
@@ -77,74 +82,115 @@ class GroupOrchestrator:
         run_start = time.time()
         started_at = datetime.now(timezone.utc).isoformat()
 
-        try:
-            subject_configs = self._stage('group_collect',
-                                          self._build_subject_configs)
-            self.group.subjects = self._stage(
-                'subject_fanout',
-                lambda: self._run_subjects(subject_configs, resume=resume),
-            )
-
-            analyzers = self._resolve_group_analyzers()
-            if analyzers:
-                self._stage(
-                    'group_analyze',
-                    lambda: self._run_group_analyzers(analyzers),
-                )
-
-            second_pass = [
-                ga for ga in analyzers
-                if getattr(ga, 'produces_subject_artifact', False)
-            ]
-            if second_pass:
-                self._stage(
-                    'subject_second_pass',
-                    lambda: self._rerun_subjects_with_bindings(second_pass),
-                )
-
-            reporters = self._resolve_group_reporters()
-            if reporters:
-                self._stage(
-                    'group_report',
-                    lambda: self._run_group_reporters(reporters),
-                )
-        finally:
-            finished_at = datetime.now(timezone.utc).isoformat()
-            self.group.group_summary = GroupRunSummary(
-                group_name=self.group_name,
-                subjects=[sr.subject for sr in self.group.subjects],
-                started_at=started_at,
-                finished_at=finished_at,
-                total_elapsed_s=round(time.time() - run_start, 3),
-                subject_summaries=[sr.run_summary for sr in self.group.subjects],
-                group_stages=list(self._stage_records),
-                config_snapshot=copy.deepcopy(self.config),
-            )
+        # Capture every root-logger record produced during the group run.
+        # Reporter warnings (e.g. flatmap skipped on mask mismatch) and
+        # subject failures all land in <group_dir>/group.log next to the
+        # summary JSON. Per-subject logs are written inside _run_one_subject.
+        with capture_logs_to(self.group_dir / 'group.log'):
+            logger.info("Group run '%s' (run_id=%s) starting — %d subject(s)",
+                        self.group_name, self.run_id,
+                        len(self._resolve_subject_list_safe()))
             try:
-                self.group.group_summary.save_json(
-                    self.group_dir / 'group_summary.json')
-            except Exception:
-                logger.warning("Failed to save group_summary.json", exc_info=True)
+                subject_configs = self._stage('group_collect',
+                                              self._build_subject_configs)
+                self.group.subjects = self._stage(
+                    'subject_fanout',
+                    lambda: self._run_subjects(subject_configs, resume=resume),
+                )
+
+                analyzers = self._resolve_group_analyzers()
+                if analyzers:
+                    self._stage(
+                        'group_analyze',
+                        lambda: self._run_group_analyzers(analyzers),
+                    )
+
+                second_pass = [
+                    ga for ga in analyzers
+                    if getattr(ga, 'produces_subject_artifact', False)
+                ]
+                if second_pass:
+                    self._stage(
+                        'subject_second_pass',
+                        lambda: self._rerun_subjects_with_bindings(second_pass),
+                    )
+
+                reporters = self._resolve_group_reporters()
+                if reporters:
+                    self._stage(
+                        'group_report',
+                        lambda: self._run_group_reporters(reporters),
+                    )
+            finally:
+                finished_at = datetime.now(timezone.utc).isoformat()
+                self.group.group_summary = GroupRunSummary(
+                    group_name=self.group_name,
+                    subjects=[sr.subject for sr in self.group.subjects],
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    total_elapsed_s=round(time.time() - run_start, 3),
+                    subject_summaries=[sr.run_summary for sr in self.group.subjects],
+                    group_stages=list(self._stage_records),
+                    config_snapshot=copy.deepcopy(self.config),
+                    run_id=self.run_id,
+                )
+                try:
+                    self.group.group_summary.save_json(
+                        self.group_dir / 'group_summary.json')
+                except Exception:
+                    logger.warning("Failed to save group_summary.json",
+                                   exc_info=True)
 
         return self.group
 
     # ── helpers: directory layout ───────────────────────────────
 
-    def _resolve_group_dir(self) -> Path:
-        """Pick where to write group artifacts.
+    def _resolve_group_dir(self) -> tuple[Path, Path]:
+        """Resolve the parent directory and the timestamped run directory.
 
-        ``output_dir`` in the group config wins; otherwise
-        ``$FMRIFLOW_HOME/group_runs/<group_name>/``.
+        ``output_dir`` in the group config (or
+        ``$FMRIFLOW_HOME/group_runs/<group_name>/``) is the **parent** — the
+        actual run lands in a timestamped subdirectory ``<run_id>/``
+        underneath it so re-runs don't clobber each other. A ``latest``
+        symlink in the parent points at this run.
         """
         out = self.config.get('output_dir')
-        base = Path(out) if out else paths.group_runs_root() / self.group_name
-        base.mkdir(parents=True, exist_ok=True)
-        return base
+        parent = Path(out) if out else paths.group_runs_root() / self.group_name
+        parent.mkdir(parents=True, exist_ok=True)
+        run_dir = parent / self.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self._update_latest_symlink(parent, run_dir)
+        return parent, run_dir
+
+    @staticmethod
+    def _update_latest_symlink(parent: Path, target: Path) -> None:
+        link = parent / 'latest'
+        try:
+            if link.is_symlink() or link.exists():
+                link.unlink()
+            link.symlink_to(target.name, target_is_directory=True)
+        except OSError:
+            # Filesystem may not support symlinks (e.g. some network mounts).
+            # Not fatal — the run still completes; only the convenience link
+            # is missing.
+            logger.debug("Could not create 'latest' symlink at %s", link,
+                         exc_info=True)
 
     def _subject_output_dir(self, subject: str) -> Path:
         p = self.group_dir / 'subjects' / subject
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    def _resolve_subject_list_safe(self) -> list[str]:
+        """Like ``_resolve_subject_list`` but returns [] on missing config.
+
+        Used by ``run()`` for an early log message; the strict version
+        runs later inside ``_build_subject_configs`` and raises properly.
+        """
+        try:
+            return self._resolve_subject_list()
+        except ConfigError:
+            return []
 
     # ── group_collect ───────────────────────────────────────────
 
@@ -223,37 +269,44 @@ class GroupOrchestrator:
         return [r for r in results if r is not None]
 
     def _run_one_subject(self, subject_config: dict) -> SubjectResult:
-        orch = PipelineOrchestrator(subject_config, self.registry)
-        ctx: PipelineContext | None = None
-        try:
-            ctx = orch.run()
-        except Exception:
-            # Pipeline records the failure in ctx.run_summary inside its
-            # try/finally — but ConfigError raised during _validate_all
-            # exits BEFORE that try block, so run_summary may not exist.
-            ctx = orch.ctx
-            logger.error("Subject %s failed", subject_config.get('subject'),
-                         exc_info=True)
-        # Persist per-subject summary even on failure so resume works.
         run_dir = Path(subject_config['reporting']['output_dir'])
-        rs = getattr(ctx, 'run_summary', None) if ctx is not None else None
-        if rs is None:
-            rs = _empty_summary(subject_config)
-            if ctx is not None:
-                ctx.run_summary = rs
-        try:
-            run_dir.mkdir(parents=True, exist_ok=True)
-            rs.save_json(run_dir / 'run_summary.json')
-        except Exception:
-            logger.warning("Failed to save subject run_summary.json",
-                           exc_info=True)
-        return SubjectResult(
-            subject=subject_config['subject'],
-            experiment=subject_config.get('experiment', ''),
-            run_dir=run_dir,
-            run_summary=rs,
-            context=ctx,
-        )
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        # Per-subject pipeline.log. `thread_local=True` ensures messages
+        # from other subjects (when max_workers > 1) don't bleed in.
+        with capture_logs_to(run_dir / 'pipeline.log', thread_local=True):
+            logger.info("Subject %s (group=%s, run_id=%s) starting",
+                        subject_config.get('subject'),
+                        self.group_name, self.run_id)
+            orch = PipelineOrchestrator(subject_config, self.registry)
+            ctx: PipelineContext | None = None
+            try:
+                ctx = orch.run()
+            except Exception:
+                # Pipeline records the failure in ctx.run_summary inside its
+                # try/finally — but ConfigError raised during _validate_all
+                # exits BEFORE that try block, so run_summary may not exist.
+                ctx = orch.ctx
+                logger.error("Subject %s failed",
+                             subject_config.get('subject'), exc_info=True)
+            # Persist per-subject summary even on failure so resume works.
+            rs = getattr(ctx, 'run_summary', None) if ctx is not None else None
+            if rs is None:
+                rs = _empty_summary(subject_config)
+                if ctx is not None:
+                    ctx.run_summary = rs
+            try:
+                rs.save_json(run_dir / 'run_summary.json')
+            except Exception:
+                logger.warning("Failed to save subject run_summary.json",
+                               exc_info=True)
+            return SubjectResult(
+                subject=subject_config['subject'],
+                experiment=subject_config.get('experiment', ''),
+                run_dir=run_dir,
+                run_summary=rs,
+                context=ctx,
+            )
 
     # ── group_analyze ───────────────────────────────────────────
 
@@ -371,3 +424,8 @@ def _empty_summary(scfg: dict) -> RunSummary:
         stages=[],
         config_snapshot=copy.deepcopy(scfg),
     )
+
+
+def _make_run_id() -> str:
+    """Path-safe ISO UTC stamp, e.g. ``20260530T193738Z``."""
+    return datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')

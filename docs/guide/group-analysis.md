@@ -108,28 +108,58 @@ behaviour as `inherit:` and the package defaults).
 fmriflow run-group my_group.yaml
 ```
 
-By default, outputs land at:
+By default, outputs land in a **timestamped subdirectory** under
+`$FMRIFLOW_HOME/group_runs/<group_name>/`. Each invocation creates a new
+`<run_id>` directory so re-runs never clobber previous results:
 
 ```
 $FMRIFLOW_HOME/group_runs/<group_name>/
-├── group_summary.json         # cross-subject summary
-├── subjects/
-│   ├── S1/
-│   │   ├── run_summary.json   # standard per-subject summary
-│   │   └── ... (per-subject artifacts)
-│   ├── S2/
-│   └── S3/
-└── ... (group artifacts land here once Phase 2 plugins exist)
+├── 20260530T193738Z/              # one run — ISO-ish UTC timestamp
+│   ├── group_summary.json         # cross-subject summary (incl. run_id)
+│   ├── group_summary.html
+│   ├── group.log                  # all root-logger output from this run
+│   ├── group_artifacts/
+│   │   ├── group.semantic_pca_basis.npy
+│   │   ├── group.semantic_pca_basis.json
+│   │   └── scalars.json
+│   └── subjects/
+│       ├── S1/
+│       │   ├── run_summary.json   # per-subject summary
+│       │   ├── pipeline.log       # this subject's pipeline log
+│       │   ├── prediction_accuracy_flatmap.png
+│       │   ├── metrics.json
+│       │   └── ...
+│       ├── S2/
+│       └── ...
+├── 20260530T210255Z/              # a later re-run
+│   └── ...
+└── latest -> 20260530T210255Z     # symlink to the newest run
 ```
 
-Override the location with `output_dir:` in the group config or by setting
-`$FMRIFLOW_HOME`.
+Override the parent with `output_dir:` in the group config (or by setting
+`$FMRIFLOW_HOME`). The timestamped `<run_id>/` is always added underneath.
+
+### Run logs
+
+Every group run captures **two log streams** alongside the summaries:
+
+- `<run_dir>/group.log` — all root-logger output during the group run.
+  Catches orchestrator events plus any warnings emitted from inside
+  reporters or analyzers (e.g. the `flatmap` reporter's "skipped on
+  mask/voxel mismatch" warning, which used to go nowhere).
+- `<run_dir>/subjects/<S>/pipeline.log` — per-subject pipeline log,
+  thread-filtered so messages from sibling subjects don't bleed in
+  when `parallel.max_workers > 1`.
+
+Both are produced by the same `fmriflow.core.log_capture.capture_logs_to`
+context manager — see [Writing Modules](modules.md) if you're adding a
+new analyzer/reporter that should emit diagnostic warnings.
 
 ### Useful flags
 
 | Flag | Meaning |
 |---|---|
-| `--resume` | Skip subjects whose `run_summary.json` already shows every stage `ok`. Failed subjects are re-run. Group stages always re-run (they're cheap and depend on all subjects). |
+| `--resume` | When a previous run's `<run_id>/` is targeted (set via `output_dir`), skip subjects whose `run_summary.json` already shows every stage `ok`. Default behaviour with no `output_dir` override is to create a fresh timestamped run, so `--resume` is mostly relevant when you point at an existing run directory. |
 | `--dry-run` | Print the resolved group name, output directory, and subject list without running anything. |
 
 ## What ships today
@@ -147,8 +177,10 @@ Override the location with `output_dir:` in the group config or by setting
 | `group_summary_html` group reporter | ✅ Phase 2 |
 | `stacked_weights_pca` + `project_to_subspace` (bidirectional, Deniz Fig 4) | ✅ Phase 3 |
 | `SemanticSubspace` core type | ✅ Phase 3 |
-| Group Runs view (`#group-runs`) — per-subject status, group-stage timings, HTML report link | ✅ Phase 4 |
-| `GET /api/group-runs` + `GET /api/group-runs/{name}` | ✅ Phase 4 |
+| Group Runs view (`#group-runs`) — per-subject status, group-stage timings, HTML + log links | ✅ Phase 4 |
+| `GET /api/group-runs` + `GET /api/group-runs/{name}/{run_id}` (legacy `/{name}` retained) | ✅ Phase 4 |
+| Timestamped `<run_id>/` per invocation + `latest` symlink | ✅ Phase 4 |
+| Per-group `group.log` + per-subject `pipeline.log` capture | ✅ Phase 4 |
 | Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`) | ⏳ Future (TBD) |
 
 ## Built-in group analyzers

@@ -78,6 +78,9 @@ class GroupRunSummary:
     subject_summaries: list[RunSummary] = field(default_factory=list)
     group_stages: list[StageRecord] = field(default_factory=list)
     config_snapshot: dict = field(default_factory=dict)
+    # Path-safe ISO-ish UTC stamp generated when the orchestrator instance
+    # is created. Empty for older summaries that pre-date the run-id layout.
+    run_id: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -111,4 +114,5 @@ class GroupRunSummary:
             ],
             group_stages=[StageRecord(**s) for s in data.get('group_stages', [])],
             config_snapshot=data.get('config_snapshot', {}),
+            run_id=data.get('run_id', ''),
         )

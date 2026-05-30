@@ -864,6 +864,7 @@ export interface GroupStatusCounts {
 
 export interface GroupRunListing {
   group_name: string
+  run_id: string                  // empty string for legacy (pre-run-id) layout
   run_dir: string
   subjects: string[]
   n_subjects: number
@@ -872,6 +873,7 @@ export interface GroupRunListing {
   finished_at: string
   total_elapsed_s: number
   has_html_report: boolean
+  has_log: boolean
 }
 
 export interface GroupSubjectStage {
@@ -893,6 +895,7 @@ export interface GroupSubjectSummary {
 
 export interface GroupRunDetail {
   group_name: string
+  run_id: string
   subjects: string[]
   started_at: string
   finished_at: string
@@ -902,4 +905,5 @@ export interface GroupRunDetail {
   config_snapshot: Record<string, unknown>
   run_dir: string
   html_report?: string
+  group_log?: string
 }

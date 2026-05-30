@@ -7,20 +7,24 @@ import { fetchGroupRuns, fetchGroupRun } from '../api/client'
 interface GroupRunsState {
   runs: GroupRunListing[]
   selected: GroupRunDetail | null
-  selectedName: string | null
+  selectedKey: string | null   // "<group_name>/<run_id>" or "<group_name>" for legacy
   loading: boolean
   loadingDetail: boolean
   error: string | null
 
   loadRuns: () => Promise<void>
-  selectRun: (name: string) => Promise<void>
+  selectRun: (name: string, runId: string) => Promise<void>
   clearSelection: () => void
+}
+
+function selectionKey(name: string, runId: string): string {
+  return runId ? `${name}/${runId}` : name
 }
 
 export const useGroupRunsStore = create<GroupRunsState>((set, get) => ({
   runs: [],
   selected: null,
-  selectedName: null,
+  selectedKey: null,
   loading: false,
   loadingDetail: false,
   error: null,
@@ -35,16 +39,17 @@ export const useGroupRunsStore = create<GroupRunsState>((set, get) => ({
     }
   },
 
-  selectRun: async (name: string) => {
-    if (get().selectedName === name && get().selected) return
-    set({ loadingDetail: true, selectedName: name, error: null })
+  selectRun: async (name: string, runId: string) => {
+    const key = selectionKey(name, runId)
+    if (get().selectedKey === key && get().selected) return
+    set({ loadingDetail: true, selectedKey: key, error: null })
     try {
-      const detail = await fetchGroupRun(name)
+      const detail = await fetchGroupRun(name, runId || undefined)
       set({ selected: detail, loadingDetail: false })
     } catch (e) {
       set({ loadingDetail: false, error: (e as Error).message })
     }
   },
 
-  clearSelection: () => set({ selected: null, selectedName: null }),
+  clearSelection: () => set({ selected: null, selectedKey: null }),
 }))

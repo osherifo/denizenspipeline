@@ -175,7 +175,7 @@ def _patch_pipeline_run(monkeypatch, behaviour=_fake_run):
 def test_group_run_fans_out_and_writes_summary(tmp_path, monkeypatch):
     _patch_pipeline_run(monkeypatch)
     cfg = _group_cfg(tmp_path)
-    orch = GroupOrchestrator(cfg, ModuleRegistry())
+    orch = GroupOrchestrator(cfg, ModuleRegistry(), run_id='testrun01')
 
     result = orch.run()
 
@@ -185,10 +185,19 @@ def test_group_run_fans_out_and_writes_summary(tmp_path, monkeypatch):
         assert sr.status == 'ok'
         assert (sr.run_dir / 'run_summary.json').is_file()
 
-    group_summary = tmp_path / 'group_summary.json'
+    # Output now lives in a timestamped subdirectory under output_dir.
+    run_dir = tmp_path / 'testrun01'
+    group_summary = run_dir / 'group_summary.json'
     assert group_summary.is_file()
+    assert (run_dir / 'group.log').is_file()
+    # 'latest' convenience symlink points at this run.
+    latest = tmp_path / 'latest'
+    if latest.is_symlink():
+        assert latest.resolve() == run_dir.resolve()
+
     assert result.group_summary is not None
     assert result.group_summary.group_name == 'demo_group'
+    assert result.group_summary.run_id == 'testrun01'
     # one record per group stage that ran (collect, fanout)
     stage_names = {s.name for s in result.group_summary.group_stages}
     assert 'group_collect' in stage_names
@@ -219,8 +228,9 @@ def test_group_run_records_failure(tmp_path, monkeypatch):
 # ─── resume ────────────────────────────────────────────────────
 
 def test_resume_skips_already_ok_subjects(tmp_path, monkeypatch):
-    # Pre-create a successful run for S1.
-    s1_dir = tmp_path / 'subjects' / 'S1'
+    # Pre-create a successful run for S1 in the timestamped run dir
+    # that GroupOrchestrator(..., run_id='resume_run').
+    s1_dir = tmp_path / 'resume_run' / 'subjects' / 'S1'
     s1_dir.mkdir(parents=True)
     now = datetime.now(timezone.utc).isoformat()
     RunSummary(
@@ -239,7 +249,7 @@ def test_resume_skips_already_ok_subjects(tmp_path, monkeypatch):
 
     _patch_pipeline_run(monkeypatch, behaviour=_track)
     cfg = _group_cfg(tmp_path)
-    orch = GroupOrchestrator(cfg, ModuleRegistry())
+    orch = GroupOrchestrator(cfg, ModuleRegistry(), run_id='resume_run')
     result = orch.run(resume=True)
 
     # S1 was skipped; only S2 and S3 actually ran the pipeline stub.
