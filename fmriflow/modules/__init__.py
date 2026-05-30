@@ -53,6 +53,7 @@ def register_builtins(registry):
     # Analyzers
     import fmriflow.modules.analyzers.weight_analysis  # noqa: F401
     import fmriflow.modules.analyzers.variance_partition  # noqa: F401
+    import fmriflow.modules.analyzers.project_to_subspace  # noqa: F401
 
     import fmriflow.modules.models.ridge  # noqa: F401
     import fmriflow.modules.models.himalaya  # noqa: F401
@@ -74,6 +75,7 @@ def register_builtins(registry):
     import fmriflow.modules.group_analyzers.voxelwise_mean  # noqa: F401
     import fmriflow.modules.group_analyzers.significance_count  # noqa: F401
     import fmriflow.modules.group_analyzers.scalar_summary  # noqa: F401
+    import fmriflow.modules.group_analyzers.stacked_weights_pca  # noqa: F401
 
     # Group-scope reporters
     import fmriflow.modules.group_reporters.group_summary_html  # noqa: F401

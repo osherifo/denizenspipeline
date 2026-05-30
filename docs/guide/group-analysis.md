@@ -1,17 +1,18 @@
 # Group Analysis
 
-!!! note "Phase 2 — analyzers + reporter shipped"
-    Phase 2 adds the first batch of built-in group analyzers (`voxelwise_mean`,
-    `significance_count`, `scalar_summary`) and a group reporter
-    (`group_summary_html`). Phase 3 will add the bidirectional flow
-    (stacked-weights PCA → re-project per subject). Phase 4 adds the
+!!! note "Phase 3 — bidirectional flow shipped"
+    Phase 3 adds the **stacked-weights PCA** group analyzer and the
+    **`project_to_subspace`** subject-scope analyzer that consumes its
+    output. Together they implement the Deniz 2019 Fig 4 pattern:
+    aggregate weights across subjects → derive a shared semantic basis →
+    project each subject's voxels into that basis. Phase 4 will add the
     in-browser UI.
 
     Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`)
-    intentionally do not ship in Phase 2 — the built-in analyzers operate
-    on whatever shape-compatible per-subject arrays you put into context,
-    so you can drive them from already-aligned data (`fsaverage` from
-    pycortex projection, MNI from fmriprep) today.
+    intentionally do not ship — the built-in analyzers operate on whatever
+    shape-compatible per-subject arrays you put into context, so you can
+    drive them from already-aligned data (`fsaverage` from pycortex
+    projection, MNI from fmriprep) today.
 
 ## When to use it
 
@@ -144,7 +145,8 @@ Override the location with `output_dir:` in the group config or by setting
 | Second-pass mechanism (group artifact → `external.*` → re-run analyze + report) | ✅ Phase 1 (mechanism), Phase 3 (built-in plugin) |
 | `voxelwise_mean` / `significance_count` / `scalar_summary` group analyzers | ✅ Phase 2 |
 | `group_summary_html` group reporter | ✅ Phase 2 |
-| `stacked_weights_pca` + `project_to_subspace` (bidirectional) | ✅ Phase 3 |
+| `stacked_weights_pca` + `project_to_subspace` (bidirectional, Deniz Fig 4) | ✅ Phase 3 |
+| `SemanticSubspace` core type | ✅ Phase 3 |
 | Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`) | ⏳ Phase 2b (TBD) |
 | Group results UI | ✅ Phase 4 |
 
@@ -201,6 +203,43 @@ group_analyze:
 
 The resulting dict has shape:
 `{mean: float, std: float, sem: float, n_subjects: int, per_subject: {S1: 0.42, S2: 0.39, ...}}`.
+
+### `stacked_weights_pca` (bidirectional)
+
+Concatenates one feature's delayed-weight block from every subject along
+the voxel axis and runs SVD to produce a shared K-dimensional basis. The
+analyzer has `produces_subject_artifact=True`, which triggers the
+orchestrator's second-pass mechanism: after the basis is built, every
+subject's `analyze + report` re-runs with the basis bound into context
+under `external.<binding_name>`.
+
+```yaml
+group_analyze:
+  - name: stacked_weights_pca
+    params:
+      feature: english1000                 # name of the feature to stack (required)
+      n_components: 50
+      output_key: group.semantic_pca_basis
+      binding_name: semantic_pca_basis     # subjects read external.<this>
+
+# Each subject's analyze stage then receives the basis. Pair with:
+subject_template:
+  # ...
+  analysis:
+    - name: project_to_subspace
+      params:
+        binding: semantic_pca_basis
+        output_key: analysis.semantic_pc_projection
+```
+
+The result is a `SemanticSubspace` artifact with `basis`
+(`n_delayed_features × n_components`), `singular_values`, and
+metadata fields (`feature`, `n_delays`, `feature_dim`,
+`metadata.subjects`, `metadata.n_voxels_total`). The per-subject
+`project_to_subspace` analyzer writes an
+`(n_components × n_voxels_subject)` array under
+`analysis.semantic_pc_projection` ready for an RGB-from-PC1-2-3 flatmap
+reporter (Deniz Fig 4 style).
 
 ## Built-in group reporters
 
