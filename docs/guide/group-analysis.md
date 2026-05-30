@@ -1,14 +1,17 @@
 # Group Analysis
 
-!!! warning "Phase 1 — orchestration skeleton"
-    The group-scope orchestrator, CLI, and plugin protocols are in place. **No
-    built-in group analyzers or reporters ship yet** — those land in Phase 2
-    along with the canonical-space transforms (`to_mni_volume`,
-    `to_fsaverage_surface`) that make cross-subject averaging meaningful.
+!!! note "Phase 2 — analyzers + reporter shipped"
+    Phase 2 adds the first batch of built-in group analyzers (`voxelwise_mean`,
+    `significance_count`, `scalar_summary`) and a group reporter
+    (`group_summary_html`). Phase 3 will add the bidirectional flow
+    (stacked-weights PCA → re-project per subject). Phase 4 adds the
+    in-browser UI.
 
-    Today you can: fan out N subject pipelines from a single group config,
-    collect their summaries in one place, resume failed subjects, and register
-    your own `@group_analyzer` plugins. Watch this page as Phase 2 lands.
+    Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`)
+    intentionally do not ship in Phase 2 — the built-in analyzers operate
+    on whatever shape-compatible per-subject arrays you put into context,
+    so you can drive them from already-aligned data (`fsaverage` from
+    pycortex projection, MNI from fmriprep) today.
 
 ## When to use it
 
@@ -128,20 +131,98 @@ Override the location with `output_dir:` in the group config or by setting
 | `--resume` | Skip subjects whose `run_summary.json` already shows every stage `ok`. Failed subjects are re-run. Group stages always re-run (they're cheap and depend on all subjects). |
 | `--dry-run` | Print the resolved group name, output directory, and subject list without running anything. |
 
-## What ships in Phase 1
+## What ships today
 
 | Capability | Status |
 |---|---|
-| `fmriflow run-group` CLI subcommand | ✅ |
-| `subject_template` + deep-merged `subject_overrides` | ✅ |
-| Parallel subject fan-out (threads) | ✅ |
-| `group_summary.json` aggregating per-subject `RunSummary` | ✅ |
-| `--resume` semantics | ✅ |
-| `@group_analyzer` / `@group_reporter` plugin decorators + registry | ✅ |
-| Second-pass mechanism (group artifact → `external.*` in subject context → re-run analyze + report) | ✅ (wired; needs a plugin to drive it) |
-| Built-in group analyzers (voxelwise mean, significance count, stacked-weights PCA, summary stats) | ⏳ Phase 2 |
-| Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`) | ⏳ Phase 2 |
-| Group results UI | ⏳ Phase 4 |
+| `fmriflow run-group` CLI subcommand | ✅ Phase 1 |
+| `subject_template` + deep-merged `subject_overrides` | ✅ Phase 1 |
+| Parallel subject fan-out (threads) | ✅ Phase 1 |
+| `group_summary.json` aggregating per-subject `RunSummary` | ✅ Phase 1 |
+| `--resume` semantics | ✅ Phase 1 |
+| `@group_analyzer` / `@group_reporter` plugin decorators + registry | ✅ Phase 1 |
+| Second-pass mechanism (group artifact → `external.*` → re-run analyze + report) | ✅ Phase 1 (mechanism), Phase 3 (built-in plugin) |
+| `voxelwise_mean` / `significance_count` / `scalar_summary` group analyzers | ✅ Phase 2 |
+| `group_summary_html` group reporter | ✅ Phase 2 |
+| `stacked_weights_pca` + `project_to_subspace` (bidirectional) | ✅ Phase 3 |
+| Canonical-space transforms (`to_mni_volume`, `to_fsaverage_surface`) | ⏳ Phase 2b (TBD) |
+| Group results UI | ✅ Phase 4 |
+
+## Built-in group analyzers
+
+### `voxelwise_mean`
+
+Per-voxel mean (and SEM) of a subject-level array across the group. Writes
+`group.<output_key>`, `group.<output_key>.sem`, and
+`group.<output_key>.n_subjects` to the group result.
+
+```yaml
+group_analyze:
+  - name: voxelwise_mean
+    params:
+      input_key: result.scores            # dotted path into subject ctx
+      output_key: group.scores_mean       # where to write
+```
+
+Every subject must produce an array of identical shape under `input_key`
+(use `fsaverage`/MNI-projected arrays for meaningful averaging).
+
+### `significance_count`
+
+Per-voxel count of subjects whose value passes a threshold. Modes:
+`below` for p-value maps (e.g. FDR-corrected), `above` for raw accuracy
+maps with a fixed cutoff. Replicates the consistency map from Deniz 2019
+Fig 3c/d.
+
+```yaml
+group_analyze:
+  - name: significance_count
+    params:
+      input_key: result.pvals
+      threshold: 0.05
+      mode: below                          # or 'above'
+      output_key: group.n_significant
+```
+
+### `scalar_summary`
+
+Reduces each subject's array to a single scalar (`mean` / `max` /
+`median` / `none`), then reports group-level `mean`, `std`, `sem`,
+`n_subjects`, and per-subject values.
+
+```yaml
+group_analyze:
+  - name: scalar_summary
+    params:
+      input_key: result.scores
+      reduce: mean                         # or 'max' / 'median' / 'none'
+      output_key: group.accuracy_summary
+```
+
+The resulting dict has shape:
+`{mean: float, std: float, sem: float, n_subjects: int, per_subject: {S1: 0.42, S2: 0.39, ...}}`.
+
+## Built-in group reporters
+
+### `group_summary_html`
+
+Renders a self-contained `group_summary.html` next to `group_summary.json`
+with three sections:
+
+- **Header** — group name, started / finished timestamps, total elapsed.
+- **Subjects** — table of per-subject status, elapsed time, stage count, run dir.
+- **Group stages** — table of group-stage timings (collect / fan-out / analyze / report).
+- **Group artifacts** — every key on `GroupResult.artifacts` with a shape/type hint
+  (`ndarray shape=(40000,) dtype=float32`, `dict(mean,sem,...)`, etc.).
+
+```yaml
+group_report:
+  - name: group_summary_html
+    # No params required. Optional:
+    # params:
+    #   output_dir: ./testing/cross_subject_demo
+    #   filename: group_summary.html
+```
 
 ## Writing a group analyzer
 

@@ -69,3 +69,11 @@ def register_builtins(registry):
     import fmriflow.modules.nipype_nodes.smooth  # noqa: F401
     import fmriflow.modules.nipype_nodes.mask_apply  # noqa: F401
     import fmriflow.modules.nipype_nodes.subworkflow  # noqa: F401
+
+    # Group-scope analyzers
+    import fmriflow.modules.group_analyzers.voxelwise_mean  # noqa: F401
+    import fmriflow.modules.group_analyzers.significance_count  # noqa: F401
+    import fmriflow.modules.group_analyzers.scalar_summary  # noqa: F401
+
+    # Group-scope reporters
+    import fmriflow.modules.group_reporters.group_summary_html  # noqa: F401
