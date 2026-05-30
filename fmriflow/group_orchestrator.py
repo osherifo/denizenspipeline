@@ -228,25 +228,30 @@ class GroupOrchestrator:
         try:
             ctx = orch.run()
         except Exception:
-            # Pipeline already records the failure in ctx.run_summary via the
-            # finally block in orchestrator.run().
+            # Pipeline records the failure in ctx.run_summary inside its
+            # try/finally — but ConfigError raised during _validate_all
+            # exits BEFORE that try block, so run_summary may not exist.
             ctx = orch.ctx
             logger.error("Subject %s failed", subject_config.get('subject'),
                          exc_info=True)
         # Persist per-subject summary even on failure so resume works.
         run_dir = Path(subject_config['reporting']['output_dir'])
-        if ctx is not None and getattr(ctx, 'run_summary', None) is not None:
-            try:
-                ctx.run_summary.save_json(run_dir / 'run_summary.json')
-            except Exception:
-                logger.warning("Failed to save subject run_summary.json",
-                               exc_info=True)
+        rs = getattr(ctx, 'run_summary', None) if ctx is not None else None
+        if rs is None:
+            rs = _empty_summary(subject_config)
+            if ctx is not None:
+                ctx.run_summary = rs
+        try:
+            run_dir.mkdir(parents=True, exist_ok=True)
+            rs.save_json(run_dir / 'run_summary.json')
+        except Exception:
+            logger.warning("Failed to save subject run_summary.json",
+                           exc_info=True)
         return SubjectResult(
             subject=subject_config['subject'],
             experiment=subject_config.get('experiment', ''),
             run_dir=run_dir,
-            run_summary=ctx.run_summary if ctx is not None else _empty_summary(
-                subject_config),
+            run_summary=rs,
             context=ctx,
         )
 
