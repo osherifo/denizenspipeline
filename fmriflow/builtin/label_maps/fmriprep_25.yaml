@@ -2,8 +2,9 @@
 # Maps original fMRIPrep / sMRIPrep / SDCFlows workflow + node names
 # to friendlier, descriptive names suitable for non-developer audiences.
 #
-# Scope: functional preprocessing run with --fs-no-reconall
-# (no FreeSurfer surfaces, no CIFTI grayordinates).
+# Scope: full fMRIPrep functional preprocessing run, including the FreeSurfer
+# surface_recon_wf branch. Set target_config.fs_no_reconall=true and skip the
+# surface_recon section if running with --fs-no-reconall.
 #
 # Convention:
 #   - workflows: verb-first ("estimate_", "register_", "resample_", ...)
@@ -26,10 +27,10 @@ source_versions:
   nipype: ">=1.8"
 
 target_config:
-  fs_no_reconall: true
+  fs_no_reconall: false        # FreeSurfer surface_recon_wf is active
   fieldmaps: false
   multi_echo: false
-  cifti_output: false
+  cifti_output: false          # set true if --cifti-output is passed
 
 # ---------------------------------------------------------------------------
 # Top-level orchestration
@@ -93,9 +94,68 @@ anatomical:
   brain_extraction_wf: skull_strip_t1w
   t1w_dseg: segment_tissues
   anat_norm_wf: register_t1w_to_mni
-  # Skipped under --fs-no-reconall (listed for completeness):
-  surface_recon_wf: reconstruct_surfaces        # SKIPPED
-  refine_brain_mask: refine_brain_mask          # SKIPPED
+  # Active when FreeSurfer is enabled (no --fs-no-reconall):
+  surface_recon_wf: reconstruct_surfaces
+  anat_ribbon_wf: build_cortical_ribbon
+  refine_brain_mask: refine_brain_mask_with_aseg
+
+# ---------------------------------------------------------------------------
+# Surface reconstruction internals (sMRIPrep surface_recon_wf + anat_ribbon_wf)
+# ---------------------------------------------------------------------------
+# These nodes live inside reconstruct_surfaces and build_cortical_ribbon.
+# Many are MapNodes iterating over hemispheres (lh, rh) -- the 0/1 suffix
+# is the hemi index. A few iterate over surface types (white, pial,
+# midthickness x 2 hemis -> 6 instances, indices 0..5).
+#
+# Source: smriprep.workflows.surfaces, smriprep.interfaces.surf,
+# smriprep.interfaces.freesurfer (validated against v0.15+).
+surface_recon:
+  # --- recon-all stages ---
+  autorecon1: run_recon_all_stage1                # T1w init, skull-strip skipped (handled by ANTs)
+  autorecon_surfs: run_recon_all_surfaces         # _autorecon_surfs{0,1}: lh/rh, white+pial gen
+  autorecon_resume_wf: finalize_recon_all         # parcellation, stats; runs to completion
+  fs_base_inputs: load_freesurfer_subject         # passthrough when surfaces already exist
+  get_surfaces: gather_freesurfer_surfaces        # collect lh/rh white, pial, graymid from SUBJECTS_DIR
+  inu_n4_final: bias_correct_t1w                  # _inu_n4_final{0}: ANTs N4 on T1w for recon-all
+  fsnative2t1w_xfm: estimate_fsnative_to_t1w_xfm  # LTA mapping fsnative -> sMRIPrep T1w
+
+  # --- midthickness surface generation ---
+  # FreeSurfer doesn't produce a "midthickness" by default; sMRIPrep does.
+  midthickness: build_midthickness_surface        # _midthickness{0,1}: lh/rh, halfway between white & pial
+  save_midthickness: save_midthickness_to_subjects_dir  # writes lh/rh.midthickness into SUBJECTS_DIR/surf
+
+  # --- surface format conversion: FreeSurfer .surf -> GIFTI ---
+  fs2gii: convert_surface_to_gifti                # _fs2gii{0..5}: white/pial/midthick x lh/rh -> .surf.gii
+  morphs2gii: convert_morphometrics_to_gifti      # _morphs2gii{0..3}: thickness/curv/sulc -> .shape.gii
+  fix_surfs: fix_gifti_surface_metadata           # _fix_surfs{0..5}: re-center coords, fix metadata
+  apply_surface_affine: align_surface_to_t1w      # _apply_surface_affine{0,1}: lh/rh, apply fsnative->T1w xfm
+
+  # --- sphere / inflated surfaces ---
+  modify_sphere: rescale_sphere_surface           # _modify_sphere{0,1}: lh/rh, normalize sphere radius
+  invert_sulc: invert_sulcal_depth                # _invert_sulc{0,1}: sign-flip so sulci are positive
+
+  # --- cortical ribbon (anat_ribbon_wf) ---
+  # The "distance volume" approach: signed-distance fields from white and pial
+  # surfaces -> threshold and combine to mark ribbon voxels.
+  create_wm_distvol: signed_distance_white         # _create_wm_distvol{0,1}: lh/rh, SDF from white surface
+  create_pial_distvol: signed_distance_pial        # _create_pial_distvol{0,1}: lh/rh, SDF from pial surface
+  make_ribbon: combine_distvols_to_ribbon         # SDFs -> binary GM ribbon mask
+  apply_mask: mask_volume_with_brain_mask         # _apply_mask{0}: AND with brain mask
+
+  # --- TPM resampling (shared with confounds workflow) ---
+  anat2std_tpms: resample_tissue_prob_to_template  # _anat2std_tpms{0,1,2}: GM/WM/CSF -> template
+
+  outputs:
+    subjects_dir: freesurfer_subjects_dir
+    subject_id: freesurfer_subject_id
+    t1w_preproc: t1w_preprocessed
+    t1w_mask: t1w_brain_mask
+    t1w_dseg: tissue_segmentation
+    surfaces: cortical_surfaces                    # white, pial, midthickness, inflated GIFTIs
+    morphometrics: cortical_morphometrics          # thickness, curv, sulc GIFTIs
+    out_aseg: freesurfer_aseg
+    out_aparc: freesurfer_aparc_aseg
+    anat_ribbon: cortical_ribbon_mask
 
 # ---------------------------------------------------------------------------
 # BOLD run -- fit stage (estimate transforms and references; no resampling)
@@ -131,11 +191,11 @@ bold_native:
     boldbuffer: select_stc_or_raw
     bold_native_resample: resample_bold_native
   outputs:
-    bold_native: corrected_bold_native_space
+    bold_native: preproc_bold_native            # matches BIDS desc-preproc_bold (no space entity)
     metadata: updated_bold_sidecar
     motion_xfm: per_volume_motion_transforms    # passthrough from fit stage
     # Multi-echo only (SKIPPED for single-echo):
-    bold_echos: corrected_echo_series
+    bold_echos: preproc_echo_series             # per-echo preproc BOLD in native grid
     t2star_map: t2star_map
 
 # ---------------------------------------------------------------------------

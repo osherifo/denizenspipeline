@@ -59,6 +59,8 @@ const EMBEDDED: Record<string, string> = {
 
   // BOLD volumetric resampling
   bold_volumetric_resample:        'resample BOLD → space',
+  bold_anat:                       'resample BOLD → anat space',
+  bold_std:                        'resample BOLD → template space',
   bold_file:                       'BOLD in target space',
   resampling_reference:            'target space grid',
 
@@ -145,11 +147,15 @@ const EMBEDDED: Record<string, string> = {
 let _runtimeMap: Record<string, string> | null = null
 
 export function setRuntimeMap(map: Record<string, string>): void {
-  _runtimeMap = map
+  const cleaned: Record<string, string> = {}
+  for (const [k, v] of Object.entries(map)) {
+    cleaned[k] = v.replace(/_/g, ' ')
+  }
+  _runtimeMap = cleaned
 }
 
 // ── BIDS entity pairing ────────────────────────────────────────────────
-// "ses_01_task_rest_run_3" → "ses-01_task-rest_run-3"
+// "ses_01_task_rest_run_3" → "ses-01 task-rest run-3"
 
 const BIDS_ENTITIES = new Set([
   'ses', 'task', 'run', 'acq', 'echo', 'dir', 'rec', 'space',
@@ -168,7 +174,7 @@ function _pairBidsEntities(raw: string): string {
       i++
     }
   }
-  return parts.join('_')
+  return parts.join(' ')
 }
 
 // ── Per-run subworkflow prefix map ─────────────────────────────────────

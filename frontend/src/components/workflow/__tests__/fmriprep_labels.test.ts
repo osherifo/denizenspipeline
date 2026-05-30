@@ -65,28 +65,28 @@ describe('inferredName', () => {
 
   it('pairs BIDS entities for per-run BOLD workflows', () => {
     expect(inferredName('bold_ses_01_task_rest_wf')).toBe(
-      'preprocess run · ses-01_task-rest',
+      'preprocess run · ses-01 task-rest',
     )
     expect(inferredName('bold_ses_02_task_movie_run_3_wf')).toBe(
-      'preprocess run · ses-02_task-movie_run-3',
+      'preprocess run · ses-02 task-movie run-3',
     )
     expect(inferredName('bold_task_nback_acq_mb4_run_1_wf')).toBe(
-      'preprocess run · task-nback_acq-mb4_run-1',
+      'preprocess run · task-nback acq-mb4 run-1',
     )
   })
 
   it('pairs BIDS entities for per-run subworkflows', () => {
     expect(inferredName('bold_fit_ses_01_task_rest_wf')).toBe(
-      'estimate BOLD transforms · ses-01_task-rest',
+      'estimate BOLD transforms · ses-01 task-rest',
     )
     expect(inferredName('bold_native_ses_01_task_rest_wf')).toBe(
-      'apply BOLD corrections · ses-01_task-rest',
+      'apply BOLD corrections · ses-01 task-rest',
     )
     expect(inferredName('bold_confounds_ses_01_task_rest_wf')).toBe(
-      'compute nuisance regressors · ses-01_task-rest',
+      'compute nuisance regressors · ses-01 task-rest',
     )
     expect(inferredName('carpetplot_ses_01_task_rest_wf')).toBe(
-      'render carpet plot · ses-01_task-rest',
+      'render carpet plot · ses-01 task-rest',
     )
   })
 
