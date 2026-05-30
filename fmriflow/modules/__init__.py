@@ -79,3 +79,4 @@ def register_builtins(registry):
 
     # Group-scope reporters
     import fmriflow.modules.group_reporters.group_summary_html  # noqa: F401
+    import fmriflow.modules.group_reporters.group_npy_dump  # noqa: F401

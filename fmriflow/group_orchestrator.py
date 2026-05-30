@@ -300,8 +300,13 @@ class GroupOrchestrator:
         return reporters
 
     def _run_group_reporters(self, reporters: list[object]) -> None:
+        # Reporters use config['output_dir'] to decide where to write.
+        # The orchestrator's resolved group_dir is the source of truth, so
+        # pin it here in case the original config left output_dir unset.
+        report_cfg = dict(self.config)
+        report_cfg['output_dir'] = str(self.group_dir)
         for gr in reporters:
-            artifacts = gr.report(self.group, self.config) or {}
+            artifacts = gr.report(self.group, report_cfg) or {}
             self.group.put(f'report.{gr.name}', artifacts)
 
     # ── stage timing/recording helper ───────────────────────────
