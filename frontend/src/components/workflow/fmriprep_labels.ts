@@ -149,7 +149,7 @@ let _runtimeMap: Record<string, string> | null = null
 export function setRuntimeMap(map: Record<string, string>): void {
   const cleaned: Record<string, string> = {}
   for (const [k, v] of Object.entries(map)) {
-    cleaned[k] = v.replace(/_/g, ' ')
+    cleaned[_normalise(k)] = v.replace(/_/g, ' ')
   }
   _runtimeMap = cleaned
 }
