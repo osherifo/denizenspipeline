@@ -82,6 +82,19 @@ def main(argv: list[str] | None = None) -> int:
         help='Resolve config and show what would execute, without running',
     )
 
+    # ── run-group ──
+    rg_parser = subparsers.add_parser(
+        'run-group', help='Run a group-scope (cross-subject) pipeline')
+    rg_parser.add_argument('config', help='Path to group YAML config')
+    rg_parser.add_argument(
+        '--resume', action='store_true',
+        help='Skip subjects whose run_summary.json shows status=ok',
+    )
+    rg_parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Resolve subject configs and print plan without running',
+    )
+
     # ── validate ──
     validate_parser = subparsers.add_parser(
         'validate', help='Validate a config without running')
@@ -181,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == 'run':
         return _cmd_run(args)
+    elif args.command == 'run-group':
+        return _cmd_run_group(args)
     elif args.command == 'validate':
         return _cmd_validate(args)
     elif args.command == 'modules':
@@ -282,6 +297,54 @@ def _cmd_run(args) -> int:
             ctx = pipeline.last_context
         _save_run_summary(ctx, output_dir)
         return 1
+
+
+def _cmd_run_group(args) -> int:
+    """Run a group-scope (cross-subject) pipeline."""
+    from fmriflow.config.loader import load_group_config
+    from fmriflow.group_orchestrator import GroupOrchestrator
+    from fmriflow.registry import ModuleRegistry
+
+    try:
+        group_config = load_group_config(args.config)
+    except Exception as e:
+        ui.error_panel(str(e))
+        return 1
+
+    registry = ModuleRegistry()
+    registry.discover()
+    orch = GroupOrchestrator(group_config, registry)
+
+    if args.dry_run:
+        ui.console.print(
+            f"\n[bold]Group:[/] {orch.group_name}\n"
+            f"[bold]Output dir:[/] {orch.group_dir}\n"
+            f"[bold]Subjects:[/] "
+            f"{', '.join(group_config.get('subjects', []))}\n"
+        )
+        return 0
+
+    ui.console.print(
+        f"\n[bold bright_cyan]Group run[/] "
+        f"{orch.group_name} → {orch.group_dir}\n"
+    )
+
+    try:
+        result = orch.run(resume=args.resume)
+    except Exception as e:
+        ui.error_panel(str(e))
+        logger.error("Group run failed: %s", e, exc_info=True)
+        return 1
+
+    ok = len(result.subjects_by_status('ok'))
+    failed = len(result.subjects_by_status('failed'))
+    ui.console.print(
+        f"\n[bold]Done.[/] "
+        f"{ok} ok, {failed} failed, "
+        f"{len(result.subjects)} total subjects.\n"
+        f"Group summary: {orch.group_dir / 'group_summary.json'}\n"
+    )
+    return 0 if failed == 0 else 1
 
 
 def _save_run_summary(ctx, output_dir: str) -> None:

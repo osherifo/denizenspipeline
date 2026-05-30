@@ -166,3 +166,59 @@ def validate_config(config: dict) -> list[str]:
         errors.append(f"stimulus loader '{loader}' requires 'stimulus.path'")
 
     return errors
+
+
+def validate_group_config(config: dict) -> list[str]:
+    """Validate a group-scope config (top-level ``group:`` block).
+
+    A group config does not have ``experiment`` / ``subject`` at the root —
+    those live in ``subject_template`` and are filled in per-subject. The
+    subject configs built by :class:`fmriflow.group_orchestrator.GroupOrchestrator`
+    are validated against the subject schema (:func:`validate_config`) at
+    fan-out time.
+    """
+    errors: list[str] = []
+
+    if not config.get("group"):
+        errors.append("'group' (group name) is required")
+
+    if "subjects" not in config and "subjects_from" not in config:
+        errors.append("'subjects' (list) or 'subjects_from' (rule) is required")
+    elif "subjects" in config:
+        subs = config["subjects"]
+        if not isinstance(subs, list) or not subs:
+            errors.append("'subjects' must be a non-empty list")
+
+    template = config.get("subject_template")
+    if not isinstance(template, dict) or not template:
+        errors.append(
+            "'subject_template' is required and must be a dict of "
+            "shared subject-scope settings")
+
+    overrides = config.get("subject_overrides")
+    if overrides is not None and not isinstance(overrides, dict):
+        errors.append("'subject_overrides' must be a dict keyed by subject id")
+
+    for key in ("group_analyze", "group_report"):
+        section = config.get(key)
+        if section is None:
+            continue
+        if not isinstance(section, list):
+            errors.append(f"'{key}' must be a list")
+            continue
+        for i, entry in enumerate(section):
+            if not isinstance(entry, dict):
+                errors.append(f"{key}[{i}] must be a dict")
+            elif "name" not in entry:
+                errors.append(f"{key}[{i}] missing 'name'")
+
+    parallel = config.get("parallel")
+    if parallel is not None:
+        if not isinstance(parallel, dict):
+            errors.append("'parallel' must be a dict")
+        else:
+            mw = parallel.get("max_workers")
+            if mw is not None and (not isinstance(mw, int) or mw < 1):
+                errors.append("parallel.max_workers must be a positive int")
+
+    return errors

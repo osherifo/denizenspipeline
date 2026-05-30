@@ -25,6 +25,8 @@ from fmriflow.modules._decorators import (
     _models,
     _reporters,
     _nipype_nodes,
+    _group_analyzers,
+    _group_reporters,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,6 +53,8 @@ class ModuleRegistry:
         self._models = _models
         self._reporters = _reporters
         self._nipype_nodes = _nipype_nodes
+        self._group_analyzers = _group_analyzers
+        self._group_reporters = _group_reporters
 
     def discover(self) -> None:
         """Discover modules from builtins and entry_points."""
@@ -76,6 +80,8 @@ class ModuleRegistry:
             'fmriflow.models': self._models,
             'fmriflow.reporters': self._reporters,
             'fmriflow.nipype_nodes': self._nipype_nodes,
+            'fmriflow.group_analyzers': self._group_analyzers,
+            'fmriflow.group_reporters': self._group_reporters,
         }
 
         for group, registry_dict in groups.items():
@@ -174,6 +180,20 @@ class ModuleRegistry:
             return cls
         return wrapper
 
+    def group_analyzer(self, name: str):
+        """Decorator to register a group-scope analyzer."""
+        def wrapper(cls):
+            self._group_analyzers[name] = cls
+            return cls
+        return wrapper
+
+    def group_reporter(self, name: str):
+        """Decorator to register a group-scope reporter."""
+        def wrapper(cls):
+            self._group_reporters[name] = cls
+            return cls
+        return wrapper
+
     # ─── Getters (return instances) ─────────────────────────────
 
     def get_stimulus_loader(self, name: str):
@@ -253,6 +273,20 @@ class ModuleRegistry:
                 f"Available: {list(self._nipype_nodes.keys())}")
         return self._nipype_nodes[name]()
 
+    def get_group_analyzer(self, name: str):
+        if name not in self._group_analyzers:
+            raise ModuleLookupError(
+                f"Group analyzer '{name}' not found. "
+                f"Available: {list(self._group_analyzers.keys())}")
+        return self._group_analyzers[name]()
+
+    def get_group_reporter(self, name: str):
+        if name not in self._group_reporters:
+            raise ModuleLookupError(
+                f"Group reporter '{name}' not found. "
+                f"Available: {list(self._group_reporters.keys())}")
+        return self._group_reporters[name]()
+
     # ─── Introspection ──────────────────────────────────────────
 
     def list_modules(self) -> dict[str, list[str]]:
@@ -269,6 +303,8 @@ class ModuleRegistry:
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
             'nipype_nodes': sorted(self._nipype_nodes.keys()),
+            'group_analyzers': sorted(self._group_analyzers.keys()),
+            'group_reporters': sorted(self._group_reporters.keys()),
         }
 
     def get_module_class(self, category: str, name: str) -> type:
@@ -285,6 +321,8 @@ class ModuleRegistry:
             'models': self._models,
             'reporters': self._reporters,
             'nipype_nodes': self._nipype_nodes,
+            'group_analyzers': self._group_analyzers,
+            'group_reporters': self._group_reporters,
         }
         if category not in registry_map:
             raise ModuleLookupError(f"Unknown category '{category}'")
@@ -315,6 +353,8 @@ class ModuleRegistry:
             'models': 'model',
             'reporters': 'report',
             'nipype_nodes': 'post_preproc',
+            'group_analyzers': 'group_analyze',
+            'group_reporters': 'group_report',
         }
 
         result = {}
