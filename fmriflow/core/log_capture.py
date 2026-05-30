@@ -59,7 +59,11 @@ def capture_logs_to(
         temporarily lowered if needed so that the handler can see records.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(path, mode=mode)
+    # encoding='utf-8' is load-bearing: many fmriflow log messages contain
+    # em-dashes / arrows / unicode separators. The FileHandler default
+    # uses locale.getpreferredencoding(), which is ASCII when LANG=C — that
+    # would emit a UnicodeEncodeError traceback for every such record.
+    handler = logging.FileHandler(path, mode=mode, encoding='utf-8')
     handler.setLevel(level)
     handler.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATEFMT))
     if thread_local:
