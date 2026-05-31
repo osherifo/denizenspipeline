@@ -268,10 +268,25 @@ class PipelineOrchestrator:
             analysis_cfg = self.config.get('analysis', [])
             if not analysis_cfg:
                 return "skipped (none configured)"
+            # Isolate each analyzer: a failure in one must not skip the rest
+            # of the analyze list nor the report stage downstream. The
+            # analyzer's output (if any) is recoverable from context by
+            # downstream consumers, who already handle 'missing key' cases.
+            n_ok = 0
+            failed: list[str] = []
             for acfg in analysis_cfg:
                 aname = acfg['name']
                 analyzer = modules["analyzers"][aname]
-                analyzer.analyze(self.ctx, self.config)
+                try:
+                    analyzer.analyze(self.ctx, self.config)
+                    n_ok += 1
+                except Exception as e:
+                    logger.error("Analyzer '%s' failed: %s",
+                                 aname, e, exc_info=True)
+                    failed.append(aname)
+            if failed:
+                return (f"{n_ok}/{len(analysis_cfg)} analyzer(s) ok, "
+                        f"failed: {', '.join(failed)}")
             return f"{len(analysis_cfg)} analyzer(s)"
 
         elif stage_name == 'report':

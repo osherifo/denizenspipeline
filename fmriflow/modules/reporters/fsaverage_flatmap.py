@@ -79,6 +79,10 @@ class FsaverageFlatmapReporter:
 
 
 def _resolve_key(ctx, key: str) -> Any | None:
+    # Try literal full-key first (analyzers commonly put under 'analysis.foo'),
+    # then fall back to attribute walking ('result.scores' → ModelResult.scores).
+    if ctx.has(key):
+        return ctx.get(key)
     parts = key.split(".")
     if not ctx.has(parts[0]):
         return None

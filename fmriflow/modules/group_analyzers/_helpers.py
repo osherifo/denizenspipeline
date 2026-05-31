@@ -8,18 +8,26 @@ from fmriflow.context import PipelineContext
 
 
 def resolve_subject_key(ctx: PipelineContext | None, key: str) -> Any | None:
-    """Resolve a dotted path into a subject's :class:`PipelineContext`.
+    """Resolve a (possibly dotted) key against a subject's :class:`PipelineContext`.
 
-    ``ctx.get(key)`` only does a flat lookup against the context store, but
-    subject artifacts are nested objects (e.g. ``result.scores`` is the
-    ``scores`` attribute of the ``ModelResult`` stored under ``result``).
-    This helper handles both: the first segment is a context key, the
-    remaining segments are attribute / item lookups.
+    Two layouts coexist in the codebase:
 
-    Returns None if any part of the path is missing.
+    1. **Literal dotted key** — analyzers put their outputs under strings
+       like ``'analysis.fsaverage_scores'``. ``ctx.put('analysis.fsaverage_scores', arr)``
+       stores under that exact string. The reader calls ``ctx.get(<that exact string>)``.
+    2. **Attribute walk** — ``'result.scores'`` means "the ``scores`` attribute
+       of the ``result`` context value", because ``result`` holds a ``ModelResult``
+       dataclass.
+
+    This helper tries (1) first, then falls back to (2). Returns ``None`` if
+    neither path resolves.
     """
     if ctx is None:
         return None
+    # 1. Literal full-key lookup
+    if ctx.has(key):
+        return ctx.get(key)
+    # 2. Attribute / dict-item walk from the first segment
     parts = key.split(".")
     if not ctx.has(parts[0]):
         return None

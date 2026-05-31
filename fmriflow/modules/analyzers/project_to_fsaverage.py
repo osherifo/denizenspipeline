@@ -139,6 +139,10 @@ def _my_cfg(config: dict, name: str) -> dict:
 
 
 def _resolve_subject_key(ctx, key: str):
+    # Literal full-key first, then attribute walk. See
+    # fmriflow.modules.group_analyzers._helpers.resolve_subject_key.
+    if ctx.has(key):
+        return ctx.get(key)
     parts = key.split(".")
     if not ctx.has(parts[0]):
         return None

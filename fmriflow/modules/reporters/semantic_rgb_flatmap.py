@@ -154,6 +154,9 @@ class SemanticRgbFlatmapReporter:
 
 
 def _resolve_key(ctx, key: str):
+    # Literal full-key first ('analysis.semantic_pc_projection'), then walk.
+    if ctx.has(key):
+        return ctx.get(key)
     parts = key.split(".")
     if not ctx.has(parts[0]):
         return None
