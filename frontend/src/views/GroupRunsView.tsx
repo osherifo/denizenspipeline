@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useGroupRunsStore } from '../stores/group-runs-store'
+import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
+import type { GraphTarget } from '../api/run-graph'
 import type {
   GroupRunListing,
   GroupRunDetail,
@@ -173,7 +175,12 @@ function RunListItem({
   )
 }
 
-function SubjectsTable({ detail }: { detail: GroupRunDetail }) {
+function SubjectsTable({
+  detail, onOpenSubjectGraph,
+}: {
+  detail: GroupRunDetail
+  onOpenSubjectGraph?: (subject: string) => void
+}) {
   return (
     <table style={tableStyle}>
       <thead>
@@ -182,6 +189,7 @@ function SubjectsTable({ detail }: { detail: GroupRunDetail }) {
           <th style={thStyle}>Status</th>
           <th style={thStyle}>Elapsed</th>
           <th style={thStyle}>Stages</th>
+          <th style={thStyle} />
         </tr>
       </thead>
       <tbody>
@@ -197,6 +205,22 @@ function SubjectsTable({ detail }: { detail: GroupRunDetail }) {
                 {s.stages.length}
                 {failed > 0 && (
                   <span style={{ color: 'var(--accent-red)' }}> ({failed} failed)</span>
+                )}
+              </td>
+              <td style={{ ...tdStyle, textAlign: 'right' }}>
+                {onOpenSubjectGraph && (
+                  <button
+                    style={{
+                      padding: '2px 8px', fontSize: 10, fontWeight: 600,
+                      border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 3,
+                      background: 'rgba(0, 229, 255, 0.08)',
+                      color: 'var(--accent-cyan)', cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                    onClick={() => onOpenSubjectGraph(s.subject)}
+                  >
+                    Graph
+                  </button>
                 )}
               </td>
             </tr>
@@ -317,7 +341,12 @@ function ArtifactGrid({
   )
 }
 
-function DetailPanel({ detail }: { detail: GroupRunDetail }) {
+function DetailPanel({
+  detail, onOpenGraph,
+}: {
+  detail: GroupRunDetail
+  onOpenGraph: (target: GraphTarget, title: string) => void
+}) {
   const subjectsArt = detail.artifacts?.subjects ?? {}
   const groupArt = detail.artifacts?.group ?? []
   return (
@@ -357,10 +386,32 @@ function DetailPanel({ detail }: { detail: GroupRunDetail }) {
               Open group.log ↗
             </a>
           )}
+          <button
+            style={{
+              ...linkBtn,
+              cursor: 'pointer', fontFamily: 'inherit',
+              background: 'rgba(0, 229, 255, 0.08)',
+              border: '1px solid rgba(0, 229, 255, 0.4)',
+              color: 'var(--accent-cyan)',
+            }}
+            onClick={() => onOpenGraph(
+              { kind: 'group', groupName: detail.group_name, runId: detail.run_id },
+              `${detail.group_name}/${detail.run_id} — group graph`,
+            )}
+            title="Show the group pipeline graph (click a subject to drill in)"
+          >
+            View graph
+          </button>
         </div>
       </div>
       <div style={sectionTitle}>Subjects</div>
-      <SubjectsTable detail={detail} />
+      <SubjectsTable
+        detail={detail}
+        onOpenSubjectGraph={(sub) => onOpenGraph(
+          { kind: 'group-subject', groupName: detail.group_name, runId: detail.run_id, subject: sub },
+          `${detail.group_name}/${detail.run_id} · ${sub} — subject graph`,
+        )}
+      />
       <div style={sectionTitle}>Group stages</div>
       <StagesTable stages={detail.group_stages} />
       {groupArt.length > 0 && (
@@ -390,6 +441,7 @@ export function GroupRunsView() {
     runs, selected, selectedKey, loading, loadingDetail, error,
     loadRuns, selectRun,
   } = useGroupRunsStore()
+  const [graph, setGraph] = useState<{ target: GraphTarget; title: string } | null>(null)
 
   useEffect(() => {
     loadRuns()
@@ -454,7 +506,10 @@ export function GroupRunsView() {
               Loading group detail…
             </div>
           ) : selected ? (
-            <DetailPanel detail={selected} />
+            <DetailPanel
+              detail={selected}
+              onOpenGraph={(target, title) => setGraph({ target, title })}
+            />
           ) : (
             <div style={{ ...cardStyle, padding: 24, color: 'var(--text-secondary)' }}>
               Select a group run to see per-subject status and group stages.
@@ -462,6 +517,27 @@ export function GroupRunsView() {
           )}
         </div>
       </div>
+
+      {graph && (
+        <AnalysisGraphModal
+          target={graph.target}
+          title={graph.title}
+          onClose={() => setGraph(null)}
+          onSubjectClick={(sub) => {
+            if (graph.target.kind === 'group') {
+              setGraph({
+                target: {
+                  kind: 'group-subject',
+                  groupName: graph.target.groupName,
+                  runId: graph.target.runId,
+                  subject: sub,
+                },
+                title: `${graph.target.groupName}/${graph.target.runId} · ${sub} — subject graph`,
+              })
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
