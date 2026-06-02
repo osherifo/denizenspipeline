@@ -24,9 +24,11 @@ from fmriflow.core.group_types import (
     GroupResult, SubjectResult,
 )
 from fmriflow.core.log_capture import capture_logs_to
-from fmriflow.core.run_summary import GroupRunSummary, RunSummary, StageRecord
+from fmriflow.core.run_summary import (
+    GroupRunSummary, NodeIdGen, NodeRecord, RunSummary, StageRecord,
+)
 from fmriflow.exceptions import ConfigError
-from fmriflow.orchestrator import PipelineOrchestrator
+from fmriflow.orchestrator import PipelineOrchestrator, _record, _relativize
 from fmriflow.registry import ModuleRegistry
 
 logger = logging.getLogger(__name__)
@@ -102,24 +104,27 @@ class GroupOrchestrator:
                 if analyzers:
                     self._stage(
                         'group_analyze',
-                        lambda: self._run_group_analyzers(analyzers),
+                        lambda nodes: self._run_group_analyzers(analyzers, nodes),
+                        capture_nodes=True,
                     )
 
                 second_pass = [
-                    ga for ga in analyzers
+                    (name, ga) for name, ga in analyzers
                     if getattr(ga, 'produces_subject_artifact', False)
                 ]
                 if second_pass:
                     self._stage(
                         'subject_second_pass',
-                        lambda: self._rerun_subjects_with_bindings(second_pass),
+                        lambda: self._rerun_subjects_with_bindings(
+                            [ga for _, ga in second_pass]),
                     )
 
                 reporters = self._resolve_group_reporters()
                 if reporters:
                     self._stage(
                         'group_report',
-                        lambda: self._run_group_reporters(reporters),
+                        lambda nodes: self._run_group_reporters(reporters, nodes),
+                        capture_nodes=True,
                     )
             finally:
                 finished_at = datetime.now(timezone.utc).isoformat()
@@ -310,16 +315,23 @@ class GroupOrchestrator:
 
     # ── group_analyze ───────────────────────────────────────────
 
-    def _resolve_group_analyzers(self) -> list[object]:
-        analyzers = []
+    def _resolve_group_analyzers(self) -> list[tuple[str, object]]:
+        """Return ``[(name, instance), …]`` so each invocation records
+        with the same name that appears in ``config.group_analyze``."""
+        out: list[tuple[str, object]] = []
         for acfg in self.config.get('group_analyze') or []:
             name = acfg['name']
-            analyzers.append(self.registry.get_group_analyzer(name))
-        return analyzers
+            out.append((name, self.registry.get_group_analyzer(name)))
+        return out
 
-    def _run_group_analyzers(self, analyzers: list[object]) -> None:
-        for ga in analyzers:
-            ga.analyze(self.group, self.config)
+    def _run_group_analyzers(self,
+                             analyzers: list[tuple[str, object]],
+                             nodes: list[NodeRecord]) -> None:
+        idgen = NodeIdGen('group_analyze')
+        for name, ga in analyzers:
+            with _record(nodes, idgen, 'group_analyzer', name) as rec:
+                ga.analyze(self.group, self.config)
+                rec.detail = 'ok'
 
     # ── second pass ─────────────────────────────────────────────
 
@@ -350,38 +362,58 @@ class GroupOrchestrator:
 
     # ── group_report ────────────────────────────────────────────
 
-    def _resolve_group_reporters(self) -> list[object]:
-        reporters = []
+    def _resolve_group_reporters(self) -> list[tuple[str, object]]:
+        out: list[tuple[str, object]] = []
         for rcfg in self.config.get('group_report') or []:
             name = rcfg['name']
-            reporters.append(self.registry.get_group_reporter(name))
-        return reporters
+            out.append((name, self.registry.get_group_reporter(name)))
+        return out
 
-    def _run_group_reporters(self, reporters: list[object]) -> None:
+    def _run_group_reporters(self,
+                             reporters: list[tuple[str, object]],
+                             nodes: list[NodeRecord]) -> None:
         # Reporters use config['output_dir'] to decide where to write.
         # The orchestrator's resolved group_dir is the source of truth, so
         # pin it here in case the original config left output_dir unset.
         report_cfg = dict(self.config)
         report_cfg['output_dir'] = str(self.group_dir)
-        for gr in reporters:
-            artifacts = gr.report(self.group, report_cfg) or {}
-            self.group.put(f'report.{gr.name}', artifacts)
+        idgen = NodeIdGen('group_report')
+        for name, gr in reporters:
+            with _record(nodes, idgen, 'group_reporter', name) as rec:
+                artifacts = gr.report(self.group, report_cfg) or {}
+                self.group.put(f'report.{getattr(gr, "name", name)}', artifacts)
+                if isinstance(artifacts, dict):
+                    rec.outputs = _relativize(
+                        [str(v) for v in artifacts.values() if v],
+                        str(self.group_dir),
+                    )
+                    rec.detail = f"{len(artifacts)} artifact(s)"
 
     # ── stage timing/recording helper ───────────────────────────
 
-    def _stage(self, name: str, fn):
+    def _stage(self, name: str, fn, *, capture_nodes: bool = False):
+        """Time one group stage; optionally collect per-plugin NodeRecords.
+
+        When ``capture_nodes=True``, ``fn`` is called with a
+        ``list[NodeRecord]`` to populate; that list is then attached to
+        the StageRecord so the run-graph viewer can show per-plugin
+        timings and outputs.
+        """
         t0 = time.time()
+        nodes: list[NodeRecord] = []
         try:
-            out = fn()
+            out = fn(nodes) if capture_nodes else fn()
             self._stage_records.append(StageRecord(
                 name=name, status='ok',
                 elapsed_s=round(time.time() - t0, 3), detail='',
+                nodes=list(nodes),
             ))
             return out
         except Exception as e:
             self._stage_records.append(StageRecord(
                 name=name, status='failed',
                 elapsed_s=round(time.time() - t0, 3), detail=str(e),
+                nodes=list(nodes),
             ))
             raise
 
