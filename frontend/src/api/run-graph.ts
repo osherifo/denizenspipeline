@@ -11,6 +11,8 @@ export type GraphTarget =
   | { kind: 'subject'; runId: string }
   | { kind: 'group'; groupName: string; runId: string }
   | { kind: 'group-subject'; groupName: string; runId: string; subject: string }
+  | { kind: 'study'; studyName: string; runId: string }
+  | { kind: 'study-group'; studyName: string; runId: string; groupLabel: string }
   // Preview the graph of a config that hasn't been run yet. Source code
   // is still viewable; outputs are not (no run dir exists).
   | { kind: 'config'; filename: string }
@@ -74,6 +76,10 @@ function urlFor(target: GraphTarget, suffix: string): string {
       return `${BASE}/group-runs/${encodeURIComponent(target.groupName)}/${encodeURIComponent(target.runId)}${suffix}`
     case 'group-subject':
       return `${BASE}/group-runs/${encodeURIComponent(target.groupName)}/${encodeURIComponent(target.runId)}/subject/${encodeURIComponent(target.subject)}${suffix}`
+    case 'study':
+      return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}${suffix}`
+    case 'study-group':
+      return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}${suffix}`
     case 'config':
       return `${BASE}/configs/${encodeURIComponent(target.filename)}${suffix}`
   }

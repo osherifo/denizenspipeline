@@ -15,12 +15,13 @@ import { PostPreprocBuilder } from './views/PostPreprocBuilder'
 import { QCReviews } from './views/QCReviews'
 import { Settings } from './views/Settings'
 import { GroupRunsView } from './views/GroupRunsView'
+import { StudyRunsView } from './views/StudyRunsView'
 import { useModuleStore } from './stores/module-store'
 
 type Route =
   | 'modules' | 'analysis' | 'runs' | 'editor' | 'dashboard'
   | 'preproc' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
-  | 'post-preproc' | 'qc-reviews' | 'settings' | 'group-runs'
+  | 'post-preproc' | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
@@ -40,6 +41,7 @@ function getRoute(): Route {
   if (hash === 'qc-reviews') return 'qc-reviews'
   if (hash === 'settings') return 'settings'
   if (hash === 'group-runs') return 'group-runs'
+  if (hash === 'study-runs') return 'study-runs'
   return 'dashboard'
 }
 
@@ -143,6 +145,7 @@ export function App() {
         {route === 'qc-reviews' && <QCReviews />}
         {route === 'settings' && <Settings />}
         {route === 'group-runs' && <GroupRunsView />}
+        {route === 'study-runs' && <StudyRunsView />}
       </div>
     </div>
   )

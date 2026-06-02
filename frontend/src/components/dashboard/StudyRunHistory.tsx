@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { StudyRunListing } from '../../api/types'
+import type { GraphTarget } from '../../api/run-graph'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
 
 
@@ -99,7 +100,7 @@ function overallStatus(r: StudyRunListing): { label: string; color: string } {
 
 
 export function StudyRunHistory({ runs, loading }: Props) {
-  const [graphRun, setGraphRun] = useState<StudyRunListing | null>(null)
+  const [graph, setGraph] = useState<{ target: GraphTarget; title: string } | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   if (runs.length === 0 && !loading) {
@@ -162,7 +163,17 @@ export function StudyRunHistory({ runs, loading }: Props) {
                 </td>
                 <td style={{ ...tdStyle, textAlign: 'right' }}>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setGraphRun(r) }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setGraph({
+                        target: {
+                          kind: 'study',
+                          studyName: r.study_name,
+                          runId: r.run_id,
+                        },
+                        title: `${r.study_name}/${r.run_id} — study graph`,
+                      })
+                    }}
                     style={{
                       padding: '2px 8px', fontSize: 10, fontWeight: 600,
                       border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 3,
@@ -181,19 +192,26 @@ export function StudyRunHistory({ runs, loading }: Props) {
         </tbody>
       </table>
 
-      {graphRun && (
+      {graph && (
         <AnalysisGraphModal
-          target={{
-            // AnalysisGraphModal doesn't carry a 'study' GraphTarget kind
-            // yet (that lands in Phase 5). For now fall back to 'group'
-            // for the first listed group so the modal still renders
-            // something meaningful — full study graph support comes next.
-            kind: 'group',
-            groupName: graphRun.group_labels[0] ?? graphRun.study_name,
-            runId: graphRun.run_id,
+          target={graph.target}
+          title={graph.title}
+          onClose={() => setGraph(null)}
+          onGroupClick={(label) => {
+            // Click a group node inside a study graph → drill into
+            // that group's full graph.
+            if (graph.target.kind === 'study') {
+              setGraph({
+                target: {
+                  kind: 'study-group',
+                  studyName: graph.target.studyName,
+                  runId: graph.target.runId,
+                  groupLabel: label,
+                },
+                title: `${graph.target.studyName}/${graph.target.runId} · ${label} — group graph`,
+              })
+            }
           }}
-          title={`${graphRun.study_name}/${graphRun.run_id} — study graph (placeholder)`}
-          onClose={() => setGraphRun(null)}
         />
       )}
     </div>

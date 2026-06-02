@@ -32,6 +32,7 @@ from fmriflow.core import paths
 from fmriflow.server.services.run_graph import (
     GraphNode,
     build_group_graph,
+    build_study_graph,
     build_subject_graph,
     list_node_outputs,
     read_source,
@@ -85,6 +86,51 @@ def _resolve_group_run_dir(group_name: str, run_id: str) -> Path:
 
 def _read_group_summary(run_dir: Path) -> dict:
     return json.loads((run_dir / 'group_summary.json').read_text())
+
+
+def _resolve_study_run_dir(study_name: str, run_id: str) -> Path:
+    if not study_name or '/' in study_name or study_name.startswith('.'):
+        raise HTTPException(status_code=400, detail="invalid study name")
+    if not run_id or '/' in run_id or run_id.startswith('.'):
+        raise HTTPException(status_code=400, detail="invalid run_id")
+    base = paths.study_runs_root() / study_name / run_id
+    if not (base / 'study_summary.json').is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"study_summary.json not found at {base}")
+    return base
+
+
+def _read_study_summary(run_dir: Path) -> dict:
+    return json.loads((run_dir / 'study_summary.json').read_text())
+
+
+def _resolve_study_group_run_dir(study_run_dir: Path, group_label: str) -> Path:
+    """Find the group's timestamped subdir inside a study run.
+
+    Study layout: ``<study_dir>/<run_id>/groups/<label>/<group_run_id>/``.
+    Returns the newest matching group_run_id subdir (only one per
+    invocation — StudyOrchestrator passes a deterministic run_id, so
+    "newest" only picks something else if the user re-ran out of band).
+    """
+    if not group_label or '/' in group_label or group_label.startswith('.'):
+        raise HTTPException(status_code=400, detail="invalid group_label")
+    base = study_run_dir / 'groups' / group_label
+    if not base.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"group '{group_label}' not in this study run")
+    candidates = [
+        p for p in base.iterdir()
+        if p.is_dir() and p.name != 'latest'
+        and (p / 'group_summary.json').is_file()
+    ]
+    if not candidates:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no group_summary.json for '{group_label}'")
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates[0]
 
 
 def _find_node(graph: dict, node_id: str) -> dict:
@@ -433,4 +479,120 @@ async def group_subject_node_file(name: str, run_id: str, sub: str,
         raise HTTPException(status_code=404,
                             detail=f"subject dir not found: {sub}")
     full = _safe_join(sub_dir, rel)
+    return FileResponse(str(full))
+
+
+# ── study run ───────────────────────────────────────────────────────────
+
+
+@router.get("/study-runs/{name}/{run_id}/graph")
+async def study_run_graph(request: Request, name: str, run_id: str):
+    run_dir = _resolve_study_run_dir(name, run_id)
+    summary = _read_study_summary(run_dir)
+    graph = build_study_graph(summary, _registry(request))
+    return {
+        'study_name': summary.get('study_name', name),
+        'run_id': run_id,
+        'output_dir': str(run_dir),
+        **graph.to_dict(),
+    }
+
+
+@router.get("/study-runs/{name}/{run_id}/node/{node_id:path}/source")
+async def study_node_source(request: Request, name: str, run_id: str,
+                            node_id: str):
+    run_dir = _resolve_study_run_dir(name, run_id)
+    summary = _read_study_summary(run_dir)
+    graph = build_study_graph(summary, _registry(request)).to_dict()
+    node = _find_node(graph, node_id)
+    if not node.get('source_path'):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No source registered for node '{node_id}'",
+        )
+    return _serve_source(node['source_path'])
+
+
+@router.get("/study-runs/{name}/{run_id}/node/{node_id:path}/outputs")
+async def study_node_outputs(request: Request, name: str, run_id: str,
+                             node_id: str):
+    run_dir = _resolve_study_run_dir(name, run_id)
+    summary = _read_study_summary(run_dir)
+    graph = build_study_graph(summary, _registry(request)).to_dict()
+    node = _find_node(graph, node_id)
+    files = list_node_outputs(run_dir, GraphNode(**{
+        k: v for k, v in node.items() if k in GraphNode.__dataclass_fields__
+    }))
+    return {
+        'node_id': node_id,
+        'output_dir': str(run_dir),
+        'files': files,
+    }
+
+
+@router.get("/study-runs/{name}/{run_id}/node/{node_id:path}/file/{rel:path}")
+async def study_node_file(name: str, run_id: str, node_id: str, rel: str):
+    run_dir = _resolve_study_run_dir(name, run_id)
+    full = _safe_join(run_dir, rel)
+    return FileResponse(str(full))
+
+
+@router.get("/study-runs/{name}/{run_id}/group/{label}/graph")
+async def study_group_graph(request: Request, name: str, run_id: str,
+                            label: str):
+    """Drill into a group inside a study — yields a regular group graph."""
+    study_run_dir = _resolve_study_run_dir(name, run_id)
+    group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
+    group_summary = json.loads((group_run_dir / 'group_summary.json').read_text())
+    graph = build_group_graph(group_summary, _registry(request))
+    return {
+        'study_name': name,
+        'run_id': run_id,
+        'group_label': label,
+        'group_name': group_summary.get('group_name', label),
+        'output_dir': str(group_run_dir),
+        **graph.to_dict(),
+    }
+
+
+@router.get("/study-runs/{name}/{run_id}/group/{label}/node/{node_id:path}/source")
+async def study_group_node_source(request: Request, name: str, run_id: str,
+                                  label: str, node_id: str):
+    study_run_dir = _resolve_study_run_dir(name, run_id)
+    group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
+    group_summary = json.loads((group_run_dir / 'group_summary.json').read_text())
+    graph = build_group_graph(group_summary, _registry(request)).to_dict()
+    node = _find_node(graph, node_id)
+    if not node.get('source_path'):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No source registered for node '{node_id}'",
+        )
+    return _serve_source(node['source_path'])
+
+
+@router.get("/study-runs/{name}/{run_id}/group/{label}/node/{node_id:path}/outputs")
+async def study_group_node_outputs(request: Request, name: str, run_id: str,
+                                   label: str, node_id: str):
+    study_run_dir = _resolve_study_run_dir(name, run_id)
+    group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
+    group_summary = json.loads((group_run_dir / 'group_summary.json').read_text())
+    graph = build_group_graph(group_summary, _registry(request)).to_dict()
+    node = _find_node(graph, node_id)
+    files = list_node_outputs(group_run_dir, GraphNode(**{
+        k: v for k, v in node.items() if k in GraphNode.__dataclass_fields__
+    }))
+    return {
+        'node_id': node_id,
+        'output_dir': str(group_run_dir),
+        'files': files,
+    }
+
+
+@router.get("/study-runs/{name}/{run_id}/group/{label}/node/{node_id:path}/file/{rel:path}")
+async def study_group_node_file(name: str, run_id: str, label: str,
+                                node_id: str, rel: str):
+    study_run_dir = _resolve_study_run_dir(name, run_id)
+    group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
+    full = _safe_join(group_run_dir, rel)
     return FileResponse(str(full))

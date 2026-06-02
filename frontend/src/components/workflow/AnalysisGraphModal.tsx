@@ -281,10 +281,13 @@ interface Props {
   /** Optional callback when a subject node is clicked in a group graph.
    *  Used to drill into the per-subject graph. */
   onSubjectClick?: (subjectId: string) => void
+  /** Optional callback when a group node is clicked in a study graph.
+   *  Used to drill into the per-group graph. */
+  onGroupClick?: (groupLabel: string) => void
 }
 
 
-export function AnalysisGraphModal({ target, title, onClose, onSubjectClick }: Props) {
+export function AnalysisGraphModal({ target, title, onClose, onSubjectClick, onGroupClick }: Props) {
   return (
     <div style={backdrop} onClick={onClose}>
       <div style={card} onClick={(e) => e.stopPropagation()}>
@@ -294,6 +297,7 @@ export function AnalysisGraphModal({ target, title, onClose, onSubjectClick }: P
             title={title}
             onClose={onClose}
             onSubjectClick={onSubjectClick}
+            onGroupClick={onGroupClick}
           />
         </ReactFlowProvider>
       </div>
@@ -302,7 +306,7 @@ export function AnalysisGraphModal({ target, title, onClose, onSubjectClick }: P
 }
 
 
-function Inner({ target, title, onClose, onSubjectClick }: Props) {
+function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) {
   const [graph, setGraph] = useState<RunGraphResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openNode, setOpenNode] = useState<RunGraphNode | null>(null)
@@ -328,6 +332,10 @@ function Inner({ target, title, onClose, onSubjectClick }: Props) {
     if (!found) return
     if (found.kind === 'subject' && onSubjectClick) {
       onSubjectClick(found.plugin_name ?? found.id.replace(/^subject:/, ''))
+      return
+    }
+    if (found.kind === 'group' && onGroupClick) {
+      onGroupClick(found.plugin_name ?? found.id.replace(/^group:/, ''))
       return
     }
     if (found.kind === 'stage') return  // not interactive

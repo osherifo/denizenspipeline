@@ -102,6 +102,7 @@ const groups = [
       { key: 'modules', label: 'Modules', hash: '#modules' },
       { key: 'runs', label: 'Runs', hash: '#runs' },
       { key: 'group-runs', label: 'Group Runs', hash: '#group-runs' },
+      { key: 'study-runs', label: 'Study Runs', hash: '#study-runs' },
       { key: 'editor', label: 'Editor', hash: '#editor' },
     ],
   },
