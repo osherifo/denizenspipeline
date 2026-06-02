@@ -21,6 +21,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 
 from fmriflow.core import paths
 
@@ -77,6 +78,26 @@ async def get_group_run_by_run_id(name: str, run_id: str):
     return _read_detail(group_dir / run_id)
 
 
+@router.get("/group-runs/{name}/{run_id}/file/{file_path:path}")
+async def get_group_run_file(name: str, run_id: str, file_path: str):
+    """Serve a single file from inside a timestamped group run directory.
+
+    The frontend uses this to pull flatmaps, logs, and the HTML report
+    over HTTP (browsers refuse ``file://`` from an http origin). The
+    handler resolves the requested path under the run dir and rejects
+    anything that resolves outside it.
+    """
+    group_dir = _resolve_group_dir(name)
+    _check_path_segment(run_id, "run_id")
+    return _serve_file(group_dir / run_id, file_path)
+
+
+@router.get("/group-runs/{name}/file/{file_path:path}")
+async def get_group_run_legacy_file(name: str, file_path: str):
+    """File-serving for the legacy (no-run_id) layout."""
+    return _serve_file(_resolve_group_dir(name), file_path)
+
+
 @router.get("/group-runs/{name}")
 async def get_group_run_legacy(name: str):
     """Legacy: ``<group_name>/group_summary.json`` directly (no run_id)."""
@@ -121,7 +142,67 @@ def _read_detail(run_dir: Path) -> dict:
         data["html_report"] = "group_summary.html"
     if (run_dir / "group.log").is_file():
         data["group_log"] = "group.log"
+    data["artifacts"] = _walk_artifacts(run_dir)
     return data
+
+
+def _walk_artifacts(run_dir: Path) -> dict:
+    """List image/text artifacts in the run dir, grouped for the UI.
+
+    Returns a dict with two keys:
+      ``group``  — list of files in the top-level run dir
+      ``subjects`` — {subject_name: [file_rel_paths]} for each subject dir
+
+    Each entry is a path RELATIVE to ``run_dir`` so the frontend can
+    build URLs against ``/api/group-runs/{name}/{run_id}/file/{path}``.
+    Only files with image / text / data extensions are listed; large
+    .hdf5 / .npy arrays are included as download links.
+    """
+    SHOWABLE_EXT = {".png", ".jpg", ".jpeg", ".svg", ".html",
+                    ".json", ".log", ".txt", ".npy"}
+    out: dict = {"group": [], "subjects": {}}
+    try:
+        for entry in sorted(run_dir.iterdir()):
+            if entry.is_file() and entry.suffix.lower() in SHOWABLE_EXT:
+                out["group"].append(entry.name)
+        gart = run_dir / "group_artifacts"
+        if gart.is_dir():
+            for entry in sorted(gart.iterdir()):
+                if entry.is_file() and entry.suffix.lower() in SHOWABLE_EXT:
+                    out["group"].append(f"group_artifacts/{entry.name}")
+        subjects_dir = run_dir / "subjects"
+        if subjects_dir.is_dir():
+            for sub in sorted(subjects_dir.iterdir()):
+                if not sub.is_dir():
+                    continue
+                files = []
+                for entry in sorted(sub.iterdir()):
+                    if entry.is_file() and entry.suffix.lower() in SHOWABLE_EXT:
+                        files.append(f"subjects/{sub.name}/{entry.name}")
+                if files:
+                    out["subjects"][sub.name] = files
+    except Exception:
+        logger.warning("Failed to walk artifacts in %s", run_dir, exc_info=True)
+    return out
+
+
+def _serve_file(base: Path, file_path: str) -> FileResponse:
+    if not file_path or file_path.startswith("/"):
+        raise HTTPException(status_code=400, detail="invalid file path")
+    parts = file_path.split("/")
+    if any(p in ("", "..") or p.startswith(".") for p in parts):
+        raise HTTPException(status_code=400, detail="invalid file path")
+    # Resolve fully and ensure we're still under base.
+    try:
+        full = (base / file_path).resolve(strict=False)
+        base_resolved = base.resolve(strict=False)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not str(full).startswith(str(base_resolved) + "/") and full != base_resolved:
+        raise HTTPException(status_code=400, detail="path escapes run dir")
+    if not full.is_file():
+        raise HTTPException(status_code=404, detail=f"not a file: {file_path}")
+    return FileResponse(str(full))
 
 
 def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:

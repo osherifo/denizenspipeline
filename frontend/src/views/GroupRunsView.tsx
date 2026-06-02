@@ -246,7 +246,80 @@ const linkBtn: CSSProperties = {
   borderRadius: 4,
 }
 
+const thumbGrid: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+  gap: 10,
+  padding: '8px 16px 16px',
+}
+
+const thumbCard: CSSProperties = {
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: 6,
+  backgroundColor: 'var(--bg-secondary)',
+  fontSize: 11,
+  color: 'var(--text-secondary)',
+}
+
+const thumbImg: CSSProperties = {
+  width: '100%',
+  height: 'auto',
+  display: 'block',
+  cursor: 'zoom-in',
+  borderRadius: 4,
+}
+
+/** Build the artifact-serving URL for one file inside the current run. */
+function fileUrl(detail: GroupRunDetail, relPath: string): string {
+  const name = encodeURIComponent(detail.group_name)
+  if (detail.run_id) {
+    return `/api/group-runs/${name}/${encodeURIComponent(detail.run_id)}/file/${relPath}`
+  }
+  return `/api/group-runs/${name}/file/${relPath}`
+}
+
+function isImage(path: string): boolean {
+  return /\.(png|jpg|jpeg|svg)$/i.test(path)
+}
+
+function ArtifactGrid({
+  detail, paths, basename,
+}: { detail: GroupRunDetail; paths: string[]; basename?: (p: string) => string }) {
+  if (paths.length === 0) return null
+  const baseFn = basename ?? ((p: string) => p.split('/').pop() ?? p)
+  return (
+    <div style={thumbGrid}>
+      {paths.map((p) => {
+        const url = fileUrl(detail, p)
+        const label = baseFn(p)
+        return (
+          <div key={p} style={thumbCard}>
+            {isImage(p) ? (
+              <a href={url} target="_blank" rel="noreferrer">
+                <img src={url} alt={label} style={thumbImg} loading="lazy" />
+              </a>
+            ) : (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent-cyan)', textDecoration: 'none' }}
+              >
+                ⬇ {label}
+              </a>
+            )}
+            <div style={{ marginTop: 4, wordBreak: 'break-all' }}>{label}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function DetailPanel({ detail }: { detail: GroupRunDetail }) {
+  const subjectsArt = detail.artifacts?.subjects ?? {}
+  const groupArt = detail.artifacts?.group ?? []
   return (
     <div style={cardStyle}>
       <div style={{ padding: '16px 18px' }}>
@@ -263,10 +336,10 @@ function DetailPanel({ detail }: { detail: GroupRunDetail }) {
         <div style={{ ...monoSmall, marginTop: 4 }}>
           <code>{detail.run_dir}</code>
         </div>
-        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {detail.html_report && (
             <a
-              href={`file://${detail.run_dir}/${detail.html_report}`}
+              href={fileUrl(detail, detail.html_report)}
               target="_blank"
               rel="noreferrer"
               style={linkBtn}
@@ -276,7 +349,7 @@ function DetailPanel({ detail }: { detail: GroupRunDetail }) {
           )}
           {detail.group_log && (
             <a
-              href={`file://${detail.run_dir}/${detail.group_log}`}
+              href={fileUrl(detail, detail.group_log)}
               target="_blank"
               rel="noreferrer"
               style={linkBtn}
@@ -290,6 +363,22 @@ function DetailPanel({ detail }: { detail: GroupRunDetail }) {
       <SubjectsTable detail={detail} />
       <div style={sectionTitle}>Group stages</div>
       <StagesTable stages={detail.group_stages} />
+      {groupArt.length > 0 && (
+        <>
+          <div style={sectionTitle}>Group artifacts</div>
+          <ArtifactGrid detail={detail} paths={groupArt} />
+        </>
+      )}
+      {Object.entries(subjectsArt).map(([sub, paths]) => (
+        <div key={sub}>
+          <div style={sectionTitle}>{`Subject ${sub}`}</div>
+          <ArtifactGrid
+            detail={detail}
+            paths={paths}
+            basename={(p) => p.split('/').pop() ?? p}
+          />
+        </div>
+      ))}
     </div>
   )
 }
