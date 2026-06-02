@@ -208,11 +208,6 @@ function formatDate(iso: string): string {
   }
 }
 
-function formatScore(score: number | null): string {
-  if (score == null) return '-'
-  return score.toFixed(4)
-}
-
 // ── Detail View ──
 
 function RunDetail({
@@ -240,12 +235,6 @@ function RunDetail({
         <div style={summaryCard}>
           <div style={summaryLabel}>Subject</div>
           <div style={summaryValue}>{run.subject || '-'}</div>
-        </div>
-        <div style={summaryCard}>
-          <div style={summaryLabel}>Mean Score</div>
-          <div style={{ ...summaryValue, color: run.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)' }}>
-            {formatScore(run.mean_score)}
-          </div>
         </div>
         <div style={summaryCard}>
           <div style={summaryLabel}>Duration</div>
@@ -388,7 +377,6 @@ export function RunManager() {
                 <th style={thStyle}>Experiment</th>
                 <th style={thStyle}>Subject</th>
                 <th style={thStyle}>Model</th>
-                <th style={thStyle}>Mean Score</th>
                 <th style={thStyle}>Status</th>
               </tr>
             </thead>
@@ -423,13 +411,6 @@ export function RunManager() {
                     <td style={tdStyle}>{run.subject || '-'}</td>
                     <td style={tdStyle}>
                       {(run.config_snapshot as any)?.model?.type || '-'}
-                    </td>
-                    <td style={{
-                      ...tdStyle,
-                      color: run.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)',
-                      fontWeight: 600,
-                    }}>
-                      {formatScore(run.mean_score)}
                     </td>
                     <td style={tdStyle}>
                       <span style={statusBadge(run.status)}>{run.status}</span>

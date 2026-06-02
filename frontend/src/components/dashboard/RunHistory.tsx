@@ -141,7 +141,6 @@ export function RunHistory({ runs, selectedRun, loading, onSelectRun, onClearRun
         <thead>
           <tr>
             <th style={thStyle}>Date</th>
-            <th style={thStyle}>Score</th>
             <th style={thStyle}>Duration</th>
             <th style={thStyle}>Status</th>
           </tr>
@@ -156,12 +155,6 @@ export function RunHistory({ runs, selectedRun, loading, onSelectRun, onClearRun
                 onClick={() => isSelected ? onClearRun() : onSelectRun(run.run_id)}
               >
                 <td style={tdStyle}>{formatDate(run.started_at)}</td>
-                <td style={{
-                  ...tdStyle, fontWeight: 600,
-                  color: run.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)',
-                }}>
-                  {run.mean_score != null ? run.mean_score.toFixed(4) : '-'}
-                </td>
                 <td style={tdStyle}>{formatDuration(run.total_elapsed_s)}</td>
                 <td style={tdStyle}><span style={statusBadge(run.status)}>{run.status}</span></td>
               </tr>
@@ -186,15 +179,6 @@ export function RunHistory({ runs, selectedRun, loading, onSelectRun, onClearRun
           </div>
 
           <div style={summaryGrid}>
-            <div style={summaryCard}>
-              <div style={summaryCardLabel}>Score</div>
-              <div style={{
-                ...summaryCardValue,
-                color: selectedRun.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)',
-              }}>
-                {selectedRun.mean_score != null ? selectedRun.mean_score.toFixed(4) : '-'}
-              </div>
-            </div>
             <div style={summaryCard}>
               <div style={summaryCardLabel}>Duration</div>
               <div style={summaryCardValue}>{formatDuration(selectedRun.total_elapsed_s)}</div>
