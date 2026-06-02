@@ -134,6 +134,13 @@ export interface RunEvent {
   error?: string
   message?: string
   timestamp?: number
+  // Attached to `run_failed` events: last ~200 lines of pipeline.log so
+  // the UI can show the actual failure when no run_summary.json was
+  // produced (and therefore no completedRun is fetched). Also a
+  // Python traceback when the run_manager wrapper itself raised.
+  log_tail?: string
+  log_path?: string
+  traceback?: string
 }
 
 // ── Module Editor types ──

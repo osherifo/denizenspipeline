@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -22,33 +21,12 @@ class RunStore:
         self._last_scan = 0.0
 
     def scan(self) -> None:
-        """Re-scan results directory for run_summary.json files.
-
-        Uses ``os.walk(followlinks=True)`` rather than ``Path.rglob`` so
-        directory symlinks under ``results_dir`` are descended into.
-        Per-subject runs from a group-orchestrator run are surfaced this
-        way (symlinked from ``group_runs/<gn>/<run_id>/subjects/<sub>/``)
-        until the proper group-runs integration lands (board #27).
-        """
+        """Re-scan results directory for run_summary.json files."""
         self._index = []
         if not self.results_dir.is_dir():
             return
 
-        visited: set[str] = set()  # guard against symlink cycles
-        for dirpath, _dirnames, filenames in os.walk(
-            self.results_dir, followlinks=True
-        ):
-            try:
-                real = os.path.realpath(dirpath)
-            except OSError:
-                continue
-            if real in visited:
-                continue
-            visited.add(real)
-
-            if 'run_summary.json' not in filenames:
-                continue
-            summary_path = Path(dirpath) / 'run_summary.json'
+        for summary_path in self.results_dir.rglob('run_summary.json'):
             try:
                 summary = RunSummary.from_json(summary_path)
                 run_id = hashlib.md5(

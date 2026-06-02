@@ -31,18 +31,23 @@ router = APIRouter(tags=["group-runs"])
 
 
 @router.get("/group-runs")
-async def list_group_runs():
+async def list_group_runs(name: str | None = None):
     """List every group run found under ``$FMRIFLOW_HOME/group_runs/``.
 
     Each ``<group_name>`` directory may contain multiple timestamped
     ``<run_id>/`` subdirectories — each becomes its own row in the
     response. A legacy ``group_summary.json`` directly inside the group
     directory (pre-run-id layout) is also listed, with ``run_id = ""``.
+
+    ``?name=<group_name>`` restricts the listing to one group's
+    invocations (used by the Dashboard's RunHistory panel).
     """
     root = paths.group_runs_root()
     out: list[dict] = []
     for group_dir in sorted(root.iterdir() if root.exists() else []):
         if not group_dir.is_dir():
+            continue
+        if name is not None and group_dir.name != name:
             continue
 
         # Legacy layout: group_summary.json directly under <group_name>/.
