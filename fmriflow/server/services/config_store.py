@@ -27,6 +27,11 @@ class ConfigSummary:
     preparation_type: str
     stimulus_loader: str
     response_loader: str
+    # 'subject' for a single-subject pipeline yaml; 'group' for a
+    # GroupOrchestrator config (top-level 'group:' + 'subjects:' list).
+    kind: str = "subject"
+    # For group configs only: list of subject IDs in the subjects: block.
+    group_subjects: list[str] = field(default_factory=list)
 
 
 class ConfigStore:
@@ -58,29 +63,40 @@ class ConfigStore:
         self._legacy_dirs = [d for d in self._legacy_dirs if d is not None]
 
     def _yamls_with_legacy_fallback(self) -> list[Path]:
-        """Return YAML paths to scan, primary-tier first, no dups."""
+        """Return YAML paths to scan, primary-tier first, no dups.
+
+        Walks:
+          * ``<configs_dir>/*.yaml`` (subject configs)
+          * ``<configs_dir>/group/*.yaml`` (group configs — new tier)
+          * legacy ``./experiments/*.yaml`` (subject)
+          * legacy ``./experiments/group/*.yaml`` (group)
+        """
         seen: set[str] = set()
         out: list[Path] = []
-        if self.configs_dir.is_dir():
-            for p in sorted(self.configs_dir.glob("*.yaml")):
+
+        def add_glob(d: Path) -> None:
+            if not d.is_dir():
+                return
+            for p in sorted(d.glob("*.yaml")):
                 if p.name not in seen:
                     seen.add(p.name)
                     out.append(p)
+
+        # Primary tier: configs_dir and its group/ subdir.
+        if self.configs_dir.is_dir():
+            add_glob(self.configs_dir)
+            add_glob(self.configs_dir / "group")
+
+        # Legacy: ./experiments/ and ./experiments/group/, plus the
+        # parent of configs_dir (older layout).
         for legacy in self._legacy_dirs:
-            if not legacy.is_dir():
-                continue
             try:
                 if legacy.resolve() == self.configs_dir.resolve():
                     continue  # same dir, already scanned
             except Exception:
                 pass
-            for p in sorted(legacy.glob("*.yaml")):
-                # Top-level only — stage subdir YAMLs (convert/, …)
-                # are handled by their respective stores.
-                if p.name in seen:
-                    continue
-                seen.add(p.name)
-                out.append(p)
+            add_glob(legacy)
+            add_glob(legacy / "group")
         return out
 
     def scan(self) -> None:
@@ -122,6 +138,18 @@ class ConfigStore:
         parts = stem.split('_')
         group = parts[0] if len(parts) > 1 else stem
 
+        # Group-vs-subject kind detection. A group config has a top-level
+        # 'group:' key (the group name) AND a 'subjects:' list. Subject
+        # configs have 'subject:' (singular).
+        is_group = (
+            isinstance(config.get("group"), str)
+            and isinstance(config.get("subjects"), list)
+        )
+        kind = "group" if is_group else "subject"
+        group_subjects: list[str] = (
+            [str(s) for s in config["subjects"]] if is_group else []
+        )
+
         # Extract feature names
         features = []
         for f in config.get('features', []):
@@ -132,18 +160,71 @@ class ConfigStore:
         prep = config.get('preparation', {})
         prep_type = prep.get('type', 'default') if isinstance(prep, dict) else 'default'
 
+        if kind == "group":
+            # For group configs the model/features/etc live under
+            # subject_template. Lift the relevant fields up so the
+            # browser shows useful info.
+            template = config.get("subject_template", {}) or {}
+            template = template if isinstance(template, dict) else {}
+            features = []
+            for f in template.get("features", []) or []:
+                if isinstance(f, dict) and "name" in f:
+                    features.append(f["name"])
+            model_obj = template.get("model", {})
+            model_type = (
+                model_obj.get("type", "") if isinstance(model_obj, dict) else ""
+            )
+            prep_obj = template.get("preparation", {})
+            prep_type = (
+                prep_obj.get("type", "default") if isinstance(prep_obj, dict) else "default"
+            )
+            stim_obj = template.get("stimulus", {})
+            stimulus_loader = (
+                stim_obj.get("loader", "") if isinstance(stim_obj, dict) else ""
+            )
+            resp_obj = template.get("response", {})
+            response_loader = (
+                resp_obj.get("loader", "") if isinstance(resp_obj, dict) else ""
+            )
+            experiment = config.get("group", stem)
+            subject = ""  # not applicable
+        else:
+            model_obj = config.get("model")
+            model_type = (
+                model_obj.get("type", "") if isinstance(model_obj, dict) else ""
+            )
+            stim_obj = config.get("stimulus")
+            stimulus_loader = (
+                stim_obj.get("loader", "") if isinstance(stim_obj, dict) else ""
+            )
+            resp_obj = config.get("response")
+            response_loader = (
+                resp_obj.get("loader", "") if isinstance(resp_obj, dict) else ""
+            )
+            experiment = config.get("experiment", stem)
+            subject = config.get("subject", "")
+
+        output_dir = ""
+        rpt = config.get("reporting")
+        if isinstance(rpt, dict):
+            output_dir = rpt.get("output_dir", "")
+        if not output_dir:
+            output_dir = config.get("output_dir", "")
+
         return ConfigSummary(
             filename=filename,
             path=str(path.resolve()),
-            experiment=config.get('experiment', stem),
-            subject=config.get('subject', ''),
-            model_type=config.get('model', {}).get('type', '') if isinstance(config.get('model'), dict) else '',
+            experiment=experiment,
+            subject=subject,
+            model_type=model_type,
             features=features,
-            output_dir=config.get('reporting', {}).get('output_dir', '') if isinstance(config.get('reporting'), dict) else '',
+            output_dir=output_dir,
             group=group,
             preparation_type=prep_type,
-            stimulus_loader=config.get('stimulus', {}).get('loader', '') if isinstance(config.get('stimulus'), dict) else '',
-            response_loader=config.get('response', {}).get('loader', '') if isinstance(config.get('response'), dict) else '',
+            stimulus_loader=stimulus_loader,
+            response_loader=response_loader,
+            kind=kind,
+            group_subjects=group_subjects,
         )
 
     def list_configs(self) -> list[ConfigSummary]:
@@ -156,9 +237,20 @@ class ConfigStore:
 
         Returns dict with keys: filename, path, config, yaml_string.
         Returns None if not found.
+
+        Looks up by filename via the cached summaries first (so group
+        configs under ``<configs_dir>/group/`` or ``./experiments/group/``
+        resolve correctly), and falls back to the primary configs_dir
+        for any file not yet seen by a scan.
         """
         self._maybe_rescan()
-        path = self.configs_dir / filename
+        path: Path | None = None
+        for cfg in self._cache:
+            if cfg.filename == filename:
+                path = Path(cfg.path)
+                break
+        if path is None:
+            path = self.configs_dir / filename
         if not path.is_file():
             return None
 

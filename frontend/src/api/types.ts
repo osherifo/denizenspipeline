@@ -186,6 +186,11 @@ export interface ConfigSummary {
   stimulus_loader: string
   response_loader: string
   n_runs: number
+  // 'subject' for a single-subject pipeline yaml; 'group' for a
+  // GroupOrchestrator config (top-level 'group:' + 'subjects:' list).
+  kind?: 'subject' | 'group'
+  // For group configs only: list of subject IDs in the subjects: block.
+  group_subjects?: string[]
 }
 
 export interface ConfigDetail {
@@ -893,6 +898,11 @@ export interface GroupSubjectSummary {
   config_snapshot: Record<string, unknown>
 }
 
+export interface GroupArtifacts {
+  group: string[]                       // file paths relative to <run_dir>
+  subjects: Record<string, string[]>    // subject -> file paths
+}
+
 export interface GroupRunDetail {
   group_name: string
   run_id: string
@@ -906,4 +916,5 @@ export interface GroupRunDetail {
   run_dir: string
   html_report?: string
   group_log?: string
+  artifacts: GroupArtifacts
 }

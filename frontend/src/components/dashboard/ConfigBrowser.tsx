@@ -89,21 +89,62 @@ const rescanBtn: CSSProperties = {
   fontFamily: 'inherit',
 }
 
+const tabBar: CSSProperties = {
+  display: 'flex',
+  margin: '0 12px 8px',
+  borderBottom: '1px solid var(--border)',
+}
+
+const tabBtn = (active: boolean): CSSProperties => ({
+  flex: 1,
+  padding: '8px 6px',
+  fontSize: 11,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: 1,
+  background: 'transparent',
+  border: 'none',
+  borderBottom: active
+    ? '2px solid var(--accent-cyan)'
+    : '2px solid transparent',
+  color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+})
+
+type Tab = 'subject' | 'group'
+
 export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, onRescan }: ConfigBrowserProps) {
   const [search, setSearch] = useState('')
+  const [tab, setTab] = useState<Tab>('subject')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
+  // Tally per-kind counts up front (independent of search) so the tab
+  // labels always show the total available.
+  const counts = useMemo(() => {
+    let subj = 0, grp = 0
+    for (const c of configs) {
+      if ((c.kind ?? 'subject') === 'group') grp += 1
+      else subj += 1
+    }
+    return { subject: subj, group: grp }
+  }, [configs])
+
   const filtered = useMemo(() => {
-    if (!search) return configs
     const q = search.toLowerCase()
-    return configs.filter(
-      (c) =>
+    return configs.filter((c) => {
+      const kind = c.kind ?? 'subject'
+      if (kind !== tab) return false
+      if (!q) return true
+      return (
         c.filename.toLowerCase().includes(q) ||
         c.experiment.toLowerCase().includes(q) ||
         c.subject.toLowerCase().includes(q) ||
-        c.model_type.toLowerCase().includes(q)
-    )
-  }, [configs, search])
+        c.model_type.toLowerCase().includes(q) ||
+        (c.group_subjects ?? []).some((s) => s.toLowerCase().includes(q))
+      )
+    })
+  }, [configs, search, tab])
 
   // Group configs by group field
   const groups = useMemo(() => {
@@ -134,6 +175,21 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
         style={searchInput}
       />
 
+      <div style={tabBar}>
+        <button
+          style={tabBtn(tab === 'subject')}
+          onClick={() => setTab('subject')}
+        >
+          Subject ({counts.subject})
+        </button>
+        <button
+          style={tabBtn(tab === 'group')}
+          onClick={() => setTab('group')}
+        >
+          Group ({counts.group})
+        </button>
+      </div>
+
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {groups.map(([group, items]) => (
           <div key={group}>
@@ -144,28 +200,36 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
               </span>
             </div>
             {!collapsedGroups.has(group) &&
-              items.map((c) => (
-                <div
-                  key={c.filename}
-                  style={configItem(selectedFilename === c.filename)}
-                  onClick={() => onSelect(c.filename)}
-                >
-                  <div style={configName}>{c.filename.replace('.yaml', '')}</div>
-                  <div style={configMeta}>
-                    <span>{c.subject || '?'}</span>
-                    <span>{c.model_type || '?'}</span>
-                    <span style={runBadge(c.n_runs)}>
-                      {c.n_runs} run{c.n_runs !== 1 ? 's' : ''}
-                    </span>
+              items.map((c) => {
+                const isGroup = (c.kind ?? 'subject') === 'group'
+                const subLabel = isGroup
+                  ? `${(c.group_subjects ?? []).length} subj`
+                  : c.subject || '?'
+                return (
+                  <div
+                    key={c.filename}
+                    style={configItem(selectedFilename === c.filename)}
+                    onClick={() => onSelect(c.filename)}
+                  >
+                    <div style={configName}>{c.filename.replace('.yaml', '')}</div>
+                    <div style={configMeta}>
+                      <span>{subLabel}</span>
+                      <span>{c.model_type || '?'}</span>
+                      <span style={runBadge(c.n_runs)}>
+                        {c.n_runs} run{c.n_runs !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
           </div>
         ))}
 
-        {configs.length === 0 && !loading && (
+        {filtered.length === 0 && !loading && (
           <div style={{ padding: '24px 16px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
-            No configs found
+            {tab === 'group'
+              ? 'No group configs found. Put a YAML with top-level "group:" + "subjects:" in experiments/group/ or $FMRIFLOW_HOME/configs/group/.'
+              : 'No subject configs found.'}
           </div>
         )}
       </div>

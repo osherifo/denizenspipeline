@@ -102,10 +102,18 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       const detail = await fetchConfigDetail(filename)
       set({ selectedConfig: detail })
 
-      // Load runs for this config's experiment+subject
+      // Load runs for this config's experiment+subject.
+      // Group configs don't have a top-level `experiment:` — they have
+      // `group:` + `subjects:`. Per-subject runs spawned by
+      // GroupOrchestrator stamp run_summary.experiment = <group_name>,
+      // so query by that and leave subject empty (matches every subject).
       const config = detail.config as Record<string, any>
-      const experiment = config.experiment || ''
-      const subject = config.subject || ''
+      const isGroup =
+        typeof config.group === 'string' && Array.isArray(config.subjects)
+      const experiment = isGroup
+        ? (config.group || '')
+        : (config.experiment || '')
+      const subject = isGroup ? '' : (config.subject || '')
       if (experiment || subject) {
         get().loadConfigRuns(experiment, subject)
       } else {
