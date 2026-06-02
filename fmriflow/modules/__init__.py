@@ -67,6 +67,9 @@ def register_builtins(registry):
     import fmriflow.modules.reporters.webgl  # noqa: F401
     import fmriflow.modules.reporters.fsaverage_flatmap  # noqa: F401
     import fmriflow.modules.reporters.semantic_rgb_flatmap  # noqa: F401
+    import fmriflow.modules.reporters.arrays_dump  # noqa: F401
+    import fmriflow.modules.reporters.r_flatmap  # noqa: F401
+    import fmriflow.modules.reporters.r2_flatmap  # noqa: F401
 
     # Post-fmriprep nipype-style nodes
     import fmriflow.modules.nipype_nodes.source  # noqa: F401
