@@ -459,7 +459,7 @@ class RunManager:
             # summaries have `stages`; group summaries have
             # `group_stages`. Either way, find the first failed one.
             stages_key = 'group_stages' if handle.is_group else 'stages'
-            if summary and summary.get('status') == 'failed':
+            if summary:
                 stages = summary.get(stages_key, [])
                 failed_stage = next(
                     (s for s in stages if s.get('status') == 'failed'),
