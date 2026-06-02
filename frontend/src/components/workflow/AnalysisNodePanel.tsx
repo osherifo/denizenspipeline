@@ -9,10 +9,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import Editor from '@monaco-editor/react'
 
 import {
   fetchNodeOutputs,
   fetchNodeSource,
+  isConfigPreview,
   nodeFileUrl,
   type GraphTarget,
   type NodeOutputFile,
@@ -123,7 +125,12 @@ interface Props {
 
 
 export function AnalysisNodePanel({ target, node, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>(node.source_path ? 'source' : 'outputs')
+  // For a config preview, outputs don't exist; fall back to params
+  // instead when no source is registered.
+  const previewOnly = isConfigPreview(target)
+  const _defaultTab = (): Tab =>
+    node.source_path ? 'source' : (previewOnly ? 'params' : 'outputs')
+  const [tab, setTab] = useState<Tab>(_defaultTab)
   const [source, setSource] = useState<NodeSourceResponse | null>(null)
   const [outputs, setOutputs] = useState<NodeOutputsResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +142,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
     setOutputs(null)
     setError(null)
     setOpenFile(null)
-    setTab(node.source_path ? 'source' : 'outputs')
+    setTab(_defaultTab())
   }, [node.id])
 
   useEffect(() => {
@@ -178,9 +185,11 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
         >
           Source
         </button>
-        <button style={tabBtn(tab === 'outputs')} onClick={() => setTab('outputs')}>
-          Outputs
-        </button>
+        {!isConfigPreview(target) && (
+          <button style={tabBtn(tab === 'outputs')} onClick={() => setTab('outputs')}>
+            Outputs
+          </button>
+        )}
         <button style={tabBtn(tab === 'params')} onClick={() => setTab('params')}>
           Params
         </button>
@@ -194,7 +203,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
         )}
 
         {tab === 'source' && (
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {!node.source_path && (
               <div style={{ padding: 12, color: 'var(--text-secondary)', fontSize: 11 }}>
                 No source file registered for this node.
@@ -210,13 +219,34 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
                 <div style={{
                   padding: '4px 10px', fontSize: 9, color: 'var(--text-secondary)',
                   background: 'var(--bg-secondary)', wordBreak: 'break-all',
+                  flex: '0 0 auto',
                 }}>
                   {source.path}
                 </div>
-                <pre style={preStyle}>{source.text}</pre>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <Editor
+                    height="100%"
+                    language={source.language === 'python' ? 'python' : 'plaintext'}
+                    theme="vs-dark"
+                    value={source.text}
+                    options={{
+                      readOnly: true,
+                      domReadOnly: true,
+                      minimap: { enabled: false },
+                      fontSize: 12,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      lineNumbers: 'on',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      renderLineHighlight: 'none',
+                      contextmenu: false,
+                      padding: { top: 8 },
+                    }}
+                  />
+                </div>
               </>
             )}
-          </>
+          </div>
         )}
 
         {tab === 'outputs' && (

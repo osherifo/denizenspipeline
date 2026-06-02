@@ -131,6 +131,93 @@ def _serve_source(source_path: str) -> dict:
     }
 
 
+# ── config preview (no run yet) ────────────────────────────────────────
+
+
+@router.get("/configs/{filename}/graph")
+async def config_graph(request: Request, filename: str):
+    """Build the graph for a config that hasn't been run.
+
+    Stage status is ``unknown`` for every node since no run has
+    happened — the value here is seeing the plugin structure and
+    jumping into source code from the Dashboard before launching a
+    run. Works for both subject and group configs.
+    """
+    store = request.app.state.config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Config '{filename}' not found")
+    cfg = result.get('config') or {}
+    registry = _registry(request)
+
+    is_group = (
+        isinstance(cfg.get('group'), str)
+        and isinstance(cfg.get('subjects'), list)
+    )
+
+    if is_group:
+        # Synthesize a minimal GroupRunSummary-shaped dict so the
+        # group-graph builder can render its skeleton.
+        graph = build_group_graph({
+            'group_name': cfg.get('group'),
+            'config_snapshot': cfg,
+            'group_stages': [],
+            'subject_summaries': [
+                {'subject': s, 'stages': [], 'config_snapshot': {}}
+                for s in cfg.get('subjects') or []
+            ],
+        }, registry)
+        return {
+            'filename': filename,
+            'kind': 'group',
+            'group_name': cfg.get('group'),
+            **graph.to_dict(),
+        }
+    # Subject config: use the per-subject template directly. There are
+    # no recorded stages yet so every plugin gets status='unknown'.
+    graph = build_subject_graph(cfg, [], registry)
+    return {
+        'filename': filename,
+        'kind': 'subject',
+        'experiment': cfg.get('experiment', ''),
+        'subject': cfg.get('subject', ''),
+        **graph.to_dict(),
+    }
+
+
+@router.get("/configs/{filename}/node/{node_id:path}/source")
+async def config_node_source(request: Request, filename: str, node_id: str):
+    """Source code for one node in a config-preview graph."""
+    store = request.app.state.config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Config '{filename}' not found")
+    cfg = result.get('config') or {}
+    registry = _registry(request)
+    is_group = (
+        isinstance(cfg.get('group'), str)
+        and isinstance(cfg.get('subjects'), list)
+    )
+    if is_group:
+        graph = build_group_graph({
+            'group_name': cfg.get('group'),
+            'config_snapshot': cfg,
+            'group_stages': [],
+            'subject_summaries': [],
+        }, registry).to_dict()
+    else:
+        graph = build_subject_graph(cfg, [], registry).to_dict()
+    node = _find_node(graph, node_id)
+    if not node.get('source_path'):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No source registered for node '{node_id}'",
+        )
+    return _serve_source(node['source_path'])
+
+
 # ── subject run ────────────────────────────────────────────────────────
 
 

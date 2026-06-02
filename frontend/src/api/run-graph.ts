@@ -11,6 +11,9 @@ export type GraphTarget =
   | { kind: 'subject'; runId: string }
   | { kind: 'group'; groupName: string; runId: string }
   | { kind: 'group-subject'; groupName: string; runId: string; subject: string }
+  // Preview the graph of a config that hasn't been run yet. Source code
+  // is still viewable; outputs are not (no run dir exists).
+  | { kind: 'config'; filename: string }
 
 export interface RunGraphNode {
   id: string
@@ -71,7 +74,16 @@ function urlFor(target: GraphTarget, suffix: string): string {
       return `${BASE}/group-runs/${encodeURIComponent(target.groupName)}/${encodeURIComponent(target.runId)}${suffix}`
     case 'group-subject':
       return `${BASE}/group-runs/${encodeURIComponent(target.groupName)}/${encodeURIComponent(target.runId)}/subject/${encodeURIComponent(target.subject)}${suffix}`
+    case 'config':
+      return `${BASE}/configs/${encodeURIComponent(target.filename)}${suffix}`
   }
+}
+
+
+/** True when the target is a config preview — outputs/file endpoints
+ *  don't exist for these (no run dir yet). */
+export function isConfigPreview(target: GraphTarget): boolean {
+  return target.kind === 'config'
 }
 
 

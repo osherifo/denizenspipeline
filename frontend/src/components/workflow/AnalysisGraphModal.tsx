@@ -71,13 +71,16 @@ function _StageInner({ data }: NodeProps & { data: StageNodeData }) {
       textTransform: 'uppercase',
       letterSpacing: 0.5,
     }}>
-      <Handle type="target" position={Position.Left} style={{ background: color }} />
+      <Handle type="target" position={Position.Left} id="prev" style={{ background: color }} />
       {data.label}
       <div style={{ fontSize: 9, color, fontWeight: 600, marginTop: 2 }}>
         {data.status}
         {data.elapsed_s != null && ` · ${data.elapsed_s.toFixed(1)}s`}
       </div>
-      <Handle type="source" position={Position.Right} style={{ background: color }} />
+      <Handle type="source" position={Position.Right} id="next" style={{ background: color }} />
+      {/* Bottom handle feeds the stack of plugin nodes below this stage. */}
+      <Handle type="source" position={Position.Bottom} id="impl"
+              style={{ background: color, opacity: 0.6 }} />
     </div>
   )
 }
@@ -103,12 +106,13 @@ function _PluginInner({ data }: NodeProps & { data: PluginNodeData }) {
       }}
       title={data._hasSource ? `${data.label} — click for source + outputs` : data.label}
     >
-      <Handle type="target" position={Position.Left} style={{ background: color }} />
+      {/* Top handle is fed from the parent stage. */}
+      <Handle type="target" position={Position.Top} id="from-stage"
+              style={{ background: color, opacity: 0.6 }} />
       <div>{data.label}</div>
       <div style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 500 }}>
         {data.kind.replace('_', ' ')}
       </div>
-      <Handle type="source" position={Position.Right} style={{ background: color }} />
     </div>
   )
 }
@@ -128,86 +132,110 @@ const STAGE_W = 170
 const STAGE_H = 60
 const PLUGIN_W = 150
 const PLUGIN_H = 50
+const STAGE_TO_PLUGIN_GAP = 28
+const PLUGIN_GAP = 10
 
 
 function _layout(graph: RunGraphResponse): { nodes: Node[]; edges: Edge[] } {
   if (!graph.nodes.length) return { nodes: [], edges: [] }
 
-  const g = new dagre.graphlib.Graph()
-  g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'LR', nodesep: 18, ranksep: 80 })
-
   const stageNodes = graph.nodes.filter((n) => n.kind === 'stage')
   const pluginNodes = graph.nodes.filter((n) => n.kind !== 'stage')
 
-  // Stage nodes get sized normally.
+  // Layout strategy: dagre lays out only the stage chain
+  // (left-to-right). Each stage's plugin children are then stacked
+  // vertically directly underneath that stage so the visual hierarchy
+  // reads as "the stage is the concept, the boxes below are the
+  // implementations chosen by this run". Plugins never sit next to
+  // a sibling stage.
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  // Give dagre extra horizontal room so the stacked plugin columns
+  // don't visually collide with adjacent stages.
+  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 120 })
   for (const n of stageNodes) g.setNode(n.id, { width: STAGE_W, height: STAGE_H })
-  // Plugin nodes get sized too — they live under their stage's children
-  // chain but we model the visual hierarchy via parentId/extent below
-  // so dagre only sees the stage skeleton.
-  for (const n of pluginNodes) g.setNode(n.id, { width: PLUGIN_W, height: PLUGIN_H })
-
-  // Edges from the response only connect stage nodes. Add edges from
-  // each stage to its child plugins so dagre keeps them in the same
-  // rank band as the stage they belong to.
   for (const e of graph.edges) g.setEdge(e.source, e.target)
-  for (const sn of stageNodes) {
-    for (const cid of sn.children ?? []) {
-      g.setEdge(sn.id, cid)
-    }
-  }
   dagre.layout(g)
 
+  // Index plugins by their parent stage id (the prefix before ':').
+  const pluginsByStage = new Map<string, RunGraphNode[]>()
+  for (const p of pluginNodes) {
+    // Group runs include a `subject:` node under `subject_fanout`;
+    // for those we still want them stacked under that stage.
+    const parentId = `stage:${p.stage}`
+    const arr = pluginsByStage.get(parentId) ?? []
+    arr.push(p)
+    pluginsByStage.set(parentId, arr)
+  }
+
   const flowNodes: Node[] = []
+  const stagePos = new Map<string, { x: number; y: number }>()
   for (const n of stageNodes) {
     const pos = g.node(n.id) ?? { x: 0, y: 0 }
+    const x = pos.x - STAGE_W / 2
+    const y = pos.y - STAGE_H / 2
+    stagePos.set(n.id, { x, y })
     flowNodes.push({
       id: n.id,
       type: 'analysis_stage',
       data: { ...n, _kind: 'stage' },
-      position: { x: pos.x - STAGE_W / 2, y: pos.y - STAGE_H / 2 },
+      position: { x, y },
       width: STAGE_W,
       height: STAGE_H,
       draggable: false,
     })
   }
-  for (const n of pluginNodes) {
-    const pos = g.node(n.id) ?? { x: 0, y: 0 }
-    flowNodes.push({
-      id: n.id,
-      type: 'analysis_plugin',
-      data: { ...n, _kind: 'plugin', _hasSource: !!n.source_path },
-      position: { x: pos.x - PLUGIN_W / 2, y: pos.y - PLUGIN_H / 2 },
-      width: PLUGIN_W,
-      height: PLUGIN_H,
-      draggable: true,
+  for (const [parentId, plugins] of pluginsByStage) {
+    const sp = stagePos.get(parentId)
+    if (!sp) continue
+    // Centre each plugin horizontally under its stage and stack
+    // vertically with a uniform gap.
+    const stageCenterX = sp.x + STAGE_W / 2
+    const startY = sp.y + STAGE_H + STAGE_TO_PLUGIN_GAP
+    plugins.forEach((p, i) => {
+      flowNodes.push({
+        id: p.id,
+        type: 'analysis_plugin',
+        data: { ...p, _kind: 'plugin', _hasSource: !!p.source_path },
+        position: {
+          x: stageCenterX - PLUGIN_W / 2,
+          y: startY + i * (PLUGIN_H + PLUGIN_GAP),
+        },
+        width: PLUGIN_W,
+        height: PLUGIN_H,
+        draggable: true,
+      })
     })
   }
 
   const flowEdges: Edge[] = []
-  // Only render stage-to-stage edges visually; the stage→plugin edges
-  // were only there to give dagre rank hints.
+  // Stage → stage (the main horizontal chain).
   for (const e of graph.edges) {
     flowEdges.push({
       id: `${e.source}->${e.target}`,
       source: e.source,
       target: e.target,
+      sourceHandle: 'next',
+      targetHandle: 'prev',
       type: 'smoothstep',
       style: { stroke: 'var(--border)' },
-      animated: false,
     })
   }
-  // Light edge from stage to plugin (dotted) so users can see grouping.
-  for (const sn of stageNodes) {
-    for (const cid of sn.children ?? []) {
-      flowEdges.push({
-        id: `${sn.id}~${cid}`,
-        source: sn.id,
-        target: cid,
-        type: 'smoothstep',
-        style: { stroke: 'var(--border)', strokeDasharray: '3 3', opacity: 0.5 },
-      })
-    }
+  // One short dotted line from each stage to its first plugin. The
+  // remaining plugins read as "also under this stage" purely from
+  // vertical alignment — drawing an edge to every plugin would add
+  // visual noise without adding information.
+  for (const [parentId, plugins] of pluginsByStage) {
+    if (plugins.length === 0) continue
+    flowEdges.push({
+      id: `${parentId}~${plugins[0].id}`,
+      source: parentId,
+      target: plugins[0].id,
+      sourceHandle: 'impl',
+      targetHandle: 'from-stage',
+      type: 'smoothstep',
+      style: { stroke: 'var(--border)', strokeDasharray: '3 3', opacity: 0.5 },
+    })
   }
   return { nodes: flowNodes, edges: flowEdges }
 }
