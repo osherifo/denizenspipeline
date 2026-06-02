@@ -89,6 +89,9 @@ class RunHandle:
     # Drives both subprocess dispatch and how the finalize step looks
     # for the per-invocation group_summary.json on disk.
     is_group: bool = False
+    # True when this is a study-scope run (spawned via `fmriflow run-study`).
+    # Mutually exclusive with is_group at construction time.
+    is_study: bool = False
 
     def push_event(self, event: dict) -> None:
         event.setdefault('timestamp', time.time())
@@ -168,12 +171,16 @@ class RunManager:
     ) -> str:
         """Launch a pipeline run from a YAML config file.
 
-        Detects whether the YAML is a SUBJECT or GROUP config
-        (top-level ``group:`` + ``subjects:`` -> group). Subject runs
-        get a per-run ``reporting.output_dir`` suffix so repeat runs
-        don't clobber each other. Group runs already isolate per-run
-        via ``group_runs/<name>/<run_id>/`` inside GroupOrchestrator,
-        so no rewrite is needed.
+        Detects the config kind from top-level fields:
+
+          * ``study:`` + ``groups:``       → spawn ``fmriflow run-study``
+          * ``group:`` + ``subjects:``     → spawn ``fmriflow run-group``
+          * otherwise                       → spawn ``fmriflow run``
+
+        Subject runs get a per-run ``reporting.output_dir`` suffix so
+        repeat runs don't clobber each other. Group and study runs
+        already isolate per-run via the orchestrator's own
+        ``<name>/<run_id>/`` layout, so no rewrite is needed.
         """
         run_id = uuid.uuid4().hex[:12]
 
@@ -184,12 +191,16 @@ class RunManager:
                 if v is not None:
                     base[k] = v
 
-        is_group = (
+        is_study = (
+            isinstance(base.get('study'), str)
+            and isinstance(base.get('groups'), list)
+        )
+        is_group = (not is_study) and (
             isinstance(base.get('group'), str)
             and isinstance(base.get('subjects'), list)
         )
 
-        if is_group:
+        if is_study or is_group:
             config = base
         else:
             config = _apply_per_run_output_dir(base, run_id)
@@ -208,11 +219,13 @@ class RunManager:
             config_path=effective_path,
             temp_config_path=temp_path,
             is_group=is_group,
+            is_study=is_study,
         )
         self._spawn_and_track(handle)
         logger.info(
             "Started %s run %s from config %s",
-            "group" if is_group else "subject", run_id, config_path,
+            "study" if is_study else ("group" if is_group else "subject"),
+            run_id, config_path,
         )
         return run_id
 
@@ -226,9 +239,20 @@ class RunManager:
         config_path: str,
         temp_config_path: str | None,
         is_group: bool = False,
+        is_study: bool = False,
     ) -> RunHandle:
         now = time.time()
-        if is_group:
+        if is_study:
+            # StudyOrchestrator lands runs under
+            # study_runs/<study_name>/<run_id>/; same pattern as group
+            # — surface the parent and resolve the real run dir later.
+            from fmriflow.core import paths
+            study_name = config.get('study') or ''
+            output_dir = (
+                config.get('output_dir')
+                or str(paths.study_runs_root() / study_name)
+            )
+        elif is_group:
             # GroupOrchestrator lands runs under
             # group_runs/<group_name>/<run_id>/; we won't know the exact
             # timestamp until the child process creates it, so just
@@ -254,6 +278,7 @@ class RunManager:
             output_dir=output_dir,
             _temp_config_path=temp_config_path,
             is_group=is_group,
+            is_study=is_study,
         )
 
         state = RunStateFile(
@@ -290,22 +315,28 @@ class RunManager:
         events_path = (log_path.parent / "events.jsonl") if log_path else None
 
         try:
-            sub = "run-group" if handle.is_group else "run"
+            sub = (
+                "run-study" if handle.is_study
+                else "run-group" if handle.is_group
+                else "run"
+            )
             cmd = [
                 sys.executable, "-u", "-m", "fmriflow.cli",
                 sub, handle.config_path,
             ]
             logger.info("Running pipeline: %s", " ".join(cmd))
 
-            name_for_log = (
-                handle.config.get('group')
-                if handle.is_group
-                else handle.config.get('experiment', '?')
-            )
+            if handle.is_study:
+                name_for_log = handle.config.get('study', '?')
+            elif handle.is_group:
+                name_for_log = handle.config.get('group', '?')
+            else:
+                name_for_log = handle.config.get('experiment', '?')
             handle.push_event({
                 'event': 'started',
                 'message': f"Starting {sub} for {name_for_log}",
                 'is_group': handle.is_group,
+                'is_study': handle.is_study,
             })
 
             # Pass an events file so the subprocess can emit per-stage
@@ -404,14 +435,25 @@ class RunManager:
         """Inspect the run's summary file to determine final status.
 
         For subject runs that's ``<output_dir>/run_summary.json``. For
-        group runs the path isn't known until the subprocess creates a
-        timestamped subdir, so we scan ``<output_dir>/*/group_summary.json``
-        and pick the newest one (it will be the run we just spawned —
-        GroupOrchestrator only writes one per invocation).
+        group and study runs the path isn't known until the subprocess
+        creates a timestamped subdir, so we scan
+        ``<output_dir>/*/<summary>.json`` and pick the newest one
+        (only one summary per invocation per orchestrator).
         """
         summary_path: Path | None = None
         summary: dict | None = None
-        if handle.is_group and handle.output_dir:
+        if handle.is_study and handle.output_dir:
+            parent = Path(handle.output_dir)
+            if parent.is_dir():
+                candidates = [
+                    p for p in parent.iterdir()
+                    if p.is_dir() and p.name != 'latest'
+                    and (p / 'study_summary.json').is_file()
+                ]
+                if candidates:
+                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    summary_path = candidates[0] / 'study_summary.json'
+        elif handle.is_group and handle.output_dir:
             parent = Path(handle.output_dir)
             if parent.is_dir():
                 candidates = [
@@ -457,8 +499,13 @@ class RunManager:
             handle.status = 'failed'
             # Pull a terse reason from the summary if present. Subject
             # summaries have `stages`; group summaries have
-            # `group_stages`. Either way, find the first failed one.
-            stages_key = 'group_stages' if handle.is_group else 'stages'
+            # `group_stages`; study summaries have `study_stages`.
+            if handle.is_study:
+                stages_key = 'study_stages'
+            elif handle.is_group:
+                stages_key = 'group_stages'
+            else:
+                stages_key = 'stages'
             if summary:
                 stages = summary.get(stages_key, [])
                 failed_stage = next(

@@ -28,10 +28,14 @@ class ConfigSummary:
     stimulus_loader: str
     response_loader: str
     # 'subject' for a single-subject pipeline yaml; 'group' for a
-    # GroupOrchestrator config (top-level 'group:' + 'subjects:' list).
+    # GroupOrchestrator config (top-level 'group:' + 'subjects:' list);
+    # 'study' for a StudyOrchestrator config (top-level 'study:' +
+    # 'groups:' list).
     kind: str = "subject"
     # For group configs only: list of subject IDs in the subjects: block.
     group_subjects: list[str] = field(default_factory=list)
+    # For study configs only: list of study-scope group labels.
+    study_groups: list[str] = field(default_factory=list)
 
 
 class ConfigStore:
@@ -67,9 +71,11 @@ class ConfigStore:
 
         Walks:
           * ``<configs_dir>/*.yaml`` (subject configs)
-          * ``<configs_dir>/group/*.yaml`` (group configs — new tier)
+          * ``<configs_dir>/group/*.yaml`` (group configs)
+          * ``<configs_dir>/study/*.yaml`` (study configs — new tier)
           * legacy ``./experiments/*.yaml`` (subject)
           * legacy ``./experiments/group/*.yaml`` (group)
+          * legacy ``./experiments/study/*.yaml`` (study)
         """
         seen: set[str] = set()
         out: list[Path] = []
@@ -82,10 +88,11 @@ class ConfigStore:
                     seen.add(p.name)
                     out.append(p)
 
-        # Primary tier: configs_dir and its group/ subdir.
+        # Primary tier: configs_dir + group/ + study/ subdirs.
         if self.configs_dir.is_dir():
             add_glob(self.configs_dir)
             add_glob(self.configs_dir / "group")
+            add_glob(self.configs_dir / "study")
 
         # Legacy: ./experiments/ and ./experiments/group/, plus the
         # parent of configs_dir (older layout).
@@ -97,6 +104,7 @@ class ConfigStore:
                 pass
             add_glob(legacy)
             add_glob(legacy / "group")
+            add_glob(legacy / "study")
         return out
 
     def scan(self) -> None:
@@ -138,17 +146,32 @@ class ConfigStore:
         parts = stem.split('_')
         group = parts[0] if len(parts) > 1 else stem
 
-        # Group-vs-subject kind detection. A group config has a top-level
-        # 'group:' key (the group name) AND a 'subjects:' list. Subject
-        # configs have 'subject:' (singular).
-        is_group = (
+        # Kind detection. Order matters: study takes precedence over
+        # group (a malformed YAML that has both top-level study: and
+        # group: will be classified as study so the user sees the
+        # higher-scope kind in the UI).
+        is_study = (
+            isinstance(config.get("study"), str)
+            and isinstance(config.get("groups"), list)
+        )
+        is_group = (not is_study) and (
             isinstance(config.get("group"), str)
             and isinstance(config.get("subjects"), list)
         )
-        kind = "group" if is_group else "subject"
+        if is_study:
+            kind = "study"
+        elif is_group:
+            kind = "group"
+        else:
+            kind = "subject"
         group_subjects: list[str] = (
             [str(s) for s in config["subjects"]] if is_group else []
         )
+        study_groups: list[str] = []
+        if is_study:
+            for entry in config.get("groups") or []:
+                if isinstance(entry, dict) and isinstance(entry.get("name"), str):
+                    study_groups.append(entry["name"])
 
         # Extract feature names
         features = []
@@ -160,7 +183,20 @@ class ConfigStore:
         prep = config.get('preparation', {})
         prep_type = prep.get('type', 'default') if isinstance(prep, dict) else 'default'
 
-        if kind == "group":
+        if kind == "study":
+            # Study configs don't carry model/features/etc directly —
+            # those live inside each referenced group YAML. Surface the
+            # study name as 'experiment' so the dashboard sidebar shows
+            # something useful, and the group labels as 'features' so
+            # the card preview is informative.
+            model_type = ""
+            stimulus_loader = ""
+            response_loader = ""
+            prep_type = "default"
+            features = list(study_groups)
+            experiment = config.get("study", stem)
+            subject = ""
+        elif kind == "group":
             # For group configs the model/features/etc live under
             # subject_template. Lift the relevant fields up so the
             # browser shows useful info.
@@ -225,6 +261,7 @@ class ConfigStore:
             response_loader=response_loader,
             kind=kind,
             group_subjects=group_subjects,
+            study_groups=study_groups,
         )
 
     def list_configs(self) -> list[ConfigSummary]:
