@@ -12,9 +12,40 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import threading
 import time
 
 from rich.console import Console
+
+
+# Thread-local context tag applied to every event emitted from this
+# thread. GroupOrchestrator sets ``subject`` (and ``group``) here before
+# fanning out to PipelineOrchestrator so the events file carries a
+# subject tag on every stage_start/stage_done line — the Dashboard's
+# group-progress view uses it to route events to the right subject card.
+_event_context = threading.local()
+
+
+@contextlib.contextmanager
+def event_context(**fields):
+    """Attach ``fields`` to every event emitted in this thread.
+
+    Nested context managers union their fields; on exit only the keys
+    this manager added are restored, so nesting works as expected.
+    """
+    existing = getattr(_event_context, 'fields', {}) or {}
+    saved = {k: existing.get(k) for k in fields}
+    merged = {**existing, **fields}
+    _event_context.fields = merged
+    try:
+        yield
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                merged.pop(k, None)
+            else:
+                merged[k] = v
+        _event_context.fields = merged
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -34,11 +65,25 @@ def _emit_event(event: dict) -> None:
     path = os.environ.get("FMRIFLOW_EVENTS_FILE")
     if not path:
         return
+    ctx = getattr(_event_context, 'fields', None) or {}
+    if ctx:
+        # Don't let a caller's explicit field be overwritten by context.
+        for k, v in ctx.items():
+            event.setdefault(k, v)
     try:
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(event, ensure_ascii=False) + "\n")
     except Exception:
         pass
+
+
+def emit_event(event: dict) -> None:
+    """Public form of :func:`_emit_event` for callers outside ``fmriflow.ui``.
+
+    GroupOrchestrator uses this to push its own ``group_*`` events
+    onto the same stream subject pipelines write to.
+    """
+    _emit_event(event)
 
 
 @contextlib.contextmanager

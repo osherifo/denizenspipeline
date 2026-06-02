@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
+from fmriflow import ui as fui
 from fmriflow.config.defaults import DEFAULT_CONFIG
 from fmriflow.config.loader import merge_configs, resolve_env_vars
 from fmriflow.config.schema import validate_config
@@ -88,10 +89,18 @@ class GroupOrchestrator:
         # Reporter warnings (e.g. flatmap skipped on mask mismatch) and
         # subject failures all land in <group_dir>/group.log next to the
         # summary JSON. Per-subject logs are written inside _run_one_subject.
+        subjects = self._resolve_subject_list_safe()
+        fui.emit_event({
+            'event': 'group_started',
+            'group': self.group_name,
+            'run_id': self.run_id,
+            'subjects': list(subjects),
+            'n_subjects': len(subjects),
+            'run_dir': str(self.group_dir),
+        })
         with capture_logs_to(self.group_dir / 'group.log'):
             logger.info("Group run '%s' (run_id=%s) starting — %d subject(s)",
-                        self.group_name, self.run_id,
-                        len(self._resolve_subject_list_safe()))
+                        self.group_name, self.run_id, len(subjects))
             try:
                 subject_configs = self._stage('group_collect',
                                               self._build_subject_configs)
@@ -128,6 +137,12 @@ class GroupOrchestrator:
                     )
             finally:
                 finished_at = datetime.now(timezone.utc).isoformat()
+                fui.emit_event({
+                    'event': 'group_done',
+                    'group': self.group_name,
+                    'run_id': self.run_id,
+                    'elapsed': round(time.time() - run_start, 3),
+                })
                 self.group.group_summary = GroupRunSummary(
                     group_name=self.group_name,
                     subjects=[sr.subject for sr in self.group.subjects],
@@ -276,15 +291,26 @@ class GroupOrchestrator:
     def _run_one_subject(self, subject_config: dict) -> SubjectResult:
         run_dir = Path(subject_config['reporting']['output_dir'])
         run_dir.mkdir(parents=True, exist_ok=True)
+        subject = subject_config['subject']
 
+        # Tag every event emitted inside this subject's pipeline with
+        # its subject id (+ group) so the dashboard can route stage_
+        # start/done events to the right subject card.
+        sub_t0 = time.time()
+        fui.emit_event({
+            'event': 'group_subject_start',
+            'subject': subject,
+            'group': self.group_name,
+        })
         # Per-subject pipeline.log. `thread_local=True` ensures messages
         # from other subjects (when max_workers > 1) don't bleed in.
-        with capture_logs_to(run_dir / 'pipeline.log', thread_local=True):
+        with fui.event_context(subject=subject, group=self.group_name), \
+             capture_logs_to(run_dir / 'pipeline.log', thread_local=True):
             logger.info("Subject %s (group=%s, run_id=%s) starting",
-                        subject_config.get('subject'),
-                        self.group_name, self.run_id)
+                        subject, self.group_name, self.run_id)
             orch = PipelineOrchestrator(subject_config, self.registry)
             ctx: PipelineContext | None = None
+            failed = False
             try:
                 ctx = orch.run()
             except Exception:
@@ -292,8 +318,8 @@ class GroupOrchestrator:
                 # try/finally — but ConfigError raised during _validate_all
                 # exits BEFORE that try block, so run_summary may not exist.
                 ctx = orch.ctx
-                logger.error("Subject %s failed",
-                             subject_config.get('subject'), exc_info=True)
+                failed = True
+                logger.error("Subject %s failed", subject, exc_info=True)
             # Persist per-subject summary even on failure so resume works.
             rs = getattr(ctx, 'run_summary', None) if ctx is not None else None
             if rs is None:
@@ -305,6 +331,13 @@ class GroupOrchestrator:
             except Exception:
                 logger.warning("Failed to save subject run_summary.json",
                                exc_info=True)
+            fui.emit_event({
+                'event': 'group_subject_done',
+                'subject': subject,
+                'group': self.group_name,
+                'status': 'failed' if failed else 'ok',
+                'elapsed': round(time.time() - sub_t0, 3),
+            })
             return SubjectResult(
                 subject=subject_config['subject'],
                 experiment=subject_config.get('experiment', ''),
@@ -398,23 +431,46 @@ class GroupOrchestrator:
         ``list[NodeRecord]`` to populate; that list is then attached to
         the StageRecord so the run-graph viewer can show per-plugin
         timings and outputs.
+
+        Emits ``group_stage_start`` / ``group_stage_done`` events so the
+        dashboard's group-progress view can light up group-scope stages.
         """
         t0 = time.time()
+        fui.emit_event({
+            'event': 'group_stage_start',
+            'stage': name,
+            'group': self.group_name,
+        })
         nodes: list[NodeRecord] = []
         try:
             out = fn(nodes) if capture_nodes else fn()
+            elapsed = round(time.time() - t0, 3)
             self._stage_records.append(StageRecord(
                 name=name, status='ok',
-                elapsed_s=round(time.time() - t0, 3), detail='',
+                elapsed_s=elapsed, detail='',
                 nodes=list(nodes),
             ))
+            fui.emit_event({
+                'event': 'group_stage_done',
+                'stage': name,
+                'group': self.group_name,
+                'elapsed': elapsed,
+            })
             return out
         except Exception as e:
+            elapsed = round(time.time() - t0, 3)
             self._stage_records.append(StageRecord(
                 name=name, status='failed',
-                elapsed_s=round(time.time() - t0, 3), detail=str(e),
+                elapsed_s=elapsed, detail=str(e),
                 nodes=list(nodes),
             ))
+            fui.emit_event({
+                'event': 'group_stage_fail',
+                'stage': name,
+                'group': self.group_name,
+                'elapsed': elapsed,
+                'error': str(e),
+            })
             raise
 
 
