@@ -2,7 +2,7 @@
 import { create } from 'zustand'
 import type {
   ConfigSummary, ConfigDetail, RunSummary, RunEvent, StageStatus,
-  GroupRunListing,
+  GroupRunListing, StudyRunListing,
 } from '../api/types'
 import {
   fetchConfigs,
@@ -12,6 +12,7 @@ import {
   fetchRuns,
   fetchRun,
   fetchGroupRuns,
+  fetchStudyRuns,
   connectRunWs,
 } from '../api/client'
 
@@ -54,6 +55,9 @@ interface DashboardState {
   // Group-invocation listings for the selected group config. Empty when
   // the selected config is a subject config.
   groupConfigRuns: GroupRunListing[]
+  // Study-invocation listings for the selected study config. Empty when
+  // the selected config is not a study config.
+  studyConfigRuns: StudyRunListing[]
   selectedRun: RunSummary | null
   runsLoading: boolean
 
@@ -75,6 +79,7 @@ interface DashboardState {
   clearSelection: () => void
   loadConfigRuns: (experiment: string, subject: string) => Promise<void>
   loadGroupConfigRuns: (groupName: string) => Promise<void>
+  loadStudyConfigRuns: (studyName: string) => Promise<void>
   selectRun: (runId: string) => Promise<void>
   clearRunSelection: () => void
   runConfig: (configPath: string, overrides?: Record<string, unknown>) => Promise<void>
@@ -92,6 +97,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   validating: false,
   configRuns: [],
   groupConfigRuns: [],
+  studyConfigRuns: [],
   selectedRun: null,
   runsLoading: false,
   liveRunId: null,
@@ -118,15 +124,23 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       selectedRun: null,
       configRuns: [],
       groupConfigRuns: [],
+      studyConfigRuns: [],
     })
     try {
       const detail = await fetchConfigDetail(filename)
       set({ selectedConfig: detail })
 
       const config = detail.config as Record<string, any>
-      const isGroup =
-        typeof config.group === 'string' && Array.isArray(config.subjects)
-      if (isGroup) {
+      const isStudy =
+        typeof config.study === 'string' && Array.isArray(config.groups)
+      const isGroup = !isStudy
+        && typeof config.group === 'string'
+        && Array.isArray(config.subjects)
+      if (isStudy) {
+        // Study configs: list one row per study invocation
+        // (`study_runs/<name>/<timestamp>/`).
+        get().loadStudyConfigRuns(config.study || '')
+      } else if (isGroup) {
         // Group configs: list one row per group invocation
         // (`group_runs/<name>/<timestamp>/`) — NOT per-subject results.
         get().loadGroupConfigRuns(config.group || '')
@@ -148,6 +162,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       selectedFilename: null,
       configRuns: [],
       groupConfigRuns: [],
+      studyConfigRuns: [],
       selectedRun: null,
       validationErrors: null,
     })
@@ -170,6 +185,16 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       set({ groupConfigRuns: runs, runsLoading: false })
     } catch {
       set({ groupConfigRuns: [], runsLoading: false })
+    }
+  },
+
+  loadStudyConfigRuns: async (studyName) => {
+    set({ runsLoading: true })
+    try {
+      const runs = await fetchStudyRuns({ name: studyName })
+      set({ studyConfigRuns: runs, runsLoading: false })
+    } catch {
+      set({ studyConfigRuns: [], runsLoading: false })
     }
   },
 
@@ -215,9 +240,14 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
           const cfg = get().selectedConfig
           if (cfg) {
             const config = cfg.config as Record<string, any>
-            const isGroup =
-              typeof config.group === 'string' && Array.isArray(config.subjects)
-            if (isGroup) {
+            const isStudy =
+              typeof config.study === 'string' && Array.isArray(config.groups)
+            const isGroup = !isStudy
+              && typeof config.group === 'string'
+              && Array.isArray(config.subjects)
+            if (isStudy) {
+              get().loadStudyConfigRuns(config.study || '')
+            } else if (isGroup) {
               get().loadGroupConfigRuns(config.group || '')
             } else {
               const experiment = config.experiment || ''

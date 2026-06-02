@@ -6,8 +6,10 @@ import { ConfigBrowser } from '../components/dashboard/ConfigBrowser'
 import { ConfigDetail } from '../components/dashboard/ConfigDetail'
 import { RunHistory } from '../components/dashboard/RunHistory'
 import { GroupRunHistory } from '../components/dashboard/GroupRunHistory'
+import { StudyRunHistory } from '../components/dashboard/StudyRunHistory'
 import { LiveProgress } from '../components/dashboard/LiveProgress'
 import { GroupLiveProgress } from '../components/dashboard/GroupLiveProgress'
+import { StudyLiveProgress } from '../components/dashboard/StudyLiveProgress'
 import { AnalysisInFlightRuns } from '../components/dashboard/AnalysisInFlightRuns'
 
 const containerStyle: CSSProperties = {
@@ -105,11 +107,15 @@ export function ExperimentDashboard() {
 
             {/* Live progress — shown when a run is active or just completed */}
             {(store.liveRunId || store.liveEvents.length > 0) && (() => {
-              // Decide based on the selected config's kind: group YAMLs
-              // get the per-subject grid + group-stage tracker; subject
-              // YAMLs get the single 7-stage view.
+              // Pick the live-progress component based on the selected
+              // config's kind: study → per-group cards + study stages;
+              // group → per-subject cards + group stages; subject →
+              // 7-stage view.
               const cfg = store.selectedConfig?.config as Record<string, any> | undefined
-              const isGroup = !!cfg
+              const isStudy = !!cfg
+                && typeof cfg.study === 'string'
+                && Array.isArray(cfg.groups)
+              const isGroup = !!cfg && !isStudy
                 && typeof cfg.group === 'string'
                 && Array.isArray(cfg.subjects)
               const rid = store.liveRunId || store.lastRunId || 'completed'
@@ -117,14 +123,27 @@ export function ExperimentDashboard() {
                 liveEvents: [], completedRun: null, stageStatuses: {},
                 lastRunId: null,
               })
-              return isGroup ? (
-                <GroupLiveProgress
-                  runId={rid}
-                  events={store.liveEvents}
-                  startTime={store.liveStartTime}
-                  onDismiss={onDismiss}
-                />
-              ) : (
+              if (isStudy) {
+                return (
+                  <StudyLiveProgress
+                    runId={rid}
+                    events={store.liveEvents}
+                    startTime={store.liveStartTime}
+                    onDismiss={onDismiss}
+                  />
+                )
+              }
+              if (isGroup) {
+                return (
+                  <GroupLiveProgress
+                    runId={rid}
+                    events={store.liveEvents}
+                    startTime={store.liveStartTime}
+                    onDismiss={onDismiss}
+                  />
+                )
+              }
+              return (
                 <LiveProgress
                   runId={rid}
                   events={store.liveEvents}
@@ -138,15 +157,29 @@ export function ExperimentDashboard() {
 
             {(() => {
               const cfg = store.selectedConfig?.config as Record<string, any> | undefined
-              const isGroup = !!cfg
+              const isStudy = !!cfg
+                && typeof cfg.study === 'string'
+                && Array.isArray(cfg.groups)
+              const isGroup = !!cfg && !isStudy
                 && typeof cfg.group === 'string'
                 && Array.isArray(cfg.subjects)
-              return isGroup ? (
-                <GroupRunHistory
-                  runs={store.groupConfigRuns}
-                  loading={store.runsLoading}
-                />
-              ) : (
+              if (isStudy) {
+                return (
+                  <StudyRunHistory
+                    runs={store.studyConfigRuns}
+                    loading={store.runsLoading}
+                  />
+                )
+              }
+              if (isGroup) {
+                return (
+                  <GroupRunHistory
+                    runs={store.groupConfigRuns}
+                    loading={store.runsLoading}
+                  />
+                )
+              }
+              return (
                 <RunHistory
                   runs={store.configRuns}
                   selectedRun={store.selectedRun}

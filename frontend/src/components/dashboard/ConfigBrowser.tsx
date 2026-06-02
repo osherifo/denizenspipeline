@@ -112,7 +112,7 @@ const tabBtn = (active: boolean): CSSProperties => ({
   fontFamily: 'inherit',
 })
 
-type Tab = 'subject' | 'group'
+type Tab = 'subject' | 'group' | 'study'
 
 export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, onRescan }: ConfigBrowserProps) {
   const [search, setSearch] = useState('')
@@ -122,12 +122,14 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
   // Tally per-kind counts up front (independent of search) so the tab
   // labels always show the total available.
   const counts = useMemo(() => {
-    let subj = 0, grp = 0
+    let subj = 0, grp = 0, stu = 0
     for (const c of configs) {
-      if ((c.kind ?? 'subject') === 'group') grp += 1
+      const k = c.kind ?? 'subject'
+      if (k === 'study') stu += 1
+      else if (k === 'group') grp += 1
       else subj += 1
     }
-    return { subject: subj, group: grp }
+    return { subject: subj, group: grp, study: stu }
   }, [configs])
 
   const filtered = useMemo(() => {
@@ -141,7 +143,8 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
         c.experiment.toLowerCase().includes(q) ||
         c.subject.toLowerCase().includes(q) ||
         c.model_type.toLowerCase().includes(q) ||
-        (c.group_subjects ?? []).some((s) => s.toLowerCase().includes(q))
+        (c.group_subjects ?? []).some((s) => s.toLowerCase().includes(q)) ||
+        (c.study_groups ?? []).some((g) => g.toLowerCase().includes(q))
       )
     })
   }, [configs, search, tab])
@@ -188,6 +191,12 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
         >
           Group ({counts.group})
         </button>
+        <button
+          style={tabBtn(tab === 'study')}
+          onClick={() => setTab('study')}
+        >
+          Study ({counts.study})
+        </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -201,10 +210,19 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
             </div>
             {!collapsedGroups.has(group) &&
               items.map((c) => {
-                const isGroup = (c.kind ?? 'subject') === 'group'
-                const subLabel = isGroup
-                  ? `${(c.group_subjects ?? []).length} subj`
-                  : c.subject || '?'
+                const kind = c.kind ?? 'subject'
+                let leftLabel: string
+                let middleLabel: string
+                if (kind === 'study') {
+                  leftLabel = `${(c.study_groups ?? []).length} grp`
+                  middleLabel = (c.study_groups ?? []).slice(0, 2).join(' · ') || '?'
+                } else if (kind === 'group') {
+                  leftLabel = `${(c.group_subjects ?? []).length} subj`
+                  middleLabel = c.model_type || '?'
+                } else {
+                  leftLabel = c.subject || '?'
+                  middleLabel = c.model_type || '?'
+                }
                 return (
                   <div
                     key={c.filename}
@@ -213,8 +231,8 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
                   >
                     <div style={configName}>{c.filename.replace('.yaml', '')}</div>
                     <div style={configMeta}>
-                      <span>{subLabel}</span>
-                      <span>{c.model_type || '?'}</span>
+                      <span>{leftLabel}</span>
+                      <span>{middleLabel}</span>
                       <span style={runBadge(c.n_runs)}>
                         {c.n_runs} run{c.n_runs !== 1 ? 's' : ''}
                       </span>
@@ -227,7 +245,9 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
 
         {filtered.length === 0 && !loading && (
           <div style={{ padding: '24px 16px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
-            {tab === 'group'
+            {tab === 'study'
+              ? 'No study configs found. Put a YAML with top-level "study:" + "groups:" in experiments/study/ or $FMRIFLOW_HOME/configs/study/.'
+              : tab === 'group'
               ? 'No group configs found. Put a YAML with top-level "group:" + "subjects:" in experiments/group/ or $FMRIFLOW_HOME/configs/group/.'
               : 'No subject configs found.'}
           </div>

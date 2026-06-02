@@ -957,3 +957,21 @@ export async function fetchGroupRun(
     : `${BASE}/group-runs/${encodeURIComponent(name)}`
   return json(path)
 }
+
+// ── Study runs ──
+
+export async function fetchStudyRuns(
+  opts: { name?: string } = {},
+): Promise<import('./types').StudyRunListing[]> {
+  const q = opts.name ? `?name=${encodeURIComponent(opts.name)}` : ''
+  return json(`${BASE}/study-runs${q}`)
+}
+
+export async function fetchStudyRun(
+  name: string,
+  runId: string,
+): Promise<import('./types').StudyRunDetail> {
+  return json(
+    `${BASE}/study-runs/${encodeURIComponent(name)}/${encodeURIComponent(runId)}`,
+  )
+}
