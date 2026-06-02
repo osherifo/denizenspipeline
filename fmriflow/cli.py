@@ -95,6 +95,19 @@ def main(argv: list[str] | None = None) -> int:
         help='Resolve subject configs and print plan without running',
     )
 
+    # ── run-study ──
+    rs_parser = subparsers.add_parser(
+        'run-study', help='Run a study-scope (cross-group) pipeline')
+    rs_parser.add_argument('config', help='Path to study YAML config')
+    rs_parser.add_argument(
+        '--resume', action='store_true',
+        help='Skip groups whose all-subjects-ok summary exists on disk',
+    )
+    rs_parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Resolve groups and print plan without running',
+    )
+
     # ── validate ──
     validate_parser = subparsers.add_parser(
         'validate', help='Validate a config without running')
@@ -196,6 +209,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_run(args)
     elif args.command == 'run-group':
         return _cmd_run_group(args)
+    elif args.command == 'run-study':
+        return _cmd_run_study(args)
     elif args.command == 'validate':
         return _cmd_validate(args)
     elif args.command == 'modules':
@@ -345,6 +360,54 @@ def _cmd_run_group(args) -> int:
         f"Group summary: {orch.group_dir / 'group_summary.json'}\n"
     )
     return 0 if failed == 0 else 1
+
+
+def _cmd_run_study(args) -> int:
+    """Run a study-scope (cross-group) pipeline."""
+    from fmriflow.config.loader import load_study_config
+    from fmriflow.study_orchestrator import StudyOrchestrator
+    from fmriflow.registry import ModuleRegistry
+
+    try:
+        study_config = load_study_config(args.config)
+    except Exception as e:
+        ui.error_panel(str(e))
+        return 1
+
+    registry = ModuleRegistry()
+    registry.discover()
+    orch = StudyOrchestrator(study_config, registry)
+
+    if args.dry_run:
+        labels = [str(e.get('name')) for e in study_config.get('groups', [])]
+        ui.console.print(
+            f"\n[bold]Study:[/] {orch.study_name}\n"
+            f"[bold]Output dir:[/] {orch.study_dir}\n"
+            f"[bold]Groups:[/] {', '.join(labels)}\n"
+        )
+        return 0
+
+    ui.console.print(
+        f"\n[bold bright_cyan]Study run[/] "
+        f"{orch.study_name} → {orch.study_dir}\n"
+    )
+
+    try:
+        result = orch.run(resume=args.resume)
+    except Exception as e:
+        ui.error_panel(str(e))
+        logger.error("Study run failed: %s", e, exc_info=True)
+        return 1
+
+    n_groups = len(result.groups)
+    n_failed_groups = len(result.groups_by_status('failed'))
+    ui.console.print(
+        f"\n[bold]Done.[/] "
+        f"{n_groups - n_failed_groups} ok, {n_failed_groups} failed, "
+        f"{n_groups} total groups.\n"
+        f"Study summary: {orch.study_dir / 'study_summary.json'}\n"
+    )
+    return 0 if n_failed_groups == 0 else 1
 
 
 def _save_run_summary(ctx, output_dir: str) -> None:
