@@ -16,6 +16,12 @@ export type GraphTarget =
   // Preview the graph of a config that hasn't been run yet. Source code
   // is still viewable; outputs are not (no run dir exists).
   | { kind: 'config'; filename: string }
+  // Live graph of a run still in progress. Backend synthesizes stage
+  // records from handle.events; the modal polls this endpoint until
+  // the run finishes (or the user closes it).
+  | { kind: 'in-flight'; runId: string }
+  // Subject drilldown inside an in-flight group/study run.
+  | { kind: 'in-flight-subject'; runId: string; subject: string }
 
 export interface RunGraphNode {
   id: string
@@ -67,6 +73,11 @@ export interface NodeOutputsResponse {
   files: NodeOutputFile[]
 }
 
+export interface LogTailResponse {
+  log_tail: string
+  log_path: string
+}
+
 
 function urlFor(target: GraphTarget, suffix: string): string {
   switch (target.kind) {
@@ -82,7 +93,16 @@ function urlFor(target: GraphTarget, suffix: string): string {
       return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}${suffix}`
     case 'config':
       return `${BASE}/configs/${encodeURIComponent(target.filename)}${suffix}`
+    case 'in-flight':
+      return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}${suffix}`
+    case 'in-flight-subject':
+      return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}/subject/${encodeURIComponent(target.subject)}${suffix}`
   }
+}
+
+
+export function isLiveTarget(target: GraphTarget): boolean {
+  return target.kind === 'in-flight' || target.kind === 'in-flight-subject'
 }
 
 
@@ -131,4 +151,26 @@ export function nodeFileUrl(
   target: GraphTarget, nodeId: string, rel: string,
 ): string {
   return urlFor(target, `/node/${nodeSegment(nodeId)}/file/${encodeURI(rel)}`)
+}
+
+
+/** Tail the run-scope log for a target. Only meaningful for live
+ *  in-flight targets right now — the backend currently surfaces logs
+ *  for ``in-flight`` (group.log / study.log / subject stdout) and
+ *  ``in-flight-subject`` (per-subject pipeline.log). Returns null for
+ *  finished targets so callers can hide the Log tab. */
+export async function fetchLogTail(
+  target: GraphTarget,
+): Promise<LogTailResponse | null> {
+  if (target.kind !== 'in-flight' && target.kind !== 'in-flight-subject') {
+    return null
+  }
+  const res = await fetch(urlFor(target, '/log'))
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
+
+export function targetSupportsLog(target: GraphTarget): boolean {
+  return target.kind === 'in-flight' || target.kind === 'in-flight-subject'
 }

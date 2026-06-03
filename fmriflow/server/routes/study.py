@@ -18,10 +18,12 @@ import json
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from fmriflow.core import paths
+from fmriflow.server.services.run_manager import (
+    discover_study_run_dirs, resolve_study_run_dir,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["study"])
@@ -31,60 +33,61 @@ router = APIRouter(tags=["study"])
 
 
 @router.get("/study-runs")
-async def list_study_runs(name: str | None = None):
-    """List every study run found under ``$FMRIFLOW_HOME/study_runs/``.
+async def list_study_runs(request: Request, name: str | None = None):
+    """List every study run discoverable via either the default root or
+    the run registry — same two-source pattern as ``/group-runs``.
 
     Each ``<study_name>/`` directory may contain multiple timestamped
     ``<run_id>/`` subdirectories — each becomes its own row.
     ``?name=<study_name>`` restricts to one study.
     """
-    root = paths.study_runs_root()
+    registry = request.app.state.run_manager.registry
     out: list[dict] = []
-    for study_dir in sorted(root.iterdir() if root.exists() else []):
-        if not study_dir.is_dir():
+    for study_name, run_id, run_dir in discover_study_run_dirs(
+        registry, name=name,
+    ):
+        summary_path = run_dir / "study_summary.json"
+        data = _load_json_safe(summary_path)
+        if data is None:
             continue
-        if name is not None and study_dir.name != name:
-            continue
-
-        for run_dir in sorted(study_dir.iterdir()):
-            if not run_dir.is_dir() or run_dir.name == "latest":
-                continue
-            summary = run_dir / "study_summary.json"
-            if not summary.is_file():
-                continue
-            data = _load_json_safe(summary)
-            if data is None:
-                continue
-            out.append(_summarize(
-                run_dir, run_id=data.get("run_id") or run_dir.name, data=data,
-            ))
-
+        out.append(_summarize(
+            run_dir, run_id=run_id or data.get("run_id", ""), data=data,
+        ))
     out.sort(key=lambda r: r.get("started_at", ""), reverse=True)
     return out
 
 
 @router.get("/study-runs/{name}/{run_id}")
-async def get_study_run(name: str, run_id: str):
+async def get_study_run(request: Request, name: str, run_id: str):
     """Return the full ``StudyRunSummary`` for one timestamped run."""
-    study_dir = _resolve_study_dir(name)
+    _check_path_segment(name, "study name")
     _check_path_segment(run_id, "run_id")
-    return _read_detail(study_dir / run_id)
+    run_dir = resolve_study_run_dir(request.app.state.run_manager.registry, name, run_id)
+    if run_dir is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"study run not found: {name}/{run_id}",
+        )
+    return _read_detail(run_dir)
 
 
 @router.get("/study-runs/{name}/{run_id}/file/{file_path:path}")
-async def get_study_run_file(name: str, run_id: str, file_path: str):
+async def get_study_run_file(
+    request: Request, name: str, run_id: str, file_path: str,
+):
     """Serve a single file from inside a timestamped study run directory."""
-    study_dir = _resolve_study_dir(name)
+    _check_path_segment(name, "study name")
     _check_path_segment(run_id, "run_id")
-    return _serve_file(study_dir / run_id, file_path)
+    run_dir = resolve_study_run_dir(request.app.state.run_manager.registry, name, run_id)
+    if run_dir is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"study run not found: {name}/{run_id}",
+        )
+    return _serve_file(run_dir, file_path)
 
 
 # ─── helpers ───────────────────────────────────────────────────
-
-
-def _resolve_study_dir(name: str) -> Path:
-    _check_path_segment(name, "study name")
-    return paths.study_runs_root() / name
 
 
 def _check_path_segment(value: str, label: str) -> None:
@@ -202,6 +205,9 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
         "ok": max(0, len(groups) - n_failed_groups),
         "failed": n_failed_groups,
     }
+    study_stages = data.get("study_stages", []) or []
+    study_failed = any(s.get("status") == "failed" for s in study_stages)
+    overall_status = "failed" if (n_failed_groups or study_failed) else "ok"
     return {
         "study_name": data.get("study_name", run_dir.parent.name),
         "run_id": run_id,
@@ -209,6 +215,7 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
         "group_labels": data.get("group_labels", []),
         "n_groups": len(groups),
         "status_counts": status_counts,
+        "status": overall_status,
         "started_at": data.get("started_at", ""),
         "finished_at": data.get("finished_at", ""),
         "total_elapsed_s": data.get("total_elapsed_s", 0.0),

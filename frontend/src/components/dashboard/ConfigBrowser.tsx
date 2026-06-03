@@ -33,20 +33,6 @@ const searchInput: CSSProperties = {
   outline: 'none',
 }
 
-const groupHeader: CSSProperties = {
-  padding: '8px 16px',
-  fontSize: 11,
-  fontWeight: 700,
-  color: 'var(--text-secondary)',
-  letterSpacing: 2,
-  textTransform: 'uppercase',
-  cursor: 'pointer',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  borderTop: '1px solid var(--border)',
-}
-
 const configItem = (active: boolean): CSSProperties => ({
   padding: '8px 16px 8px 24px',
   fontSize: 12,
@@ -117,7 +103,6 @@ type Tab = 'subject' | 'group' | 'study'
 export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, onRescan }: ConfigBrowserProps) {
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<Tab>('subject')
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   // Tally per-kind counts up front (independent of search) so the tab
   // labels always show the total available.
@@ -149,24 +134,11 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
     })
   }, [configs, search, tab])
 
-  // Group configs by group field
-  const groups = useMemo(() => {
-    const map: Record<string, ConfigSummary[]> = {}
-    for (const c of filtered) {
-      if (!map[c.group]) map[c.group] = []
-      map[c.group].push(c)
-    }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b))
-  }, [filtered])
-
-  const toggleGroup = (group: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(group)) next.delete(group)
-      else next.add(group)
-      return next
-    })
-  }
+  // Flat alphabetical list — no longer grouped by filename prefix.
+  const sortedConfigs = useMemo(
+    () => [...filtered].sort((a, b) => a.filename.localeCompare(b.filename)),
+    [filtered],
+  )
 
   return (
     <div style={sidebarStyle}>
@@ -200,48 +172,38 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {groups.map(([group, items]) => (
-          <div key={group}>
-            <div style={groupHeader} onClick={() => toggleGroup(group)}>
-              <span>{group}</span>
-              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-                {collapsedGroups.has(group) ? '\u25B6' : '\u25BC'} {items.length}
-              </span>
+        {sortedConfigs.map((c) => {
+          const kind = c.kind ?? 'subject'
+          // Left meta — what's actually informative per kind:
+          //   subject  → which subject this config runs
+          //   group    → how many subjects fan out
+          //   study    → study-scope group labels
+          // Model name was redundant here (it's in the config card),
+          // so it's no longer surfaced in the sidebar.
+          let leftLabel: string
+          if (kind === 'study') {
+            leftLabel = (c.study_groups ?? []).join(' · ') || '?'
+          } else if (kind === 'group') {
+            leftLabel = `${(c.group_subjects ?? []).length} subj`
+          } else {
+            leftLabel = c.subject || '?'
+          }
+          return (
+            <div
+              key={c.filename}
+              style={configItem(selectedFilename === c.filename)}
+              onClick={() => onSelect(c.filename)}
+            >
+              <div style={configName}>{c.filename.replace('.yaml', '')}</div>
+              <div style={configMeta}>
+                <span>{leftLabel}</span>
+                <span style={runBadge(c.n_runs)}>
+                  {c.n_runs} run{c.n_runs !== 1 ? 's' : ''}
+                </span>
+              </div>
             </div>
-            {!collapsedGroups.has(group) &&
-              items.map((c) => {
-                const kind = c.kind ?? 'subject'
-                let leftLabel: string
-                let middleLabel: string
-                if (kind === 'study') {
-                  leftLabel = `${(c.study_groups ?? []).length} grp`
-                  middleLabel = (c.study_groups ?? []).slice(0, 2).join(' · ') || '?'
-                } else if (kind === 'group') {
-                  leftLabel = `${(c.group_subjects ?? []).length} subj`
-                  middleLabel = c.model_type || '?'
-                } else {
-                  leftLabel = c.subject || '?'
-                  middleLabel = c.model_type || '?'
-                }
-                return (
-                  <div
-                    key={c.filename}
-                    style={configItem(selectedFilename === c.filename)}
-                    onClick={() => onSelect(c.filename)}
-                  >
-                    <div style={configName}>{c.filename.replace('.yaml', '')}</div>
-                    <div style={configMeta}>
-                      <span>{leftLabel}</span>
-                      <span>{middleLabel}</span>
-                      <span style={runBadge(c.n_runs)}>
-                        {c.n_runs} run{c.n_runs !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
-          </div>
-        ))}
+          )
+        })}
 
         {filtered.length === 0 && !loading && (
           <div style={{ padding: '24px 16px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>

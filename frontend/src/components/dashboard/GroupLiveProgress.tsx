@@ -18,6 +18,7 @@ import type { CSSProperties } from 'react'
 import type { RunEvent, StageStatus } from '../../api/types'
 import { StageTracker } from './StageTracker'
 import { TriageMatches } from '../triage/TriageMatches'
+import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
 
 
 interface Props {
@@ -282,6 +283,7 @@ function formatEventLine(event: RunEvent): string {
     case 'stage_done': return `  · ${a.subject ?? '?'}: ✓ ${a.stage} (${(a.elapsed ?? 0).toFixed(1)}s)`
     case 'stage_fail': return `  · ${a.subject ?? '?'}: ✗ ${a.stage}: ${a.error ?? ''}`
     case 'stage_warn': return `  · ${a.subject ?? '?'}: ! ${a.stage}: ${a.detail ?? ''}`
+    case 'log': return event.message || ''
     case 'started': return event.message || 'Run started'
     case 'run_done': return `✓ Run complete (${(a.total_elapsed ?? 0).toFixed(1)}s)`
     case 'run_failed': return `✗ Run failed: ${event.error || ''}`
@@ -302,6 +304,7 @@ function formatTimestamp(ts: number | undefined): string {
 
 
 export function GroupLiveProgress({ runId, events, startTime, onDismiss }: Props) {
+  const [graphOpen, setGraphOpen] = useState(false)
   const lastEvent = events[events.length - 1]
   const isDone = lastEvent?.event === 'run_done' || lastEvent?.event === 'group_done'
   const isFailed = lastEvent?.event === 'run_failed'
@@ -346,6 +349,21 @@ export function GroupLiveProgress({ runId, events, startTime, onDismiss }: Props
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {!isFinished && (
+            <button
+              onClick={() => setGraphOpen(true)}
+              style={{
+                padding: '3px 10px', fontSize: 11, fontWeight: 600,
+                border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 4,
+                background: 'rgba(0, 229, 255, 0.08)',
+                color: 'var(--accent-cyan)', cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+              title="Open the pipeline graph (live — polls until the run ends)"
+            >
+              View graph
+            </button>
+          )}
           <ElapsedTimer startTime={isFinished ? null : startTime} />
           {isFinished && onDismiss && (
             <button
@@ -471,7 +489,9 @@ export function GroupLiveProgress({ runId, events, startTime, onDismiss }: Props
         <>
           <div style={sectionLabel}>Event Log</div>
           <div style={eventLogStyle}>
-            {events.map((event, i) => (
+            {events
+              .filter((e) => !e.event.startsWith('node_'))
+              .map((event, i) => (
               <div key={i} style={{
                 color: 'var(--text-secondary)',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -498,6 +518,14 @@ export function GroupLiveProgress({ runId, events, startTime, onDismiss }: Props
             ))}
           </div>
         </>
+      )}
+
+      {graphOpen && (
+        <AnalysisGraphModal
+          target={{ kind: 'in-flight', runId }}
+          title={`Group ${groupName || runId} — live pipeline graph`}
+          onClose={() => setGraphOpen(false)}
+        />
       )}
     </div>
   )

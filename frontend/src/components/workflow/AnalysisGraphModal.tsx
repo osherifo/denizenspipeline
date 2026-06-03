@@ -27,6 +27,7 @@ import dagre from 'dagre'
 
 import {
   fetchRunGraph,
+  isLiveTarget,
   type GraphTarget,
   type RunGraphResponse,
   type RunGraphNode,
@@ -307,22 +308,69 @@ export function AnalysisGraphModal({ target, title, onClose, onSubjectClick, onG
 
 
 function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) {
+  // Internal navigation stack. The top of the stack is the currently
+  // displayed graph; the rest are parents we can pop back to.
+  // Initial entry comes from props. When a subject/group node is
+  // clicked and the parent didn't bind onSubjectClick/onGroupClick,
+  // we push a drilldown target ourselves and the Back button pops.
+  const [stack, setStack] = useState<{ target: GraphTarget; title: string }[]>(
+    [{ target, title }],
+  )
+  const active = stack[stack.length - 1]
+
+  // External target prop change → reset the stack (e.g. user opened a
+  // different run while the modal was open). Comparing by stringify
+  // avoids identity churn on object literals.
+  const externalKey = JSON.stringify(target)
+  useEffect(() => {
+    setStack([{ target, title }])
+  }, [externalKey])
+
+  const pushTarget = (next: GraphTarget, nextTitle: string) => {
+    setStack((s) => [...s, { target: next, title: nextTitle }])
+  }
+  const popTarget = () => {
+    setStack((s) => s.length > 1 ? s.slice(0, -1) : s)
+  }
+
   const [graph, setGraph] = useState<RunGraphResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openNode, setOpenNode] = useState<RunGraphNode | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    let timer: number | null = null
     setGraph(null)
     setError(null)
     setOpenNode(null)
-    fetchRunGraph(target)
-      .then((g) => { if (!cancelled) setGraph(g) })
-      .catch((e) => { if (!cancelled) setError(String(e)) })
-    return () => { cancelled = true }
-    // Stringify target so we re-fetch when the target identity changes
-    // even though the object literal does
-  }, [JSON.stringify(target)])
+
+    const live = isLiveTarget(active.target)
+
+    async function load() {
+      try {
+        const g = await fetchRunGraph(active.target)
+        if (cancelled) return
+        setGraph(g)
+        // Live runs poll until the run ends. The endpoint returns the
+        // current snapshot; we stop polling once all stages are
+        // ok/failed (no running node remains).
+        if (live) {
+          const stillRunning = g.nodes.some((n) => n.status === 'running')
+          if (stillRunning) {
+            timer = window.setTimeout(load, 2000)
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setError(String(e))
+      }
+    }
+    load()
+
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [JSON.stringify(active.target)])
 
   const flow = useMemo(() => graph ? _layout(graph) : { nodes: [], edges: [] }, [graph])
 
@@ -330,9 +378,21 @@ function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) 
     if (!graph) return
     const found = graph.nodes.find((n) => n.id === node.id)
     if (!found) return
-    if (found.kind === 'subject' && onSubjectClick) {
-      onSubjectClick(found.plugin_name ?? found.id.replace(/^subject:/, ''))
-      return
+    if (found.kind === 'subject') {
+      const sub = found.plugin_name ?? found.id.replace(/^subject:/, '')
+      // Parent-controlled drilldown (e.g. GroupRunsView wires its own).
+      if (onSubjectClick) {
+        onSubjectClick(sub)
+        return
+      }
+      // Self-managed drilldown for the in-flight case.
+      if (active.target.kind === 'in-flight') {
+        pushTarget(
+          { kind: 'in-flight-subject', runId: active.target.runId, subject: sub },
+          `${active.title} · ${sub}`,
+        )
+        return
+      }
     }
     if (found.kind === 'group' && onGroupClick) {
       onGroupClick(found.plugin_name ?? found.id.replace(/^group:/, ''))
@@ -345,7 +405,16 @@ function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) 
   return (
     <>
       <div style={header}>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
+        {stack.length > 1 && (
+          <button
+            style={{ ...closeBtn, padding: '4px 10px' }}
+            onClick={popTarget}
+            title="Back to the parent graph"
+          >
+            ← Back
+          </button>
+        )}
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{active.title}</div>
         {graph && (
           <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
             {graph.nodes.length} nodes · {graph.edges.length} edges
@@ -386,7 +455,11 @@ function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) 
         </div>
         {openNode && (
           <AnalysisNodePanel
-            target={target}
+            // Use the *active* target from the nav stack, not the
+            // prop. After a drilldown push we're showing the subject
+            // graph, so source/outputs requests need to hit the
+            // subject endpoints — not the parent group endpoint.
+            target={active.target}
             node={openNode}
             onClose={() => setOpenNode(null)}
           />

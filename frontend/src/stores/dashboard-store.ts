@@ -13,6 +13,7 @@ import {
   fetchRun,
   fetchGroupRuns,
   fetchStudyRuns,
+  fetchInFlightRun,
   connectRunWs,
 } from '../api/client'
 
@@ -83,6 +84,7 @@ interface DashboardState {
   selectRun: (runId: string) => Promise<void>
   clearRunSelection: () => void
   runConfig: (configPath: string, overrides?: Record<string, unknown>) => Promise<void>
+  attachToInFlightRun: (runId: string) => void
   validateConfig: (filename: string) => Promise<void>
   rescan: () => Promise<void>
 }
@@ -118,6 +120,10 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   selectConfig: async (filename) => {
+    // Wipe ALL run-scoped state on a config switch — otherwise the
+    // previously-selected config's completed-run panel, live-event
+    // stream, stage tracker, etc. bleed into the new selection's UI
+    // until something else overwrites them.
     set({
       selectedFilename: filename,
       validationErrors: null,
@@ -125,6 +131,18 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       configRuns: [],
       groupConfigRuns: [],
       studyConfigRuns: [],
+      liveEvents: [],
+      stageStatuses: {},
+      completedRun: null,
+      // liveRunId / lastRunId are deliberately NOT cleared: if a run
+      // we launched in this tab is still in flight, the WS will keep
+      // feeding the (now cleared) liveEvents back in. If the user
+      // wants to fully reset, the Dismiss button on LiveProgress
+      // (or a config switch to a different in-flight run) clears
+      // those too.
+      liveRunId: null,
+      lastRunId: null,
+      liveStartTime: null,
     })
     try {
       const detail = await fetchConfigDetail(filename)
@@ -270,6 +288,81 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       }
     } catch (e) {
       set({ configsError: String(e) })
+    }
+  },
+
+  attachToInFlightRun: (runId) => {
+    // Latch onto a run already in flight (e.g. CLI-launched group /
+    // study run, or one started in another tab). The backend WS at
+    // /ws/runs/{run_id} replays handle.events on connect and then
+    // streams new events as they happen — both flow into liveEvents.
+    //
+    // Two things to get right so it doesn't look like a re-run:
+    //   1. liveStartTime is the *actual* started_at, not Date.now(),
+    //      so the elapsed timer reads correctly from second 1.
+    //   2. Replayed historical events arrive as separate WS messages
+    //      back-to-back; we batch them with a microtask so React only
+    //      re-renders once with the final state instead of animating
+    //      pending → running → done for every stage in real time.
+    //
+    // Seed liveStartTime to "now" up front (overwritten as soon as
+    // fetchInFlightRun resolves) so the live panel renders something
+    // meaningful even before the detail call lands.
+    set({
+      liveRunId: runId,
+      lastRunId: runId,
+      liveEvents: [],
+      stageStatuses: deriveStageStatuses([]),
+      liveStartTime: Date.now(),
+      completedRun: null,
+    })
+
+    fetchInFlightRun(runId).then((detail) => {
+      const startMs = (detail.started_at || 0) * 1000
+      if (startMs > 0) set({ liveStartTime: startMs })
+    }).catch(() => { /* keep the Date.now() fallback */ })
+
+    const ws = connectRunWs(runId)
+    let pending: RunEvent[] = []
+    let scheduled = false
+
+    const flush = () => {
+      scheduled = false
+      if (pending.length === 0) return
+      const batch = pending
+      pending = []
+      set((s) => {
+        const events = [...s.liveEvents, ...batch]
+        return {
+          liveEvents: events,
+          stageStatuses: deriveStageStatuses(events),
+        }
+      })
+    }
+
+    ws.onmessage = (msg) => {
+      const event: RunEvent = JSON.parse(msg.data)
+      pending.push(event)
+      if (!scheduled) {
+        scheduled = true
+        // Microtask-ish batching: the WS replay sprays N historical
+        // events back-to-back; a single 0ms timeout coalesces them
+        // into one React update. New live events still feel responsive
+        // (sub-frame latency).
+        setTimeout(flush, 0)
+      }
+      if (event.event === 'run_done' || event.event === 'run_failed') {
+        // Drain anything still in the buffer + then tear down.
+        setTimeout(() => {
+          flush()
+          ws.close()
+          set({ liveRunId: null, liveStartTime: null })
+          get().loadConfigs()
+        }, 0)
+      }
+    }
+    ws.onerror = () => {
+      set({ liveRunId: null, liveStartTime: null })
     }
   },
 

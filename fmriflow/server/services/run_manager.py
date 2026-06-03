@@ -30,9 +30,214 @@ from pathlib import Path
 
 import yaml
 
+from fmriflow.core import paths
 from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
 
 logger = logging.getLogger(__name__)
+
+
+def _display_name(config: dict) -> str:
+    """Best human-readable name for an in-flight row.
+
+    Group YAMLs lack a top-level ``experiment:`` — the relevant name is
+    ``group:``. Study YAMLs use ``study:``. Subject YAMLs use the
+    normal ``experiment:`` field. Falls back to '' when none is set.
+    """
+    if not isinstance(config, dict):
+        return ''
+    if isinstance(config.get('study'), str) and config['study']:
+        return config['study']
+    if isinstance(config.get('group'), str) and config['group']:
+        return config['group']
+    return str(config.get('experiment') or '')
+
+
+def _experiment_from_state(state: RunStateFile) -> str:
+    """Display name for a registry-only (finished, no in-memory handle) run.
+
+    Prefer the value persisted in ``state.params['experiment']`` — for
+    runs registered after the ``_display_name`` fix it's already the
+    group/study/experiment name. For older entries persisted before the
+    fix (where group/study runs got ``None``), lazily load the YAML the
+    state points at and recompute. Returns ``''`` if nothing usable
+    survives.
+    """
+    params = state.params or {}
+    persisted = params.get('experiment')
+    if isinstance(persisted, str) and persisted:
+        return persisted
+    cfg = _load_state_config(state)
+    if cfg:
+        return _display_name(cfg)
+    return ''
+
+
+def _load_state_config(state: RunStateFile) -> dict | None:
+    """Lazy YAML load for the config a registry entry points at."""
+    params = state.params or {}
+    cfg_path = params.get('config_path') or state.config_path
+    if not cfg_path:
+        return None
+    try:
+        with open(cfg_path) as f:
+            cfg = yaml.safe_load(f) or {}
+    except Exception:
+        return None
+    return cfg if isinstance(cfg, dict) else None
+
+
+def discover_group_run_dirs(
+    registry: "RunRegistry", *, name: str | None = None,
+) -> list[tuple[str, str, Path]]:
+    """Locate every ``(group_name, run_id, run_dir)`` we can see.
+
+    Two sources are merged and deduped by the run-dir's realpath:
+
+    1. **Default root** — ``paths.group_runs_root()/<group_name>/<run_id>/``.
+       Includes legacy and symlinked layouts. This is what
+       ``/group-runs`` saw before the registry plumbing landed.
+    2. **Run registry** — every ``kind='run'`` entry with
+       ``is_group=True``. Its ``output_dir`` is the *parent* (the
+       group's directory), so we scan it for any
+       ``<subdir>/group_summary.json``. This catches runs whose
+       ``output_dir`` lives outside ``$FMRIFLOW_HOME``.
+
+    Optional ``name`` filters both sources to one group.
+    """
+    return _discover_run_dirs(
+        registry,
+        default_root=paths.group_runs_root(),
+        summary_name='group_summary.json',
+        kind='group',
+        name=name,
+    )
+
+
+def discover_study_run_dirs(
+    registry: "RunRegistry", *, name: str | None = None,
+) -> list[tuple[str, str, Path]]:
+    """Study analogue of :func:`discover_group_run_dirs`."""
+    return _discover_run_dirs(
+        registry,
+        default_root=paths.study_runs_root(),
+        summary_name='study_summary.json',
+        kind='study',
+        name=name,
+    )
+
+
+def _discover_run_dirs(
+    registry: "RunRegistry",
+    *,
+    default_root: Path,
+    summary_name: str,
+    kind: str,
+    name: str | None,
+) -> list[tuple[str, str, Path]]:
+    seen: set[str] = set()
+    out: list[tuple[str, str, Path]] = []
+
+    def add(group_or_study: str, run_id: str, run_dir: Path) -> None:
+        try:
+            real = str(run_dir.resolve(strict=False))
+        except Exception:
+            real = str(run_dir)
+        if real in seen:
+            return
+        seen.add(real)
+        out.append((group_or_study, run_id, run_dir))
+
+    # Source 1 — default root (legacy + symlinked layouts).
+    if default_root.exists():
+        for top in sorted(default_root.iterdir()):
+            if not top.is_dir():
+                continue
+            if name is not None and top.name != name:
+                continue
+            # Pre-run-id layout: <name>/group_summary.json directly.
+            if (top / summary_name).is_file():
+                add(top.name, '', top)
+            for child in sorted(top.iterdir()):
+                if not child.is_dir() or child.name == 'latest':
+                    continue
+                if (child / summary_name).is_file():
+                    add(top.name, child.name, child)
+
+    # Source 2 — registry entries whose output_dir we know.
+    for state in registry.list_all():
+        if state.kind != 'run':
+            continue
+        is_group, is_study = kind_from_state(state)
+        if kind == 'group' and not is_group:
+            continue
+        if kind == 'study' and not is_study:
+            continue
+        params = state.params or {}
+        output_dir = params.get('output_dir')
+        if not output_dir:
+            continue
+        parent = Path(output_dir)
+        if not parent.is_dir():
+            continue
+        # output_dir is the *parent* (group/study directory); the
+        # orchestrator creates a timestamped subdir under it.
+        group_name = _experiment_from_state(state) or parent.name
+        if name is not None and group_name != name:
+            continue
+        # Pre-run-id layout.
+        if (parent / summary_name).is_file():
+            add(group_name, '', parent)
+        for child in sorted(parent.iterdir()):
+            if not child.is_dir() or child.name == 'latest':
+                continue
+            if (child / summary_name).is_file():
+                add(group_name, child.name, child)
+
+    return out
+
+
+def resolve_group_run_dir(
+    registry: "RunRegistry", name: str, run_id: str,
+) -> Path | None:
+    """Return the on-disk dir for a ``(name, run_id)`` pair or ``None``."""
+    for gname, rid, run_dir in discover_group_run_dirs(registry, name=name):
+        if gname == name and rid == run_id:
+            return run_dir
+    return None
+
+
+def resolve_study_run_dir(
+    registry: "RunRegistry", name: str, run_id: str,
+) -> Path | None:
+    """Study analogue of :func:`resolve_group_run_dir`."""
+    for sname, rid, run_dir in discover_study_run_dirs(registry, name=name):
+        if sname == name and rid == run_id:
+            return run_dir
+    return None
+
+
+def kind_from_state(state: RunStateFile) -> tuple[bool, bool]:
+    """``(is_group, is_study)`` for a registry entry.
+
+    Prefer the explicit flags persisted in ``params`` (new runs). Fall
+    back to inspecting the YAML the state points at (old runs that
+    pre-date the flag-persistence fix). Defaults to ``(False, False)``.
+    """
+    params = state.params or {}
+    if 'is_group' in params or 'is_study' in params:
+        return bool(params.get('is_group')), bool(params.get('is_study'))
+    cfg = _load_state_config(state)
+    if not cfg:
+        return False, False
+    is_study = (
+        isinstance(cfg.get('study'), str)
+        and isinstance(cfg.get('groups'), list)
+    )
+    is_group = (not is_study) and (
+        isinstance(cfg.get('group'), str)
+        and isinstance(cfg.get('subjects'), list)
+    )
+    return is_group, is_study
 
 
 def _apply_per_run_output_dir(config: dict, run_id: str) -> dict:
@@ -292,7 +497,16 @@ class RunManager:
             params={
                 'config_path': config_path,
                 'output_dir': output_dir,
-                'experiment': config.get('experiment'),
+                # _display_name covers group/study YAMLs that don't carry
+                # a top-level `experiment:` — falls back to `group:` /
+                # `study:` so the registry-persisted name is always the
+                # one the dashboard wants to show.
+                'experiment': _display_name(config),
+                # Scope flags so registry-only consumers (group/study run
+                # listings) can identify the kind without re-parsing the
+                # YAML on every call.
+                'is_group': bool(is_group),
+                'is_study': bool(is_study),
             },
         )
         self.registry.register(state)
@@ -434,104 +648,13 @@ class RunManager:
     def _finalize_from_output(self, handle: RunHandle, returncode: int) -> None:
         """Inspect the run's summary file to determine final status.
 
-        For subject runs that's ``<output_dir>/run_summary.json``. For
-        group and study runs the path isn't known until the subprocess
-        creates a timestamped subdir, so we scan
-        ``<output_dir>/*/<summary>.json`` and pick the newest one
-        (only one summary per invocation per orchestrator).
+        Subject runs write ``<output_dir>/run_summary.json``; group / study
+        runs write ``<output_dir>/<run_id>/<scope>_summary.json``. The
+        actual path resolution and status-derivation lives in
+        :func:`_apply_summary_to_handle` so the reattached monitor uses
+        the same logic.
         """
-        summary_path: Path | None = None
-        summary: dict | None = None
-        if handle.is_study and handle.output_dir:
-            parent = Path(handle.output_dir)
-            if parent.is_dir():
-                candidates = [
-                    p for p in parent.iterdir()
-                    if p.is_dir() and p.name != 'latest'
-                    and (p / 'study_summary.json').is_file()
-                ]
-                if candidates:
-                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                    summary_path = candidates[0] / 'study_summary.json'
-        elif handle.is_group and handle.output_dir:
-            parent = Path(handle.output_dir)
-            if parent.is_dir():
-                candidates = [
-                    p for p in parent.iterdir()
-                    if p.is_dir() and p.name != 'latest'
-                    and (p / 'group_summary.json').is_file()
-                ]
-                if candidates:
-                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                    summary_path = candidates[0] / 'group_summary.json'
-        elif handle.output_dir:
-            summary_path = Path(handle.output_dir) / 'run_summary.json'
-
-        if summary_path and summary_path.is_file():
-            try:
-                summary = json.loads(summary_path.read_text())
-            except Exception:
-                summary = None
-
-        now = time.time()
-        handle.finished_at = now
-
-        if returncode == 0 and summary is not None:
-            handle.status = 'done'
-            total_elapsed = summary.get('total_elapsed_s', now - handle.started_at)
-            handle.push_event({
-                'event': 'run_done',
-                'total_elapsed': total_elapsed,
-                'summary_path': str(summary_path),
-            })
-        elif returncode == 0:
-            # Exited 0 but no summary — should not happen with current CLI.
-            handle.status = 'failed'
-            handle.error = 'pipeline exited 0 but produced no run_summary.json'
-            handle.push_event({
-                'event': 'run_failed',
-                'error': handle.error,
-                'elapsed': now - handle.started_at,
-                'log_tail': _read_tail(handle.log_path, n=200),
-                'log_path': handle.log_path,
-            })
-        else:
-            handle.status = 'failed'
-            # Pull a terse reason from the summary if present. Subject
-            # summaries have `stages`; group summaries have
-            # `group_stages`; study summaries have `study_stages`.
-            if handle.is_study:
-                stages_key = 'study_stages'
-            elif handle.is_group:
-                stages_key = 'group_stages'
-            else:
-                stages_key = 'stages'
-            if summary:
-                stages = summary.get(stages_key, [])
-                failed_stage = next(
-                    (s for s in stages if s.get('status') == 'failed'),
-                    None,
-                )
-                if failed_stage:
-                    handle.error = (
-                        f"{failed_stage.get('name')}: "
-                        f"{failed_stage.get('detail') or 'stage failed'}"
-                    )
-            if not handle.error:
-                handle.error = f"pipeline exited with code {returncode}"
-            # Attach the tail of pipeline.log so the UI can show what
-            # actually went wrong — especially important when the run
-            # fails before producing run_summary.json (the RunStore
-            # never gets the failed run, so the frontend's completedRun
-            # lookup returns 404 and the standard log_tail panel never
-            # renders).
-            handle.push_event({
-                'event': 'run_failed',
-                'error': handle.error,
-                'elapsed': now - handle.started_at,
-                'log_tail': _read_tail(handle.log_path, n=200),
-                'log_path': handle.log_path,
-            })
+        _apply_summary_to_handle(handle, returncode=returncode)
 
     # ── Registry / reattach / cancel ────────────────────────────────
 
@@ -551,8 +674,10 @@ class RunManager:
             params={
                 'config_path': handle.config_path,
                 'output_dir': handle.output_dir,
-                'experiment': handle.config.get('experiment'),
+                'experiment': _display_name(handle.config),
                 'events_path': handle.events_path,
+                'is_group': bool(handle.is_group),
+                'is_study': bool(handle.is_study),
             },
             error=handle.error,
         )
@@ -585,6 +710,19 @@ class RunManager:
                 except Exception:
                     config = {}
 
+            # Re-detect kind from the YAML the subprocess is reading
+            # from. Without this, reattached group/study runs look like
+            # subject runs (is_group/is_study default to False) and the
+            # in-flight graph endpoint silently falls into the subject
+            # branch, returning a near-empty graph.
+            re_is_study = (
+                isinstance(config.get('study'), str)
+                and isinstance(config.get('groups'), list)
+            )
+            re_is_group = (not re_is_study) and (
+                isinstance(config.get('group'), str)
+                and isinstance(config.get('subjects'), list)
+            )
             handle = RunHandle(
                 run_id=state.run_id,
                 config=config,
@@ -597,6 +735,8 @@ class RunManager:
                 events_path=params.get('events_path'),
                 output_dir=params.get('output_dir'),
                 is_reattached=True,
+                is_group=re_is_group,
+                is_study=re_is_study,
             )
             self.active_runs[state.run_id] = handle
 
@@ -614,8 +754,14 @@ class RunManager:
         out: dict[str, dict] = {}
         for handle in self.active_runs.values():
             row = handle.to_summary()
-            row['experiment'] = handle.config.get('experiment', '')
+            # For group/study runs there's no top-level `experiment:`
+            # in the YAML — the meaningful name lives in `group:` /
+            # `study:`. Prefer those so the in-flight card shows
+            # something useful instead of "(no experiment)".
+            row['experiment'] = _display_name(handle.config)
             row['subject'] = handle.config.get('subject', '')
+            row['is_group'] = bool(handle.is_group)
+            row['is_study'] = bool(handle.is_study)
             out[handle.run_id] = row
         if include_finished:
             for state in self.registry.list_all():
@@ -633,7 +779,7 @@ class RunManager:
                     'config_path': state.config_path,
                     'output_dir': params.get('output_dir'),
                     'log_path': state.stdout_log,
-                    'experiment': params.get('experiment', ''),
+                    'experiment': _experiment_from_state(state),
                     'subject': state.subject,
                 }
         return sorted(out.values(), key=lambda r: r.get('started_at') or 0, reverse=True)
@@ -642,8 +788,10 @@ class RunManager:
         handle = self.active_runs.get(run_id)
         if handle is not None:
             summary = handle.to_summary()
-            summary['experiment'] = handle.config.get('experiment', '')
+            summary['experiment'] = _display_name(handle.config)
             summary['subject'] = handle.config.get('subject', '')
+            summary['is_group'] = bool(handle.is_group)
+            summary['is_study'] = bool(handle.is_study)
         else:
             state = self.registry.load(run_id)
             if state is None or state.kind != 'run':
@@ -661,7 +809,7 @@ class RunManager:
                 'output_dir': params.get('output_dir'),
                 'log_path': state.stdout_log,
                 'events_path': params.get('events_path'),
-                'experiment': params.get('experiment', ''),
+                'experiment': _experiment_from_state(state),
                 'subject': state.subject,
             }
         log_path = summary.get('log_path')
@@ -926,28 +1074,14 @@ class _RunReattachedMonitor:
         self._finalize()
 
     def _finalize(self) -> None:
-        summary_path = (
-            Path(self.handle.output_dir) / 'run_summary.json'
-            if self.handle.output_dir else None
-        )
-        now = time.time()
-        if summary_path and summary_path.is_file():
-            self.handle.status = 'done'
-            self.handle.finished_at = now
-            self.handle.push_event({
-                'event': 'run_done',
-                'summary_path': str(summary_path),
-                'elapsed': now - self.handle.started_at,
-            })
-        else:
-            self.handle.status = 'failed'
-            self.handle.error = 'subprocess exited without a run_summary.json'
-            self.handle.finished_at = now
-            self.handle.push_event({
-                'event': 'run_failed',
-                'error': self.handle.error,
-                'elapsed': now - self.handle.started_at,
-            })
+        # Reattach has no returncode — the subprocess was already detached
+        # when the server came up. Derive ok/failed from the on-disk
+        # summary's stage records via the shared helper, which also
+        # handles group_summary.json / study_summary.json (the previous
+        # implementation only looked for ``run_summary.json`` and
+        # mis-reported every finished group/study run as "subprocess
+        # exited without a run_summary.json").
+        _apply_summary_to_handle(self.handle, returncode=None)
         self.manager._persist_state(self.handle)
 
 
@@ -962,6 +1096,125 @@ def _read_tail(path: str | None, n: int = 200) -> str:
         return "\n".join(lines[-n:])
     except Exception:
         return ""
+
+
+def _resolve_summary_path(handle: RunHandle) -> tuple[Path | None, str]:
+    """Locate the on-disk summary for a finished run, regardless of scope.
+
+    Group / study orchestrators write their summary under a timestamped
+    subdir of ``output_dir`` (``<output_dir>/<run_id>/(group|study)_summary.json``);
+    subject runs write ``<output_dir>/run_summary.json`` directly. Returns
+    the matched path (or ``None`` if missing) and the JSON key under which
+    that summary stores its stage records.
+    """
+    if handle.is_study and handle.output_dir:
+        parent = Path(handle.output_dir)
+        if parent.is_dir():
+            candidates = [
+                p for p in parent.iterdir()
+                if p.is_dir() and p.name != 'latest'
+                and (p / 'study_summary.json').is_file()
+            ]
+            if candidates:
+                candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                return candidates[0] / 'study_summary.json', 'study_stages'
+        return None, 'study_stages'
+    if handle.is_group and handle.output_dir:
+        parent = Path(handle.output_dir)
+        if parent.is_dir():
+            candidates = [
+                p for p in parent.iterdir()
+                if p.is_dir() and p.name != 'latest'
+                and (p / 'group_summary.json').is_file()
+            ]
+            if candidates:
+                candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                return candidates[0] / 'group_summary.json', 'group_stages'
+        return None, 'group_stages'
+    if handle.output_dir:
+        path = Path(handle.output_dir) / 'run_summary.json'
+        return (path if path.is_file() else None), 'stages'
+    return None, 'stages'
+
+
+def _apply_summary_to_handle(
+    handle: RunHandle, *, returncode: int | None = None,
+) -> None:
+    """Drive a finished run's status / error / final event from the summary.
+
+    Used by both the foreground monitor (which knows the subprocess's
+    ``returncode``) and the reattached monitor (which doesn't — the
+    process was already detached when the server came up, so we infer
+    success from the recorded stage statuses).
+
+    When ``returncode`` is ``None``, the run is considered successful
+    iff a summary exists and every recorded stage's status is one of
+    ``ok``/``warning``/``skipped``. Otherwise ``returncode == 0`` plus a
+    present summary is required.
+    """
+    summary_path, stages_key = _resolve_summary_path(handle)
+    summary: dict | None = None
+    if summary_path and summary_path.is_file():
+        try:
+            summary = json.loads(summary_path.read_text())
+        except Exception:
+            summary = None
+
+    now = time.time()
+    handle.finished_at = now
+
+    if returncode is None:
+        if summary is None:
+            ok = False
+        else:
+            stages = summary.get(stages_key, [])
+            ok = bool(stages) and all(
+                s.get('status') in ('ok', 'warning', 'skipped') for s in stages
+            )
+    else:
+        ok = (returncode == 0 and summary is not None)
+
+    if ok:
+        handle.status = 'done'
+        total_elapsed = (summary.get('total_elapsed_s', now - handle.started_at)
+                         if summary else now - handle.started_at)
+        handle.push_event({
+            'event': 'run_done',
+            'total_elapsed': total_elapsed,
+            'summary_path': str(summary_path) if summary_path else None,
+        })
+        return
+
+    handle.status = 'failed'
+    if summary is None and returncode == 0:
+        handle.error = 'pipeline exited 0 but produced no run_summary.json'
+    elif summary is None and returncode is not None:
+        handle.error = f"pipeline exited with code {returncode}"
+    elif summary is None:
+        handle.error = 'subprocess exited without a run_summary.json'
+    else:
+        stages = summary.get(stages_key, [])
+        failed_stage = next(
+            (s for s in stages if s.get('status') == 'failed'),
+            None,
+        )
+        if failed_stage:
+            handle.error = (
+                f"{failed_stage.get('name')}: "
+                f"{failed_stage.get('detail') or 'stage failed'}"
+            )
+        elif returncode is not None:
+            handle.error = f"pipeline exited with code {returncode}"
+        else:
+            handle.error = 'pipeline ended in an unknown state'
+
+    handle.push_event({
+        'event': 'run_failed',
+        'error': handle.error,
+        'elapsed': now - handle.started_at,
+        'log_tail': _read_tail(handle.log_path, n=200),
+        'log_path': handle.log_path,
+    })
 
 
 # Known pipeline stages, in pipeline execution order.
