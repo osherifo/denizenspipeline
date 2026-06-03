@@ -938,3 +938,22 @@ export async function saveSettings(
     body: JSON.stringify(body),
   })
 }
+
+// ── Group runs ──
+
+export async function fetchGroupRuns(
+  opts: { name?: string } = {},
+): Promise<import('./types').GroupRunListing[]> {
+  const q = opts.name ? `?name=${encodeURIComponent(opts.name)}` : ''
+  return json(`${BASE}/group-runs${q}`)
+}
+
+export async function fetchGroupRun(
+  name: string,
+  runId?: string,
+): Promise<import('./types').GroupRunDetail> {
+  const path = runId
+    ? `${BASE}/group-runs/${encodeURIComponent(name)}/${encodeURIComponent(runId)}`
+    : `${BASE}/group-runs/${encodeURIComponent(name)}`
+  return json(path)
+}

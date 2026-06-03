@@ -134,6 +134,13 @@ export interface RunEvent {
   error?: string
   message?: string
   timestamp?: number
+  // Attached to `run_failed` events: last ~200 lines of pipeline.log so
+  // the UI can show the actual failure when no run_summary.json was
+  // produced (and therefore no completedRun is fetched). Also a
+  // Python traceback when the run_manager wrapper itself raised.
+  log_tail?: string
+  log_path?: string
+  traceback?: string
 }
 
 // ── Module Editor types ──
@@ -186,6 +193,11 @@ export interface ConfigSummary {
   stimulus_loader: string
   response_loader: string
   n_runs: number
+  // 'subject' for a single-subject pipeline yaml; 'group' for a
+  // GroupOrchestrator config (top-level 'group:' + 'subjects:' list).
+  kind?: 'subject' | 'group'
+  // For group configs only: list of subject IDs in the subjects: block.
+  group_subjects?: string[]
 }
 
 export interface ConfigDetail {
@@ -851,4 +863,65 @@ export interface SettingsSnapshot {
 
 export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
   create_missing?: boolean
+}
+
+// ── Group runs ───────────────────────────────────────────────────
+
+export interface GroupStatusCounts {
+  ok: number
+  warning: number
+  failed: number
+  unknown: number
+}
+
+export interface GroupRunListing {
+  group_name: string
+  run_id: string                  // empty string for legacy (pre-run-id) layout
+  run_dir: string
+  subjects: string[]
+  n_subjects: number
+  status_counts: GroupStatusCounts
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  has_html_report: boolean
+  has_log: boolean
+}
+
+export interface GroupSubjectStage {
+  name: string
+  status: string
+  elapsed_s: number
+  detail: string
+}
+
+export interface GroupSubjectSummary {
+  experiment: string
+  subject: string
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+}
+
+export interface GroupArtifacts {
+  group: string[]                       // file paths relative to <run_dir>
+  subjects: Record<string, string[]>    // subject -> file paths
+}
+
+export interface GroupRunDetail {
+  group_name: string
+  run_id: string
+  subjects: string[]
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  subject_summaries: GroupSubjectSummary[]
+  group_stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+  run_dir: string
+  html_report?: string
+  group_log?: string
+  artifacts: GroupArtifacts
 }

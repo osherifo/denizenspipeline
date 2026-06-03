@@ -1,9 +1,10 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
 import { SortableArtifactList } from '../components/results/SortableArtifactList'
 import { RunComparison } from '../components/runs/RunComparison'
+import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
 import type { RunSummary } from '../api/types'
 
 // ── Styles ──
@@ -208,19 +209,15 @@ function formatDate(iso: string): string {
   }
 }
 
-function formatScore(score: number | null): string {
-  if (score == null) return '-'
-  return score.toFixed(4)
-}
-
 // ── Detail View ──
 
 function RunDetail({
-  run, onClose, onRefresh,
+  run, onClose, onRefresh, onOpenGraph,
 }: {
   run: RunSummary
   onClose: () => void
   onRefresh: () => void
+  onOpenGraph: (runId: string) => void
 }) {
   const artifacts = run.artifacts ? Object.values(run.artifacts) : []
 
@@ -228,7 +225,21 @@ function RunDetail({
     <div style={detailPanel}>
       <div style={detailHeader}>
         <div style={detailTitle}>Run {run.run_id}</div>
-        <button style={closeBtn} onClick={onClose}>Close</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            style={{
+              padding: '4px 12px', fontSize: 12, fontWeight: 600,
+              borderRadius: 4, border: '1px solid rgba(0, 229, 255, 0.4)',
+              background: 'rgba(0, 229, 255, 0.08)', color: 'var(--accent-cyan)',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+            onClick={() => onOpenGraph(run.run_id)}
+            title="Show the pipeline graph for this run"
+          >
+            View graph
+          </button>
+          <button style={closeBtn} onClick={onClose}>Close</button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -240,12 +251,6 @@ function RunDetail({
         <div style={summaryCard}>
           <div style={summaryLabel}>Subject</div>
           <div style={summaryValue}>{run.subject || '-'}</div>
-        </div>
-        <div style={summaryCard}>
-          <div style={summaryLabel}>Mean Score</div>
-          <div style={{ ...summaryValue, color: run.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)' }}>
-            {formatScore(run.mean_score)}
-          </div>
         </div>
         <div style={summaryCard}>
           <div style={summaryLabel}>Duration</div>
@@ -321,6 +326,7 @@ export function RunManager() {
     compareIds, compareSelection, comparing, toggleCompare, clearCompare,
     openComparison, closeComparison,
   } = useRunStore()
+  const [graphRunId, setGraphRunId] = useState<string | null>(null)
 
   useEffect(() => {
     loadRuns()
@@ -388,7 +394,6 @@ export function RunManager() {
                 <th style={thStyle}>Experiment</th>
                 <th style={thStyle}>Subject</th>
                 <th style={thStyle}>Model</th>
-                <th style={thStyle}>Mean Score</th>
                 <th style={thStyle}>Status</th>
               </tr>
             </thead>
@@ -424,13 +429,6 @@ export function RunManager() {
                     <td style={tdStyle}>
                       {(run.config_snapshot as any)?.model?.type || '-'}
                     </td>
-                    <td style={{
-                      ...tdStyle,
-                      color: run.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)',
-                      fontWeight: 600,
-                    }}>
-                      {formatScore(run.mean_score)}
-                    </td>
                     <td style={tdStyle}>
                       <span style={statusBadge(run.status)}>{run.status}</span>
                     </td>
@@ -448,12 +446,21 @@ export function RunManager() {
           run={selectedRun}
           onClose={clearSelection}
           onRefresh={() => selectRun(selectedRun.run_id)}
+          onOpenGraph={(rid) => setGraphRunId(rid)}
         />
       )}
 
       {/* Comparison overlay */}
       {compareSelection && (
         <RunComparison runs={compareSelection} onClose={closeComparison} />
+      )}
+
+      {graphRunId && (
+        <AnalysisGraphModal
+          target={{ kind: 'subject', runId: graphRunId }}
+          title={`Run ${graphRunId} — analysis graph`}
+          onClose={() => setGraphRunId(null)}
+        />
       )}
     </div>
   )

@@ -399,9 +399,19 @@ class MultipleKernelRidgeModel:
             Y_pred = Y_pred.get()
         scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
 
+        # Also compute the *other* metric so reporters can render both
+        # without us having to re-predict. Storing both is cheap (one
+        # vector each of length n_voxels) and avoids having to keep the
+        # fitted model object around.
+        scores_pearson_r = _score_predictions(
+            Y_pred, data.Y_test, metric='pearson_r')
+        scores_r2 = _score_predictions(Y_pred, data.Y_test, metric='r2')
+
         metadata = {
             'deltas': mkr.deltas_,
             'is_dual': True,
+            'scores_pearson_r': scores_pearson_r,
+            'scores_r2': scores_r2,
         }
 
         return ModelResult(

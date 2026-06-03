@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 
 from fmriflow.config.defaults import DEFAULT_CONFIG
-from fmriflow.config.schema import validate_config
+from fmriflow.config.schema import validate_config, validate_group_config
 from fmriflow.core.subject_db import resolve_subject_config
 from fmriflow.exceptions import ConfigError
 
@@ -170,3 +170,31 @@ def _resolve_env_string(s: str) -> str:
             return value
 
     return _ENV_PATTERN.sub(replacer, s)
+
+
+def load_group_config(path: str | Path) -> dict:
+    """Load and validate a group-scope YAML config.
+
+    Mirrors :func:`load_config` but skips the subject-pipeline schema
+    (the group config does not carry ``experiment`` / ``subject`` at the
+    root — those are filled in per-subject from ``subject_template``).
+
+    Subject configs derived from the group config are validated against
+    :func:`fmriflow.config.schema.validate_config` at fan-out time by
+    :class:`fmriflow.group_orchestrator.GroupOrchestrator`.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise ConfigError(f"Group config file not found: {path}")
+
+    with open(path) as f:
+        config = yaml.safe_load(f) or {}
+
+    config = load_config_with_inheritance(config, path.parent)
+    config = resolve_env_vars(config)
+
+    errors = validate_group_config(config)
+    if errors:
+        raise ConfigError(errors)
+
+    return config

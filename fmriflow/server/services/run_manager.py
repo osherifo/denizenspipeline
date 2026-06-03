@@ -85,6 +85,10 @@ class RunHandle:
 
     # Path to a temp YAML we wrote for subprocess consumption (cleanup after run).
     _temp_config_path: str | None = None
+    # True when this is a group-scope run (spawned via `fmriflow run-group`).
+    # Drives both subprocess dispatch and how the finalize step looks
+    # for the per-invocation group_summary.json on disk.
+    is_group: bool = False
 
     def push_event(self, event: dict) -> None:
         event.setdefault('timestamp', time.time())
@@ -164,11 +168,12 @@ class RunManager:
     ) -> str:
         """Launch a pipeline run from a YAML config file.
 
-        Always rewrites the config through a temp YAML so we can inject
-        a per-run ``reporting.output_dir`` suffix — each run lands in its
-        own subdirectory under the user-configured output_dir, so repeat
-        runs of the same experiment don't clobber each other's
-        ``run_summary.json`` / artifacts.
+        Detects whether the YAML is a SUBJECT or GROUP config
+        (top-level ``group:`` + ``subjects:`` -> group). Subject runs
+        get a per-run ``reporting.output_dir`` suffix so repeat runs
+        don't clobber each other. Group runs already isolate per-run
+        via ``group_runs/<name>/<run_id>/`` inside GroupOrchestrator,
+        so no rewrite is needed.
         """
         run_id = uuid.uuid4().hex[:12]
 
@@ -178,7 +183,16 @@ class RunManager:
             for k, v in overrides.items():
                 if v is not None:
                     base[k] = v
-        config = _apply_per_run_output_dir(base, run_id)
+
+        is_group = (
+            isinstance(base.get('group'), str)
+            and isinstance(base.get('subjects'), list)
+        )
+
+        if is_group:
+            config = base
+        else:
+            config = _apply_per_run_output_dir(base, run_id)
 
         tmp = tempfile.NamedTemporaryFile(
             mode='w', suffix=f"_{run_id}.yaml", delete=False,
@@ -193,9 +207,13 @@ class RunManager:
             config=config,
             config_path=effective_path,
             temp_config_path=temp_path,
+            is_group=is_group,
         )
         self._spawn_and_track(handle)
-        logger.info("Started run %s from config %s", run_id, config_path)
+        logger.info(
+            "Started %s run %s from config %s",
+            "group" if is_group else "subject", run_id, config_path,
+        )
         return run_id
 
     # ── Registry + spawn helpers ────────────────────────────────────
@@ -207,11 +225,25 @@ class RunManager:
         config: dict,
         config_path: str,
         temp_config_path: str | None,
+        is_group: bool = False,
     ) -> RunHandle:
         now = time.time()
-        output_dir = (
-            (config.get('reporting') or {}).get('output_dir') or './results'
-        )
+        if is_group:
+            # GroupOrchestrator lands runs under
+            # group_runs/<group_name>/<run_id>/; we won't know the exact
+            # timestamp until the child process creates it, so just
+            # surface the parent here. _finalize_from_output will
+            # resolve the real run dir from the latest summary written.
+            from fmriflow.core import paths
+            group_name = config.get('group') or ''
+            output_dir = (
+                config.get('output_dir')
+                or str(paths.group_runs_root() / group_name)
+            )
+        else:
+            output_dir = (
+                (config.get('reporting') or {}).get('output_dir') or './results'
+            )
 
         handle = RunHandle(
             run_id=run_id,
@@ -221,6 +253,7 @@ class RunManager:
             started_at=now,
             output_dir=output_dir,
             _temp_config_path=temp_config_path,
+            is_group=is_group,
         )
 
         state = RunStateFile(
@@ -257,15 +290,22 @@ class RunManager:
         events_path = (log_path.parent / "events.jsonl") if log_path else None
 
         try:
+            sub = "run-group" if handle.is_group else "run"
             cmd = [
                 sys.executable, "-u", "-m", "fmriflow.cli",
-                "run", handle.config_path,
+                sub, handle.config_path,
             ]
             logger.info("Running pipeline: %s", " ".join(cmd))
 
+            name_for_log = (
+                handle.config.get('group')
+                if handle.is_group
+                else handle.config.get('experiment', '?')
+            )
             handle.push_event({
                 'event': 'started',
-                'message': f"Starting pipeline for {handle.config.get('experiment', '?')}",
+                'message': f"Starting {sub} for {name_for_log}",
+                'is_group': handle.is_group,
             })
 
             # Pass an events file so the subprocess can emit per-stage
@@ -361,12 +401,30 @@ class RunManager:
                     pass
 
     def _finalize_from_output(self, handle: RunHandle, returncode: int) -> None:
-        """Inspect {output_dir}/run_summary.json to determine final status."""
-        summary_path = (
-            Path(handle.output_dir) / 'run_summary.json'
-            if handle.output_dir else None
-        )
+        """Inspect the run's summary file to determine final status.
+
+        For subject runs that's ``<output_dir>/run_summary.json``. For
+        group runs the path isn't known until the subprocess creates a
+        timestamped subdir, so we scan ``<output_dir>/*/group_summary.json``
+        and pick the newest one (it will be the run we just spawned —
+        GroupOrchestrator only writes one per invocation).
+        """
+        summary_path: Path | None = None
         summary: dict | None = None
+        if handle.is_group and handle.output_dir:
+            parent = Path(handle.output_dir)
+            if parent.is_dir():
+                candidates = [
+                    p for p in parent.iterdir()
+                    if p.is_dir() and p.name != 'latest'
+                    and (p / 'group_summary.json').is_file()
+                ]
+                if candidates:
+                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    summary_path = candidates[0] / 'group_summary.json'
+        elif handle.output_dir:
+            summary_path = Path(handle.output_dir) / 'run_summary.json'
+
         if summary_path and summary_path.is_file():
             try:
                 summary = json.loads(summary_path.read_text())
@@ -392,12 +450,17 @@ class RunManager:
                 'event': 'run_failed',
                 'error': handle.error,
                 'elapsed': now - handle.started_at,
+                'log_tail': _read_tail(handle.log_path, n=200),
+                'log_path': handle.log_path,
             })
         else:
             handle.status = 'failed'
-            # Pull a terse reason from the summary if present.
-            if summary and summary.get('status') == 'failed':
-                stages = summary.get('stages', [])
+            # Pull a terse reason from the summary if present. Subject
+            # summaries have `stages`; group summaries have
+            # `group_stages`. Either way, find the first failed one.
+            stages_key = 'group_stages' if handle.is_group else 'stages'
+            if summary:
+                stages = summary.get(stages_key, [])
                 failed_stage = next(
                     (s for s in stages if s.get('status') == 'failed'),
                     None,
@@ -409,10 +472,18 @@ class RunManager:
                     )
             if not handle.error:
                 handle.error = f"pipeline exited with code {returncode}"
+            # Attach the tail of pipeline.log so the UI can show what
+            # actually went wrong — especially important when the run
+            # fails before producing run_summary.json (the RunStore
+            # never gets the failed run, so the frontend's completedRun
+            # lookup returns 404 and the standard log_tail panel never
+            # renders).
             handle.push_event({
                 'event': 'run_failed',
                 'error': handle.error,
                 'elapsed': now - handle.started_at,
+                'log_tail': _read_tail(handle.log_path, n=200),
+                'log_path': handle.log_path,
             })
 
     # ── Registry / reattach / cancel ────────────────────────────────

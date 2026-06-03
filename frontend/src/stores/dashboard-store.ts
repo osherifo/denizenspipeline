@@ -1,6 +1,9 @@
 /** Experiment dashboard store. */
 import { create } from 'zustand'
-import type { ConfigSummary, ConfigDetail, RunSummary, RunEvent, StageStatus } from '../api/types'
+import type {
+  ConfigSummary, ConfigDetail, RunSummary, RunEvent, StageStatus,
+  GroupRunListing,
+} from '../api/types'
 import {
   fetchConfigs,
   fetchConfigDetail,
@@ -8,6 +11,7 @@ import {
   startRunFromConfig,
   fetchRuns,
   fetchRun,
+  fetchGroupRuns,
   connectRunWs,
 } from '../api/client'
 
@@ -47,11 +51,19 @@ interface DashboardState {
 
   // Runs for selected config
   configRuns: RunSummary[]
+  // Group-invocation listings for the selected group config. Empty when
+  // the selected config is a subject config.
+  groupConfigRuns: GroupRunListing[]
   selectedRun: RunSummary | null
   runsLoading: boolean
 
   // Live run
   liveRunId: string | null
+  // The actual run_id of the most recent run, preserved AFTER
+  // run_done/run_failed (when liveRunId is cleared so the polling
+  // stops). Used by panels that need to keep referring to the
+  // finished run — e.g. TriageMatches polling /api/triage/<id>.
+  lastRunId: string | null
   liveEvents: RunEvent[]
   stageStatuses: Record<string, StageStatus>
   liveStartTime: number | null
@@ -62,6 +74,7 @@ interface DashboardState {
   selectConfig: (filename: string) => Promise<void>
   clearSelection: () => void
   loadConfigRuns: (experiment: string, subject: string) => Promise<void>
+  loadGroupConfigRuns: (groupName: string) => Promise<void>
   selectRun: (runId: string) => Promise<void>
   clearRunSelection: () => void
   runConfig: (configPath: string, overrides?: Record<string, unknown>) => Promise<void>
@@ -78,9 +91,11 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   validationErrors: null,
   validating: false,
   configRuns: [],
+  groupConfigRuns: [],
   selectedRun: null,
   runsLoading: false,
   liveRunId: null,
+  lastRunId: null,
   liveEvents: [],
   stageStatuses: {},
   liveStartTime: null,
@@ -97,19 +112,30 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   selectConfig: async (filename) => {
-    set({ selectedFilename: filename, validationErrors: null, selectedRun: null })
+    set({
+      selectedFilename: filename,
+      validationErrors: null,
+      selectedRun: null,
+      configRuns: [],
+      groupConfigRuns: [],
+    })
     try {
       const detail = await fetchConfigDetail(filename)
       set({ selectedConfig: detail })
 
-      // Load runs for this config's experiment+subject
       const config = detail.config as Record<string, any>
-      const experiment = config.experiment || ''
-      const subject = config.subject || ''
-      if (experiment || subject) {
-        get().loadConfigRuns(experiment, subject)
+      const isGroup =
+        typeof config.group === 'string' && Array.isArray(config.subjects)
+      if (isGroup) {
+        // Group configs: list one row per group invocation
+        // (`group_runs/<name>/<timestamp>/`) — NOT per-subject results.
+        get().loadGroupConfigRuns(config.group || '')
       } else {
-        set({ configRuns: [] })
+        const experiment = config.experiment || ''
+        const subject = config.subject || ''
+        if (experiment || subject) {
+          get().loadConfigRuns(experiment, subject)
+        }
       }
     } catch (e) {
       set({ selectedConfig: null, configsError: String(e) })
@@ -121,6 +147,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       selectedConfig: null,
       selectedFilename: null,
       configRuns: [],
+      groupConfigRuns: [],
       selectedRun: null,
       validationErrors: null,
     })
@@ -133,6 +160,16 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       set({ configRuns: runs, runsLoading: false })
     } catch {
       set({ configRuns: [], runsLoading: false })
+    }
+  },
+
+  loadGroupConfigRuns: async (groupName) => {
+    set({ runsLoading: true })
+    try {
+      const runs = await fetchGroupRuns({ name: groupName })
+      set({ groupConfigRuns: runs, runsLoading: false })
+    } catch {
+      set({ groupConfigRuns: [], runsLoading: false })
     }
   },
 
@@ -152,6 +189,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       const result = await startRunFromConfig(configPath, overrides)
       set({
         liveRunId: result.run_id,
+        lastRunId: result.run_id,
         liveEvents: [],
         stageStatuses: deriveStageStatuses([]),
         liveStartTime: Date.now(),
@@ -177,17 +215,23 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
           const cfg = get().selectedConfig
           if (cfg) {
             const config = cfg.config as Record<string, any>
-            const experiment = config.experiment || ''
-            const subject = config.subject || ''
-            get().loadConfigRuns(experiment, subject).then(() => {
-              // The newest run is first — fetch its full detail
-              const runs = get().configRuns
-              if (runs.length > 0) {
-                fetchRun(runs[0].run_id).then((run) => {
-                  set({ completedRun: run })
-                }).catch(() => {})
-              }
-            })
+            const isGroup =
+              typeof config.group === 'string' && Array.isArray(config.subjects)
+            if (isGroup) {
+              get().loadGroupConfigRuns(config.group || '')
+            } else {
+              const experiment = config.experiment || ''
+              const subject = config.subject || ''
+              get().loadConfigRuns(experiment, subject).then(() => {
+                // The newest run is first — fetch its full detail
+                const runs = get().configRuns
+                if (runs.length > 0) {
+                  fetchRun(runs[0].run_id).then((run) => {
+                    set({ completedRun: run })
+                  }).catch(() => {})
+                }
+              })
+            }
           }
         }
       }

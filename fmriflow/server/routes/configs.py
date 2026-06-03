@@ -5,7 +5,29 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from fmriflow.core import paths
+
 router = APIRouter(tags=["configs"])
+
+
+def _count_group_runs(group_name: str) -> int:
+    """Number of timestamped run dirs under ``group_runs/<group_name>/`` with a
+    ``group_summary.json``. Legacy (no-run_id) layout counts as 1 if its
+    summary file exists directly under the group dir."""
+    if not group_name:
+        return 0
+    group_dir = paths.group_runs_root() / group_name
+    if not group_dir.is_dir():
+        return 0
+    n = 0
+    if (group_dir / "group_summary.json").is_file():
+        n += 1
+    for child in group_dir.iterdir():
+        if not child.is_dir() or child.name == "latest":
+            continue
+        if (child / "group_summary.json").is_file():
+            n += 1
+    return n
 
 
 class SaveConfigBody(BaseModel):
@@ -34,7 +56,14 @@ async def list_configs(request: Request):
 
     result = []
     for cfg in configs:
-        key = f"{cfg.experiment}|{cfg.subject}"
+        if cfg.kind == "group":
+            # For group configs, `cfg.experiment` was lifted from the
+            # YAML's top-level `group:` field, which is the directory
+            # name under group_runs/.
+            n_runs = _count_group_runs(cfg.experiment)
+        else:
+            key = f"{cfg.experiment}|{cfg.subject}"
+            n_runs = run_counts.get(key, 0)
         result.append({
             'filename': cfg.filename,
             'path': cfg.path,
@@ -47,7 +76,9 @@ async def list_configs(request: Request):
             'preparation_type': cfg.preparation_type,
             'stimulus_loader': cfg.stimulus_loader,
             'response_loader': cfg.response_loader,
-            'n_runs': run_counts.get(key, 0),
+            'n_runs': n_runs,
+            'kind': cfg.kind,
+            'group_subjects': cfg.group_subjects,
         })
 
     return result

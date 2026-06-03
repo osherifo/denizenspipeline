@@ -5,6 +5,7 @@ import type { RunEvent, StageStatus, RunSummary, ArtifactInfo } from '../../api/
 import { StageTracker } from './StageTracker'
 import { StageTimeline } from '../runs/StageTimeline'
 import { artifactUrl } from '../../api/client'
+import { TriageMatches } from '../triage/TriageMatches'
 
 interface LiveProgressProps {
   runId: string
@@ -320,11 +321,47 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
       )}
 
       {/* Loading results indicator */}
-      {isFinished && !completedRun && (
+      {isFinished && !completedRun && !isFailed && (
         <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
           Loading results...
         </div>
       )}
+
+      {/* Triage KB matches — the backend's trigger_on_failure runs in
+       *  _persist_state and writes triage.json next to state.json;
+       *  TriageMatches polls until it appears. */}
+      {isFailed && <TriageMatches runId={runId} poll />}
+
+      {/* Failure detail — shown when run failed (whether or not a
+       *  RunSummary was produced). Prefers the log_tail from the
+       *  run_failed event, since failures often happen before
+       *  run_summary.json is written and completedRun stays null. */}
+      {isFailed && (() => {
+        const failed = events.slice().reverse().find((e) => e.event === 'run_failed')
+        const tail = failed?.log_tail || completedRun?.log_tail || ''
+        const tb = failed?.traceback || ''
+        const path = failed?.log_path || ''
+        if (!tail && !tb) return null
+        return (
+          <>
+            <div style={sectionLabel}>
+              Failure log {path && (
+                <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-secondary)' }}>
+                  · <code>{path}</code>
+                </span>
+              )}
+            </div>
+            <pre style={{
+              backgroundColor: 'var(--bg-secondary)', padding: '10px 12px', borderRadius: 6,
+              fontSize: 10, lineHeight: 1.55, color: 'var(--text-primary)',
+              overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              margin: 0,
+            }}>
+              {tb ? `${tb}\n\n--- pipeline.log (tail) ---\n${tail}` : tail}
+            </pre>
+          </>
+        )
+      })()}
 
       {/* Stage tracker — shown while running */}
       {!isFinished && <StageTracker stageStatuses={stageStatuses} />}

@@ -5,7 +5,9 @@ import { useDashboardStore } from '../stores/dashboard-store'
 import { ConfigBrowser } from '../components/dashboard/ConfigBrowser'
 import { ConfigDetail } from '../components/dashboard/ConfigDetail'
 import { RunHistory } from '../components/dashboard/RunHistory'
+import { GroupRunHistory } from '../components/dashboard/GroupRunHistory'
 import { LiveProgress } from '../components/dashboard/LiveProgress'
+import { GroupLiveProgress } from '../components/dashboard/GroupLiveProgress'
 import { AnalysisInFlightRuns } from '../components/dashboard/AnalysisInFlightRuns'
 
 const containerStyle: CSSProperties = {
@@ -102,24 +104,58 @@ export function ExperimentDashboard() {
             />
 
             {/* Live progress — shown when a run is active or just completed */}
-            {(store.liveRunId || store.liveEvents.length > 0) && (
-              <LiveProgress
-                runId={store.liveRunId || 'completed'}
-                events={store.liveEvents}
-                stageStatuses={store.stageStatuses}
-                startTime={store.liveStartTime}
-                completedRun={store.completedRun}
-                onDismiss={() => useDashboardStore.setState({ liveEvents: [], completedRun: null, stageStatuses: {} })}
-              />
-            )}
+            {(store.liveRunId || store.liveEvents.length > 0) && (() => {
+              // Decide based on the selected config's kind: group YAMLs
+              // get the per-subject grid + group-stage tracker; subject
+              // YAMLs get the single 7-stage view.
+              const cfg = store.selectedConfig?.config as Record<string, any> | undefined
+              const isGroup = !!cfg
+                && typeof cfg.group === 'string'
+                && Array.isArray(cfg.subjects)
+              const rid = store.liveRunId || store.lastRunId || 'completed'
+              const onDismiss = () => useDashboardStore.setState({
+                liveEvents: [], completedRun: null, stageStatuses: {},
+                lastRunId: null,
+              })
+              return isGroup ? (
+                <GroupLiveProgress
+                  runId={rid}
+                  events={store.liveEvents}
+                  startTime={store.liveStartTime}
+                  onDismiss={onDismiss}
+                />
+              ) : (
+                <LiveProgress
+                  runId={rid}
+                  events={store.liveEvents}
+                  stageStatuses={store.stageStatuses}
+                  startTime={store.liveStartTime}
+                  completedRun={store.completedRun}
+                  onDismiss={onDismiss}
+                />
+              )
+            })()}
 
-            <RunHistory
-              runs={store.configRuns}
-              selectedRun={store.selectedRun}
-              loading={store.runsLoading}
-              onSelectRun={(runId) => store.selectRun(runId)}
-              onClearRun={() => store.clearRunSelection()}
-            />
+            {(() => {
+              const cfg = store.selectedConfig?.config as Record<string, any> | undefined
+              const isGroup = !!cfg
+                && typeof cfg.group === 'string'
+                && Array.isArray(cfg.subjects)
+              return isGroup ? (
+                <GroupRunHistory
+                  runs={store.groupConfigRuns}
+                  loading={store.runsLoading}
+                />
+              ) : (
+                <RunHistory
+                  runs={store.configRuns}
+                  selectedRun={store.selectedRun}
+                  loading={store.runsLoading}
+                  onSelectRun={(runId) => store.selectRun(runId)}
+                  onClearRun={() => store.clearRunSelection()}
+                />
+              )
+            })()}
           </>
         ) : (
           <div style={emptyState}>

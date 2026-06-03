@@ -27,6 +27,8 @@ _analyzers: dict[str, type] = {}
 _models: dict[str, type] = {}
 _reporters: dict[str, type] = {}
 _nipype_nodes: dict[str, type] = {}
+_group_analyzers: dict[str, type] = {}
+_group_reporters: dict[str, type] = {}
 
 
 # ── Decorator factories ──────────────────────────────────────────────────
@@ -52,3 +54,5 @@ analyzer = _make_decorator(_analyzers)
 model = _make_decorator(_models)
 reporter = _make_decorator(_reporters)
 nipype_node = _make_decorator(_nipype_nodes)
+group_analyzer = _make_decorator(_group_analyzers)
+group_reporter = _make_decorator(_group_reporters)

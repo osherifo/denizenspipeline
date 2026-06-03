@@ -1,9 +1,11 @@
 /** Config summary + inline YAML viewer/editor + action buttons. */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import Editor from '@monaco-editor/react'
 import type { ConfigDetail as ConfigDetailType } from '../../api/types'
 import { saveConfigFile, copyConfigFile } from '../../api/client'
 import { useDialog } from '../common/Dialog'
+import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
 
 interface ConfigDetailProps {
   config: ConfigDetailType
@@ -76,35 +78,11 @@ const yamlToggle: CSSProperties = {
   marginBottom: 8,
 }
 
-const yamlPre: CSSProperties = {
-  backgroundColor: 'var(--bg-secondary)',
-  padding: '12px 14px',
+const yamlBox = (hasError: boolean): CSSProperties => ({
+  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--border)'}`,
   borderRadius: 6,
-  fontSize: 11,
-  lineHeight: 1.6,
-  color: 'var(--text-primary)',
-  overflow: 'auto',
-  maxHeight: 300,
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-all',
-  margin: 0,
-}
-
-const yamlTextarea = (hasError: boolean): CSSProperties => ({
-  width: '100%',
-  minHeight: 280,
-  maxHeight: 520,
-  padding: '12px 14px',
-  borderRadius: 6,
-  fontSize: 11,
-  lineHeight: 1.6,
-  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-  backgroundColor: 'var(--bg-secondary)',
-  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-cyan)'}`,
-  color: 'var(--text-primary)',
-  outline: 'none',
-  resize: 'vertical',
-  tabSize: 2,
+  height: 360,
+  overflow: 'hidden',
 })
 
 const editBar: CSSProperties = {
@@ -167,6 +145,7 @@ export function ConfigDetail({
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
+  const [graphOpen, setGraphOpen] = useState(false)
   const dlg = useDialog()
 
   // Reset the draft whenever a different config is selected or reloaded.
@@ -284,14 +263,32 @@ export function ConfigDetail({
         {showYaml ? '\u25BC Hide YAML' : '\u25B6 Show YAML'}
       </button>
       {showYaml && (
-        editing ? (
-          <>
-            <textarea
-              style={yamlTextarea(saveErr !== null)}
-              value={yamlDraft}
-              onChange={(e) => setYamlDraft(e.target.value)}
-              spellCheck={false}
+        <>
+          <div style={yamlBox(saveErr !== null)}>
+            <Editor
+              height="100%"
+              language="yaml"
+              theme="vs-dark"
+              value={editing ? yamlDraft : config.yaml_string}
+              onChange={editing ? (v) => setYamlDraft(v ?? '') : undefined}
+              options={{
+                readOnly: !editing,
+                domReadOnly: !editing,
+                minimap: { enabled: false },
+                fontSize: 12,
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                insertSpaces: true,
+                renderLineHighlight: editing ? 'line' : 'none',
+                contextmenu: editing,
+                padding: { top: 8 },
+              }}
             />
+          </div>
+          {editing && (
             <div style={editBar}>
               <button
                 style={btnStyle('primary')}
@@ -305,10 +302,8 @@ export function ConfigDetail({
               </button>
               {saveErr && <span style={saveError}>{saveErr}</span>}
             </div>
-          </>
-        ) : (
-          <pre style={yamlPre}>{config.yaml_string}</pre>
-        )
+          )}
+        </>
       )}
 
       {/* Action buttons */}
@@ -322,6 +317,9 @@ export function ConfigDetail({
         </button>
         <button style={btnStyle('secondary')} onClick={onValidate} disabled={validating}>
           {validating ? 'Validating...' : 'Validate'}
+        </button>
+        <button style={btnStyle('secondary')} onClick={() => setGraphOpen(true)}>
+          View graph
         </button>
         {showYaml && !editing && (
           <button style={btnStyle('default')} onClick={() => setEditing(true)}>
@@ -340,6 +338,14 @@ export function ConfigDetail({
             ? '\u2713 Config is valid'
             : validationErrors.map((err, i) => <div key={i}>\u2717 {err}</div>)}
         </div>
+      )}
+
+      {graphOpen && (
+        <AnalysisGraphModal
+          target={{ kind: 'config', filename: config.filename }}
+          title={`${config.filename} \u2014 preview graph`}
+          onClose={() => setGraphOpen(false)}
+        />
       )}
     </div>
   )
