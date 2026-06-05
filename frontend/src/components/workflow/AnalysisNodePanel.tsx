@@ -15,15 +15,22 @@ import {
   fetchLogTail,
   fetchNodeOutputs,
   fetchNodeSource,
+  fetchQaArtifacts,
   isConfigPreview,
   isLiveTarget,
   nodeFileUrl,
+  qaFileUrl,
+  QA_STAGES,
+  regenerateQa,
   targetSupportsLog,
+  targetSupportsQa,
   type GraphTarget,
   type LogTailResponse,
   type NodeOutputFile,
   type NodeOutputsResponse,
   type NodeSourceResponse,
+  type QaArtifactsResponse,
+  type QaFile,
   type RunGraphNode,
 } from '../../api/run-graph'
 
@@ -34,7 +41,7 @@ const IMAGE_SUFFIXES = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif'])
 const HTML_SUFFIXES = new Set(['.html', '.htm'])
 
 
-type Tab = 'source' | 'outputs' | 'params' | 'log'
+type Tab = 'source' | 'outputs' | 'params' | 'log' | 'qa'
 
 
 const drawer: CSSProperties = {
@@ -134,12 +141,15 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
   const previewOnly = isConfigPreview(target)
   const live = isLiveTarget(target)
   const supportsLog = targetSupportsLog(target)
+  const supportsQa = targetSupportsQa(target) && QA_STAGES.has(node.stage)
   const _defaultTab = (): Tab =>
     node.source_path ? 'source' : (previewOnly ? 'params' : 'outputs')
   const [tab, setTab] = useState<Tab>(_defaultTab)
   const [source, setSource] = useState<NodeSourceResponse | null>(null)
   const [outputs, setOutputs] = useState<NodeOutputsResponse | null>(null)
   const [log, setLog] = useState<LogTailResponse | null>(null)
+  const [qa, setQa] = useState<QaArtifactsResponse | null>(null)
+  const [qaBusy, setQaBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openFile, setOpenFile] = useState<string | null>(null)
 
@@ -148,6 +158,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
     setSource(null)
     setOutputs(null)
     setLog(null)
+    setQa(null)
     setError(null)
     setOpenFile(null)
     setTab(_defaultTab())
@@ -166,6 +177,46 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
     }
     return () => { cancelled = true }
   }, [tab, node.id])
+
+  // QA tab — fetch once when activated, and re-poll every 3 s while
+  // the target is live so newly-finished stages light up. Stop polling
+  // immediately when we learn the stage has no registered plugins —
+  // there's nothing for further polls to discover.
+  useEffect(() => {
+    if (tab !== 'qa' || !supportsQa) return
+    let cancelled = false
+    let timer: number | null = null
+    async function load() {
+      try {
+        const r = await fetchQaArtifacts(target, node.stage)
+        if (cancelled) return
+        setQa(r)
+        const noPlugins = (r.registered_plugins?.length ?? 0) === 0
+        if (live && !noPlugins) timer = window.setTimeout(load, 3000)
+      } catch (e) {
+        if (cancelled) return
+        setError(String(e))
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [tab, node.id, node.stage, supportsQa, live])
+
+  const handleRegenerateQa = async () => {
+    setQaBusy(true)
+    setError(null)
+    try {
+      const r = await regenerateQa(target, node.stage)
+      setQa(r)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setQaBusy(false)
+    }
+  }
 
   // Log tab — polls every 2s while the run is live.
   useEffect(() => {
@@ -226,6 +277,11 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
         {supportsLog && (
           <button style={tabBtn(tab === 'log')} onClick={() => setTab('log')}>
             Log
+          </button>
+        )}
+        {supportsQa && (
+          <button style={tabBtn(tab === 'qa')} onClick={() => setTab('qa')}>
+            QA
           </button>
         )}
       </div>
@@ -358,7 +414,147 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
             )}
           </>
         )}
+
+        {tab === 'qa' && (
+          <QaTab
+            target={target}
+            stage={node.stage}
+            qa={qa}
+            busy={qaBusy}
+            onRegenerate={handleRegenerateQa}
+          />
+        )}
       </div>
+    </div>
+  )
+}
+
+
+function QaTab({
+  target, stage, qa, busy, onRegenerate,
+}: {
+  target: GraphTarget
+  stage: string
+  qa: QaArtifactsResponse | null
+  busy: boolean
+  onRegenerate: () => void
+}) {
+  const [openFile, setOpenFile] = useState<string | null>(null)
+  return (
+    <div>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '6px 10px',
+        background: 'var(--bg-secondary)',
+        borderBottom: '1px solid var(--border)',
+        fontSize: 10, color: 'var(--text-secondary)',
+      }}>
+        <span>QA · stage <code>{stage}</code></span>
+        <button
+          onClick={onRegenerate}
+          disabled={busy}
+          style={{
+            marginLeft: 'auto', padding: '3px 10px', fontSize: 10,
+            fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5,
+            border: '1px solid var(--border)', borderRadius: 4,
+            background: busy ? 'transparent' : 'var(--accent-cyan)',
+            color: busy ? 'var(--text-secondary)' : '#0a0a1a',
+            cursor: busy ? 'wait' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+          title="Reload the stage intermediate and re-render every QA plugin"
+        >
+          {busy ? 'Regenerating…' : '↻ Regenerate'}
+        </button>
+      </div>
+      {!qa && !busy && (
+        <div style={{ padding: 12, color: 'var(--text-secondary)', fontSize: 11 }}>
+          Loading…
+        </div>
+      )}
+      {qa && qa.registered_plugins.length === 0 && (
+        <div style={{ padding: 12, color: 'var(--text-secondary)', fontSize: 11 }}>
+          No QA plugins are registered for the <code>{stage}</code> stage
+          in this build. Built-ins ship for <code>prepare</code> and{' '}
+          <code>model</code> today; the rest land in Phase 3.
+        </div>
+      )}
+      {qa && qa.registered_plugins.length > 0 && qa.plugins.length === 0 && (
+        <div style={{ padding: 12, color: 'var(--text-secondary)', fontSize: 11 }}>
+          No QA artifacts on disk yet for <code>{stage}</code>. Either the
+          stage hasn't finished, or the run didn't have{' '}
+          <code>qa.enabled: true</code>. Click <strong>Regenerate</strong>{' '}
+          if an <code>intermediates/{stage}.joblib*</code> exists.
+          <div style={{ marginTop: 6, opacity: 0.8 }}>
+            Expected plugins: {qa.registered_plugins.join(', ')}
+          </div>
+        </div>
+      )}
+      {qa && qa.plugins.map((plugin) => (
+        <div key={plugin.name} style={{
+          borderBottom: '1px solid var(--border)',
+        }}>
+          <div style={{
+            padding: '6px 12px', fontSize: 11, fontWeight: 700,
+            color: 'var(--accent-cyan)', letterSpacing: 0.3,
+            background: 'var(--bg-secondary)',
+          }}>
+            {plugin.name}
+          </div>
+          {plugin.files.map((f) => (
+            <QaFileRow
+              key={f.rel}
+              file={f}
+              url={qaFileUrl(target, stage, f.rel)}
+              open={openFile === f.rel}
+              onToggle={() => setOpenFile(openFile === f.rel ? null : f.rel)}
+            />
+          ))}
+        </div>
+      ))}
+      {qa && qa.plugins.length > 0 && (
+        <div style={{ padding: 8, fontSize: 9, color: 'var(--text-secondary)' }}>
+          <code style={{ wordBreak: 'break-all' }}>{qa.qa_dir}</code>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+function QaFileRow({
+  file, url, open, onToggle,
+}: { file: QaFile; url: string; open: boolean; onToggle: () => void }) {
+  return (
+    <div style={{ background: open ? 'var(--bg-secondary)' : 'transparent' }}>
+      <div
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '6px 16px', fontSize: 11,
+          cursor: 'pointer', userSelect: 'none',
+        }}
+      >
+        <span>{open ? '▼' : '▶'}</span>
+        <span style={{ flex: 1 }}>{file.name}</span>
+        <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
+          {file.suffix} · {_human(file.size)}
+        </span>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ fontSize: 10, color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: 600 }}
+        >
+          open
+        </a>
+      </div>
+      {open && (
+        <div style={{ padding: 10 }}>
+          <FilePreview file={file as unknown as NodeOutputFile} url={url} />
+        </div>
+      )}
     </div>
   )
 }

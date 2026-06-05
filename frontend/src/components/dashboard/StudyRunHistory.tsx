@@ -197,21 +197,6 @@ export function StudyRunHistory({ runs, loading }: Props) {
           target={graph.target}
           title={graph.title}
           onClose={() => setGraph(null)}
-          onGroupClick={(label) => {
-            // Click a group node inside a study graph → drill into
-            // that group's full graph.
-            if (graph.target.kind === 'study') {
-              setGraph({
-                target: {
-                  kind: 'study-group',
-                  studyName: graph.target.studyName,
-                  runId: graph.target.runId,
-                  groupLabel: label,
-                },
-                title: `${graph.target.studyName}/${graph.target.runId} · ${label} — group graph`,
-              })
-            }
-          }}
         />
       )}
     </div>

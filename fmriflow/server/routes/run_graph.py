@@ -66,39 +66,51 @@ def _find_run_or_404(request: Request, run_id: str) -> dict:
     return run
 
 
-def _resolve_group_run_dir(group_name: str, run_id: str) -> Path:
+def _resolve_group_run_dir(
+    request: Request, group_name: str, run_id: str,
+) -> Path:
     """Return the on-disk dir for a group run, or raise 404.
 
-    Mirrors the resolution logic in :mod:`routes.group` (kept local so
-    the two route files stay decoupled).
+    Delegates to the registry-backed resolver in ``run_manager`` so
+    runs whose ``output_dir`` is anywhere on disk (i.e. outside
+    ``$FMRIFLOW_HOME``) are still discoverable. The previous local
+    implementation hardcoded ``paths.group_runs_root() / name / run_id``
+    and failed for those.
     """
     if not group_name or '/' in group_name or group_name.startswith('.'):
         raise HTTPException(status_code=400, detail="invalid group name")
     if not run_id or '/' in run_id or run_id.startswith('.'):
         raise HTTPException(status_code=400, detail="invalid run_id")
-    base = paths.group_runs_root() / group_name / run_id
-    if not (base / 'group_summary.json').is_file():
+    from fmriflow.server.services.run_manager import resolve_group_run_dir
+    registry = request.app.state.run_manager.registry
+    run_dir = resolve_group_run_dir(registry, group_name, run_id)
+    if run_dir is None:
         raise HTTPException(
             status_code=404,
-            detail=f"group_summary.json not found at {base}")
-    return base
+            detail=f"group run not found: {group_name}/{run_id}")
+    return run_dir
 
 
 def _read_group_summary(run_dir: Path) -> dict:
     return json.loads((run_dir / 'group_summary.json').read_text())
 
 
-def _resolve_study_run_dir(study_name: str, run_id: str) -> Path:
+def _resolve_study_run_dir(
+    request: Request, study_name: str, run_id: str,
+) -> Path:
+    """Study analogue of :func:`_resolve_group_run_dir`."""
     if not study_name or '/' in study_name or study_name.startswith('.'):
         raise HTTPException(status_code=400, detail="invalid study name")
     if not run_id or '/' in run_id or run_id.startswith('.'):
         raise HTTPException(status_code=400, detail="invalid run_id")
-    base = paths.study_runs_root() / study_name / run_id
-    if not (base / 'study_summary.json').is_file():
+    from fmriflow.server.services.run_manager import resolve_study_run_dir
+    registry = request.app.state.run_manager.registry
+    run_dir = resolve_study_run_dir(registry, study_name, run_id)
+    if run_dir is None:
         raise HTTPException(
             status_code=404,
-            detail=f"study_summary.json not found at {base}")
-    return base
+            detail=f"study run not found: {study_name}/{run_id}")
+    return run_dir
 
 
 def _read_study_summary(run_dir: Path) -> dict:
@@ -558,6 +570,77 @@ async def config_node_source(request: Request, filename: str, node_id: str):
     return _serve_source(node['source_path'])
 
 
+def _resolve_config_subject(request: Request, filename: str,
+                            sub: str) -> dict:
+    """Build the resolved per-subject config for a group config preview.
+
+    Returns the dict that the group orchestrator *would* feed to a
+    subject pipeline for ``sub``. Raises HTTPException(404) if the
+    config isn't a group config or doesn't list this subject.
+    """
+    # Local import to avoid circular import at module load.
+    from fmriflow.group_orchestrator import derive_subject_config
+    from fmriflow.exceptions import ConfigError
+
+    store = request.app.state.config_store
+    result = store.get_config(filename)
+    if result is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Config '{filename}' not found")
+    cfg = result.get('config') or {}
+    if not (isinstance(cfg.get('group'), str)
+            and isinstance(cfg.get('subjects'), list)):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Config '{filename}' is not a group config",
+        )
+    if sub not in cfg['subjects']:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Subject '{sub}' not declared in group config '{filename}'",
+        )
+    try:
+        return derive_subject_config(cfg, sub, validate=False)
+    except ConfigError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/configs/{filename}/subject/{sub}/graph")
+async def config_subject_graph(request: Request, filename: str, sub: str):
+    """Preview the 7-stage subject graph for one subject of a group config.
+
+    No run has happened — every stage/plugin gets status='unknown'. The
+    per-subject config is derived from the group YAML using the same
+    template/override/defaults logic the orchestrator uses at run time.
+    """
+    sub_cfg = _resolve_config_subject(request, filename, sub)
+    graph = build_subject_graph(sub_cfg, [], _registry(request))
+    return {
+        'filename': filename,
+        'kind': 'config-subject',
+        'subject': sub,
+        'experiment': sub_cfg.get('experiment', ''),
+        **graph.to_dict(),
+    }
+
+
+@router.get("/configs/{filename}/subject/{sub}/node/{node_id:path}/source")
+async def config_subject_node_source(request: Request, filename: str,
+                                     sub: str, node_id: str):
+    """Source code for one node in a config-subject preview graph."""
+    sub_cfg = _resolve_config_subject(request, filename, sub)
+    graph = build_subject_graph(
+        sub_cfg, [], _registry(request),
+    ).to_dict()
+    node = _find_node(graph, node_id)
+    if not node.get('source_path'):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No source registered for node '{node_id}'",
+        )
+    return _serve_source(node['source_path'])
+
+
 # ── subject run ────────────────────────────────────────────────────────
 
 
@@ -632,7 +715,7 @@ async def subject_node_file(request: Request, run_id: str,
 
 @router.get("/group-runs/{name}/{run_id}/graph")
 async def group_run_graph(request: Request, name: str, run_id: str):
-    run_dir = _resolve_group_run_dir(name, run_id)
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     summary = _read_group_summary(run_dir)
     graph = build_group_graph(summary, _registry(request))
     return {
@@ -646,7 +729,7 @@ async def group_run_graph(request: Request, name: str, run_id: str):
 @router.get("/group-runs/{name}/{run_id}/node/{node_id:path}/source")
 async def group_node_source(request: Request, name: str, run_id: str,
                             node_id: str):
-    run_dir = _resolve_group_run_dir(name, run_id)
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     summary = _read_group_summary(run_dir)
     graph = build_group_graph(summary, _registry(request)).to_dict()
     node = _find_node(graph, node_id)
@@ -661,7 +744,7 @@ async def group_node_source(request: Request, name: str, run_id: str,
 @router.get("/group-runs/{name}/{run_id}/node/{node_id:path}/outputs")
 async def group_node_outputs(request: Request, name: str, run_id: str,
                              node_id: str):
-    run_dir = _resolve_group_run_dir(name, run_id)
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     summary = _read_group_summary(run_dir)
     graph = build_group_graph(summary, _registry(request)).to_dict()
     node = _find_node(graph, node_id)
@@ -676,8 +759,8 @@ async def group_node_outputs(request: Request, name: str, run_id: str,
 
 
 @router.get("/group-runs/{name}/{run_id}/node/{node_id:path}/file/{rel:path}")
-async def group_node_file(name: str, run_id: str, node_id: str, rel: str):
-    run_dir = _resolve_group_run_dir(name, run_id)
+async def group_node_file(request: Request, name: str, run_id: str, node_id: str, rel: str):
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     full = _safe_join(run_dir, rel)
     return FileResponse(str(full))
 
@@ -686,7 +769,7 @@ async def group_node_file(name: str, run_id: str, node_id: str, rel: str):
 async def group_subject_graph(request: Request, name: str, run_id: str,
                               sub: str):
     """Zoom-in: the 7-stage subject graph for one subject of a group run."""
-    run_dir = _resolve_group_run_dir(name, run_id)
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     summary = _read_group_summary(run_dir)
     for s in summary.get('subject_summaries') or []:
         if s.get('subject') == sub:
@@ -713,7 +796,7 @@ async def group_subject_graph(request: Request, name: str, run_id: str,
 @router.get("/group-runs/{name}/{run_id}/subject/{sub}/node/{node_id:path}/outputs")
 async def group_subject_node_outputs(request: Request, name: str, run_id: str,
                                      sub: str, node_id: str):
-    run_dir = _resolve_group_run_dir(name, run_id)
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     summary = _read_group_summary(run_dir)
     for s in summary.get('subject_summaries') or []:
         if s.get('subject') == sub:
@@ -742,7 +825,7 @@ async def group_subject_node_outputs(request: Request, name: str, run_id: str,
 @router.get("/group-runs/{name}/{run_id}/subject/{sub}/node/{node_id:path}/source")
 async def group_subject_node_source(request: Request, name: str, run_id: str,
                                     sub: str, node_id: str):
-    run_dir = _resolve_group_run_dir(name, run_id)
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     summary = _read_group_summary(run_dir)
     for s in summary.get('subject_summaries') or []:
         if s.get('subject') == sub:
@@ -765,9 +848,9 @@ async def group_subject_node_source(request: Request, name: str, run_id: str,
 
 
 @router.get("/group-runs/{name}/{run_id}/subject/{sub}/node/{node_id:path}/file/{rel:path}")
-async def group_subject_node_file(name: str, run_id: str, sub: str,
+async def group_subject_node_file(request: Request, name: str, run_id: str, sub: str,
                                   node_id: str, rel: str):
-    run_dir = _resolve_group_run_dir(name, run_id)
+    run_dir = _resolve_group_run_dir(request, name, run_id)
     sub_dir = run_dir / 'subjects' / sub
     if not sub_dir.is_dir():
         raise HTTPException(status_code=404,
@@ -781,7 +864,7 @@ async def group_subject_node_file(name: str, run_id: str, sub: str,
 
 @router.get("/study-runs/{name}/{run_id}/graph")
 async def study_run_graph(request: Request, name: str, run_id: str):
-    run_dir = _resolve_study_run_dir(name, run_id)
+    run_dir = _resolve_study_run_dir(request, name, run_id)
     summary = _read_study_summary(run_dir)
     graph = build_study_graph(summary, _registry(request))
     return {
@@ -795,7 +878,7 @@ async def study_run_graph(request: Request, name: str, run_id: str):
 @router.get("/study-runs/{name}/{run_id}/node/{node_id:path}/source")
 async def study_node_source(request: Request, name: str, run_id: str,
                             node_id: str):
-    run_dir = _resolve_study_run_dir(name, run_id)
+    run_dir = _resolve_study_run_dir(request, name, run_id)
     summary = _read_study_summary(run_dir)
     graph = build_study_graph(summary, _registry(request)).to_dict()
     node = _find_node(graph, node_id)
@@ -810,7 +893,7 @@ async def study_node_source(request: Request, name: str, run_id: str,
 @router.get("/study-runs/{name}/{run_id}/node/{node_id:path}/outputs")
 async def study_node_outputs(request: Request, name: str, run_id: str,
                              node_id: str):
-    run_dir = _resolve_study_run_dir(name, run_id)
+    run_dir = _resolve_study_run_dir(request, name, run_id)
     summary = _read_study_summary(run_dir)
     graph = build_study_graph(summary, _registry(request)).to_dict()
     node = _find_node(graph, node_id)
@@ -825,8 +908,8 @@ async def study_node_outputs(request: Request, name: str, run_id: str,
 
 
 @router.get("/study-runs/{name}/{run_id}/node/{node_id:path}/file/{rel:path}")
-async def study_node_file(name: str, run_id: str, node_id: str, rel: str):
-    run_dir = _resolve_study_run_dir(name, run_id)
+async def study_node_file(request: Request, name: str, run_id: str, node_id: str, rel: str):
+    run_dir = _resolve_study_run_dir(request, name, run_id)
     full = _safe_join(run_dir, rel)
     return FileResponse(str(full))
 
@@ -835,7 +918,7 @@ async def study_node_file(name: str, run_id: str, node_id: str, rel: str):
 async def study_group_graph(request: Request, name: str, run_id: str,
                             label: str):
     """Drill into a group inside a study — yields a regular group graph."""
-    study_run_dir = _resolve_study_run_dir(name, run_id)
+    study_run_dir = _resolve_study_run_dir(request, name, run_id)
     group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
     group_summary = json.loads((group_run_dir / 'group_summary.json').read_text())
     graph = build_group_graph(group_summary, _registry(request))
@@ -852,7 +935,7 @@ async def study_group_graph(request: Request, name: str, run_id: str,
 @router.get("/study-runs/{name}/{run_id}/group/{label}/node/{node_id:path}/source")
 async def study_group_node_source(request: Request, name: str, run_id: str,
                                   label: str, node_id: str):
-    study_run_dir = _resolve_study_run_dir(name, run_id)
+    study_run_dir = _resolve_study_run_dir(request, name, run_id)
     group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
     group_summary = json.loads((group_run_dir / 'group_summary.json').read_text())
     graph = build_group_graph(group_summary, _registry(request)).to_dict()
@@ -868,7 +951,7 @@ async def study_group_node_source(request: Request, name: str, run_id: str,
 @router.get("/study-runs/{name}/{run_id}/group/{label}/node/{node_id:path}/outputs")
 async def study_group_node_outputs(request: Request, name: str, run_id: str,
                                    label: str, node_id: str):
-    study_run_dir = _resolve_study_run_dir(name, run_id)
+    study_run_dir = _resolve_study_run_dir(request, name, run_id)
     group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
     group_summary = json.loads((group_run_dir / 'group_summary.json').read_text())
     graph = build_group_graph(group_summary, _registry(request)).to_dict()
@@ -884,9 +967,9 @@ async def study_group_node_outputs(request: Request, name: str, run_id: str,
 
 
 @router.get("/study-runs/{name}/{run_id}/group/{label}/node/{node_id:path}/file/{rel:path}")
-async def study_group_node_file(name: str, run_id: str, label: str,
+async def study_group_node_file(request: Request, name: str, run_id: str, label: str,
                                 node_id: str, rel: str):
-    study_run_dir = _resolve_study_run_dir(name, run_id)
+    study_run_dir = _resolve_study_run_dir(request, name, run_id)
     group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
     full = _safe_join(group_run_dir, rel)
     return FileResponse(str(full))

@@ -276,12 +276,21 @@ class StudyOrchestrator:
         max_workers = (self.config.get('parallel') or {}).get('max_workers', 1)
         results: list[GroupResult | None] = [None] * len(resolved)
 
+        # Study-level ``intermediates:`` and ``qa:`` apply to every group's
+        # subjects unless the referenced group YAML overrides them.
+        study_intermediates = self.config.get('intermediates')
+        study_qa = self.config.get('qa')
+
         def _slot(idx: int, label: str, group_cfg: dict) -> GroupResult:
             # Pin output_dir under <study_dir>/groups/<label>/ so the
             # GroupOrchestrator's <output_dir>/<run_id>/ ends up at
             # <study_dir>/groups/<label>/<group_run_id>/.
             scfg = copy.deepcopy(group_cfg)
             scfg['output_dir'] = str(self._group_output_dir(label))
+            if study_intermediates is not None and 'intermediates' not in scfg:
+                scfg['intermediates'] = copy.deepcopy(study_intermediates)
+            if study_qa is not None and 'qa' not in scfg:
+                scfg['qa'] = copy.deepcopy(study_qa)
 
             t0 = time.time()
             fui.emit_event({

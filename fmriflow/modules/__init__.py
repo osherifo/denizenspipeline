@@ -37,6 +37,7 @@ def register_builtins(registry):
     import fmriflow.modules.feature_sources.filesystem  # noqa: F401
     import fmriflow.modules.feature_sources.cloud  # noqa: F401
     import fmriflow.modules.feature_sources.grouped_hdf  # noqa: F401
+    import fmriflow.modules.feature_sources.npz_concat  # noqa: F401
 
     import fmriflow.modules.preparers.default  # noqa: F401
     import fmriflow.modules.preparers.pre_prepared  # noqa: F401
@@ -95,3 +96,7 @@ def register_builtins(registry):
     # Study-scope reporters
     import fmriflow.modules.study_reporters.study_summary_html  # noqa: F401
     import fmriflow.modules.study_reporters.study_delta_flatmap  # noqa: F401
+
+    # QA reporters (per-stage diagnostic viz)
+    import fmriflow.modules.qa_reporters.model_qa  # noqa: F401
+    import fmriflow.modules.qa_reporters.prepare_qa  # noqa: F401

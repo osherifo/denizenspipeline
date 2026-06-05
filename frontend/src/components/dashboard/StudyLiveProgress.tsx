@@ -388,21 +388,21 @@ export function StudyLiveProgress({ runId, events, startTime, onDismiss }: Props
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {!isFinished && (
-            <button
-              onClick={() => setGraphOpen(true)}
-              style={{
-                padding: '3px 10px', fontSize: 11, fontWeight: 600,
-                border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 4,
-                background: 'rgba(0, 229, 255, 0.08)',
-                color: 'var(--accent-cyan)', cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-              title="Open the pipeline graph (live — polls until the run ends)"
-            >
-              View graph
-            </button>
-          )}
+          <button
+            onClick={() => setGraphOpen(true)}
+            style={{
+              padding: '3px 10px', fontSize: 11, fontWeight: 600,
+              border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 4,
+              background: 'rgba(0, 229, 255, 0.08)',
+              color: 'var(--accent-cyan)', cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            title={isFinished
+              ? 'Open the pipeline graph (final state)'
+              : 'Open the pipeline graph (live — polls until the run ends)'}
+          >
+            View graph
+          </button>
           <ElapsedTimer startTime={isFinished ? null : startTime} />
           {isFinished && onDismiss && (
             <button

@@ -456,19 +456,6 @@ export function StudyRunsView() {
           target={graph.target}
           title={graph.title}
           onClose={() => setGraph(null)}
-          onGroupClick={(label) => {
-            if (graph.target.kind === 'study') {
-              setGraph({
-                target: {
-                  kind: 'study-group',
-                  studyName: graph.target.studyName,
-                  runId: graph.target.runId,
-                  groupLabel: label,
-                },
-                title: `${graph.target.studyName}/${graph.target.runId} · ${label} — group graph`,
-              })
-            }
-          }}
         />
       )}
     </div>

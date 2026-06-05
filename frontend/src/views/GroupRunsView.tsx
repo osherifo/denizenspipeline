@@ -523,19 +523,6 @@ export function GroupRunsView() {
           target={graph.target}
           title={graph.title}
           onClose={() => setGraph(null)}
-          onSubjectClick={(sub) => {
-            if (graph.target.kind === 'group') {
-              setGraph({
-                target: {
-                  kind: 'group-subject',
-                  groupName: graph.target.groupName,
-                  runId: graph.target.runId,
-                  subject: sub,
-                },
-                title: `${graph.target.groupName}/${graph.target.runId} · ${sub} — subject graph`,
-              })
-            }
-          }}
         />
       )}
     </div>

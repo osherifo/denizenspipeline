@@ -32,6 +32,12 @@ _group_reporters: dict[str, type] = {}
 _study_analyzers: dict[str, type] = {}
 _study_reporters: dict[str, type] = {}
 
+# QA reporters are keyed by stage first, then plugin name —
+# ``_qa_reporters[stage][name] = cls``. Multiple plugins per stage is
+# the common case, so the two-level dict keeps lookup cheap without
+# scanning all plugins.
+_qa_reporters: dict[str, dict[str, type]] = {}
+
 
 # ── Decorator factories ──────────────────────────────────────────────────
 
@@ -60,3 +66,20 @@ group_analyzer = _make_decorator(_group_analyzers)
 group_reporter = _make_decorator(_group_reporters)
 study_analyzer = _make_decorator(_study_analyzers)
 study_reporter = _make_decorator(_study_reporters)
+
+
+def qa_reporter(name: str, *, stage: str):
+    """Register a QA reporter under ``stage``.
+
+    Example::
+
+        @qa_reporter("score_histogram", stage="model")
+        class ModelScoreHistogram:
+            ...
+    """
+    def wrapper(cls):
+        # Stash the stage on the class so callers can introspect.
+        cls.stage = stage
+        _qa_reporters.setdefault(stage, {})[name] = cls
+        return cls
+    return wrapper

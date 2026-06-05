@@ -81,10 +81,10 @@ def validate_config(config: dict) -> list[str]:
             if "name" not in feat:
                 errors.append(f"features[{i}] missing 'name'")
             source = feat.get("source", "compute")
-            if source not in ("compute", "filesystem", "cloud", "database", "grouped_hdf"):
+            if source not in ("compute", "filesystem", "cloud", "database", "grouped_hdf", "npz_concat"):
                 errors.append(
                     f"features[{i}] invalid source '{source}', "
-                    f"must be one of: compute, filesystem, cloud, database, grouped_hdf"
+                    f"must be one of: compute, filesystem, cloud, database, grouped_hdf, npz_concat"
                 )
             if source == "filesystem" and "path" not in feat:
                 errors.append(f"features[{i}] filesystem source requires 'path'")
@@ -154,6 +154,84 @@ def validate_config(config: dict) -> list[str]:
         valid_models = ("bootstrap_ridge",)
         if model["type"] not in valid_models:
             pass  # Allow unknown models (could be external plugins)
+
+    # Intermediates validation (optional, opt-in QA feature)
+    inter = config.get("intermediates")
+    if inter is not None:
+        if not isinstance(inter, dict):
+            errors.append("'intermediates' must be a dict")
+        else:
+            from fmriflow.intermediates import SAVEABLE_STAGES
+            save = inter.get("save")
+            if save not in (None, False, True) and not isinstance(save, (list, str)):
+                errors.append(
+                    "'intermediates.save' must be bool, list of stage names, "
+                    "or a stage name string"
+                )
+            if isinstance(save, list):
+                for s in save:
+                    if s not in SAVEABLE_STAGES:
+                        errors.append(
+                            f"intermediates.save: '{s}' is not a recognised stage "
+                            f"(known: {', '.join(SAVEABLE_STAGES)})"
+                        )
+            fmt = inter.get("format", "joblib")
+            if fmt not in ("joblib",):
+                errors.append(
+                    f"intermediates.format '{fmt}' not supported "
+                    "(only 'joblib' in v1)"
+                )
+            compress = inter.get("compress", "lz4")
+            if (
+                compress not in ("lz4", "gzip", "none", None, False, True)
+                and not isinstance(compress, int)
+            ):
+                errors.append(
+                    f"intermediates.compress '{compress}' invalid "
+                    "(use 'lz4', 'gzip', 'none', or an int level)"
+                )
+
+    # QA validation (optional, opt-in QA-viz layer)
+    qa = config.get("qa")
+    if qa is not None:
+        if not isinstance(qa, dict):
+            errors.append("'qa' must be a dict")
+        else:
+            from fmriflow.intermediates import SAVEABLE_STAGES as _QA_STAGES
+            enabled = qa.get("enabled", False)
+            if not isinstance(enabled, bool):
+                errors.append("'qa.enabled' must be a bool")
+            stages = qa.get("stages")
+            if stages is not None and not (
+                isinstance(stages, bool)
+                or isinstance(stages, str)
+                or isinstance(stages, list)
+            ):
+                errors.append(
+                    "'qa.stages' must be a bool, string, or list of stage names"
+                )
+            if isinstance(stages, list):
+                for s in stages:
+                    if s not in _QA_STAGES:
+                        errors.append(
+                            f"qa.stages: '{s}' is not a recognised stage "
+                            f"(known: {', '.join(_QA_STAGES)})"
+                        )
+            # Per-stage blocks: validate ``plugins`` is a list of strings.
+            for key, val in qa.items():
+                if key in ("enabled", "stages", "output_subdir"):
+                    continue
+                if not isinstance(val, dict):
+                    continue
+                if key not in _QA_STAGES:
+                    errors.append(
+                        f"qa.{key}: not a recognised stage "
+                        f"(known: {', '.join(_QA_STAGES)})"
+                    )
+                    continue
+                plugins = val.get("plugins")
+                if plugins is not None and not isinstance(plugins, list):
+                    errors.append(f"qa.{key}.plugins must be a list of names")
 
     # Stimulus validation
     stim = config.get("stimulus", {})

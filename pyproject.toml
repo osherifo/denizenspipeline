@@ -64,6 +64,8 @@ motion_energy = "fmriflow.modules.feature_extractors.visual:MotionEnergyExtracto
 compute = "fmriflow.modules.feature_sources.compute:ComputeSource"
 filesystem = "fmriflow.modules.feature_sources.filesystem:FilesystemSource"
 cloud = "fmriflow.modules.feature_sources.cloud:CloudSource"
+grouped_hdf = "fmriflow.modules.feature_sources.grouped_hdf:GroupedHDFSource"
+npz_concat = "fmriflow.modules.feature_sources.npz_concat:NpzConcatSource"
 
 [project.entry-points."fmriflow.preparers"]
 default = "fmriflow.modules.preparers.default:DefaultPreparer"

@@ -211,22 +211,38 @@ export function ConfigDetail({
     return `${items.slice(0, max).join(', ')} +${items.length - max} more`
   }
 
-  // Field tuples [label, value]. Each scope assembles its own list so
-  // we don't end up showing "Subject: -" for a group config.
-  const fields: [string, string, CSSProperties?][] = []
+  // Full untruncated list for the tooltip — newline-separated so the
+  // browser's native title popup renders one item per line.
+  const fullList = (items: any[] | undefined): string | undefined => {
+    if (!items || items.length === 0) return undefined
+    return items.join('\n')
+  }
+
+  // Field tuples [label, value, valueStyle?, tooltip?]. ``tooltip`` (if
+  // set) is shown as the browser's native hover title — used for
+  // truncated lists so the user can see every item without expanding.
+  // Each scope assembles its own list so we don't end up showing
+  // "Subject: -" for a group config.
+  const fields: [string, string, CSSProperties?, string?][] = []
 
   if (scope === 'subject') {
     const experiment = cfg.experiment || '-'
     const subject = cfg.subject || '-'
     const modelType = cfg.model?.type || '-'
+    const featureNames =
+      (cfg.features || []).map((f: any) => f.name) as string[]
     const features =
-      (cfg.features || []).map((f: any) => f.name).join(', ') || '-'
+      featureNames.length > 0
+        ? summariseList(featureNames, 5)
+        : '-'
     const prepCfg = cfg.preparation
     const prepType = prepCfg?.type || 'default'
     const outputDir = cfg.reporting?.output_dir || '-'
     const stimLoader = cfg.stimulus?.loader || '-'
     const respLoader = cfg.response?.loader || '-'
-    const formats = (cfg.reporting?.formats || []).join(', ') || '-'
+    const formatNames = (cfg.reporting?.formats || []) as string[]
+    const formats =
+      formatNames.length > 0 ? summariseList(formatNames, 5) : '-'
     let prepSummary = prepType
     if (prepType === 'pipeline' && prepCfg?.steps) {
       prepSummary = prepCfg.steps.map((s: any) => s.name).join(' \u2192 ')
@@ -235,12 +251,12 @@ export function ConfigDetail({
       ['Experiment', experiment],
       ['Subject', subject],
       ['Model', modelType],
-      ['Features', features, { fontSize: 11 }],
+      ['Features', features, { fontSize: 11 }, fullList(featureNames)],
       ['Preparation', prepSummary, { fontSize: 11 }],
       ['Output', outputDir, { fontSize: 10, fontFamily: 'monospace' }],
       ['Stimulus', stimLoader],
       ['Response', respLoader],
-      ['Reporters', formats, { fontSize: 11 }],
+      ['Reporters', formats, { fontSize: 11 }, fullList(formatNames)],
     )
   } else if (scope === 'group') {
     const tmpl = cfg.subject_template || {}
@@ -265,14 +281,15 @@ export function ConfigDetail({
           ? `${summariseList(subjects, 6)} (${subjects.length})`
           : '-',
         { fontSize: 11 },
+        fullList(subjects),
       ],
       ['Model', modelType],
-      ['Features', summariseList(featureNames, 5), { fontSize: 11 }],
+      ['Features', summariseList(featureNames, 5), { fontSize: 11 }, fullList(featureNames)],
       ['Stimulus', stimLoader],
       ['Response', respLoader],
       ['Output', outputDir, { fontSize: 10, fontFamily: 'monospace' }],
-      ['Group Analyze', summariseList(analyzers, 4), { fontSize: 11 }],
-      ['Group Report', summariseList(reporters, 4), { fontSize: 11 }],
+      ['Group Analyze', summariseList(analyzers, 4), { fontSize: 11 }, fullList(analyzers)],
+      ['Group Report', summariseList(reporters, 4), { fontSize: 11 }, fullList(reporters)],
       ['Parallel workers', workers != null ? String(workers) : '-'],
     )
   } else {
@@ -295,10 +312,11 @@ export function ConfigDetail({
           ? `${summariseList(groupNames, 6)} (${groupNames.length})`
           : '-',
         { fontSize: 11 },
+        fullList(groupNames),
       ],
       ['Output', outputDir, { fontSize: 10, fontFamily: 'monospace' }],
-      ['Study Analyze', summariseList(studyAnalyze, 4), { fontSize: 11 }],
-      ['Study Report', summariseList(studyReport, 4), { fontSize: 11 }],
+      ['Study Analyze', summariseList(studyAnalyze, 4), { fontSize: 11 }, fullList(studyAnalyze)],
+      ['Study Report', summariseList(studyReport, 4), { fontSize: 11 }, fullList(studyReport)],
       ['Parallel workers', workers != null ? String(workers) : '-'],
     )
   }
@@ -311,10 +329,19 @@ export function ConfigDetail({
       </div>
 
       <div style={gridStyle}>
-        {fields.map(([label, value, valueStyle]) => (
+        {fields.map(([label, value, valueStyle, tooltip]) => (
           <div key={label} style={fieldCard}>
             <div style={fieldLabel}>{label}</div>
-            <div style={{ ...fieldValue, ...(valueStyle || {}) }}>{value}</div>
+            <div
+              style={{
+                ...fieldValue,
+                ...(valueStyle || {}),
+                ...(tooltip ? { cursor: 'help', textDecoration: 'underline dotted var(--text-secondary)' } : {}),
+              }}
+              title={tooltip}
+            >
+              {value}
+            </div>
           </div>
         ))}
       </div>

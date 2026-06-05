@@ -29,6 +29,7 @@ from fmriflow.modules._decorators import (
     _group_reporters,
     _study_analyzers,
     _study_reporters,
+    _qa_reporters,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class ModuleRegistry:
         self._group_reporters = _group_reporters
         self._study_analyzers = _study_analyzers
         self._study_reporters = _study_reporters
+        self._qa_reporters = _qa_reporters
 
     def discover(self) -> None:
         """Discover modules from builtins and entry_points."""
@@ -200,6 +202,21 @@ class ModuleRegistry:
             return cls
         return wrapper
 
+    def qa_reporter(self, name: str, *, stage: str):
+        """Decorator to register a QA reporter for ``stage``.
+
+        Example::
+
+            @registry.qa_reporter("score_histogram", stage="model")
+            class ModelScoreHistogram:
+                ...
+        """
+        def wrapper(cls):
+            cls.stage = stage
+            self._qa_reporters.setdefault(stage, {})[name] = cls
+            return cls
+        return wrapper
+
     # ─── Getters (return instances) ─────────────────────────────
 
     def get_stimulus_loader(self, name: str):
@@ -306,6 +323,28 @@ class ModuleRegistry:
                 f"Study reporter '{name}' not found. "
                 f"Available: {list(self._study_reporters.keys())}")
         return self._study_reporters[name]()
+
+    def get_qa_reporter(self, stage: str, name: str):
+        """Look up one QA reporter by ``(stage, name)``."""
+        plugins = self._qa_reporters.get(stage, {})
+        if name not in plugins:
+            raise ModuleLookupError(
+                f"QA reporter '{name}' not found for stage '{stage}'. "
+                f"Available for this stage: {sorted(plugins.keys())}")
+        return plugins[name]()
+
+    def list_qa_reporters(self, stage: str | None = None) -> dict:
+        """List registered QA reporters.
+
+        With ``stage=None``, returns ``{stage: [names]}`` across every
+        stage. With ``stage`` set, returns ``[names]`` for that stage.
+        """
+        if stage is None:
+            return {
+                s: sorted(plugins.keys())
+                for s, plugins in self._qa_reporters.items()
+            }
+        return sorted(self._qa_reporters.get(stage, {}).keys())
 
     # ─── Introspection ──────────────────────────────────────────
 
