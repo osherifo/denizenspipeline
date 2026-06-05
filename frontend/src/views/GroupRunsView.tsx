@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useGroupRunsStore } from '../stores/group-runs-store'
 import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
+import { ConfigSnapshotModal } from '../components/runs/ConfigSnapshotModal'
 import type { GraphTarget } from '../api/run-graph'
 import type {
   GroupRunListing,
@@ -349,6 +350,7 @@ function DetailPanel({
 }) {
   const subjectsArt = detail.artifacts?.subjects ?? {}
   const groupArt = detail.artifacts?.group ?? []
+  const [yamlOpen, setYamlOpen] = useState(false)
   return (
     <div style={cardStyle}>
       <div style={{ padding: '16px 18px' }}>
@@ -402,8 +404,31 @@ function DetailPanel({
           >
             View graph
           </button>
+          <button
+            style={{
+              ...linkBtn,
+              cursor: 'pointer', fontFamily: 'inherit',
+              background: 'rgba(0, 229, 255, 0.08)',
+              border: '1px solid rgba(0, 229, 255, 0.4)',
+              color: 'var(--accent-cyan)',
+            }}
+            onClick={() => setYamlOpen(true)}
+            title="View the resolved YAML config that produced this group run"
+            disabled={!detail.config_snapshot}
+          >
+            View YAML
+          </button>
         </div>
       </div>
+
+      {yamlOpen && (
+        <ConfigSnapshotModal
+          snapshot={detail.config_snapshot}
+          title={`${detail.group_name}/${detail.run_id} — group config snapshot`}
+          downloadName={`${detail.group_name}_${detail.run_id}.yaml`}
+          onClose={() => setYamlOpen(false)}
+        />
+      )}
       <div style={sectionTitle}>Subjects</div>
       <SubjectsTable
         detail={detail}

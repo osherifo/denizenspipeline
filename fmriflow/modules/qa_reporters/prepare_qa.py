@@ -285,3 +285,219 @@ class ZScoreCheck:
             fig.tight_layout()
             png = save_png(fig, output_dir / 'zscore_check.png')
         return {'zscore': png}
+
+
+@qa_reporter("responses_features_alignment", stage="prepare")
+class ResponsesFeaturesAlignment:
+    """Per-run side-by-side carpet of Y (voxels) and X (features).
+
+    After ``concatenate`` the X / Y matrices are flat along time, but
+    each run's TR count is stashed in ``PreparedData.metadata.run_lengths``
+    so this plugin can slice them back out. For each run it draws
+    two stacked carpets on the same time axis:
+
+    * top    — X (features × time), grouped by feature with separators;
+    * bottom — Y (voxels × time), voxels evenly subsampled.
+
+    Misalignment between features and responses (off-by-one delays,
+    flipped time, dropped TRs) shows up as the X structure being
+    visibly shifted relative to the Y structure. Each run lands as a
+    separate PNG so the QA tab gallery scrolls one run at a time.
+    """
+
+    name = "responses_features_alignment"
+    stage = "prepare"
+    PARAM_SCHEMA = {
+        "max_voxels": {"type": "int", "default": 1500},
+        "max_feature_cols": {"type": "int", "default": 800},
+        "zscore_voxels": {"type": "bool", "default": True},
+        "vmin_y": {"type": "float", "default": -3.0},
+        "vmax_y": {"type": "float", "default": 3.0},
+        "vmin_x": {"type": "float", "default": -3.0},
+        "vmax_x": {"type": "float", "default": 3.0},
+        "cmap": {"type": "string", "default": "gray"},
+        "figsize": {"type": "list[float]", "default": [12.0, 7.0]},
+        "dpi": {"type": "int", "default": 110, "min": 50},
+        "runs": {
+            "type": "list[string]",
+            "description": (
+                "Optional whitelist of run names to render (default: "
+                "every train + test run)."
+            ),
+        },
+    }
+
+    def report(
+        self, value: PreparedData, config: dict, output_dir: Path,
+    ) -> dict[str, str]:
+        ensure_dir(output_dir)
+        cfg = self._my_cfg(config)
+        max_voxels = cfg.get("max_voxels", 1500)
+        max_feat_cols = cfg.get("max_feature_cols", 800)
+        zscore_voxels = bool(cfg.get("zscore_voxels", True))
+        vmin_y = float(cfg.get("vmin_y", -3.0))
+        vmax_y = float(cfg.get("vmax_y", 3.0))
+        vmin_x = float(cfg.get("vmin_x", -3.0))
+        vmax_x = float(cfg.get("vmax_x", 3.0))
+        cmap = cfg.get("cmap", "gray")
+        figsize = tuple(cfg.get("figsize", [12.0, 7.0]))
+        dpi = int(cfg.get("dpi", 110))
+        runs_filter = cfg.get("runs") or []
+
+        run_lengths = (value.metadata or {}).get("run_lengths") or {}
+        out: dict[str, str] = {}
+        sidecar: dict = {"runs": []}
+
+        # Walk train then test runs in their declared order so each
+        # ends up sliced at the right offset from the concatenated
+        # matrices.
+        for phase, run_list, X, Y in (
+            ("train", value.train_runs, value.X_train, value.Y_train),
+            ("test", value.test_runs, value.X_test, value.Y_test),
+        ):
+            if X is None or Y is None:
+                continue
+            offset = 0
+            for run in run_list:
+                length = run_lengths.get(run)
+                if not length:
+                    sidecar["runs"].append({
+                        "run": run, "phase": phase,
+                        "skipped": "no run_lengths entry — concatenate "
+                                   "step didn't record it"})
+                    continue
+                start, end = offset, offset + length
+                offset = end
+                if runs_filter and run not in runs_filter:
+                    continue
+                Y_run = np.asarray(Y[start:end])
+                X_run = np.asarray(X[start:end])
+                png = self._render_run(
+                    run=run, phase=phase, X_run=X_run, Y_run=Y_run,
+                    feature_names=list(value.feature_names),
+                    feature_dims=list(value.feature_dims),
+                    delays=list(value.delays),
+                    max_voxels=max_voxels, max_feat_cols=max_feat_cols,
+                    zscore_voxels=zscore_voxels,
+                    vmin_y=vmin_y, vmax_y=vmax_y,
+                    vmin_x=vmin_x, vmax_x=vmax_x,
+                    cmap=cmap, figsize=figsize, dpi=dpi,
+                    output_dir=output_dir,
+                )
+                if png:
+                    out[f"{phase}/{run}.png"] = png
+                    sidecar["runs"].append({
+                        "run": run, "phase": phase,
+                        "n_trs": int(length),
+                        "Y_shape": list(Y_run.shape),
+                        "X_shape": list(X_run.shape),
+                        "png": png,
+                    })
+
+        sidecar_path = output_dir / "responses_features_alignment.json"
+        sidecar_path.write_text(json.dumps(sidecar, indent=2))
+        out["alignment_index.json"] = str(sidecar_path)
+        return out
+
+    @staticmethod
+    def _my_cfg(config: dict) -> dict:
+        qa = (config or {}).get("qa") or {}
+        block = qa.get("prepare")
+        if isinstance(block, dict):
+            params = block.get("responses_features_alignment")
+            if isinstance(params, dict):
+                return params
+        return {}
+
+    def _render_run(
+        self, *, run: str, phase: str, X_run: np.ndarray, Y_run: np.ndarray,
+        feature_names: list, feature_dims: list, delays: list,
+        max_voxels: int, max_feat_cols: int, zscore_voxels: bool,
+        vmin_y: float, vmax_y: float, vmin_x: float, vmax_x: float,
+        cmap: str, figsize: tuple[float, float], dpi: int,
+        output_dir: Path,
+    ) -> str | None:
+        if Y_run.ndim != 2 or X_run.ndim != 2 or Y_run.shape[0] == 0:
+            return None
+        Y = Y_run.astype(np.float64)
+        if zscore_voxels:
+            mu = Y.mean(axis=0, keepdims=True)
+            sd = Y.std(axis=0, keepdims=True)
+            with np.errstate(invalid='ignore', divide='ignore'):
+                Y = (Y - mu) / np.where(sd > 0, sd, 1.0)
+            Y[~np.isfinite(Y)] = 0.0
+        n_voxels = Y.shape[1]
+        if max_voxels and n_voxels > int(max_voxels):
+            yidx = np.linspace(0, n_voxels - 1, int(max_voxels)).astype(int)
+            Y = Y[:, yidx]
+        n_feat_cols = X_run.shape[1]
+        if max_feat_cols and n_feat_cols > int(max_feat_cols):
+            xidx = np.linspace(0, n_feat_cols - 1, int(max_feat_cols)).astype(int)
+            X_shown = X_run[:, xidx]
+        else:
+            X_shown = X_run
+
+        with mpl_figure(figsize=figsize, dpi=dpi) as fig:
+            # 2 panels stacked: top = features, bottom = voxels.
+            # Share the x-axis explicitly via sharex so panning lines up.
+            ax_x = fig.add_subplot(2, 1, 1)
+            ax_y = fig.add_subplot(2, 1, 2, sharex=ax_x)
+            im_x = ax_x.imshow(
+                X_shown.T, aspect='auto', interpolation='nearest',
+                cmap=cmap, vmin=vmin_x, vmax=vmax_x,
+            )
+            im_y = ax_y.imshow(
+                Y.T, aspect='auto', interpolation='nearest',
+                cmap=cmap, vmin=vmin_y, vmax=vmax_y,
+            )
+
+            # Feature boundaries (vertical lines on the X panel only
+            # — would clutter the Y panel without adding info).
+            n_delays = max(1, len(delays))
+            col = 0
+            for fname, fdim in zip(feature_names, feature_dims):
+                width = int(fdim) * n_delays
+                # Only annotate boundaries between features, not the
+                # right edge.
+                if col > 0:
+                    # Project the boundary onto whatever indexing the
+                    # subsample produced — translate via the same
+                    # linspace ratio.
+                    if max_feat_cols and n_feat_cols > max_feat_cols:
+                        boundary_xs = (col - 0.5) * X_shown.shape[1] / n_feat_cols
+                    else:
+                        boundary_xs = col - 0.5
+                    # The imshow's y axis is voxel/feature row index —
+                    # so a vertical boundary is a horizontal line.
+                    ax_x.axhline(boundary_xs, color='red',
+                                 linewidth=0.5, alpha=0.6)
+                # Feature label on the right margin.
+                ax_x.text(
+                    1.005, (col + width / 2) * X_shown.shape[1] / max(1, n_feat_cols),
+                    fname, transform=ax_x.get_yaxis_transform(),
+                    fontsize=7, va='center', color='dimgray',
+                )
+                col += width
+
+            ax_x.set_ylabel('feature col')
+            ax_x.set_title(
+                f"{phase} · {run}  —  features (n_cols={n_feat_cols}"
+                + (f", showing {X_shown.shape[1]}" if X_shown.shape[1] != n_feat_cols else "")
+                + ")"
+            )
+            ax_y.set_xlabel(f"TR ({Y.shape[0]} total)")
+            ax_y.set_ylabel('voxel')
+            ax_y.set_title(
+                f"responses (n_voxels={n_voxels}"
+                + (f", showing {Y.shape[1]}" if Y.shape[1] != n_voxels else "")
+                + (", z-scored" if zscore_voxels else "")
+                + ")"
+            )
+            fig.colorbar(im_x, ax=ax_x, shrink=0.7, label='feature')
+            fig.colorbar(im_y, ax=ax_y, shrink=0.7,
+                         label='z' if zscore_voxels else 'BOLD')
+            fig.tight_layout()
+            run_dir = output_dir / phase
+            run_dir.mkdir(parents=True, exist_ok=True)
+            png = run_dir / f"{run}.png"
+            return save_png(fig, png)

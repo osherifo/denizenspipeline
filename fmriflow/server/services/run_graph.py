@@ -304,9 +304,18 @@ def _subject_plugin_nodes(cfg: dict, stage: str, stage_status: str,
             if isinstance(rcfg, dict) and rcfg.get('name'):
                 items.append(('reporter', rcfg['name'], dict(rcfg)))
         # Old-style: reporting.formats: [name, …]
+        # Per-reporter params live under ``reporting.<name>`` in the
+        # same block (e.g. ``reporting.r_flatmap: {cmap: magma, ...}``)
+        # — fold them into the plugin node so the params tab in the
+        # graph viewer shows what was actually configured instead of
+        # an empty ``{}``.
         for fmt in reporting.get('formats') or []:
             if isinstance(fmt, str):
-                items.append(('reporter', fmt, {}))
+                params = reporting.get(fmt)
+                items.append((
+                    'reporter', fmt,
+                    dict(params) if isinstance(params, dict) else {},
+                ))
 
     out: list[GraphNode] = []
     seen: dict[str, int] = {}
@@ -604,12 +613,24 @@ def build_study_graph(study_summary: dict,
 
 def _group_overall_status(gs: Any) -> str:
     """Coarse pass/fail for a group's GroupRunSummary dict, rolled up
-    across its subjects."""
+    across its subjects.
+
+    Honors a pre-computed ``status`` field on the dict first — that's
+    how the in-flight study graph signals "this group is running right
+    now" before any subject has finished a stage. Falls back to the
+    per-subject rollup for finished runs.
+    """
     if not isinstance(gs, dict):
         return 'unknown'
+    explicit = gs.get('status')
+    if explicit in ('running', 'failed', 'warning'):
+        return explicit
     subjects = gs.get('subject_summaries') or []
     if not subjects:
-        return 'unknown'
+        # ``status='ok'`` on a finished group with no subject records
+        # (edge case) is still useful; defer to the explicit value if
+        # set, otherwise fall through to 'unknown'.
+        return explicit if explicit == 'ok' else 'unknown'
     status = 'ok'
     for sub in subjects:
         sub_st = _subject_overall_status(sub)
@@ -635,9 +656,20 @@ def _group_has_second_pass(cfg: dict, registry: ModuleRegistry) -> bool:
 
 
 def _subject_overall_status(sub: Any) -> str:
-    """Coarse pass/fail for a per-subject RunSummary dict."""
+    """Coarse pass/fail for a per-subject RunSummary dict.
+
+    Honors an explicit ``status`` field first — that's how the
+    in-flight group / study graph signals "this subject is running
+    right now" (or has just been marked failed by its
+    ``group_subject_done`` event) before the per-stage events catch
+    up. Falls back to rolling up the per-stage status list for
+    finished runs.
+    """
     if not isinstance(sub, dict):
         return 'unknown'
+    explicit = sub.get('status')
+    if explicit in ('running', 'failed', 'warning'):
+        return explicit
     stages = sub.get('stages') or []
     status = 'ok'
     for s in stages:
@@ -646,7 +678,9 @@ def _subject_overall_status(sub: Any) -> str:
             return 'failed'
         if sst == 'warning':
             status = 'warning'
-    return status if stages else 'unknown'
+    if not stages:
+        return explicit if explicit == 'ok' else 'unknown'
+    return status
 
 
 # ── source code + outputs ──────────────────────────────────────────────

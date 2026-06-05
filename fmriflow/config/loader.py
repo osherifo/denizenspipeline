@@ -190,6 +190,10 @@ def load_study_config(path: str | Path) -> dict:
 
     config = load_config_with_inheritance(config, path.parent)
     config = resolve_env_vars(config)
+    # Stash the source path so StudyOrchestrator (or anything else that
+    # gets a bare dict) can resolve relative ``groups[i].config`` paths
+    # against the study YAML's own directory.
+    config.setdefault('_source_path', str(path.resolve()))
 
     errors = validate_study_config(config)
     if errors:

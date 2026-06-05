@@ -26,6 +26,7 @@ export type ModuleMetadata = Record<string, ModuleInfo[]>
 
 export interface StageInfo {
   name: string
+  scope: 'subject' | 'group' | 'study'
   index: number
   description: string
   module_categories: string[]

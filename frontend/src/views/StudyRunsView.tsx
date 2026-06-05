@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useStudyRunsStore } from '../stores/study-runs-store'
 import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
+import { ConfigSnapshotModal } from '../components/runs/ConfigSnapshotModal'
 import type { GraphTarget } from '../api/run-graph'
 import type { StudyRunDetail, StudyRunListing } from '../api/types'
 
@@ -301,6 +302,7 @@ function DetailPanel({
 }) {
   const studyArt = detail.artifacts?.study ?? []
   const groupArt = detail.artifacts?.groups ?? {}
+  const [yamlOpen, setYamlOpen] = useState(false)
   return (
     <div style={cardStyle}>
       <div style={{ padding: '16px 18px' }}>
@@ -345,8 +347,31 @@ function DetailPanel({
           >
             View graph
           </button>
+          <button
+            style={{
+              ...linkBtn,
+              cursor: 'pointer', fontFamily: 'inherit',
+              background: 'rgba(0, 229, 255, 0.08)',
+              border: '1px solid rgba(0, 229, 255, 0.4)',
+              color: 'var(--accent-cyan)',
+            }}
+            onClick={() => setYamlOpen(true)}
+            title="View the resolved YAML config that produced this study run"
+            disabled={!detail.config_snapshot}
+          >
+            View YAML
+          </button>
         </div>
       </div>
+
+      {yamlOpen && (
+        <ConfigSnapshotModal
+          snapshot={detail.config_snapshot}
+          title={`${detail.study_name}/${detail.run_id} — study config snapshot`}
+          downloadName={`${detail.study_name}_${detail.run_id}.yaml`}
+          onClose={() => setYamlOpen(false)}
+        />
+      )}
       <div style={sectionTitle}>Groups</div>
       <GroupsTable detail={detail} />
       <div style={sectionTitle}>Study stages</div>

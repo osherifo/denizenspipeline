@@ -5,6 +5,7 @@ import { StageTimeline } from '../components/runs/StageTimeline'
 import { SortableArtifactList } from '../components/results/SortableArtifactList'
 import { RunComparison } from '../components/runs/RunComparison'
 import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
+import { ConfigSnapshotModal } from '../components/runs/ConfigSnapshotModal'
 import type { RunSummary } from '../api/types'
 
 // ── Styles ──
@@ -252,6 +253,13 @@ function RunDetail({
   onOpenGraph: (runId: string) => void
 }) {
   const artifacts = run.artifacts ? Object.values(run.artifacts) : []
+  const [yamlOpen, setYamlOpen] = useState(false)
+  const accentBtn: CSSProperties = {
+    padding: '4px 12px', fontSize: 12, fontWeight: 600,
+    borderRadius: 4, border: '1px solid rgba(0, 229, 255, 0.4)',
+    background: 'rgba(0, 229, 255, 0.08)', color: 'var(--accent-cyan)',
+    cursor: 'pointer', fontFamily: 'inherit',
+  }
 
   return (
     <div style={detailPanel}>
@@ -259,20 +267,32 @@ function RunDetail({
         <div style={detailTitle}>Run {run.run_id}</div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            style={{
-              padding: '4px 12px', fontSize: 12, fontWeight: 600,
-              borderRadius: 4, border: '1px solid rgba(0, 229, 255, 0.4)',
-              background: 'rgba(0, 229, 255, 0.08)', color: 'var(--accent-cyan)',
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}
+            style={accentBtn}
             onClick={() => onOpenGraph(run.run_id)}
             title="Show the pipeline graph for this run"
           >
             View graph
           </button>
+          <button
+            style={accentBtn}
+            onClick={() => setYamlOpen(true)}
+            title="View the resolved YAML config that produced this run"
+            disabled={!run.config_snapshot}
+          >
+            View YAML
+          </button>
           <button style={closeBtn} onClick={onClose}>Close</button>
         </div>
       </div>
+
+      {yamlOpen && (
+        <ConfigSnapshotModal
+          snapshot={run.config_snapshot}
+          title={`${run.experiment || 'run'}/${run.run_id} — config snapshot`}
+          downloadName={`${run.experiment || 'run'}_${run.run_id}.yaml`}
+          onClose={() => setYamlOpen(false)}
+        />
+      )}
 
       {/* Summary cards */}
       <div style={summaryGrid}>

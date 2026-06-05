@@ -34,7 +34,7 @@ class PearsonRFlatmapReporter:
         "cmap": {"type": "string", "default": "magma"},
         "vmin": {"type": "float", "default": 0.0},
         "vmax": {"type": "float", "default": 0.3},
-        "threshold": {"type": "float", "default": 0.05},
+        "threshold": {"type": "float", "default": None},
         "with_curvature": {"type": "bool", "default": True},
         "dpi": {"type": "int", "default": 100, "min": 50},
         "filename": {"type": "str", "default": "r_flatmap.png"},

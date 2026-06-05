@@ -10,7 +10,7 @@
  * pane to the right rather than replacing the original graph.
  */
 
-import { memo, useEffect, useMemo, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   ReactFlow,
@@ -316,20 +316,29 @@ export function AnalysisGraphModal({ target, title, onClose }: Props) {
 
 
 function Inner({ target, title, onClose }: Props) {
-  // Secondary pane appears when the user drills into a subject (group
-  // target) or group (study target). Clearing it collapses back to the
-  // single primary view.
-  const [secondary, setSecondary] = useState<{ target: GraphTarget; title: string } | null>(null)
+  // Stack of drill-down panes appended after the primary. Each entry
+  // is the target + label for one column. The primary is rendered
+  // separately and never appears in this array. Drill events from
+  // pane i truncate everything after index i and append the new pane,
+  // so re-clicking inside an upstream pane forks the chain instead of
+  // stacking forever.
+  const [extras, setExtras] = useState<Array<{ target: GraphTarget; title: string }>>([])
 
-  // Reset secondary when the primary target changes (e.g. user opened
-  // a different run while the modal was open).
+  // Reset extras when the primary target changes.
   const externalKey = JSON.stringify(target)
   useEffect(() => {
-    setSecondary(null)
+    setExtras([])
   }, [externalKey])
 
-  const onDrilldown = (next: GraphTarget, nextTitle: string) => {
-    setSecondary({ target: next, title: nextTitle })
+  const drillFromPane = (paneIndex: number, next: GraphTarget, nextTitle: string) => {
+    // paneIndex == 0 is the primary; extras index = paneIndex - 1.
+    setExtras((prev) => [
+      ...prev.slice(0, paneIndex),
+      { target: next, title: nextTitle },
+    ])
+  }
+  const closeFromExtra = (extraIndex: number) => {
+    setExtras((prev) => prev.slice(0, extraIndex))
   }
 
   return (
@@ -345,27 +354,33 @@ function Inner({ target, title, onClose }: Props) {
           <div style={paneHeader}>
             <span>{title}</span>
           </div>
-          <GraphPane target={target} onDrilldown={onDrilldown} />
+          <GraphPane
+            target={target}
+            onDrilldown={(next, nextTitle) => drillFromPane(0, next, nextTitle)}
+          />
         </div>
-        {secondary && (
-          <>
+        {extras.map((extra, i) => (
+          <Fragment key={`extra-${i}`}>
             <div style={paneDivider} />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <div style={paneHeader}>
-                <span>{secondary.title}</span>
+                <span>{extra.title}</span>
                 <div style={{ flex: 1 }} />
                 <button
                   style={{ ...closeBtn, padding: '2px 8px', fontSize: 11 }}
-                  onClick={() => setSecondary(null)}
-                  title="Close this pane"
+                  onClick={() => closeFromExtra(i)}
+                  title="Close this pane (and any panes opened from it)"
                 >
                   ✕
                 </button>
               </div>
-              <GraphPane target={secondary.target} onDrilldown={onDrilldown} />
+              <GraphPane
+                target={extra.target}
+                onDrilldown={(next, nextTitle) => drillFromPane(i + 1, next, nextTitle)}
+              />
             </div>
-          </>
-        )}
+          </Fragment>
+        ))}
       </div>
     </>
   )
@@ -440,10 +455,35 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
         )
         return
       }
+      if (target.kind === 'study-group') {
+        onDrilldown(
+          {
+            kind: 'study-group-subject',
+            studyName: target.studyName,
+            runId: target.runId,
+            groupLabel: target.groupLabel,
+            subject: sub,
+          },
+          `${target.studyName}/${target.groupLabel} · ${sub}`,
+        )
+        return
+      }
       if (target.kind === 'in-flight') {
         onDrilldown(
           { kind: 'in-flight-subject', runId: target.runId, subject: sub },
           `live · ${sub}`,
+        )
+        return
+      }
+      if (target.kind === 'in-flight-group') {
+        onDrilldown(
+          {
+            kind: 'in-flight-group-subject',
+            runId: target.runId,
+            groupLabel: target.groupLabel,
+            subject: sub,
+          },
+          `live · ${target.groupLabel} · ${sub}`,
         )
         return
       }
@@ -455,18 +495,27 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
         return
       }
     }
-    if (found.kind === 'group' && target.kind === 'study') {
+    if (found.kind === 'group') {
       const grp = found.plugin_name ?? found.id.replace(/^group:/, '')
-      onDrilldown(
-        {
-          kind: 'study-group',
-          studyName: target.studyName,
-          runId: target.runId,
-          groupLabel: grp,
-        },
-        `${target.studyName}/${target.runId} · ${grp}`,
-      )
-      return
+      if (target.kind === 'study') {
+        onDrilldown(
+          {
+            kind: 'study-group',
+            studyName: target.studyName,
+            runId: target.runId,
+            groupLabel: grp,
+          },
+          `${target.studyName}/${target.runId} · ${grp}`,
+        )
+        return
+      }
+      if (target.kind === 'in-flight') {
+        onDrilldown(
+          { kind: 'in-flight-group', runId: target.runId, groupLabel: grp },
+          `live · ${grp}`,
+        )
+        return
+      }
     }
     if (found.kind === 'stage') return  // not interactive
     setOpenNode(found)

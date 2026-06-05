@@ -44,6 +44,87 @@ STUDY_STAGES = [
 ]
 
 
+def _status_from_nodes(nodes: list[NodeRecord]) -> str:
+    """Aggregate a stage's per-plugin NodeRecords into a single status.
+
+    ``'failed'`` if every recorded plugin failed, ``'warning'`` if some
+    failed and some succeeded, ``'ok'`` otherwise. Empty list maps to
+    ``'ok'`` — stages without per-plugin records (``study_collect``,
+    ``groups_fanout``) get their status derived elsewhere.
+    """
+    if not nodes:
+        return 'ok'
+    statuses = [n.status for n in nodes]
+    n_failed = sum(1 for s in statuses if s == 'failed')
+    if n_failed == 0:
+        return 'ok'
+    if n_failed == len(statuses):
+        return 'failed'
+    return 'warning'
+
+
+def _groups_fanout_status(groups: list[GroupResult]) -> str:
+    """Derive ``groups_fanout``'s status from the per-group results.
+
+    A :class:`GroupResult` is treated as failed when its
+    ``group_summary.status`` is missing or any of its group_stages
+    are 'failed' — the same logic that drives the group dashboard.
+    """
+    if not groups:
+        return 'failed'
+    n_failed = sum(1 for g in groups if _group_status(g) == 'failed')
+    if n_failed == 0:
+        return 'ok'
+    if n_failed == len(groups):
+        return 'failed'
+    return 'warning'
+
+
+def _group_status(group: GroupResult) -> str:
+    """Aggregate one group's overall status from its group_summary."""
+    summary = group.group_summary
+    if summary is None:
+        return 'failed'
+    stages = getattr(summary, 'stages', None) or getattr(
+        summary, 'group_stages', None) or []
+    bad = [s for s in stages if getattr(s, 'status', None) == 'failed']
+    if bad:
+        return 'failed'
+    sub_summaries = getattr(summary, 'subject_summaries', None) or []
+    if sub_summaries and all(
+        (s.get('status') == 'failed' if isinstance(s, dict)
+         else getattr(s, 'status', None) == 'failed')
+        for s in sub_summaries
+    ):
+        return 'failed'
+    return 'ok'
+
+
+def _aggregate_study_status(study_stages: list, group_summaries: list) -> str:
+    """Derive the top-level study status from stage + group records.
+
+    ``'ok'`` only when every stage is ok and every group ok. ``'failed'``
+    when any study stage failed or every group failed. ``'warning'``
+    for partial outcomes (an isolated plugin failure, or some groups
+    failing while others completed)."""
+    stage_statuses = [getattr(s, 'status', 'unknown') for s in study_stages]
+    if any(s == 'failed' for s in stage_statuses):
+        return 'failed'
+    group_statuses = []
+    for gs in group_summaries:
+        stages = getattr(gs, 'stages', None) or getattr(
+            gs, 'group_stages', None) or []
+        bad = any(getattr(s, 'status', None) == 'failed' for s in stages)
+        group_statuses.append('failed' if bad else 'ok')
+    if group_statuses and all(s == 'failed' for s in group_statuses):
+        return 'failed'
+    has_warn = any(s == 'warning' for s in stage_statuses)
+    has_group_fail = any(s == 'failed' for s in group_statuses)
+    if has_warn or has_group_fail:
+        return 'warning'
+    return 'ok'
+
+
 class StudyOrchestrator:
     """Coordinate a study-scope run across M groups.
 
@@ -71,13 +152,23 @@ class StudyOrchestrator:
     """
 
     def __init__(self, study_config: dict, registry: ModuleRegistry,
-                 run_id: str | None = None):
+                 run_id: str | None = None,
+                 config_path: str | Path | None = None):
         self.config = study_config
         self.registry = registry
         self.study_name = study_config.get('study') or study_config.get('study_name')
         if not self.study_name:
             raise ConfigError("Study config missing 'study' (name) field")
         self.run_id = run_id or study_config.get('run_id') or _make_run_id()
+        # Source YAML path is used to resolve relative ``groups[i].config``
+        # paths against the study file's own directory before falling
+        # back to canonical config locations.
+        path_value = (
+            config_path
+            if config_path is not None
+            else study_config.get('_source_path')
+        )
+        self.config_path = Path(path_value) if path_value else None
         self.parent_dir, self.study_dir = self._resolve_study_dir()
         self.study: StudyResult = StudyResult(study_name=self.study_name)
         self._stage_records: list[StageRecord] = []
@@ -108,23 +199,45 @@ class StudyOrchestrator:
                 self.study.groups = self._stage(
                     'groups_fanout',
                     lambda: self._fanout_groups(resolved, resume=resume),
+                    derive_status=lambda out, _nodes: _groups_fanout_status(out),
                 )
 
-                analyzers = self._resolve_study_analyzers()
-                if analyzers:
-                    self._stage(
+                ok_groups = [g for g in self.study.groups
+                             if _group_status(g) == 'ok']
+                if not ok_groups:
+                    logger.error(
+                        "study: every group failed (%d/%d) — skipping "
+                        "study_analyze and study_report",
+                        len(self.study.groups), len(self.study.groups))
+                    self._record_skipped_stage(
                         'study_analyze',
-                        lambda nodes: self._run_study_analyzers(analyzers, nodes),
-                        capture_nodes=True,
-                    )
-
-                reporters = self._resolve_study_reporters()
-                if reporters:
-                    self._stage(
+                        "skipped: no group completed groups_fanout")
+                    self._record_skipped_stage(
                         'study_report',
-                        lambda nodes: self._run_study_reporters(reporters, nodes),
-                        capture_nodes=True,
-                    )
+                        "skipped: no group completed groups_fanout")
+                else:
+                    if len(ok_groups) < len(self.study.groups):
+                        logger.warning(
+                            "study: %d/%d group(s) failed — proceeding "
+                            "with the rest, but study analyzers that need "
+                            "every group will likely warn or skip",
+                            len(self.study.groups) - len(ok_groups),
+                            len(self.study.groups))
+                    analyzers = self._resolve_study_analyzers()
+                    if analyzers:
+                        self._stage(
+                            'study_analyze',
+                            lambda nodes: self._run_study_analyzers(analyzers, nodes),
+                            capture_nodes=True,
+                        )
+
+                    reporters = self._resolve_study_reporters()
+                    if reporters:
+                        self._stage(
+                            'study_report',
+                            lambda nodes: self._run_study_reporters(reporters, nodes),
+                            capture_nodes=True,
+                        )
             finally:
                 finished_at = datetime.now(timezone.utc).isoformat()
                 fui.emit_event({
@@ -133,6 +246,11 @@ class StudyOrchestrator:
                     'run_id': self.run_id,
                     'elapsed': round(time.time() - run_start, 3),
                 })
+                group_summaries = [
+                    g.group_summary for g in self.study.groups
+                    if g.group_summary is not None
+                ]
+                stage_records = list(self._stage_records)
                 self.study.study_summary = StudyRunSummary(
                     study_name=self.study_name,
                     group_labels=[g.study_label or g.group_name
@@ -140,11 +258,12 @@ class StudyOrchestrator:
                     started_at=started_at,
                     finished_at=finished_at,
                     total_elapsed_s=round(time.time() - run_start, 3),
-                    group_summaries=[g.group_summary for g in self.study.groups
-                                     if g.group_summary is not None],
-                    study_stages=list(self._stage_records),
+                    group_summaries=group_summaries,
+                    study_stages=stage_records,
                     config_snapshot=copy.deepcopy(self.config),
                     run_id=self.run_id,
+                    status=_aggregate_study_status(
+                        stage_records, group_summaries),
                 )
                 try:
                     self.study.study_summary.save_json(
@@ -243,15 +362,21 @@ class StudyOrchestrator:
                     "(inline group bodies are not supported in v1)"
                 )
                 continue
-            p = Path(cfg_path)
-            if not p.is_file():
+            p = self._find_group_config(cfg_path)
+            if p is None:
+                tried = ", ".join(str(c) for c in self._group_config_candidates(cfg_path))
                 errors.append(
-                    f"groups[{i}] ({label}): config file not found at {cfg_path}"
+                    f"groups[{i}] ({label}): config file not found "
+                    f"at {cfg_path} (searched: {tried})"
                 )
                 continue
             try:
                 with open(p) as f:
                     group_cfg = yaml.safe_load(f) or {}
+                # Stash where this group YAML actually lives so
+                # downstream code (e.g. group_orchestrator.derive_subject_config)
+                # could resolve nested paths if it wants to.
+                group_cfg.setdefault('_source_path', str(p.resolve()))
             except Exception as exc:
                 errors.append(
                     f"groups[{i}] ({label}): failed to load YAML: {exc}"
@@ -268,6 +393,48 @@ class StudyOrchestrator:
         if errors:
             raise ConfigError(errors)
         return out
+
+    def _group_config_candidates(self, cfg_path: str) -> list[Path]:
+        """Where to look for ``groups[i].config`` paths.
+
+        An absolute path is taken at face value. A relative path is tried,
+        in order, against:
+          1. the cwd (literal interpretation),
+          2. the study YAML's own directory (the natural place for a
+             study to refer to its siblings),
+          3. the analysis config root and its ``group/`` subdir
+             (where ConfigStore writes duplicates and where users
+             typically keep their canonical group YAMLs),
+          4. the legacy ``./experiments/`` + ``./experiments/group/``
+             tree that the scan-fallback still indexes.
+        """
+        from fmriflow.core import paths
+
+        p = Path(cfg_path)
+        if p.is_absolute():
+            return [p]
+        candidates: list[Path] = [p]
+        if self.config_path is not None:
+            candidates.append(self.config_path.parent / cfg_path)
+        try:
+            analysis_root = Path(paths.config_dir('analysis'))
+            candidates.append(analysis_root / 'group' / cfg_path)
+            candidates.append(analysis_root / cfg_path)
+            candidates.append(analysis_root / 'study' / cfg_path)
+        except Exception:
+            # ``paths.config_dir`` may raise in test environments without
+            # FMRIFLOW_HOME — fall back to the legacy tree only.
+            pass
+        candidates.append(Path('./experiments/group') / cfg_path)
+        candidates.append(Path('./experiments') / cfg_path)
+        return candidates
+
+    def _find_group_config(self, cfg_path: str) -> Path | None:
+        """First existing file from :meth:`_group_config_candidates`."""
+        for cand in self._group_config_candidates(cfg_path):
+            if cand.is_file():
+                return cand
+        return None
 
     # ── groups_fanout ───────────────────────────────────────────
 
@@ -397,11 +564,41 @@ class StudyOrchestrator:
 
     # ── stage timing/recording helper ───────────────────────────
 
-    def _stage(self, name: str, fn, *, capture_nodes: bool = False):
+    def _record_skipped_stage(self, name: str, reason: str) -> None:
+        """Record a study stage as ``skipped`` without invoking its body.
+
+        Used when an earlier stage's failure makes later stages
+        impossible (e.g. no group completed groups_fanout → study
+        analyzers would just spam warnings about missing artifacts).
+        """
+        self._stage_records.append(StageRecord(
+            name=name, status='skipped',
+            elapsed_s=0.0, detail=reason,
+            nodes=[],
+        ))
+        fui.emit_event({
+            'event': 'study_stage_done',
+            'stage': name,
+            'study': self.study_name,
+            'elapsed': 0.0,
+            'status': 'skipped',
+            'detail': reason,
+        })
+
+    def _stage(self, name: str, fn, *, capture_nodes: bool = False,
+               derive_status=None):
         """Time one study stage; optionally collect per-plugin NodeRecords.
 
         Emits ``study_stage_start`` / ``study_stage_done`` events so
         the dashboard's study-progress view can light up stages.
+
+        If ``derive_status`` is given it's called with ``fn``'s return
+        value and the captured ``nodes`` list and must return one of
+        ``'ok' | 'warning' | 'failed'``. Otherwise we infer the status
+        from per-node failures (any failed → 'failed', some succeeded →
+        'warning' when mixed) so that isolated plugin failures inside
+        ``study_analyze`` / ``study_report`` no longer silently mark
+        the surrounding stage 'ok'.
         """
         t0 = time.time()
         fui.emit_event({
@@ -413,16 +610,32 @@ class StudyOrchestrator:
         try:
             out = fn(nodes) if capture_nodes else fn()
             elapsed = round(time.time() - t0, 3)
+            if derive_status is not None:
+                status = derive_status(out, nodes)
+            else:
+                status = _status_from_nodes(nodes)
+            detail = ''
+            if status == 'failed':
+                failed_names = [n.name for n in nodes if n.status == 'failed']
+                if failed_names:
+                    detail = f"failed: {', '.join(failed_names)}"
+            elif status == 'warning':
+                failed_names = [n.name for n in nodes if n.status == 'failed']
+                if failed_names:
+                    detail = f"partial failure: {', '.join(failed_names)}"
             self._stage_records.append(StageRecord(
-                name=name, status='ok',
-                elapsed_s=elapsed, detail='',
+                name=name, status=status,
+                elapsed_s=elapsed, detail=detail,
                 nodes=list(nodes),
             ))
             fui.emit_event({
-                'event': 'study_stage_done',
+                'event': ('study_stage_fail' if status == 'failed'
+                          else 'study_stage_done'),
                 'stage': name,
                 'study': self.study_name,
                 'elapsed': elapsed,
+                'status': status,
+                **({'error': detail} if status == 'failed' else {}),
             })
             return out
         except Exception as e:

@@ -376,7 +376,7 @@ def _cmd_run_study(args) -> int:
 
     registry = ModuleRegistry()
     registry.discover()
-    orch = StudyOrchestrator(study_config, registry)
+    orch = StudyOrchestrator(study_config, registry, config_path=args.config)
 
     if args.dry_run:
         labels = [str(e.get('name')) for e in study_config.get('groups', [])]

@@ -181,6 +181,13 @@ class StudyRunSummary:
     study_stages: list[StageRecord] = field(default_factory=list)
     config_snapshot: dict = field(default_factory=dict)
     run_id: str = ""
+    # Overall outcome derived from study_stages + group_summaries.
+    # 'ok' = every study stage ok and every group ok;
+    # 'failed' = a study stage hard-failed or every group failed;
+    # 'warning' = partial success (some plugins failed but the stage
+    # surrounding them kept going, or some groups failed but at least
+    # one finished).
+    status: str = "unknown"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -205,6 +212,7 @@ class StudyRunSummary:
             study_stages=[_stage_from_dict(s) for s in data.get('study_stages', [])],
             config_snapshot=data.get('config_snapshot', {}),
             run_id=data.get('run_id', ''),
+            status=data.get('status', 'unknown'),
         )
 
 

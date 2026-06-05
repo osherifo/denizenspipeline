@@ -13,6 +13,9 @@ export type GraphTarget =
   | { kind: 'group-subject'; groupName: string; runId: string; subject: string }
   | { kind: 'study'; studyName: string; runId: string }
   | { kind: 'study-group'; studyName: string; runId: string; groupLabel: string }
+  // Subject drilldown inside a finished study — reaches into one of the
+  // study's groups, then into one of that group's subjects.
+  | { kind: 'study-group-subject'; studyName: string; runId: string; groupLabel: string; subject: string }
   // Preview the graph of a config that hasn't been run yet. Source code
   // is still viewable; outputs are not (no run dir exists).
   | { kind: 'config'; filename: string }
@@ -26,6 +29,11 @@ export type GraphTarget =
   | { kind: 'in-flight'; runId: string }
   // Subject drilldown inside an in-flight group/study run.
   | { kind: 'in-flight-subject'; runId: string; subject: string }
+  // Group drilldown inside an in-flight *study* run — one of the study's
+  // groups, viewed in the same live run.
+  | { kind: 'in-flight-group'; runId: string; groupLabel: string }
+  // Subject drilldown inside an in-flight study's group.
+  | { kind: 'in-flight-group-subject'; runId: string; groupLabel: string; subject: string }
 
 export interface RunGraphNode {
   id: string
@@ -126,6 +134,8 @@ function urlFor(target: GraphTarget, suffix: string): string {
       return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}${suffix}`
     case 'study-group':
       return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}${suffix}`
+    case 'study-group-subject':
+      return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}/subject/${encodeURIComponent(target.subject)}${suffix}`
     case 'config':
       return `${BASE}/configs/${encodeURIComponent(target.filename)}${suffix}`
     case 'config-subject':
@@ -134,12 +144,21 @@ function urlFor(target: GraphTarget, suffix: string): string {
       return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}${suffix}`
     case 'in-flight-subject':
       return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}/subject/${encodeURIComponent(target.subject)}${suffix}`
+    case 'in-flight-group':
+      return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}${suffix}`
+    case 'in-flight-group-subject':
+      return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}/subject/${encodeURIComponent(target.subject)}${suffix}`
   }
 }
 
 
 export function isLiveTarget(target: GraphTarget): boolean {
-  return target.kind === 'in-flight' || target.kind === 'in-flight-subject'
+  return (
+    target.kind === 'in-flight'
+    || target.kind === 'in-flight-subject'
+    || target.kind === 'in-flight-group'
+    || target.kind === 'in-flight-group-subject'
+  )
 }
 
 
