@@ -338,3 +338,101 @@ The orchestrator prefixes the returned keys with `external.` and re-runs
 `analyze + report` for each subject with those keys in context. A subject-scope
 analyzer can then read `context.get("external.semantic_pca_basis")` to consume
 it.
+
+### `external_pca_basis` — load a precomputed PCA basis
+
+The Deniz-2019 reproduction projects each subject's semantic-feature
+weights onto the **Huth 2016** PCA basis rather than rebuilding a basis
+from the current cohort. Use `external_pca_basis` instead of
+`stacked_weights_pca` to read it off disk:
+
+```yaml
+group_analyze:
+  - name: external_pca_basis
+    params:
+      path: /data/.../local_eng1000/model-fb2-pcs7-group-eng1000-pcs.hf5
+      dataset: c                      # (985, 985) PCs as columns
+      singular_values_dataset: l      # (985,) eigenvalues (optional)
+      feature: english1000            # which feature's weight block to project
+      n_components: 50
+      binding_name: semantic_pca_basis
+```
+
+Same downstream contract as `stacked_weights_pca`: the second pass binds
+the basis under `external.semantic_pca_basis`, the subject-scope
+`project_to_subspace` analyzer consumes it, the `semantic_rgb_flatmap`
+reporter renders RGB-from-PC1/2/3 onto the cortex.
+
+## Study scope
+
+A **study** is one level above a group: it runs M groups (typically
+one group per modality / population / condition) and then performs
+cross-group analyses on their resolved artifacts. Shape:
+
+```yaml
+study: deniz_modality_2019
+output_dir: ./testing/study_runs/deniz_modality_2019
+
+groups:
+  - {name: reading,   config: deniz_reading_2019.yaml}
+  - {name: listening, config: deniz_listening_2019.yaml}
+
+parallel:
+  max_workers: 1
+
+study_analyze:
+  - name: group_delta
+    params: {input_key: group.fsaverage_scores_mean, a: reading, b: listening,
+             output_key: study.fsaverage_delta_r_minus_l}
+
+study_report:
+  - name: study_summary_html
+  - name: study_delta_flatmap
+    params: {input_key: study.fsaverage_delta_r_minus_l, ...}
+```
+
+Group config paths in `groups[*].config` resolve in this order:
+
+1. Literal interpretation (cwd-relative).
+2. Sibling of the study YAML (the natural place for a self-contained study).
+3. `configs/analysis/group/<basename>`, `configs/analysis/<basename>`,
+   `configs/analysis/study/<basename>` (canonical locations).
+4. Legacy `./experiments/group/<basename>` and `./experiments/<basename>`.
+
+The first existing file wins. If the file references intermediates /
+QA at the study top level, those settings propagate into every group
+(and from there into every subject) unless overridden.
+
+### Study stages
+
+| Stage | What runs |
+|---|---|
+| `study_collect`   | resolve + parse every `groups[*].config` |
+| `groups_fanout`   | run each group orchestrator (sequential or pooled by `parallel.max_workers`) |
+| `study_analyze`   | every entry in `study_analyze:` (skipped if no group completed) |
+| `study_report`    | every entry in `study_report:` (skipped if no group completed) |
+
+The top-level `StudyRunSummary.status` reflects partial / full
+failure — `ok` only when every stage ok and every group ok;
+`failed` when a study stage hard-failed or every group failed;
+`warning` for partial outcomes.
+
+### Built-in study analyzers
+
+| Plugin | Purpose |
+|---|---|
+| `group_delta` | Voxelwise A − B on a group-level array (Fig 5a-style) |
+| `cohen_d_across_groups` | Per-subject Cohen's d between two groups (Fig 5b) |
+| `semantic_pc_correlation` | Per-subject per-PC Pearson r between two modalities' PC projections, restricted to top-K best-predicted voxels (Deniz Fig 5) |
+| `weight_correlation_voxelwise` | Per-voxel correlation of one feature's weights between two groups, averaged on fsaverage (Fig 6a) |
+| `cross_modal_prediction` | `y_pred = X_test_B @ W_A` over a feature slice; per-voxel r vs `Y_test_B`; mean on fsaverage (Figs 7, 8) |
+| `cross_within_summary` | Pairs `max(within)` vs `mean(cross)` per fsaverage vertex (Fig 9) |
+
+### Built-in study reporters
+
+| Plugin | Renders |
+|---|---|
+| `study_summary_html` | Index page over every group + study artifact |
+| `study_delta_flatmap` | Single-array flatmap from a study artifact (Figs 5a/5b/6a/7/8) |
+| `study_pc_correlation_bar` | Per-PC scatter + bar with optional sign-flip null line (Fig 5) |
+| `study_cross_within_flatmap` | RGB flatmap (red=within, green/blue=cross) for Fig 9 |

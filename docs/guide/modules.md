@@ -57,14 +57,80 @@ The Module Editor in the web UI lets you write, validate, and register modules d
 
 ## Module types
 
-| Type | Decorator | Required methods |
-|------|-----------|-----------------|
-| Feature Extractor | `@feature_extractor` | `extract(stimuli, run_names, config)` |
-| Preparation Step | `@preparation_step` | `apply(state, params)` |
-| Analyzer | `@analyzer` | `analyze(context, config)` |
-| Reporter | `@reporter` | `report(result, context, config)` |
-| Stimulus Loader | `@stimulus_loader` | `load(config)` |
-| Response Loader | `@response_loader` | `load(config)` |
+| Type | Decorator | Scope | Required methods |
+|------|-----------|-------|-----------------|
+| Feature Extractor | `@feature_extractor` | subject | `extract(stimuli, run_names, config)` |
+| Feature Source | `@feature_source` | subject | `load(run_names, config)` |
+| Preparation Step | `@preparation_step` | subject | `apply(state, params)` |
+| Analyzer | `@analyzer` | subject | `analyze(context, config)` |
+| Reporter | `@reporter` | subject | `report(result, context, config)` |
+| Stimulus Loader | `@stimulus_loader` | subject | `load(config)` |
+| Response Loader | `@response_loader` | subject | `load(config)` |
+| QA Reporter | `@qa_reporter(name, stage=...)` | subject | `report(value, config, output_dir)` |
+| Group Analyzer | `@group_analyzer` | group | `analyze(group: GroupResult, config)` |
+| Group Reporter | `@group_reporter` | group | `report(group: GroupResult, config)` |
+| Study Analyzer | `@study_analyzer` | study | `analyze(study: StudyResult, config)` |
+| Study Reporter | `@study_reporter` | study | `report(study: StudyResult, config)` |
+
+### QA reporters (per-stage diagnostic viz)
+
+QA reporters are bound to one pipeline stage and run automatically
+when that stage finishes (and again on demand via the **Regenerate**
+button in the web UI):
+
+```python
+from pathlib import Path
+from fmriflow.core.types import PreparedData
+from fmriflow.modules._decorators import qa_reporter
+
+
+@qa_reporter("my_check", stage="prepare")
+class MyPrepareCheck:
+    name = "my_check"
+    stage = "prepare"
+    PARAM_SCHEMA = {"max_voxels": {"type": "int", "default": 1500}}
+
+    def report(self, value: PreparedData, config: dict,
+               output_dir: Path) -> dict[str, str]:
+        # render whatever and save to output_dir
+        return {"my_check.png": str(output_dir / "my_check.png")}
+```
+
+The orchestrator passes the resolved stage dataclass (`ResponseData`
+for `responses`, `FeatureData` for `features`, `PreparedData` for
+`prepare`, `ModelResult` for `model`, etc.) as `value`. Plugins are
+failure-isolated — one raising doesn't kill the pipeline.
+
+## Built-ins
+
+These ship out of the box (see `fmriflow/modules/` for the source).
+
+**Feature sources:** `compute`, `filesystem`, `cloud`, `grouped_hdf`,
+`npz_concat`.
+
+**QA reporters:**
+
+| Stage | Plugin | Output |
+|---|---|---|
+| `responses` | `voxel_carpet` | voxel × time carpet (z-scored + raw) |
+| `features`  | `feature_matrix` | feature-dim × time carpet (z-scored + raw, per-feature boundary lines) |
+| `prepare`   | `sample_counts`, `train_test_timeline`, `delay_structure_heatmap`, `feature_row_ranges`, `zscore_check`, `responses_features_alignment` | various; the last one is a per-run X vs Y carpet pair for spotting misalignment |
+| `model`     | `score_histogram`, `score_rank_curve`, `alpha_histogram`, `weight_norms_per_band` | prediction-accuracy + per-band weight summaries |
+
+**Group analyzers:** `voxelwise_mean`, `significance_count`,
+`scalar_summary`, `stacked_weights_pca` (build a PCA basis from the
+cohort's weights), `external_pca_basis` (load a precomputed PCA basis
+from disk — e.g. Huth 2016).
+
+**Group reporters:** `group_summary_html`, `group_npy_dump`,
+`group_fsaverage_flatmap`.
+
+**Study analyzers:** `group_delta`, `cohen_d_across_groups`,
+`semantic_pc_correlation`, `weight_correlation_voxelwise`,
+`cross_modal_prediction`, `cross_within_summary`.
+
+**Study reporters:** `study_summary_html`, `study_delta_flatmap`,
+`study_pc_correlation_bar`, `study_cross_within_flatmap`.
 
 ## PARAM_SCHEMA
 
