@@ -1,13 +1,12 @@
-"""CrossModalPrediction — Deniz 2019 Figs 7 + 8.
+"""CrossModalPrediction — cross-group weight × held-out feature score.
 
 For each subject in both groups:
 
 * slice the chosen feature's weight rows from group A's
   :class:`ModelResult` and the matching column block from group B's
   :class:`PreparedData.X_test`;
-* compute ``y_pred = X_test_B @ W_A`` (the paper's
-  "estimated semantic model weights from listening predicting
-  reading responses" — and vice versa);
+* compute ``y_pred = X_test_B @ W_A`` (use group A's weights to predict
+  group B's held-out responses, and vice versa);
 * score per voxel by Pearson r against the held-out
   ``Y_test`` recorded in group B's prepared data;
 * project the per-voxel accuracy onto fsaverage and average across

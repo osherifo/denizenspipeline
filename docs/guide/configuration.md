@@ -102,7 +102,7 @@ Each feature declares where its data comes from:
 | `filesystem` | Load pre-extracted features from disk (npz, npy, hdf5) |
 | `cloud` | Load from S3 via cottoncandy |
 | `grouped_hdf` | Load from a grouped HDF5 file |
-| `npz_concat` | Pre-trimmed pre-concatenated `.npz` files (Deniz-2019 motion-energy shape) |
+| `npz_concat` | Pre-trimmed pre-concatenated `.npz` files (one per-run-stacked array per phase) |
 
 ### `npz_concat`
 
@@ -115,7 +115,7 @@ ordered length map:
 features:
   - name: moten
     source: npz_concat
-    path: /data/.../moth_en_moten_20210928.npz
+    path: /data/.../motion_energy.npz
     train:
       key: moten_Rstim                # 2-D (T_concat, D)
       runs:                           # ordered: npz-side name → row count

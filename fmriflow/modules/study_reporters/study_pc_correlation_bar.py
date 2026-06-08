@@ -1,12 +1,12 @@
-"""StudyPCCorrelationBar — render Deniz 2019 Fig 5.
+"""StudyPCCorrelationBar — per-PC scatter + bar across subjects.
 
 Reads a ``(n_subjects, n_components)`` correlation matrix produced by
 ``semantic_pc_correlation`` and plots a per-PC scatter with the
-across-subject mean overlaid. One coloured marker per subject per PC
-(matching the paper's diamonds), one bar per PC for the across-subject
-mean. A dotted line indicates the 95th-percentile of a permutation
-null derived from per-PC sign-flipping if ``permutations:`` is set,
-mirroring the paper's significance band.
+across-subject mean overlaid. One coloured marker per subject per PC,
+one bar per PC for the across-subject mean. A dotted line indicates
+the 95th-percentile of a permutation null derived from per-PC
+sign-flipping when ``permutations:`` is set, giving a one-sided
+significance band on each bar.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @study_reporter("study_pc_correlation_bar")
 class StudyPCCorrelationBarReporter:
-    """Per-PC correlation chart (Deniz 2019 Fig 5)."""
+    """Per-PC correlation chart across subjects."""
 
     name = "study_pc_correlation_bar"
     PARAM_SCHEMA = {
@@ -131,7 +131,7 @@ class StudyPCCorrelationBarReporter:
 
         ax.set_xlabel("Semantic principal component")
         ax.set_ylabel("Pearson r (listening vs reading projection)")
-        ax.set_title("Semantic-PC consistency across modalities (Fig 5)")
+        ax.set_title("Semantic-PC consistency across modalities")
         ylim = cfg.get("ylim", [-0.2, 1.0])
         ax.set_ylim(float(ylim[0]), float(ylim[1]))
         ax.set_xticks(x)

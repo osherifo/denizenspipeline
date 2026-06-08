@@ -372,7 +372,7 @@ def _events_to_subject_summaries(events: list[dict],
     GroupOrchestrator runs its subjects in a ``ThreadPoolExecutor`` —
     the worker threads don't inherit the parent thread's
     ``event_context``, so subject-emitted events carry only the
-    *internal* group name (e.g. ``deniz_reading_2019``), not the
+    *internal* group name (e.g. ``modality_a_group``), not the
     study-scope label (e.g. ``reading``). ``group_names`` lets callers
     pass those internal names so subject events still match.
     """
@@ -485,7 +485,7 @@ def _events_to_group_summaries(events: list[dict],
 
     ``label_to_group_name`` maps each study-scope label
     (e.g. ``reading``) to the underlying group's internal name
-    (e.g. ``deniz_reading_2019``) so subject-emitted events — which
+    (e.g. ``modality_a_group``) so subject-emitted events — which
     the GroupOrchestrator's worker threads emit with only the
     internal name (the study's ``event_context`` doesn't cross the
     thread boundary) — still get attributed to the right group.
@@ -1501,7 +1501,7 @@ def _in_flight_study_group_summary(handle, label: str) -> dict:
     events = list(handle.events or [])
     cfg = handle.config or {}
     group_cfg: dict = {}
-    # The group's internal name (e.g. ``deniz_reading_2019``) lives
+    # The group's internal name (e.g. ``modality_a_group``) lives
     # inside its referenced YAML; the study spec may store it inline
     # under ``config_snapshot.group`` or only ship the ``config:`` path.
     # We grab whichever is available.

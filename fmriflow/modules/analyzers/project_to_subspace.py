@@ -30,7 +30,7 @@ class ProjectToSubspaceAnalyzer:
     from ``result``. Writes ``analysis.<output_key>`` (default
     ``analysis.semantic_pc_projection``) — a ``(n_components, n_voxels)``
     array. Downstream reporters can colour voxels by their projection
-    (e.g. RGB-from-PC1-2-3 for a Deniz Fig 4-style semantic map).
+    (e.g. RGB-from-PC1-2-3 for a semantic-PC flatmap).
     """
 
     name = "project_to_subspace"

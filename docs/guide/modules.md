@@ -120,7 +120,7 @@ These ship out of the box (see `fmriflow/modules/` for the source).
 **Group analyzers:** `voxelwise_mean`, `significance_count`,
 `scalar_summary`, `stacked_weights_pca` (build a PCA basis from the
 cohort's weights), `external_pca_basis` (load a precomputed PCA basis
-from disk — e.g. Huth 2016).
+from disk).
 
 **Group reporters:** `group_summary_html`, `group_npy_dump`,
 `group_fsaverage_flatmap`.

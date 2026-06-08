@@ -1,4 +1,4 @@
-"""Shared helpers for the Deniz-2019 cross-modality study analyzers.
+"""Shared helpers for the cross-modality study analyzers.
 
 The four analyzers (``weight_correlation_voxelwise``,
 ``semantic_pc_correlation``, ``cross_modal_prediction``,
@@ -131,8 +131,9 @@ def best_predicted_voxels(
     result_a: ModelResult, result_b: ModelResult, k: int,
 ) -> np.ndarray:
     """Indices of the top-K voxels by mean(within-modality prediction
-    accuracy). Used by Deniz-2019 Fig 5 to denoise the per-PC
-    correlation."""
+    accuracy). Used to restrict per-PC correlations to voxels where
+    both modalities have reliable signal, suppressing PC-correlation
+    noise driven by poorly-predicted voxels."""
     if result_a.scores.shape != result_b.scores.shape:
         raise ValueError(
             "best_predicted_voxels: subject's two modalities have "

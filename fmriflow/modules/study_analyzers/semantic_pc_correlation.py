@@ -1,4 +1,4 @@
-"""SemanticPCCorrelation — Deniz 2019 Fig 5.
+"""SemanticPCCorrelation — per-subject per-PC modality similarity.
 
 For each subject present in both groups, the per-modality
 :class:`SemanticSubspace` projection ``analysis.semantic_pc_projection``
@@ -13,8 +13,8 @@ This study analyzer:
    voxels, per PC;
 3. stacks the result into a ``(n_subjects, n_components)`` array.
 
-The companion reporter ``study_pc_correlation_bar`` renders it as the
-paper's Fig 5 per-PC scatter + bar.
+The companion reporter ``study_pc_correlation_bar`` renders it as a
+per-PC scatter + bar across subjects.
 """
 
 from __future__ import annotations
@@ -58,7 +58,8 @@ class SemanticPCCorrelationAnalyzer:
             "description": (
                 "How many best-predicted voxels (by mean accuracy "
                 "across the two modalities) to keep for the per-PC "
-                "correlation. Mirrors Deniz 2019's 10,000-voxel restriction."
+                "correlation. A typical default in this kind of analysis "
+                "is the top 10,000 voxels."
             ),
         },
         "n_components": {

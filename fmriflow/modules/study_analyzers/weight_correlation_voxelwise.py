@@ -1,4 +1,4 @@
-"""WeightCorrelationVoxelwise — Deniz 2019 Fig 6a.
+"""WeightCorrelationVoxelwise — per-voxel cross-modality weight correlation.
 
 For each subject present in both groups, correlate the per-voxel
 delayed weight vectors for one feature (default ``english1000``,
@@ -6,10 +6,10 @@ the semantic feature) between the two modalities. Project the
 per-voxel correlation onto fsaverage and average across subjects so
 the result can be rendered on the common cortical surface.
 
-In Deniz 2019 the rendering colour-saturates voxels by the magnitude
-of the within-modality prediction accuracy; that's a reporter-side
-concern. This analyzer just produces the mean cross-modality
-weight-correlation map.
+A common downstream rendering choice is to colour-saturate voxels by
+the magnitude of the within-modality prediction accuracy; that is a
+reporter-side concern. This analyzer just produces the mean
+cross-modality weight-correlation map.
 """
 
 from __future__ import annotations

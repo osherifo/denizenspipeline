@@ -4,10 +4,10 @@ Reads a group artifact key (default ``group.fsaverage_scores_mean``) — typical
 the output of ``voxelwise_mean`` operating on per-subject
 ``analysis.fsaverage_scores`` — and renders it on the fsaverage flatmap.
 
-This is the Deniz 2019 Fig 3a/b group prediction-accuracy map. The companion
-significance-count map (Fig 3c/d) uses the same plumbing: point
-``input_key`` at the count artifact and adjust ``vmin/vmax/cmap`` for
-discrete-count colouring.
+Typical use: render the group's mean prediction-accuracy map. The
+companion subjects-passing-threshold "consistency" map uses the same
+plumbing — point ``input_key`` at the count artifact and adjust
+``vmin/vmax/cmap`` for discrete-count colouring.
 """
 
 from __future__ import annotations

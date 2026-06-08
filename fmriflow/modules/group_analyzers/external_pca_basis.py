@@ -2,20 +2,22 @@
 
 Sibling to :mod:`fmriflow.modules.group_analyzers.stacked_weights_pca`,
 but instead of building the basis from the current cohort's weights it
-reuses one that was estimated elsewhere (e.g. the 985-dim Huth 2016
-co-occurrence-semantics PCA used as the canonical semantic subspace in
-Deniz 2019, distributed as ``model-fb2-pcs7-group-eng1000-pcs.hf5``).
+reuses one that was estimated elsewhere (e.g. a co-occurrence-semantics
+PCA distributed alongside a feature space as its canonical semantic
+subspace).
 
-The basis is stored under ``c`` in the source HDF as ``(fdim, fdim)``,
-columns ordered by descending variance. The analyzer takes the first
-``n_components`` columns and expands them to delayed-feature space by
-tiling across delays so the downstream
+The basis is typically stored under ``c`` in the source HDF as
+``(fdim, fdim)``, columns ordered by descending variance. The analyzer
+takes the first ``n_components`` columns and expands them to
+delayed-feature space by tiling across delays so the downstream
 :class:`~fmriflow.modules.analyzers.project_to_subspace.ProjectToSubspaceAnalyzer`
 projection ``basis.T @ block`` yields the same result as projecting the
 per-delay-averaged weights with the raw basis.
 
-Faithful to Deniz 2019's "model weights were projected onto the semantic
-subspace that was created in a previous study" (Huth 2016).
+This implements the standard "project model weights onto a pre-existing
+semantic subspace" pattern — useful when you want every subject's
+weights interpreted in a shared coordinate system independent of the
+current cohort.
 """
 
 from __future__ import annotations
@@ -57,7 +59,7 @@ class ExternalPCABasisAnalyzer:
             "description": (
                 "Name of the (fdim, fdim) dataset inside the HDF holding "
                 "the PCs as columns, ordered by descending variance. "
-                "Deniz/Huth file uses 'c'."
+                "Many precomputed semantic-PC files use the dataset key 'c'."
             ),
         },
         "singular_values_dataset": {

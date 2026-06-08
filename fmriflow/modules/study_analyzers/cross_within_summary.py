@@ -1,4 +1,4 @@
-"""CrossWithinSummary — Deniz 2019 Fig 9.
+"""CrossWithinSummary — per-vertex within-vs-cross-modal accuracy pair.
 
 Combines the within-modality and cross-modality prediction-accuracy
 maps the rest of the study layer already produces:

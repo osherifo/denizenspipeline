@@ -1,11 +1,11 @@
-"""SemanticRgbFlatmapReporter — Deniz 2019 Fig 4: PC1/PC2/PC3 as RGB flatmap.
+"""SemanticRgbFlatmapReporter — render PC1/PC2/PC3 as an RGB flatmap.
 
 Reads ``analysis.semantic_pc_projection`` (shape ``(n_components, n_voxels)``)
 produced by the ``project_to_subspace`` subject-scope analyzer during the
 GroupOrchestrator's second pass. Maps the first three PC channels to R/G/B
 and renders a pycortex flatmap on the subject's native cortical surface.
 
-This is the "semantic tuning map" from the paper. Voxels are coloured by
+This is the standard "semantic tuning map" view: voxels are coloured by
 *where* in the shared semantic basis their tuning lands, not by prediction
 accuracy.
 
@@ -52,7 +52,7 @@ class SemanticRgbFlatmapReporter:
             "type": "float",
             "description": (
                 "If set, voxels with result.scores below this are rendered as "
-                "transparent (matching Fig 4 'not significant -> gray')."
+                "transparent (so non-significant voxels read as gray cortex)."
             ),
         },
         "filename": {"type": "str", "default": "semantic_rgb_flatmap.png"},

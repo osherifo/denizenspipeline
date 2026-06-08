@@ -1,8 +1,9 @@
 """Voxelwise difference between two groups' artifacts.
 
-Deniz et al. 2019 Fig 5-style: take each group's mean prediction
-accuracy map (or any group-level array) and compute the voxelwise
-A - B delta. Shape-compatibility validated up-front.
+Take each group's mean prediction-accuracy map (or any group-level
+array) and compute the voxelwise A - B delta. Standard
+between-modality / between-condition comparison.
+Shape-compatibility validated up-front.
 """
 
 from __future__ import annotations

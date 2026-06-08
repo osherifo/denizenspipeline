@@ -1,10 +1,11 @@
 """NpzConcatSource — loads pre-trimmed features stored as one big concatenated
 matrix per phase inside an .npz file.
 
-Use case: Deniz-2019 ``moth_en_moten_20210928.npz`` (motion energy), where
-the train phase is a single (T_concat, D) array spanning every training
-run and the validation phase is a (k_reps, T_val, D) array for the
-single repeated validation story. The pipeline needs per-run blocks
+Use case: a precomputed feature distributed as one big concatenated
+``.npz`` per phase (e.g. motion energy), where the train phase is a
+single ``(T_concat, D)`` array spanning every training run and the
+validation phase is a ``(k_reps, T_val, D)`` array for a single
+repeated validation story. The pipeline needs per-run blocks
 keyed by run name, so the loader splits the concatenated arrays back
 into per-run pieces using an explicit ordered length map the user
 provides.
@@ -14,7 +15,7 @@ Config (single file with both phases)::
     features:
       - name: motion_energy
         source: npz_concat
-        path: /data/.../moth_en_moten_20210928.npz
+        path: /data/.../motion_energy.npz
         train:
           key: moten_Rstim                       # (T_concat, D)
           runs:                                  # name → row count, IN ORDER

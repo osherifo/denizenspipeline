@@ -1,4 +1,4 @@
-"""StudyCrossWithinFlatmap — Deniz 2019 Fig 9.
+"""StudyCrossWithinFlatmap — RGB flatmap encoding within vs cross accuracy.
 
 Reads the ``(n_vertices, 2)`` array from ``cross_within_summary``
 (column 0 = within-modality max accuracy, column 1 = cross-modality
@@ -16,8 +16,7 @@ So:
 * well predicted across only → cyan (rare)
 * poorly predicted either way → dark
 
-This is the visual logic of Deniz 2019 Fig 9. Saturation is clipped
-to [vmin, vmax] separately per channel.
+Saturation is clipped to [vmin, vmax] separately per channel.
 """
 
 from __future__ import annotations
