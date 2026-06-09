@@ -194,10 +194,13 @@ export interface ConfigSummary {
   response_loader: string
   n_runs: number
   // 'subject' for a single-subject pipeline yaml; 'group' for a
-  // GroupOrchestrator config (top-level 'group:' + 'subjects:' list).
-  kind?: 'subject' | 'group'
+  // GroupOrchestrator config (top-level 'group:' + 'subjects:' list);
+  // 'study' for a StudyOrchestrator config (top-level 'study:' + 'groups:').
+  kind?: 'subject' | 'group' | 'study'
   // For group configs only: list of subject IDs in the subjects: block.
   group_subjects?: string[]
+  // For study configs only: list of study-scope group labels.
+  study_groups?: string[]
 }
 
 export interface ConfigDetail {
@@ -924,4 +927,46 @@ export interface GroupRunDetail {
   html_report?: string
   group_log?: string
   artifacts: GroupArtifacts
+}
+
+// ── Study runs (one scope up from group runs) ────────────────────
+
+export interface StudyStatusCounts {
+  ok: number
+  failed: number
+}
+
+export interface StudyRunListing {
+  study_name: string
+  run_id: string
+  run_dir: string
+  group_labels: string[]
+  n_groups: number
+  status_counts: StudyStatusCounts
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  has_html_report: boolean
+  has_log: boolean
+}
+
+export interface StudyArtifacts {
+  study: string[]                                  // files at run_dir top level
+  groups: Record<string, string[]>                 // group_label → file paths
+}
+
+export interface StudyRunDetail {
+  study_name: string
+  run_id: string
+  group_labels: string[]
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  group_summaries: Array<Record<string, unknown>>  // nested GroupRunSummary dicts
+  study_stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+  run_dir: string
+  html_report?: string
+  study_log?: string
+  artifacts: StudyArtifacts
 }

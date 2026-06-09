@@ -87,3 +87,11 @@ def register_builtins(registry):
     import fmriflow.modules.group_reporters.group_summary_html  # noqa: F401
     import fmriflow.modules.group_reporters.group_npy_dump  # noqa: F401
     import fmriflow.modules.group_reporters.group_fsaverage_flatmap  # noqa: F401
+
+    # Study-scope analyzers
+    import fmriflow.modules.study_analyzers.group_delta  # noqa: F401
+    import fmriflow.modules.study_analyzers.cohen_d_across_groups  # noqa: F401
+
+    # Study-scope reporters
+    import fmriflow.modules.study_reporters.study_summary_html  # noqa: F401
+    import fmriflow.modules.study_reporters.study_delta_flatmap  # noqa: F401

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Iterator
 
 from fmriflow import ui
+from fmriflow import ui as fui
 from fmriflow.context import PipelineContext
 from fmriflow.core.run_summary import NodeIdGen, NodeRecord, RunSummary, StageRecord
 from fmriflow.core.types import (
@@ -35,23 +36,49 @@ def _record(
     ``isolate=True`` swallows the exception so the surrounding stage
     can keep running (used by the analyze + report stages, which the
     existing orchestrator already runs in isolation per plugin).
+
+    Emits ``node_start`` / ``node_done`` / ``node_fail`` events to
+    ``$FMRIFLOW_EVENTS_FILE`` so the live in-flight graph viewer can
+    light up the specific plugin that's running right now (not just
+    the surrounding stage). The events ride the same event_context
+    thread-locals as the existing ``stage_*`` events, so they carry
+    ``subject`` / ``group`` / ``study`` tags automatically.
     """
+    node_id = idgen.make(name)
     rec = NodeRecord(
-        id=idgen.make(name), kind=kind, name=name,
+        id=node_id, kind=kind, name=name,
         status='ok', elapsed_s=0.0,
     )
     t0 = time.time()
+    fui.emit_event({
+        'event': 'node_start',
+        'node_id': node_id, 'kind': kind, 'name': name,
+    })
     try:
         yield rec
-        rec.elapsed_s = round(time.time() - t0, 3)
+        elapsed = round(time.time() - t0, 3)
+        rec.elapsed_s = elapsed
         nodes.append(rec)
+        fui.emit_event({
+            'event': 'node_done',
+            'node_id': node_id, 'kind': kind, 'name': name,
+            'elapsed': elapsed,
+            'detail': rec.detail,
+        })
     except Exception as exc:
-        rec.elapsed_s = round(time.time() - t0, 3)
+        elapsed = round(time.time() - t0, 3)
+        rec.elapsed_s = elapsed
         if rec.status == 'ok':
             rec.status = 'failed'
         if not rec.detail:
             rec.detail = str(exc)
         nodes.append(rec)
+        fui.emit_event({
+            'event': 'node_fail',
+            'node_id': node_id, 'kind': kind, 'name': name,
+            'elapsed': elapsed,
+            'error': str(exc),
+        })
         if not isolate:
             raise
 

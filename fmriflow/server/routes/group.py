@@ -4,14 +4,13 @@ Lists and surfaces ``group_summary.json`` files written by
 :class:`fmriflow.group_orchestrator.GroupOrchestrator`. Read-only —
 launching a group run from the UI is a follow-up.
 
-Layout (current):
-    $FMRIFLOW_HOME/group_runs/<group_name>/<run_id>/group_summary.json
-    $FMRIFLOW_HOME/group_runs/<group_name>/<run_id>/group.log
-    $FMRIFLOW_HOME/group_runs/<group_name>/<run_id>/subjects/<sub>/...
-    $FMRIFLOW_HOME/group_runs/<group_name>/latest -> <run_id>/
-
-Legacy (pre-run-id layout, still listed):
-    $FMRIFLOW_HOME/group_runs/<group_name>/group_summary.json
+Discovery is two-source — see
+:func:`fmriflow.server.services.run_manager.discover_group_run_dirs`.
+The default layout under ``$FMRIFLOW_HOME/group_runs/`` (legacy and
+symlinked) is still scanned, but the run registry also contributes
+runs whose ``output_dir`` is anywhere on disk. URLs stay
+``/group-runs/{name}/{run_id}`` regardless of where the run actually
+lives.
 """
 
 from __future__ import annotations
@@ -20,10 +19,12 @@ import json
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from fmriflow.core import paths
+from fmriflow.server.services.run_manager import (
+    discover_group_run_dirs, resolve_group_run_dir,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,9 @@ router = APIRouter(tags=["group-runs"])
 
 
 @router.get("/group-runs")
-async def list_group_runs(name: str | None = None):
-    """List every group run found under ``$FMRIFLOW_HOME/group_runs/``.
+async def list_group_runs(request: Request, name: str | None = None):
+    """List every group run discoverable via either the default root or
+    the run registry.
 
     Each ``<group_name>`` directory may contain multiple timestamped
     ``<run_id>/`` subdirectories — each becomes its own row in the
@@ -42,49 +44,42 @@ async def list_group_runs(name: str | None = None):
     ``?name=<group_name>`` restricts the listing to one group's
     invocations (used by the Dashboard's RunHistory panel).
     """
-    root = paths.group_runs_root()
+    registry = request.app.state.run_manager.registry
     out: list[dict] = []
-    for group_dir in sorted(root.iterdir() if root.exists() else []):
-        if not group_dir.is_dir():
+    for group_name, run_id, run_dir in discover_group_run_dirs(
+        registry, name=name,
+    ):
+        summary_path = (run_dir / "group_summary.json")
+        data = _load_json_safe(summary_path)
+        if data is None:
             continue
-        if name is not None and group_dir.name != name:
-            continue
-
-        # Legacy layout: group_summary.json directly under <group_name>/.
-        legacy = group_dir / "group_summary.json"
-        if legacy.is_file():
-            data = _load_json_safe(legacy)
-            if data is not None:
-                out.append(_summarize(group_dir, run_id="", data=data))
-
-        # New layout: walk timestamped subdirectories.
-        for run_dir in sorted(group_dir.iterdir()):
-            if not run_dir.is_dir() or run_dir.name == "latest":
-                continue
-            summary = run_dir / "group_summary.json"
-            if not summary.is_file():
-                continue
-            data = _load_json_safe(summary)
-            if data is None:
-                continue
-            out.append(_summarize(run_dir,
-                                  run_id=data.get("run_id") or run_dir.name,
-                                  data=data))
-
+        out.append(_summarize(
+            run_dir,
+            run_id=run_id or data.get("run_id", ""),
+            data=data,
+        ))
     out.sort(key=lambda r: r.get("started_at", ""), reverse=True)
     return out
 
 
 @router.get("/group-runs/{name}/{run_id}")
-async def get_group_run_by_run_id(name: str, run_id: str):
+async def get_group_run_by_run_id(request: Request, name: str, run_id: str):
     """Return the full ``GroupRunSummary`` for one timestamped run."""
-    group_dir = _resolve_group_dir(name)
+    _check_path_segment(name, "group name")
     _check_path_segment(run_id, "run_id")
-    return _read_detail(group_dir / run_id)
+    run_dir = resolve_group_run_dir(request.app.state.run_manager.registry, name, run_id)
+    if run_dir is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"group run not found: {name}/{run_id}",
+        )
+    return _read_detail(run_dir)
 
 
 @router.get("/group-runs/{name}/{run_id}/file/{file_path:path}")
-async def get_group_run_file(name: str, run_id: str, file_path: str):
+async def get_group_run_file(
+    request: Request, name: str, run_id: str, file_path: str,
+):
     """Serve a single file from inside a timestamped group run directory.
 
     The frontend uses this to pull flatmaps, logs, and the HTML report
@@ -92,28 +87,46 @@ async def get_group_run_file(name: str, run_id: str, file_path: str):
     handler resolves the requested path under the run dir and rejects
     anything that resolves outside it.
     """
-    group_dir = _resolve_group_dir(name)
+    _check_path_segment(name, "group name")
     _check_path_segment(run_id, "run_id")
-    return _serve_file(group_dir / run_id, file_path)
+    run_dir = resolve_group_run_dir(request.app.state.run_manager.registry, name, run_id)
+    if run_dir is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"group run not found: {name}/{run_id}",
+        )
+    return _serve_file(run_dir, file_path)
 
 
 @router.get("/group-runs/{name}/file/{file_path:path}")
-async def get_group_run_legacy_file(name: str, file_path: str):
+async def get_group_run_legacy_file(
+    request: Request, name: str, file_path: str,
+):
     """File-serving for the legacy (no-run_id) layout."""
-    return _serve_file(_resolve_group_dir(name), file_path)
+    _check_path_segment(name, "group name")
+    run_dir = resolve_group_run_dir(request.app.state.run_manager.registry, name, "")
+    if run_dir is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"legacy group run not found: {name}",
+        )
+    return _serve_file(run_dir, file_path)
 
 
 @router.get("/group-runs/{name}")
-async def get_group_run_legacy(name: str):
+async def get_group_run_legacy(request: Request, name: str):
     """Legacy: ``<group_name>/group_summary.json`` directly (no run_id)."""
-    return _read_detail(_resolve_group_dir(name))
+    _check_path_segment(name, "group name")
+    run_dir = resolve_group_run_dir(request.app.state.run_manager.registry, name, "")
+    if run_dir is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"legacy group run not found: {name}",
+        )
+    return _read_detail(run_dir)
 
 
 # ─── helpers ───────────────────────────────────────────────────
-
-def _resolve_group_dir(name: str) -> Path:
-    _check_path_segment(name, "group name")
-    return paths.group_runs_root() / name
 
 
 def _check_path_segment(value: str, label: str) -> None:
@@ -225,6 +238,14 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
         else:
             key = "unknown"
         status_counts[key] = status_counts.get(key, 0) + 1
+    # Group-scope stages (``group_collect``, ``group_analyze`` …) can
+    # fail even when every subject succeeded; reflect that at the row
+    # level so the list doesn't show such a row as all-green.
+    group_stages = data.get("group_stages", []) or []
+    group_failed = any(s.get("status") == "failed" for s in group_stages)
+    overall_status = "failed" if (status_counts.get("failed", 0) or group_failed) else (
+        "warning" if status_counts.get("warning", 0) else "ok"
+    )
     return {
         "group_name": data.get("group_name", run_dir.name),
         "run_id": run_id,
@@ -232,6 +253,7 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
         "subjects": data.get("subjects", []),
         "n_subjects": len(data.get("subjects", [])),
         "status_counts": status_counts,
+        "status": overall_status,
         "started_at": data.get("started_at", ""),
         "finished_at": data.get("finished_at", ""),
         "total_elapsed_s": data.get("total_elapsed_s", 0.0),

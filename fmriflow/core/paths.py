@@ -243,6 +243,13 @@ def group_runs_root() -> Path:
     return p
 
 
+def study_runs_root() -> Path:
+    """``$FMRIFLOW_HOME/study_runs/`` — root for cross-group study runs."""
+    p = home() / "study_runs"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 def work_root() -> Path:
     p = data() / "work"
     p.mkdir(parents=True, exist_ok=True)

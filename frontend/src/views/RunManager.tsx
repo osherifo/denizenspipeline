@@ -41,6 +41,29 @@ const tableContainerStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
+// Two-column page layout: runs list on the left, results detail panel
+// in the center. The list is the navigator, the detail panel is the
+// main thing being looked at.
+const pageLayout: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(340px, 380px) 1fr',
+  gap: 16,
+  alignItems: 'start',
+}
+
+const listSidebar: CSSProperties = {
+  backgroundColor: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  overflow: 'hidden',
+  maxHeight: 'calc(100vh - 200px)',
+}
+
+const listScroll: CSSProperties = {
+  overflowY: 'auto',
+  maxHeight: 'calc(100vh - 200px)',
+}
+
 const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
@@ -76,7 +99,16 @@ const detailPanel: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '24px',
-  marginTop: 20,
+}
+
+const mainEmpty: CSSProperties = {
+  backgroundColor: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: '60px 24px',
+  textAlign: 'center',
+  color: 'var(--text-secondary)',
+  fontSize: 13,
 }
 
 const detailHeader: CSSProperties = {
@@ -385,69 +417,90 @@ export function RunManager() {
       ) : runs.length === 0 ? (
         <div style={emptyStyle}>No runs yet. Configure and launch a pipeline to see results here.</div>
       ) : (
-        <div style={tableContainerStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={{ ...thStyle, width: 32 }}></th>
-                <th style={thStyle}>Date</th>
-                <th style={thStyle}>Experiment</th>
-                <th style={thStyle}>Subject</th>
-                <th style={thStyle}>Model</th>
-                <th style={thStyle}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => {
-                const isSelected = selectedRun?.run_id === run.run_id
-                const isCompare = compareIds.includes(run.run_id)
-                return (
-                  <tr
-                    key={run.run_id}
-                    style={rowStyle(isSelected)}
-                    onClick={() => (isSelected ? clearSelection() : selectRun(run.run_id))}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0, 229, 255, 0.03)'
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
-                    }}
-                  >
-                    <td style={{ ...tdStyle, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isCompare}
-                        onChange={() => toggleCompare(run.run_id)}
-                        title="Select to compare with another run"
-                      />
-                    </td>
-                    <td style={tdStyle}>{formatDate(run.started_at)}</td>
-                    <td style={{ ...tdStyle, color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                      {run.experiment || '-'}
-                    </td>
-                    <td style={tdStyle}>{run.subject || '-'}</td>
-                    <td style={tdStyle}>
-                      {(run.config_snapshot as any)?.model?.type || '-'}
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={statusBadge(run.status)}>{run.status}</span>
-                    </td>
+        <div style={pageLayout}>
+          <div style={listSidebar}>
+            <div style={listScroll}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, width: 28, padding: '10px 8px' }}></th>
+                    <th style={{ ...thStyle, padding: '10px 10px' }}>Date</th>
+                    <th style={{ ...thStyle, padding: '10px 10px' }}>Run</th>
+                    <th style={{ ...thStyle, padding: '10px 10px', textAlign: 'right' }}>Status</th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody>
+                  {runs.map((run) => {
+                    const isSelected = selectedRun?.run_id === run.run_id
+                    const isCompare = compareIds.includes(run.run_id)
+                    return (
+                      <tr
+                        key={run.run_id}
+                        style={rowStyle(isSelected)}
+                        onClick={() => (isSelected ? clearSelection() : selectRun(run.run_id))}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0, 229, 255, 0.03)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
+                        }}
+                      >
+                        <td
+                          style={{ ...tdStyle, textAlign: 'center', padding: '8px 4px' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isCompare}
+                            onChange={() => toggleCompare(run.run_id)}
+                            title="Select to compare with another run"
+                          />
+                        </td>
+                        <td style={{ ...tdStyle, padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                          {formatDate(run.started_at)}
+                        </td>
+                        <td style={{ ...tdStyle, padding: '8px 10px' }}>
+                          <div style={{ color: 'var(--accent-cyan)', fontWeight: 600, fontSize: 12 }}>
+                            {run.experiment || '-'}
+                            {run.subject && (
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
+                                {' · '}{run.subject}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{
+                            fontSize: 10, color: 'var(--text-secondary)',
+                            fontFamily: 'monospace',
+                          }}>
+                            {run.run_id}
+                          </div>
+                        </td>
+                        <td style={{ ...tdStyle, padding: '8px 10px', textAlign: 'right' }}>
+                          <span style={statusBadge(run.status)}>{run.status}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      {/* Detail panel */}
-      {selectedRun && (
-        <RunDetail
-          run={selectedRun}
-          onClose={clearSelection}
-          onRefresh={() => selectRun(selectedRun.run_id)}
-          onOpenGraph={(rid) => setGraphRunId(rid)}
-        />
+          <div>
+            {selectedRun ? (
+              <RunDetail
+                run={selectedRun}
+                onClose={clearSelection}
+                onRefresh={() => selectRun(selectedRun.run_id)}
+                onOpenGraph={(rid) => setGraphRunId(rid)}
+              />
+            ) : (
+              <div style={mainEmpty}>
+                Pick a run on the left to see its stages, artifacts, and graph.
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Comparison overlay */}

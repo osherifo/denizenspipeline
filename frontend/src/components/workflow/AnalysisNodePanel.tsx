@@ -12,11 +12,15 @@ import type { CSSProperties } from 'react'
 import Editor from '@monaco-editor/react'
 
 import {
+  fetchLogTail,
   fetchNodeOutputs,
   fetchNodeSource,
   isConfigPreview,
+  isLiveTarget,
   nodeFileUrl,
+  targetSupportsLog,
   type GraphTarget,
+  type LogTailResponse,
   type NodeOutputFile,
   type NodeOutputsResponse,
   type NodeSourceResponse,
@@ -30,7 +34,7 @@ const IMAGE_SUFFIXES = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif'])
 const HTML_SUFFIXES = new Set(['.html', '.htm'])
 
 
-type Tab = 'source' | 'outputs' | 'params'
+type Tab = 'source' | 'outputs' | 'params' | 'log'
 
 
 const drawer: CSSProperties = {
@@ -128,11 +132,14 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
   // For a config preview, outputs don't exist; fall back to params
   // instead when no source is registered.
   const previewOnly = isConfigPreview(target)
+  const live = isLiveTarget(target)
+  const supportsLog = targetSupportsLog(target)
   const _defaultTab = (): Tab =>
     node.source_path ? 'source' : (previewOnly ? 'params' : 'outputs')
   const [tab, setTab] = useState<Tab>(_defaultTab)
   const [source, setSource] = useState<NodeSourceResponse | null>(null)
   const [outputs, setOutputs] = useState<NodeOutputsResponse | null>(null)
+  const [log, setLog] = useState<LogTailResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openFile, setOpenFile] = useState<string | null>(null)
 
@@ -140,6 +147,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
   useEffect(() => {
     setSource(null)
     setOutputs(null)
+    setLog(null)
     setError(null)
     setOpenFile(null)
     setTab(_defaultTab())
@@ -158,6 +166,28 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
     }
     return () => { cancelled = true }
   }, [tab, node.id])
+
+  // Log tab — polls every 2s while the run is live.
+  useEffect(() => {
+    if (tab !== 'log' || !supportsLog) return
+    let cancelled = false
+    let timer: number | null = null
+    async function load() {
+      try {
+        const r = await fetchLogTail(target)
+        if (cancelled || r === null) return
+        setLog(r)
+        if (live) timer = window.setTimeout(load, 2000)
+      } catch (e) {
+        if (!cancelled) setError(String(e))
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [tab, node.id, supportsLog, live])
 
   const paramsText = useMemo(
     () => JSON.stringify(node.params ?? {}, null, 2),
@@ -193,6 +223,11 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
         <button style={tabBtn(tab === 'params')} onClick={() => setTab('params')}>
           Params
         </button>
+        {supportsLog && (
+          <button style={tabBtn(tab === 'log')} onClick={() => setTab('log')}>
+            Log
+          </button>
+        )}
       </div>
 
       <div style={body}>
@@ -285,6 +320,43 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
 
         {tab === 'params' && (
           <pre style={preStyle}>{paramsText}</pre>
+        )}
+
+        {tab === 'log' && (
+          <>
+            {!log && !error && (
+              <div style={{ padding: 12, color: 'var(--text-secondary)', fontSize: 11 }}>
+                Loading log…
+              </div>
+            )}
+            {log && (
+              <>
+                <div style={{
+                  padding: '4px 10px', fontSize: 9,
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg-secondary)',
+                  wordBreak: 'break-all',
+                  flex: '0 0 auto',
+                }}>
+                  {log.log_path || '(no log path)'}
+                  {live && (
+                    <span style={{
+                      marginLeft: 8, color: 'var(--accent-cyan)', fontWeight: 700,
+                    }}>
+                      ● tailing
+                    </span>
+                  )}
+                </div>
+                <pre style={{
+                  ...preStyle,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}>
+                  {log.log_tail || '(log empty — the subprocess may not have written anything yet)'}
+                </pre>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

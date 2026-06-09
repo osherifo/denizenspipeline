@@ -30,6 +30,23 @@ def _count_group_runs(group_name: str) -> int:
     return n
 
 
+def _count_study_runs(study_name: str) -> int:
+    """Number of timestamped run dirs under ``study_runs/<study_name>/`` with a
+    ``study_summary.json``."""
+    if not study_name:
+        return 0
+    study_dir = paths.study_runs_root() / study_name
+    if not study_dir.is_dir():
+        return 0
+    n = 0
+    for child in study_dir.iterdir():
+        if not child.is_dir() or child.name == "latest":
+            continue
+        if (child / "study_summary.json").is_file():
+            n += 1
+    return n
+
+
 class SaveConfigBody(BaseModel):
     yaml_string: str
 
@@ -56,7 +73,11 @@ async def list_configs(request: Request):
 
     result = []
     for cfg in configs:
-        if cfg.kind == "group":
+        if cfg.kind == "study":
+            # `cfg.experiment` was lifted from the YAML's top-level
+            # `study:` field — the directory name under study_runs/.
+            n_runs = _count_study_runs(cfg.experiment)
+        elif cfg.kind == "group":
             # For group configs, `cfg.experiment` was lifted from the
             # YAML's top-level `group:` field, which is the directory
             # name under group_runs/.
@@ -79,6 +100,7 @@ async def list_configs(request: Request):
             'n_runs': n_runs,
             'kind': cfg.kind,
             'group_subjects': cfg.group_subjects,
+            'study_groups': cfg.study_groups,
         })
 
     return result

@@ -58,11 +58,18 @@ class GroupResult:
     Mirrors :class:`fmriflow.context.PipelineContext`'s role at the
     group level: holds the per-subject results plus a key-value store
     for group-level artifacts.
+
+    ``study_label`` is set by ``StudyOrchestrator`` when this group is
+    embedded inside a study run — it's the study-scope label this
+    group appears under (which may differ from ``group_name`` since
+    the same group YAML can be reused in multiple studies under
+    different labels). Unset for standalone group runs.
     """
     group_name: str
     subjects: list[SubjectResult] = field(default_factory=list)
     artifacts: dict[str, Any] = field(default_factory=dict)
     group_summary: "GroupRunSummary | None" = None
+    study_label: str | None = None
 
     def put(self, key: str, value: Any) -> None:
         """Store a group-level artifact under *key*."""

@@ -93,6 +93,32 @@ class RunSummary:
         )
 
 
+def _group_summary_from_dict(g: dict) -> GroupRunSummary:
+    """Hydrate a GroupRunSummary from a dict, used by StudyRunSummary.from_json."""
+    return GroupRunSummary(
+        group_name=g.get('group_name', ''),
+        subjects=g.get('subjects', []),
+        started_at=g.get('started_at', ''),
+        finished_at=g.get('finished_at', ''),
+        total_elapsed_s=g.get('total_elapsed_s', 0.0),
+        subject_summaries=[
+            RunSummary(
+                experiment=s.get('experiment', ''),
+                subject=s.get('subject', ''),
+                started_at=s.get('started_at', ''),
+                finished_at=s.get('finished_at', ''),
+                total_elapsed_s=s.get('total_elapsed_s', 0.0),
+                stages=[_stage_from_dict(st) for st in s.get('stages', [])],
+                config_snapshot=s.get('config_snapshot', {}),
+            )
+            for s in g.get('subject_summaries', [])
+        ],
+        group_stages=[_stage_from_dict(s) for s in g.get('group_stages', [])],
+        config_snapshot=g.get('config_snapshot', {}),
+        run_id=g.get('run_id', ''),
+    )
+
+
 def _stage_from_dict(s: dict) -> StageRecord:
     """Hydrate a StageRecord, tolerating older summaries lacking ``nodes``."""
     nodes_raw = s.get('nodes') or []
@@ -136,6 +162,50 @@ class NodeIdGen:
         n = self._seen.get(base, 0)
         self._seen[base] = n + 1
         return base if n == 0 else f'{base}#{n + 1}'
+
+
+@dataclass
+class StudyRunSummary:
+    """Complete record of a study-scope pipeline run.
+
+    Aggregates one :class:`GroupRunSummary` per group plus stage
+    records for the study-scope stages themselves (``study_collect``,
+    ``groups_fanout``, ``study_analyze``, ``study_report``).
+    """
+    study_name: str
+    group_labels: list[str]              # study-scope labels, ordered
+    started_at: str
+    finished_at: str
+    total_elapsed_s: float
+    group_summaries: list[GroupRunSummary] = field(default_factory=list)
+    study_stages: list[StageRecord] = field(default_factory=list)
+    config_snapshot: dict = field(default_factory=dict)
+    run_id: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def save_json(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def from_json(cls, path: Path) -> StudyRunSummary:
+        with open(path) as f:
+            data = json.load(f)
+        return cls(
+            study_name=data.get('study_name', ''),
+            group_labels=data.get('group_labels', []),
+            started_at=data.get('started_at', ''),
+            finished_at=data.get('finished_at', ''),
+            total_elapsed_s=data.get('total_elapsed_s', 0.0),
+            group_summaries=[_group_summary_from_dict(g)
+                             for g in data.get('group_summaries', [])],
+            study_stages=[_stage_from_dict(s) for s in data.get('study_stages', [])],
+            config_snapshot=data.get('config_snapshot', {}),
+            run_id=data.get('run_id', ''),
+        )
 
 
 @dataclass

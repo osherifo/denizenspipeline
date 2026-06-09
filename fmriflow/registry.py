@@ -27,6 +27,8 @@ from fmriflow.modules._decorators import (
     _nipype_nodes,
     _group_analyzers,
     _group_reporters,
+    _study_analyzers,
+    _study_reporters,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,8 @@ class ModuleRegistry:
         self._nipype_nodes = _nipype_nodes
         self._group_analyzers = _group_analyzers
         self._group_reporters = _group_reporters
+        self._study_analyzers = _study_analyzers
+        self._study_reporters = _study_reporters
 
     def discover(self) -> None:
         """Discover modules from builtins and entry_points."""
@@ -82,6 +86,8 @@ class ModuleRegistry:
             'fmriflow.nipype_nodes': self._nipype_nodes,
             'fmriflow.group_analyzers': self._group_analyzers,
             'fmriflow.group_reporters': self._group_reporters,
+            'fmriflow.study_analyzers': self._study_analyzers,
+            'fmriflow.study_reporters': self._study_reporters,
         }
 
         for group, registry_dict in groups.items():
@@ -287,6 +293,20 @@ class ModuleRegistry:
                 f"Available: {list(self._group_reporters.keys())}")
         return self._group_reporters[name]()
 
+    def get_study_analyzer(self, name: str):
+        if name not in self._study_analyzers:
+            raise ModuleLookupError(
+                f"Study analyzer '{name}' not found. "
+                f"Available: {list(self._study_analyzers.keys())}")
+        return self._study_analyzers[name]()
+
+    def get_study_reporter(self, name: str):
+        if name not in self._study_reporters:
+            raise ModuleLookupError(
+                f"Study reporter '{name}' not found. "
+                f"Available: {list(self._study_reporters.keys())}")
+        return self._study_reporters[name]()
+
     # ─── Introspection ──────────────────────────────────────────
 
     def list_modules(self) -> dict[str, list[str]]:
@@ -304,6 +324,8 @@ class ModuleRegistry:
             'reporters': sorted(self._reporters.keys()),
             'nipype_nodes': sorted(self._nipype_nodes.keys()),
             'group_analyzers': sorted(self._group_analyzers.keys()),
+            'study_analyzers': sorted(self._study_analyzers.keys()),
+            'study_reporters': sorted(self._study_reporters.keys()),
             'group_reporters': sorted(self._group_reporters.keys()),
         }
 
@@ -323,6 +345,8 @@ class ModuleRegistry:
             'nipype_nodes': self._nipype_nodes,
             'group_analyzers': self._group_analyzers,
             'group_reporters': self._group_reporters,
+            'study_analyzers': self._study_analyzers,
+            'study_reporters': self._study_reporters,
         }
         if category not in registry_map:
             raise ModuleLookupError(f"Unknown category '{category}'")
@@ -355,6 +379,8 @@ class ModuleRegistry:
             'nipype_nodes': 'post_preproc',
             'group_analyzers': 'group_analyze',
             'group_reporters': 'group_report',
+            'study_analyzers': 'study_analyze',
+            'study_reporters': 'study_report',
         }
 
         result = {}

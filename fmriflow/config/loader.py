@@ -172,6 +172,32 @@ def _resolve_env_string(s: str) -> str:
     return _ENV_PATTERN.sub(replacer, s)
 
 
+def load_study_config(path: str | Path) -> dict:
+    """Load and validate a study-scope YAML config.
+
+    Top-level shape only — deep checks (referenced group YAMLs load?
+    each has a top-level ``group:``?) happen inside
+    :meth:`StudyOrchestrator._collect_groups`.
+    """
+    from fmriflow.config.schema import validate_study_config
+
+    path = Path(path)
+    if not path.exists():
+        raise ConfigError(f"Study config file not found: {path}")
+
+    with open(path) as f:
+        config = yaml.safe_load(f) or {}
+
+    config = load_config_with_inheritance(config, path.parent)
+    config = resolve_env_vars(config)
+
+    errors = validate_study_config(config)
+    if errors:
+        raise ConfigError(errors)
+
+    return config
+
+
 def load_group_config(path: str | Path) -> dict:
     """Load and validate a group-scope YAML config.
 

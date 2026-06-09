@@ -222,3 +222,69 @@ def validate_group_config(config: dict) -> list[str]:
                 errors.append("parallel.max_workers must be a positive int")
 
     return errors
+
+
+def validate_study_config(config: dict) -> list[str]:
+    """Validate a study-scope config (top-level ``study:`` block).
+
+    A study config does not have ``experiment`` / ``subject`` / ``group``
+    at the root — those live one level down in the referenced group
+    YAMLs. The deep checks (does the referenced group YAML load? does it
+    have a top-level ``group:``?) happen inside StudyOrchestrator's
+    ``study_collect`` stage; this validator covers the top-level shape
+    only so a malformed YAML is rejected before any work happens.
+    """
+    errors: list[str] = []
+
+    if not config.get("study"):
+        errors.append("'study' (study name) is required")
+
+    groups = config.get("groups")
+    if not isinstance(groups, list) or not groups:
+        errors.append("'groups' must be a non-empty list")
+    else:
+        seen: set[str] = set()
+        for i, entry in enumerate(groups):
+            if not isinstance(entry, dict):
+                errors.append(f"groups[{i}] must be a dict")
+                continue
+            label = entry.get("name")
+            if not isinstance(label, str) or not label:
+                errors.append(f"groups[{i}] missing or empty 'name'")
+                continue
+            if label in seen:
+                errors.append(
+                    f"groups[{i}] duplicate label '{label}' "
+                    "(each study-scope group name must be unique)"
+                )
+                continue
+            seen.add(label)
+            if not isinstance(entry.get("config"), str):
+                errors.append(
+                    f"groups[{i}] ({label}) missing 'config:' path "
+                    "(inline group bodies are not supported in v1)"
+                )
+
+    for key in ("study_analyze", "study_report"):
+        section = config.get(key)
+        if section is None:
+            continue
+        if not isinstance(section, list):
+            errors.append(f"'{key}' must be a list")
+            continue
+        for i, entry in enumerate(section):
+            if not isinstance(entry, dict):
+                errors.append(f"{key}[{i}] must be a dict")
+            elif "name" not in entry:
+                errors.append(f"{key}[{i}] missing 'name'")
+
+    parallel = config.get("parallel")
+    if parallel is not None:
+        if not isinstance(parallel, dict):
+            errors.append("'parallel' must be a dict")
+        else:
+            mw = parallel.get("max_workers")
+            if mw is not None and (not isinstance(mw, int) or mw < 1):
+                errors.append("parallel.max_workers must be a positive int")
+
+    return errors

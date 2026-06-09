@@ -476,6 +476,150 @@ def build_group_graph(group_summary: dict,
     return RunGraph(nodes=nodes, edges=edges)
 
 
+# ── study graph ────────────────────────────────────────────────────────
+
+
+STUDY_STAGE_LABELS = {
+    'study_collect': 'Collect groups',
+    'groups_fanout': 'Groups fan-out',
+    'study_analyze': 'Study analyze',
+    'study_report': 'Study report',
+}
+
+
+def build_study_graph(study_summary: dict,
+                      registry: ModuleRegistry) -> RunGraph:
+    """Build a graph for one study run.
+
+    Same shape as :func:`build_group_graph` one scope up: stage chain
+    ``study_collect → groups_fanout → study_analyze → study_report``,
+    with M ``group:<label>`` child nodes under ``groups_fanout`` and
+    plugin children under analyze/report. Recorded NodeRecords from
+    StageRecord.nodes overlay accurate per-plugin status + outputs.
+    """
+    cfg = study_summary.get('config_snapshot') or {}
+    stage_records = study_summary.get('study_stages') or []
+    group_summaries = study_summary.get('group_summaries') or []
+    group_labels = study_summary.get('group_labels') or []
+
+    nodes: list[GraphNode] = []
+    edges: list[GraphEdge] = []
+    stage_ids: list[str] = []
+
+    has_analyze = bool(cfg.get('study_analyze'))
+    has_report = bool(cfg.get('study_report'))
+    order = ['study_collect', 'groups_fanout', 'study_analyze', 'study_report']
+
+    for stage_key in order:
+        if stage_key == 'study_analyze' and not has_analyze:
+            continue
+        if stage_key == 'study_report' and not has_report:
+            continue
+
+        status, elapsed, detail = _stage_status(stage_records, stage_key)
+        recorded = _stage_recorded_nodes(stage_records, stage_key)
+        sid = f'stage:{stage_key}'
+        children: list[str] = []
+        stage_plugin_nodes: list[GraphNode] = []
+
+        if stage_key == 'groups_fanout':
+            # One node per group; label by study-scope label (preferred)
+            # falling back to the underlying group_name. Status rolled up
+            # from that group's subject statuses.
+            for i, label in enumerate(group_labels):
+                gs = group_summaries[i] if i < len(group_summaries) else None
+                gstatus = _group_overall_status(gs)
+                elapsed_g = gs.get('total_elapsed_s') if isinstance(gs, dict) else None
+                gname = gs.get('group_name') if isinstance(gs, dict) else None
+                gnid = f'group:{label}'
+                nodes.append(GraphNode(
+                    id=gnid,
+                    label=label,
+                    kind='group',
+                    stage='groups_fanout',
+                    status=gstatus,
+                    elapsed_s=elapsed_g,
+                    detail=str(gname or ''),
+                    plugin_name=label,
+                ))
+                children.append(gnid)
+        elif stage_key == 'study_analyze':
+            seen: dict[str, int] = {}
+            for acfg in cfg.get('study_analyze') or []:
+                if not (isinstance(acfg, dict) and acfg.get('name')):
+                    continue
+                name = acfg['name']
+                src = _plugin_source(registry, 'study_analyzer', name)
+                base_id = f'study_analyze:{name}'
+                n_seen = seen.get(base_id, 0)
+                seen[base_id] = n_seen + 1
+                nid = base_id if n_seen == 0 else f'{base_id}#{n_seen + 1}'
+                params = {k: v for k, v in acfg.items() if k != 'name'}
+                stage_plugin_nodes.append(GraphNode(
+                    id=nid, label=name, kind='study_analyzer',
+                    stage='study_analyze', status=status, elapsed_s=None,
+                    plugin_name=name, source_path=src, params=params,
+                ))
+                children.append(nid)
+        elif stage_key == 'study_report':
+            seen: dict[str, int] = {}
+            for rcfg in cfg.get('study_report') or []:
+                if not (isinstance(rcfg, dict) and rcfg.get('name')):
+                    continue
+                name = rcfg['name']
+                src = _plugin_source(registry, 'study_reporter', name)
+                base_id = f'study_report:{name}'
+                n_seen = seen.get(base_id, 0)
+                seen[base_id] = n_seen + 1
+                nid = base_id if n_seen == 0 else f'{base_id}#{n_seen + 1}'
+                params = {k: v for k, v in rcfg.items() if k != 'name'}
+                stage_plugin_nodes.append(GraphNode(
+                    id=nid, label=name, kind='study_reporter',
+                    stage='study_report', status=status, elapsed_s=None,
+                    plugin_name=name, source_path=src, params=params,
+                ))
+                children.append(nid)
+
+        if stage_plugin_nodes:
+            _merge_recorded(stage_plugin_nodes, recorded)
+            children = [n.id for n in stage_plugin_nodes]
+            nodes.extend(stage_plugin_nodes)
+
+        nodes.insert(
+            len(nodes) - len(children),
+            GraphNode(
+                id=sid, label=STUDY_STAGE_LABELS.get(stage_key, stage_key),
+                kind='stage', stage=stage_key,
+                status=status, elapsed_s=elapsed, detail=detail,
+                children=children,
+            ),
+        )
+        stage_ids.append(sid)
+
+    for a, b in zip(stage_ids, stage_ids[1:]):
+        edges.append(GraphEdge(source=a, target=b))
+
+    return RunGraph(nodes=nodes, edges=edges)
+
+
+def _group_overall_status(gs: Any) -> str:
+    """Coarse pass/fail for a group's GroupRunSummary dict, rolled up
+    across its subjects."""
+    if not isinstance(gs, dict):
+        return 'unknown'
+    subjects = gs.get('subject_summaries') or []
+    if not subjects:
+        return 'unknown'
+    status = 'ok'
+    for sub in subjects:
+        sub_st = _subject_overall_status(sub)
+        if sub_st == 'failed':
+            return 'failed'
+        if sub_st == 'warning':
+            status = 'warning'
+    return status
+
+
 def _group_has_second_pass(cfg: dict, registry: ModuleRegistry) -> bool:
     """True iff any configured group analyzer produces a subject artifact."""
     for acfg in cfg.get('group_analyze') or []:
