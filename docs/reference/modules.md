@@ -74,6 +74,7 @@ For use with `type: pipeline`:
 | `himalaya_ridge` | Ridge via himalaya (GPU support) |
 | `banded_ridge` | Banded ridge (per-feature-group regularization) |
 | `multiple_kernel_ridge` | Multiple kernel ridge regression |
+| `kernelized_banded_ridge` | Alias for `multiple_kernel_ridge` — descriptive name for the kernelized form of banded ridge |
 
 ## Reporters
 

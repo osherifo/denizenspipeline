@@ -25,6 +25,11 @@ from fmriflow.modules._decorators import (
     _models,
     _reporters,
     _nipype_nodes,
+    _group_analyzers,
+    _group_reporters,
+    _study_analyzers,
+    _study_reporters,
+    _qa_reporters,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,6 +56,11 @@ class ModuleRegistry:
         self._models = _models
         self._reporters = _reporters
         self._nipype_nodes = _nipype_nodes
+        self._group_analyzers = _group_analyzers
+        self._group_reporters = _group_reporters
+        self._study_analyzers = _study_analyzers
+        self._study_reporters = _study_reporters
+        self._qa_reporters = _qa_reporters
 
     def discover(self) -> None:
         """Discover modules from builtins and entry_points."""
@@ -76,6 +86,10 @@ class ModuleRegistry:
             'fmriflow.models': self._models,
             'fmriflow.reporters': self._reporters,
             'fmriflow.nipype_nodes': self._nipype_nodes,
+            'fmriflow.group_analyzers': self._group_analyzers,
+            'fmriflow.group_reporters': self._group_reporters,
+            'fmriflow.study_analyzers': self._study_analyzers,
+            'fmriflow.study_reporters': self._study_reporters,
         }
 
         for group, registry_dict in groups.items():
@@ -94,6 +108,34 @@ class ModuleRegistry:
                     except Exception as e:
                         logger.warning(
                             f"Failed to load module {group}/{ep.name}: {e}")
+
+        # QA reporters use a nested ``dict[stage, dict[name, cls]]``
+        # storage shape so the flat-dict loader above can't handle them
+        # directly. The class itself carries ``stage`` as a class
+        # attribute (set by the built-in @qa_reporter decorator); a
+        # third-party class is expected to do the same.
+        qa_group = 'fmriflow.qa_reporters'
+        try:
+            qa_eps = entry_points(group=qa_group)
+        except TypeError:
+            qa_eps = entry_points().get(qa_group, [])
+        for ep in qa_eps:
+            try:
+                cls = ep.load()
+                stage = getattr(cls, 'stage', None)
+                if not isinstance(stage, str) or not stage:
+                    logger.warning(
+                        f"Skipping {qa_group}/{ep.name}: class is missing a "
+                        f"'stage' class attribute")
+                    continue
+                bucket = self._qa_reporters.setdefault(stage, {})
+                if ep.name in bucket:
+                    continue
+                bucket[ep.name] = cls
+                logger.debug(f"Discovered module: {qa_group}/{ep.name} (stage={stage})")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load module {qa_group}/{ep.name}: {e}")
 
     # ─── Decorator API ──────────────────────────────────────────
 
@@ -171,6 +213,35 @@ class ModuleRegistry:
         """Decorator to register a post-fmriprep nipype node wrapper."""
         def wrapper(cls):
             self._nipype_nodes[name] = cls
+            return cls
+        return wrapper
+
+    def group_analyzer(self, name: str):
+        """Decorator to register a group-scope analyzer."""
+        def wrapper(cls):
+            self._group_analyzers[name] = cls
+            return cls
+        return wrapper
+
+    def group_reporter(self, name: str):
+        """Decorator to register a group-scope reporter."""
+        def wrapper(cls):
+            self._group_reporters[name] = cls
+            return cls
+        return wrapper
+
+    def qa_reporter(self, name: str, *, stage: str):
+        """Decorator to register a QA reporter for ``stage``.
+
+        Example::
+
+            @registry.qa_reporter("score_histogram", stage="model")
+            class ModelScoreHistogram:
+                ...
+        """
+        def wrapper(cls):
+            cls.stage = stage
+            self._qa_reporters.setdefault(stage, {})[name] = cls
             return cls
         return wrapper
 
@@ -253,6 +324,56 @@ class ModuleRegistry:
                 f"Available: {list(self._nipype_nodes.keys())}")
         return self._nipype_nodes[name]()
 
+    def get_group_analyzer(self, name: str):
+        if name not in self._group_analyzers:
+            raise ModuleLookupError(
+                f"Group analyzer '{name}' not found. "
+                f"Available: {list(self._group_analyzers.keys())}")
+        return self._group_analyzers[name]()
+
+    def get_group_reporter(self, name: str):
+        if name not in self._group_reporters:
+            raise ModuleLookupError(
+                f"Group reporter '{name}' not found. "
+                f"Available: {list(self._group_reporters.keys())}")
+        return self._group_reporters[name]()
+
+    def get_study_analyzer(self, name: str):
+        if name not in self._study_analyzers:
+            raise ModuleLookupError(
+                f"Study analyzer '{name}' not found. "
+                f"Available: {list(self._study_analyzers.keys())}")
+        return self._study_analyzers[name]()
+
+    def get_study_reporter(self, name: str):
+        if name not in self._study_reporters:
+            raise ModuleLookupError(
+                f"Study reporter '{name}' not found. "
+                f"Available: {list(self._study_reporters.keys())}")
+        return self._study_reporters[name]()
+
+    def get_qa_reporter(self, stage: str, name: str):
+        """Look up one QA reporter by ``(stage, name)``."""
+        plugins = self._qa_reporters.get(stage, {})
+        if name not in plugins:
+            raise ModuleLookupError(
+                f"QA reporter '{name}' not found for stage '{stage}'. "
+                f"Available for this stage: {sorted(plugins.keys())}")
+        return plugins[name]()
+
+    def list_qa_reporters(self, stage: str | None = None) -> dict:
+        """List registered QA reporters.
+
+        With ``stage=None``, returns ``{stage: [names]}`` across every
+        stage. With ``stage`` set, returns ``[names]`` for that stage.
+        """
+        if stage is None:
+            return {
+                s: sorted(plugins.keys())
+                for s, plugins in self._qa_reporters.items()
+            }
+        return sorted(self._qa_reporters.get(stage, {}).keys())
+
     # ─── Introspection ──────────────────────────────────────────
 
     def list_modules(self) -> dict[str, list[str]]:
@@ -269,6 +390,10 @@ class ModuleRegistry:
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
             'nipype_nodes': sorted(self._nipype_nodes.keys()),
+            'group_analyzers': sorted(self._group_analyzers.keys()),
+            'study_analyzers': sorted(self._study_analyzers.keys()),
+            'study_reporters': sorted(self._study_reporters.keys()),
+            'group_reporters': sorted(self._group_reporters.keys()),
         }
 
     def get_module_class(self, category: str, name: str) -> type:
@@ -285,6 +410,10 @@ class ModuleRegistry:
             'models': self._models,
             'reporters': self._reporters,
             'nipype_nodes': self._nipype_nodes,
+            'group_analyzers': self._group_analyzers,
+            'group_reporters': self._group_reporters,
+            'study_analyzers': self._study_analyzers,
+            'study_reporters': self._study_reporters,
         }
         if category not in registry_map:
             raise ModuleLookupError(f"Unknown category '{category}'")
@@ -315,6 +444,10 @@ class ModuleRegistry:
             'models': 'model',
             'reporters': 'report',
             'nipype_nodes': 'post_preproc',
+            'group_analyzers': 'group_analyze',
+            'group_reporters': 'group_report',
+            'study_analyzers': 'study_analyze',
+            'study_reporters': 'study_report',
         }
 
         result = {}
@@ -334,4 +467,24 @@ class ModuleRegistry:
                 if hasattr(cls, 'n_dims'):
                     entry['n_dims'] = cls.n_dims
                 result[category].append(entry)
+
+        # QA reporters use a nested ``dict[stage, dict[name, cls]]``
+        # storage shape (a single plugin name may register against
+        # multiple stages). Flatten to a single ``qa_reporters`` list so
+        # the browser's per-category grouping treats them like any
+        # other plugin type — each entry keeps its own ``stage`` so
+        # downstream UI groups them under the right subject stage.
+        result['qa_reporters'] = []
+        for stage, plugins in self._qa_reporters.items():
+            for name, cls in sorted(plugins.items()):
+                doc = (cls.__doc__ or '').strip()
+                entry = {
+                    'name': name,
+                    'docstring': doc.split('\n')[0] if doc else '',
+                    'full_docstring': doc,
+                    'category': 'qa_reporters',
+                    'stage': stage,
+                    'params': extract_schema(cls),
+                }
+                result['qa_reporters'].append(entry)
         return result

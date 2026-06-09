@@ -7,6 +7,32 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
+def derive_group_status(group: dict) -> str:
+    """Roll up a single group_summary dict to ``'ok'``/``'warning'``/``'failed'``.
+
+    Walks both the group-scope stages (``group_analyze``/``group_report``/
+    ``subject_second_pass``) and per-subject stage records. Any failed
+    stage on either axis → ``'failed'``; otherwise any warning → ``'warning'``;
+    otherwise ``'ok'``. Used by study route summaries, the study summary
+    HTML reporter, and the StudyRunsView so the three surfaces agree.
+    """
+    statuses: list[str] = []
+    for st in group.get('group_stages') or []:
+        s = st.get('status') if isinstance(st, dict) else getattr(st, 'status', None)
+        if s:
+            statuses.append(s)
+    for subj in group.get('subject_summaries') or []:
+        for st in (subj.get('stages') if isinstance(subj, dict) else getattr(subj, 'stages', [])) or []:
+            s = st.get('status') if isinstance(st, dict) else getattr(st, 'status', None)
+            if s:
+                statuses.append(s)
+    if any(s == 'failed' for s in statuses):
+        return 'failed'
+    if any(s == 'warning' for s in statuses):
+        return 'warning'
+    return 'ok'
+
+
 def fmt_time(seconds: float) -> str:
     """Format seconds into a human-friendly string."""
     if seconds >= 3600:
@@ -19,12 +45,47 @@ def fmt_time(seconds: float) -> str:
 
 
 @dataclass
+class NodeRecord:
+    """One plugin invocation within a stage.
+
+    Recorded by the orchestrator so the run-graph viewer can show
+    accurate per-plugin status, timing, and (for reporters) the files
+    that plugin wrote — instead of inheriting the surrounding stage's
+    status as a coarse approximation.
+
+    ``id`` matches the node ID the graph builder generates (e.g.
+    ``features:english1000``, ``report:flatmap#2`` when a name repeats)
+    so the frontend can pair recorded nodes with config-derived ones
+    on the same key.
+    """
+    id: str
+    kind: str          # 'stimulus_loader' | 'reporter' | …
+    name: str          # plugin name as it appears in config
+    status: str        # 'ok' | 'failed' | 'warning' | 'skipped'
+    elapsed_s: float
+    detail: str = ''
+    # File paths produced by this plugin, RELATIVE to the run's
+    # output_dir when possible (absolute when the file lives outside
+    # output_dir, which happens occasionally for shared caches).
+    outputs: list[str] = field(default_factory=list)
+    # Paths produced by stage-level QA reporters bound to this node.
+    # Kept separate from ``outputs`` so the QA tab can surface them
+    # without cluttering the regular Outputs tab.
+    qa_outputs: list[str] = field(default_factory=list)
+
+
+@dataclass
 class StageRecord:
     """Timing and status for a single pipeline stage."""
     name: str
     status: str          # "ok" | "warning" | "failed" | "skipped"
     elapsed_s: float
     detail: str
+    # Per-plugin breakdown. Empty for stages that have no plugins
+    # configured, and empty on older summaries that pre-date this
+    # field — the run-graph builder treats absence as "fall back to
+    # stage-level status for every config-derived plugin".
+    nodes: list[NodeRecord] = field(default_factory=list)
 
 
 @dataclass
@@ -57,6 +118,186 @@ class RunSummary:
             started_at=data.get('started_at', ''),
             finished_at=data.get('finished_at', ''),
             total_elapsed_s=data.get('total_elapsed_s', 0.0),
-            stages=[StageRecord(**s) for s in data.get('stages', [])],
+            stages=[_stage_from_dict(s) for s in data.get('stages', [])],
             config_snapshot=data.get('config_snapshot', {}),
+        )
+
+
+def _group_summary_from_dict(g: dict) -> GroupRunSummary:
+    """Hydrate a GroupRunSummary from a dict, used by StudyRunSummary.from_json."""
+    return GroupRunSummary(
+        group_name=g.get('group_name', ''),
+        subjects=g.get('subjects', []),
+        started_at=g.get('started_at', ''),
+        finished_at=g.get('finished_at', ''),
+        total_elapsed_s=g.get('total_elapsed_s', 0.0),
+        subject_summaries=[
+            RunSummary(
+                experiment=s.get('experiment', ''),
+                subject=s.get('subject', ''),
+                started_at=s.get('started_at', ''),
+                finished_at=s.get('finished_at', ''),
+                total_elapsed_s=s.get('total_elapsed_s', 0.0),
+                stages=[_stage_from_dict(st) for st in s.get('stages', [])],
+                config_snapshot=s.get('config_snapshot', {}),
+            )
+            for s in g.get('subject_summaries', [])
+        ],
+        group_stages=[_stage_from_dict(s) for s in g.get('group_stages', [])],
+        config_snapshot=g.get('config_snapshot', {}),
+        run_id=g.get('run_id', ''),
+    )
+
+
+def _stage_from_dict(s: dict) -> StageRecord:
+    """Hydrate a StageRecord, tolerating older summaries lacking ``nodes``."""
+    nodes_raw = s.get('nodes') or []
+    nodes = [_node_from_dict(n) for n in nodes_raw if isinstance(n, dict)]
+    return StageRecord(
+        name=s.get('name', ''),
+        status=s.get('status', 'unknown'),
+        elapsed_s=s.get('elapsed_s', 0.0),
+        detail=s.get('detail', '') or '',
+        nodes=nodes,
+    )
+
+
+def _node_from_dict(n: dict) -> NodeRecord:
+    return NodeRecord(
+        id=n.get('id', ''),
+        kind=n.get('kind', ''),
+        name=n.get('name', ''),
+        status=n.get('status', 'unknown'),
+        elapsed_s=n.get('elapsed_s', 0.0),
+        detail=n.get('detail', '') or '',
+        outputs=list(n.get('outputs') or []),
+        qa_outputs=list(n.get('qa_outputs') or []),
+    )
+
+
+class NodeIdGen:
+    """Generate unique node IDs within one stage scope.
+
+    Mirrors the suffixing rule in
+    :func:`fmriflow.server.services.run_graph._subject_plugin_nodes`
+    so a NodeRecord written by the orchestrator pairs up with a
+    config-derived plugin node on the same key.
+    """
+
+    def __init__(self, stage: str):
+        self._stage = stage
+        self._seen: dict[str, int] = {}
+
+    def make(self, name: str) -> str:
+        base = f'{self._stage}:{name}'
+        n = self._seen.get(base, 0)
+        self._seen[base] = n + 1
+        return base if n == 0 else f'{base}#{n + 1}'
+
+
+@dataclass
+class StudyRunSummary:
+    """Complete record of a study-scope pipeline run.
+
+    Aggregates one :class:`GroupRunSummary` per group plus stage
+    records for the study-scope stages themselves (``study_collect``,
+    ``groups_fanout``, ``study_analyze``, ``study_report``).
+    """
+    study_name: str
+    group_labels: list[str]              # study-scope labels, ordered
+    started_at: str
+    finished_at: str
+    total_elapsed_s: float
+    group_summaries: list[GroupRunSummary] = field(default_factory=list)
+    study_stages: list[StageRecord] = field(default_factory=list)
+    config_snapshot: dict = field(default_factory=dict)
+    run_id: str = ""
+    # Overall outcome derived from study_stages + group_summaries.
+    # 'ok' = every study stage ok and every group ok;
+    # 'failed' = a study stage hard-failed or every group failed;
+    # 'warning' = partial success (some plugins failed but the stage
+    # surrounding them kept going, or some groups failed but at least
+    # one finished).
+    status: str = "unknown"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def save_json(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def from_json(cls, path: Path) -> StudyRunSummary:
+        with open(path) as f:
+            data = json.load(f)
+        return cls(
+            study_name=data.get('study_name', ''),
+            group_labels=data.get('group_labels', []),
+            started_at=data.get('started_at', ''),
+            finished_at=data.get('finished_at', ''),
+            total_elapsed_s=data.get('total_elapsed_s', 0.0),
+            group_summaries=[_group_summary_from_dict(g)
+                             for g in data.get('group_summaries', [])],
+            study_stages=[_stage_from_dict(s) for s in data.get('study_stages', [])],
+            config_snapshot=data.get('config_snapshot', {}),
+            run_id=data.get('run_id', ''),
+            status=data.get('status', 'unknown'),
+        )
+
+
+@dataclass
+class GroupRunSummary:
+    """Complete record of a group-scope pipeline run.
+
+    Aggregates one :class:`RunSummary` per subject plus stage records
+    for the group-scope stages themselves (``group_collect``,
+    ``group_analyze``, ``subject_second_pass``, ``group_report``).
+    """
+    group_name: str
+    subjects: list[str]
+    started_at: str
+    finished_at: str
+    total_elapsed_s: float
+    subject_summaries: list[RunSummary] = field(default_factory=list)
+    group_stages: list[StageRecord] = field(default_factory=list)
+    config_snapshot: dict = field(default_factory=dict)
+    # Path-safe ISO-ish UTC stamp generated when the orchestrator instance
+    # is created. Empty for older summaries that pre-date the run-id layout.
+    run_id: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def save_json(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def from_json(cls, path: Path) -> GroupRunSummary:
+        with open(path) as f:
+            data = json.load(f)
+        return cls(
+            group_name=data.get('group_name', ''),
+            subjects=data.get('subjects', []),
+            started_at=data.get('started_at', ''),
+            finished_at=data.get('finished_at', ''),
+            total_elapsed_s=data.get('total_elapsed_s', 0.0),
+            subject_summaries=[
+                RunSummary(
+                    experiment=s.get('experiment', ''),
+                    subject=s.get('subject', ''),
+                    started_at=s.get('started_at', ''),
+                    finished_at=s.get('finished_at', ''),
+                    total_elapsed_s=s.get('total_elapsed_s', 0.0),
+                    stages=[_stage_from_dict(st) for st in s.get('stages', [])],
+                    config_snapshot=s.get('config_snapshot', {}),
+                )
+                for s in data.get('subject_summaries', [])
+            ],
+            group_stages=[_stage_from_dict(s) for s in data.get('group_stages', [])],
+            config_snapshot=data.get('config_snapshot', {}),
+            run_id=data.get('run_id', ''),
         )

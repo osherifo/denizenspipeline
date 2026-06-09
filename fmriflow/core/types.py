@@ -334,3 +334,25 @@ class WeightAnalysis:
     feature_names: list[str]
     delays: list[int]
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class SemanticSubspace:
+    """Low-dimensional weight-space basis shared across subjects.
+
+    Built by :mod:`fmriflow.modules.group_analyzers.stacked_weights_pca`
+    by concatenating one feature's delayed-weight block from every subject
+    along the voxel axis and running SVD. Each subject's voxels can then
+    be projected into the K-dim space by left-multiplying with ``basis.T``
+    (see :mod:`fmriflow.modules.analyzers.project_to_subspace`).
+    """
+    basis: np.ndarray                    # (n_delayed_features, n_components)
+    singular_values: np.ndarray          # (n_components,)
+    feature: str
+    n_delays: int
+    feature_dim: int                     # dim of the feature before delays
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def n_components(self) -> int:
+        return self.basis.shape[1]

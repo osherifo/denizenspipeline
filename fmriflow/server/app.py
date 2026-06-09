@@ -86,8 +86,11 @@ def create_app(
     if n_user:
         logger.info("Loaded %d user module(s)", n_user)
 
-    run_store = RunStore(Path(results_dir))
+    # RunManager is created first so we can share its registry with
+    # RunStore — the store needs it to find subject runs whose
+    # reporting.output_dir points outside results_dir.
     run_manager = RunManager()
+    run_store = RunStore(Path(results_dir), registry=run_manager.registry)
     config_store = ConfigStore(Path(configs_dir))
     preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
@@ -170,6 +173,10 @@ def create_app(
     from fmriflow.server.routes.node_outputs import router as node_outputs_router
     from fmriflow.server.routes.stack import router as stack_router
     from fmriflow.server.routes.settings import router as settings_router
+    from fmriflow.server.routes.group import router as group_router
+    from fmriflow.server.routes.study import router as study_router
+    from fmriflow.server.routes.run_graph import router as run_graph_router
+    from fmriflow.server.routes.qa import router as qa_router
     from fmriflow.server.ws import router as ws_router
 
     # Editor routes must come before module_router so that
@@ -198,6 +205,10 @@ def create_app(
     # patterns. Include order does not affect matching here.
     app.include_router(node_outputs_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(group_router, prefix="/api")
+    app.include_router(study_router, prefix="/api")
+    app.include_router(run_graph_router, prefix="/api")
+    app.include_router(qa_router, prefix="/api")
     app.include_router(ws_router)
 
     # Serve built frontend (if available)

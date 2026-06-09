@@ -5,7 +5,29 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from fmriflow.server.services.run_manager import (
+    discover_group_run_dirs, discover_study_run_dirs,
+)
+
 router = APIRouter(tags=["configs"])
+
+
+def _count_group_runs(registry, group_name: str) -> int:
+    """Number of group runs for ``group_name`` known via the registry +
+    the default ``group_runs/`` filesystem root. Uses the same discovery
+    helper that powers ``/api/group-runs`` so the sidebar count agrees
+    with the Runs view even when ``output_dir`` lives outside
+    ``$FMRIFLOW_HOME``."""
+    if not group_name:
+        return 0
+    return len(discover_group_run_dirs(registry, name=group_name))
+
+
+def _count_study_runs(registry, study_name: str) -> int:
+    """Study analogue of :func:`_count_group_runs`."""
+    if not study_name:
+        return 0
+    return len(discover_study_run_dirs(registry, name=study_name))
 
 
 class SaveConfigBody(BaseModel):
@@ -32,9 +54,21 @@ async def list_configs(request: Request):
         key = f"{run['summary'].experiment}|{run['summary'].subject}"
         run_counts[key] = run_counts.get(key, 0) + 1
 
+    registry = request.app.state.run_manager.registry
     result = []
     for cfg in configs:
-        key = f"{cfg.experiment}|{cfg.subject}"
+        if cfg.kind == "study":
+            # `cfg.experiment` was lifted from the YAML's top-level
+            # `study:` field — the directory name under study_runs/.
+            n_runs = _count_study_runs(registry, cfg.experiment)
+        elif cfg.kind == "group":
+            # For group configs, `cfg.experiment` was lifted from the
+            # YAML's top-level `group:` field, which is the directory
+            # name under group_runs/.
+            n_runs = _count_group_runs(registry, cfg.experiment)
+        else:
+            key = f"{cfg.experiment}|{cfg.subject}"
+            n_runs = run_counts.get(key, 0)
         result.append({
             'filename': cfg.filename,
             'path': cfg.path,
@@ -47,7 +81,10 @@ async def list_configs(request: Request):
             'preparation_type': cfg.preparation_type,
             'stimulus_loader': cfg.stimulus_loader,
             'response_loader': cfg.response_loader,
-            'n_runs': run_counts.get(key, 0),
+            'n_runs': n_runs,
+            'kind': cfg.kind,
+            'group_subjects': cfg.group_subjects,
+            'study_groups': cfg.study_groups,
         })
 
     return result

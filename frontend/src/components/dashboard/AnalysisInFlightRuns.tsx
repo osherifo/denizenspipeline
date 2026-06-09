@@ -12,11 +12,10 @@ import { useDialog } from '../common/Dialog'
 import { TriageMatches } from '../triage/TriageMatches'
 
 const panelStyle: CSSProperties = {
-  backgroundColor: 'var(--bg-card)',
-  border: '1px solid var(--border)',
-  borderRadius: 8,
+  // Internal layout only — the surrounding drawer in
+  // ExperimentDashboard provides the chrome (border, width, scroll).
+  // Keeping a small inset so the rows have breathing room.
   padding: '14px 18px',
-  marginBottom: 12,
 }
 
 const headerStyle: CSSProperties = {
@@ -48,10 +47,14 @@ const refreshBtn: CSSProperties = {
 
 const rowStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: '1fr 80px 80px 110px auto',
-  alignItems: 'center',
-  gap: 8,
-  padding: '6px 0',
+  // Drawer is narrow; stack columns onto a single label-status-actions
+  // row plus an info line below. Grid-template-columns is now driven by
+  // available width (1fr 70px 60px → label, status, elapsed inline).
+  gridTemplateColumns: 'minmax(0, 1fr) 70px 56px',
+  alignItems: 'start',
+  columnGap: 8,
+  rowGap: 4,
+  padding: '8px 0',
   borderTop: '1px solid var(--border)',
   fontSize: 11,
 }
@@ -59,7 +62,9 @@ const rowStyle: CSSProperties = {
 const actionsStyle: CSSProperties = {
   display: 'flex',
   gap: 6,
-  justifyContent: 'flex-end',
+  marginTop: 4,
+  flexWrap: 'wrap',
+  gridColumn: '1 / -1',     // span the row in the narrow drawer
 }
 
 const emptyStyle: CSSProperties = {
@@ -96,16 +101,23 @@ function formatWhen(ts: number): string {
   })
 }
 
-const btn = (variant: 'danger' | 'muted'): CSSProperties => ({
+const btn = (variant: 'danger' | 'muted' | 'primary'): CSSProperties => ({
   padding: '3px 8px',
   fontSize: 10,
   fontWeight: 600,
   fontFamily: 'inherit',
-  border: `1px solid ${variant === 'danger' ? 'var(--accent-red)' : 'var(--border)'}`,
+  border: `1px solid ${
+    variant === 'danger' ? 'var(--accent-red)' :
+    variant === 'primary' ? 'rgba(0, 229, 255, 0.5)' :
+    'var(--border)'
+  }`,
   borderRadius: 4,
   cursor: 'pointer',
-  backgroundColor: 'transparent',
-  color: variant === 'danger' ? 'var(--accent-red)' : 'var(--text-secondary)',
+  backgroundColor: variant === 'primary' ? 'rgba(0, 229, 255, 0.10)' : 'transparent',
+  color:
+    variant === 'danger' ? 'var(--accent-red)' :
+    variant === 'primary' ? 'var(--accent-cyan)' :
+    'var(--text-secondary)',
 })
 
 const overlayStyle: CSSProperties = {
@@ -236,7 +248,15 @@ function LogModal({
   )
 }
 
-export function AnalysisInFlightRuns() {
+interface AnalysisInFlightRunsProps {
+  /** Optional callback when the user clicks "Attach" — when set, the
+   *  in-flight row gains a primary CTA that hands the run_id back to
+   *  the parent (typically dashboard-store.attachToInFlightRun). */
+  onAttach?: (runId: string) => void
+}
+
+
+export function AnalysisInFlightRuns({ onAttach }: AnalysisInFlightRunsProps = {}) {
   const [runs, setRuns] = useState<AnalysisRunSummary[]>([])
   const [loading, setLoading] = useState(false)
   const [logDetail, setLogDetail] = useState<AnalysisRunSummary | null>(null)
@@ -316,9 +336,16 @@ export function AnalysisInFlightRuns() {
         const label = r.experiment || r.subject || r.run_id
         return (
           <div key={r.run_id} style={rowStyle}>
-            <div>
-              <div style={{ fontFamily: 'monospace', color: 'var(--text-primary)', fontWeight: 600 }}>
-                {r.experiment || '(no experiment)'} {r.subject && <span style={{ color: 'var(--text-secondary)' }}>· {r.subject}</span>}
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontFamily: 'monospace', color: 'var(--text-primary)',
+                fontWeight: 600, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {r.experiment || '(no experiment)'}
+                {r.subject && (
+                  <span style={{ color: 'var(--text-secondary)' }}> · {r.subject}</span>
+                )}
                 {r.is_reattached && (
                   <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--accent-yellow, #e2a832)', fontWeight: 600 }}>
                     REATTACHED
@@ -326,19 +353,32 @@ export function AnalysisInFlightRuns() {
                 )}
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                {r.run_id}{r.pid ? ` · pid ${r.pid}` : ''}
+                <code>{r.run_id}</code>{r.pid ? ` · pid ${r.pid}` : ''}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                started {formatWhen(r.started_at)}
               </div>
             </div>
-            <div style={{ color: statusColor(r.status), fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div style={{
+              color: statusColor(r.status), fontWeight: 700,
+              textTransform: 'uppercase', letterSpacing: 0.5,
+              textAlign: 'right',
+            }}>
               {r.status}
             </div>
-            <div style={{ color: 'var(--text-secondary)' }}>
+            <div style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>
               {formatElapsed(r.started_at, r.finished_at, isRunning)}
             </div>
-            <div style={{ color: 'var(--text-secondary)' }}>
-              {formatWhen(r.started_at)}
-            </div>
             <div style={actionsStyle}>
+              {isRunning && onAttach && (
+                <button
+                  style={btn('primary')}
+                  onClick={() => onAttach(r.run_id)}
+                  title="Tail this run's live progress in the main panel"
+                >
+                  Attach
+                </button>
+              )}
               <button style={btn('muted')} onClick={() => openLog(r.run_id)}>Log</button>
               {isRunning ? (
                 <button style={btn('danger')} onClick={() => cancel(r.run_id, label)}>Cancel</button>

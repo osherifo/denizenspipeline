@@ -39,14 +39,41 @@ Three entry points to the same panel:
       Only one surface kind is shown at a time; clicking the active
       one again hides surfaces. All surface meshes use the same
       neutral white base colour.
-    - **Curv** (on / off, default on) — shade the white + inflated
-      surfaces by FreeSurfer per-vertex curvature (`?h.curv`),
-      attached as a niivue mesh layer with `colormap=gray`,
-      `colormapInvert=true`, and `cal_min=0` / `cal_max=1` (niivue's
-      normalised CURV range). This preserves the FreeSurfer QC visual
-      convention (sulci dark, gyri light). Pial is unaffected
-      (curvature is less meaningful at the pial surface). Toggle
-      flips the layer's `opacity` live, no mesh reload.
+    - **Curv** (on / off, default on) — shade all surfaces by
+      FreeSurfer per-vertex curvature: white + inflated use `?h.curv`,
+      pial uses `?h.curv.pial`. Raw signed curvature values are
+      parsed directly from the FreeSurfer binary (bypassing niivue's
+      lossy normalisation) and injected into the mesh layer, giving
+      both hemispheres the same physical scale. A Freeview-style
+      green→gray→red threshold colormap is applied: sulci render
+      green, gyri render red, with a gray transition zone whose
+      center and sharpness are controlled by **Mid** and **Slope**.
+      Toggle flips the layer's `opacity` live, no mesh reload.
+        - **Mid** slider (−0.5 to +0.5, default 0) — shifts the
+          sulcus/gyrus colour boundary. Maps to freeview's
+          `ThresholdMidPoint`.
+        - **Slope** slider (1 to 50, default 10) — controls the
+          sharpness of the transition between sulcal and gyral
+          coloring. Higher values produce a sharper, more binary
+          boundary. Maps to freeview's `ThresholdSlope`.
+    - **Draw** (on / off, default off) — enable voxel drawing on 2D
+      slices. Paint annotations directly onto the T1 volume to mark
+      regions that need surface edits. Controls:
+        - **pen** — freehand draw (paint voxels under cursor).
+        - **fill pen** — drag to draw an outline; releasing
+          flood-fills the enclosed region.
+        - **erase** — erase painted voxels.
+        - **color** — seven colour swatches (red, green, blue,
+          magenta, cyan, yellow, orange) to select the active pen
+          colour. Disabled while **erase** is selected.
+        - **opacity** slider (0 – 1) — controls the transparency of
+          the drawing overlay. Default 0.5.
+        - **undo** — undo the last stroke (up to 8 levels).
+        - **clear** — erase the entire drawing at once.
+        - **save + freeview cmd** — downloads the drawing as a NIfTI
+          file (`<subject>_drawing.nii`), uploads it to the backend,
+          and copies a ready-made `freeview` command (with `-c`
+          centred on the annotation centroid) to clipboard.
     - **Mode** — `real` (default) draws true Freeview-style 1-px
       contours by computing the actual plane-triangle intersection
       of each surface mesh against the current slice plane and

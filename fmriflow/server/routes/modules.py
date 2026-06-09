@@ -27,6 +27,10 @@ STAGE_DESCRIPTIONS = {
     'model': 'Fit voxelwise encoding model',
     'analyze': 'Postprocessing analysis (variance partition, weights, etc.)',
     'report': 'Generate output artifacts (flatmaps, metrics, etc.)',
+    'group_analyze': 'Reduce across subjects (means, second-pass injection, contrasts)',
+    'group_report': 'Group-level reports (HTML, NPY dumps, fsaverage flatmaps)',
+    'study_analyze': 'Reduce across groups (cross-modality contrasts, etc.)',
+    'study_report': 'Study-level reports (HTML, combined figures)',
 }
 
 STAGE_MODULE_CATEGORIES = {
@@ -38,6 +42,10 @@ STAGE_MODULE_CATEGORIES = {
     'analyze': ['analyzers'],
     'report': ['reporters'],
     'post_preproc': ['nipype_nodes'],
+    'group_analyze': ['group_analyzers'],
+    'group_report': ['group_reporters'],
+    'study_analyze': ['study_analyzers'],
+    'study_report': ['study_reporters'],
 }
 
 STAGE_COLORS = {
@@ -48,6 +56,29 @@ STAGE_COLORS = {
     'model': '#448aff',
     'analyze': '#ff1744',
     'report': '#ffffff',
+    'group_analyze': '#ff1744',
+    'group_report': '#ffffff',
+    'study_analyze': '#ff1744',
+    'study_report': '#ffffff',
+}
+
+# Group/study-scope orchestrators have plumbing stages (e.g.
+# ``group_collect``, ``subject_second_pass``, ``study_collect``,
+# ``groups_fanout``) that are orchestrator-only — they hold no
+# user-pluggable modules and are intentionally omitted from
+# /api/stages so the module browser doesn't show empty columns.
+GROUP_STAGES = ['group_analyze', 'group_report']
+STUDY_STAGES = ['study_analyze', 'study_report']
+
+# stage_name → ``'subject' | 'group' | 'study'`` — drives the
+# scope-tab filter in the frontend ModuleBrowser.
+STAGE_SCOPE = {
+    **{s: 'subject' for s in (
+        'stimuli', 'responses', 'features', 'prepare',
+        'model', 'analyze', 'report',
+    )},
+    **{s: 'group' for s in GROUP_STAGES},
+    **{s: 'study' for s in STUDY_STAGES},
 }
 
 
@@ -232,14 +263,25 @@ async def reload_module(request: Request, category: str, name: str):
 
 @router.get("/stages")
 async def list_stages():
-    """Return pipeline stage definitions."""
-    return [
-        {
-            'name': stage,
-            'index': i + 1,
-            'description': STAGE_DESCRIPTIONS.get(stage, ''),
-            'module_categories': STAGE_MODULE_CATEGORIES.get(stage, []),
-            'color': STAGE_COLORS.get(stage, '#ffffff'),
-        }
-        for i, stage in enumerate(ALL_STAGES)
-    ]
+    """Return pipeline stage definitions across all scopes.
+
+    The frontend ModuleBrowser groups by ``scope`` ("subject" / "group"
+    / "study") to render one tab per scope. ``index`` restarts at 1
+    per scope so each tab reads as its own ordered chain.
+    """
+    out: list[dict] = []
+    for scope_name, scope_stages in (
+        ('subject', list(ALL_STAGES)),
+        ('group', GROUP_STAGES),
+        ('study', STUDY_STAGES),
+    ):
+        for i, stage in enumerate(scope_stages):
+            out.append({
+                'name': stage,
+                'scope': scope_name,
+                'index': i + 1,
+                'description': STAGE_DESCRIPTIONS.get(stage, ''),
+                'module_categories': STAGE_MODULE_CATEGORIES.get(stage, []),
+                'color': STAGE_COLORS.get(stage, '#ffffff'),
+            })
+    return out

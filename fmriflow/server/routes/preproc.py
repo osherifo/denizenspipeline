@@ -55,6 +55,16 @@ async def list_backends(request: Request):
     return {"backends": mgr.check_backends()}
 
 
+@router.get("/preproc/label-map")
+async def get_label_map(version: str = "25"):
+    """Return the node-friendly-name map for a given fMRIPrep major version."""
+    from fmriflow.builtin.label_maps import load_label_map, available_versions
+    m = load_label_map(version)
+    if not m:
+        raise HTTPException(404, f"No label map for version '{version}'. Available: {available_versions()}")
+    return {"version": version, "labels": m}
+
+
 @router.get("/preproc/manifests")
 async def list_manifests(request: Request):
     """List discovered preprocessing manifests."""

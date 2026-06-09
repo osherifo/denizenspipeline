@@ -116,18 +116,56 @@ The main control center for running experiments.
 
 ### Module Browser
 
-Discover and inspect all available modules, organized by processing stage (stimuli, responses, features, preprocessing, model, analysis, reporting).
+Discover and inspect all available modules, organized by processing stage.
 
-- Search modules by name or description
+- **Scope tabs** at the top — Subject (7 stages: stimuli → report),
+  Group (group_analyze, group_report), Study (study_analyze,
+  study_report), **QA** (qa_reporters grouped by the subject pipeline
+  stage they target). Each tab shows a count badge with the total
+  modules registered in that scope.
+- Search modules by name or description (filters within the active scope)
 - Each card shows: name, category badge, dimension count, parameter count
 - Expand a card to see its full parameter table (name, type, default, required, description)
+- The QA tab borrows the subject pipeline stage layout — a
+  `qa_reporter` decorated with `stage="prepare"` shows up in the
+  **prepare** column under that tab — without leaking into the
+  regular Subject columns, which stay focused on pipeline plugins.
+
+**+ New module** (next to the search bar) opens a dialog that
+creates a new plugin from a starter template:
+
+- **Category** — filtered to what the active tab can host:
+  Subject creates `feature_extractors`, `reporters`, `analyzers`,
+  `stimulus_loaders`, etc.; Group creates `group_analyzers` /
+  `group_reporters`; Study creates `study_analyzers` /
+  `study_reporters`; **QA** creates `qa_reporters`.
+- **Stage** (shown only when category is `qa_reporters`) — picks
+  which subject pipeline stage the reporter attaches to (`stimuli`,
+  `responses`, `features`, `prepare`, or `model`). The template's
+  `value` argument type matches the stage (`ModelResult` for `model`,
+  `PreparedData` for `prepare`, etc.).
+- **Name** — snake_case; the dialog validates the format inline.
+
+Submit opens the same Monaco editor used for **Edit source**, but
+pre-loaded with the rendered template and a Save button that's
+enabled from the start. Save & Reload writes the file to
+`$FMRIFLOW_HOME/addons/modules/` and registers the class in the live
+registry in one shot — the new module appears in the browser the
+moment you click **Back**.
 
 ### Composer
 
-Build encoding-model pipelines as a vertical strip of seven
-collapsible **stage cards** (stimuli, responses, features,
-prepare, model, analyze, report). Each card holds the modules
-plugged into that stage plus their parameters.
+Build encoding-model pipelines. A **scope tab bar** at the top
+switches between **Subject**, **Group**, and **Study** composers —
+each tab has its own form, its own YAML editor, and its own
+state, so switching between them never loses unsaved edits in
+another scope.
+
+#### Subject scope
+
+A vertical strip of seven collapsible **stage cards** (stimuli,
+responses, features, prepare, model, analyze, report). Each card
+holds the modules plugged into that stage plus their parameters.
 
 **Stage cards** (left column):
 
@@ -159,13 +197,95 @@ The composer reads and writes
 [Working Directory](working-dir.md) guide for the surrounding
 layout.
 
+#### Group scope
+
+Author a cross-subject group config. Form sections:
+
+- **Top fields**: `group` name, `subjects` (comma-separated list),
+  `output_dir`.
+- **Subject template**: the same seven stage cards the Subject
+  composer renders, scoped to `subject_template.*`. Edits here flow
+  into the YAML editor's `subject_template:` block; every subject
+  in the group inherits this pipeline unless overridden.
+- **Subject overrides**: a list of per-subject sparse override
+  dicts. Pick a subject from the dropdown (only subjects defined
+  above are offered), click **+ Add override**, and edit the
+  partial dict in its own mini Monaco editor (~160 px tall).
+  Overrides are deep-merged on top of the template at run time —
+  set just the key you want to deviate (e.g.
+  `model: {params: {alpha: 0.5}}`).
+- **Group analyze** / **Group report**: stacks of
+  `group_analyzer` / `group_reporter` plugin picks, same UX as the
+  Subject composer's analyze stage.
+
+The right pane's Monaco YAML editor stays the source of truth for
+anything the form doesn't surface; form edits sync into it on a
+500 ms debounce, and raw YAML edits apply back after 800 ms.
+
+#### Study scope
+
+Author a cross-group study config:
+
+- **Top fields**: `study` name, `output_dir`.
+- **Groups**: a list of `(name, config)` pairs pointing at saved
+  group YAMLs. The config-path picker has a datalist sourced from
+  the dashboard's saved-config index so you pick by filename.
+- **Study analyze** / **Study report**: stacks of
+  `study_analyzer` / `study_reporter` plugin picks.
+- Right pane: Monaco YAML editor.
+
+`/api/config/validate` sniffs the YAML shape (`subject` vs
+`group:` + `subjects:` vs `study:` + `groups:`) and dispatches to
+the right schema validator, so the Validate button works from any
+scope tab without an extra round-trip.
+
 ### Run Manager
 
-Browse historical pipeline executions.
+Browse historical pipeline executions. There are three sibling views
+in the sidebar — **Subject Runs**, **Group Runs**, **Study Runs** —
+each scoped to one orchestrator level. They share the same detail
+panel features:
 
-- **Run table**: date, experiment, subject, model, mean score, status badge
-- **Expanded detail**: summary cards, stage timeline visualization, artifact list with view/download links, log tail (last 300 lines)
-- Refresh to reload
+- **Run table**: date, experiment / group / study, status badge,
+  primary metric where applicable.
+- **Expanded detail**: summary cards, stage timeline visualization,
+  artifact list with view/download links, log tail (last 300 lines).
+- **View graph** opens the pipeline graph for that run in a modal.
+  In a *finished* group or study run, clicking a child node (a group
+  inside a study, a subject inside a group) opens it as a **second
+  pane to the right** instead of replacing the current view —
+  click subject inside that pane and a third pane opens. Each pane
+  has its own ✕ that closes only itself and anything drilled from it.
+  Same drilldown chain works for in-flight runs.
+- **View YAML** opens the run's resolved `config_snapshot` as YAML
+  in a read-only Monaco editor with Copy + Download. This is the
+  *resolved* config (defaults + env vars + inheritance expanded), not
+  the original on-disk file.
+- Refresh to reload.
+
+#### Live progress dashboard
+
+The Dashboard switches between three Live-Progress panels by run
+kind. The selected progress panel shows a streaming event log:
+each subject's `▶ stage` / `✓ stage` / `✗ stage` lines are prefixed
+with `group/subject:` so you can tell which subject is in which
+stage even when several run concurrently.
+
+The graph viewer in the dashboard lights up *running* subject /
+group nodes the moment their first lifecycle event fires (cyan),
+flipping to green / red when each finishes — without waiting for
+any stage records to land. Saved runs colour purely from their
+final stage statuses.
+
+#### QA tab on graph nodes
+
+Every stage node in the graph viewer has a **QA tab** that surfaces
+any `@qa_reporter` artifacts the run wrote for that stage
+(`<run_dir>/<subject>/qa/<stage>/`). Each artifact is shown inline
+(PNG) or as a download link (JSON, etc.). A **Regenerate** button
+re-runs only the QA plugins for that stage by reloading the saved
+intermediate (when `intermediates:` was on) — no need to rerun the
+model just to tweak a plot.
 
 ### Module Editor
 

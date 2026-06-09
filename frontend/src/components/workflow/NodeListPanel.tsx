@@ -14,6 +14,8 @@ import type {
   NipypeNodeStatusKind,
 } from '../../api/types'
 import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
+import { inferredName } from './fmriprep_labels'
+import type { LabelMode } from './use_label_mode'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -39,12 +41,13 @@ const collapsedRail: CSSProperties = {
 
 const panel: CSSProperties = {
   width: 280,
-  minWidth: 280,
+  minWidth: 160,
   borderRight: '1px solid var(--border)',
   background: 'var(--bg-secondary)',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
+  position: 'relative',
 }
 
 const panelHeader: CSSProperties = {
@@ -150,6 +153,10 @@ interface Props {
   nodes: NipypeNodeStatus[]
   selected: string | null
   onSelect: (node: string) => void
+  onPanTo?: (nodeId: string) => void
+  labelMode?: LabelMode
+  width?: number
+  onResizeStart?: (e: React.MouseEvent) => void
 }
 
 
@@ -163,7 +170,15 @@ function _wfColor(c: NonNullable<NipypeTreeNode['counts']>): string {
 }
 
 
-export function NodeListPanel({ nodes, selected, onSelect }: Props) {
+function _displayLabel(node: NipypeTreeNode, mode: LabelMode): string {
+  if (mode === 'friendly') {
+    const friendly = inferredName(node.label)
+    if (friendly) return friendly
+  }
+  return node.label
+}
+
+export function NodeListPanel({ nodes, selected, onSelect, onPanTo, labelMode = 'raw', width, onResizeStart }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterStatus>('all')
@@ -203,8 +218,10 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
       if (leaf.kind !== 'leaf') return false
       if (filter !== 'all' && leaf.status !== filter) return false
       if (!q) return true
+      const friendly = inferredName(leaf.label)?.toLowerCase()
       return leaf.id.toLowerCase().includes(q)
         || leaf.label.toLowerCase().includes(q)
+        || (friendly != null && friendly.includes(q))
     }
     const kept = new Set<string>()
     for (const n of tree.nodes) {
@@ -255,7 +272,7 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
           <div key={n.id}>
             <div
               style={wfRow(depth)}
-              onClick={() => toggle(n.id)}
+              onClick={() => { toggle(n.id); onPanTo?.(n.id) }}
               title={n.id}
             >
               <span style={{ width: 10, fontSize: 9, color: 'var(--text-secondary)' }}>
@@ -265,8 +282,10 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
               <span style={{
                 fontSize: 11, flex: 1, overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {n.label}
+              }}
+              title={labelMode === 'friendly' ? n.label : undefined}
+              >
+                {_displayLabel(n, labelMode)}
               </span>
               <span style={{
                 fontSize: 9, color: 'var(--text-secondary)', fontWeight: 400,
@@ -301,8 +320,10 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
           <span style={{
             fontSize: 11, fontWeight: 600, flex: 1,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {n.label}
+          }}
+          title={labelMode === 'friendly' ? n.label : undefined}
+          >
+            {_displayLabel(n, labelMode)}
           </span>
           {n.elapsed !== undefined && n.elapsed > 0 && (
             <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
@@ -332,8 +353,14 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
   const roots = byParent.get(null) ?? []
   const anyVisible = roots.some((n) => !isSearching || kept.has(n.id))
 
+  const panelStyle: CSSProperties = {
+    ...panel,
+    width: width ?? 280,
+    minWidth: 160,
+  }
+
   return (
-    <div style={panel}>
+    <div style={panelStyle}>
       <div style={panelHeader}>
         <span>Nodes ({nodes.length})</span>
         <span style={{ flex: 1 }} />
@@ -378,6 +405,20 @@ export function NodeListPanel({ nodes, selected, onSelect }: Props) {
         )}
         {renderChildren(null, 0)}
       </div>
+      {onResizeStart && (
+        <div
+          onMouseDown={onResizeStart}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 4,
+            height: '100%',
+            cursor: 'col-resize',
+            zIndex: 10,
+          }}
+        />
+      )}
     </div>
   )
 }

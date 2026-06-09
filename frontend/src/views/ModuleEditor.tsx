@@ -84,6 +84,7 @@ export function ModuleEditor() {
       <ModuleSidebar
         userModules={store.userModules}
         templateCategories={store.templateCategories}
+        qaStages={store.qaStages}
         currentName={store.currentName}
         onOpen={(name) => store.openModule(name)}
         onDelete={async (name) => {
@@ -93,7 +94,9 @@ export function ModuleEditor() {
           )
           if (ok) store.deleteModule(name)
         }}
-        onNewFromTemplate={(category, name) => store.newFromTemplate(category, name)}
+        onNewFromTemplate={(category, name, stage) =>
+          store.newFromTemplate(category, name, stage)
+        }
         onNew={() => store.reset()}
       />
 

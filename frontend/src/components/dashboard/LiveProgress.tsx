@@ -5,6 +5,8 @@ import type { RunEvent, StageStatus, RunSummary, ArtifactInfo } from '../../api/
 import { StageTracker } from './StageTracker'
 import { StageTimeline } from '../runs/StageTimeline'
 import { artifactUrl } from '../../api/client'
+import { TriageMatches } from '../triage/TriageMatches'
+import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
 
 interface LiveProgressProps {
   runId: string
@@ -186,6 +188,7 @@ function formatSize(bytes: number): string {
 }
 
 export function LiveProgress({ runId, events, stageStatuses, startTime, completedRun, onDismiss }: LiveProgressProps) {
+  const [graphOpen, setGraphOpen] = useState(false)
   // Check if run is complete
   const lastEvent = events[events.length - 1]
   const isDone = lastEvent?.event === 'run_done'
@@ -211,6 +214,21 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => setGraphOpen(true)}
+            style={{
+              padding: '3px 10px', fontSize: 11, fontWeight: 600,
+              border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 4,
+              background: 'rgba(0, 229, 255, 0.08)',
+              color: 'var(--accent-cyan)', cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            title={isFinished
+              ? 'Open the pipeline graph (final state)'
+              : 'Open the pipeline graph (live — polls until the run ends)'}
+          >
+            View graph
+          </button>
           <ElapsedTimer startTime={isDone || isFailed ? null : startTime} />
           {isFinished && onDismiss && (
             <button
@@ -320,11 +338,47 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
       )}
 
       {/* Loading results indicator */}
-      {isFinished && !completedRun && (
+      {isFinished && !completedRun && !isFailed && (
         <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
           Loading results...
         </div>
       )}
+
+      {/* Triage KB matches — the backend's trigger_on_failure runs in
+       *  _persist_state and writes triage.json next to state.json;
+       *  TriageMatches polls until it appears. */}
+      {isFailed && <TriageMatches runId={runId} poll />}
+
+      {/* Failure detail — shown when run failed (whether or not a
+       *  RunSummary was produced). Prefers the log_tail from the
+       *  run_failed event, since failures often happen before
+       *  run_summary.json is written and completedRun stays null. */}
+      {isFailed && (() => {
+        const failed = events.slice().reverse().find((e) => e.event === 'run_failed')
+        const tail = failed?.log_tail || completedRun?.log_tail || ''
+        const tb = failed?.traceback || ''
+        const path = failed?.log_path || ''
+        if (!tail && !tb) return null
+        return (
+          <>
+            <div style={sectionLabel}>
+              Failure log {path && (
+                <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-secondary)' }}>
+                  · <code>{path}</code>
+                </span>
+              )}
+            </div>
+            <pre style={{
+              backgroundColor: 'var(--bg-secondary)', padding: '10px 12px', borderRadius: 6,
+              fontSize: 10, lineHeight: 1.55, color: 'var(--text-primary)',
+              overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              margin: 0,
+            }}>
+              {tb ? `${tb}\n\n--- pipeline.log (tail) ---\n${tail}` : tail}
+            </pre>
+          </>
+        )
+      })()}
 
       {/* Stage tracker — shown while running */}
       {!isFinished && <StageTracker stageStatuses={stageStatuses} />}
@@ -334,7 +388,12 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
         <>
           <div style={sectionLabel}>Event Log</div>
           <div style={eventLogStyle}>
-            {events.map((event, i) => (
+            {events
+              // node_* events are emitted per-plugin and surface in
+              // the live graph viewer; in this textual log they'd
+              // just spam the column.
+              .filter((e) => !e.event.startsWith('node_'))
+              .map((event, i) => (
               <div key={i} style={eventLine}>
                 <span style={{ color: 'var(--text-secondary)', marginRight: 8 }}>
                   {formatTimestamp(event.timestamp, startTime)}
@@ -352,6 +411,14 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
             ))}
           </div>
         </>
+      )}
+
+      {graphOpen && (
+        <AnalysisGraphModal
+          target={{ kind: 'in-flight', runId }}
+          title={`Run ${runId} — live pipeline graph`}
+          onClose={() => setGraphOpen(false)}
+        />
       )}
     </div>
   )

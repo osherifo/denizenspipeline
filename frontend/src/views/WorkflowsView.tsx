@@ -1,6 +1,7 @@
 /** Workflows — end-to-end orchestration across convert / preproc / autoflatten / analysis. */
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import Editor from '@monaco-editor/react'
 import type {
   WorkflowConfigSummary,
   WorkflowConfigDetail,
@@ -31,10 +32,7 @@ import { useDialog } from '../components/common/Dialog'
 
 const pageTitle: CSSProperties = {
   fontSize: 20, fontWeight: 800, color: 'var(--text-primary)',
-  marginBottom: 4, letterSpacing: 1,
-}
-const pageDesc: CSSProperties = {
-  fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16,
+  marginBottom: 16, letterSpacing: 1,
 }
 
 const topPanel: CSSProperties = {
@@ -127,25 +125,11 @@ const summaryValue: CSSProperties = {
   wordBreak: 'break-all',
 }
 
-const yamlPre: CSSProperties = {
-  backgroundColor: 'var(--bg-secondary)', borderRadius: 6,
-  padding: '12px 14px', fontSize: 11, lineHeight: 1.6,
-  fontFamily: 'monospace', color: 'var(--text-primary)',
-  overflow: 'auto', maxHeight: 360, whiteSpace: 'pre',
-  border: '1px solid var(--border)',
-}
-
-const yamlTextarea = (hasError: boolean): CSSProperties => ({
-  width: '100%',
-  minHeight: 260, maxHeight: 520,
-  padding: '12px 14px', borderRadius: 6,
-  fontSize: 11, lineHeight: 1.6,
-  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-  backgroundColor: 'var(--bg-secondary)',
-  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-cyan)'}`,
-  color: 'var(--text-primary)',
-  outline: 'none', resize: 'vertical', tabSize: 2,
-  boxSizing: 'border-box',
+const yamlBox = (hasError: boolean): CSSProperties => ({
+  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--border)'}`,
+  borderRadius: 6,
+  height: 360,
+  overflow: 'hidden',
 })
 
 const cfgBtn = (variant: 'primary' | 'default' = 'default'): CSSProperties => ({
@@ -233,6 +217,7 @@ function RunHistoryPanel({
           No workflow runs yet.
         </div>
       )}
+      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
       {runs.map((r) => {
         const isRunning = r.status === 'running'
         const stagesSummary = r.stages
@@ -270,6 +255,7 @@ function RunHistoryPanel({
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
@@ -533,9 +519,6 @@ export function WorkflowsView() {
   return (
     <div>
       <div style={pageTitle}>Workflows</div>
-      <div style={pageDesc}>
-        End-to-end pipelines — stringing together convert, preproc, autoflatten, and analysis in order.
-      </div>
 
       <RunHistoryPanel
         runs={runs}
@@ -721,38 +704,52 @@ export function WorkflowsView() {
                   </button>
                 </div>
               </div>
-              {editing ? (
-                <>
-                  <textarea
-                    style={yamlTextarea(saveError !== null)}
-                    value={yamlDraft}
-                    onChange={(e) => setYamlDraft(e.target.value)}
-                    spellCheck={false}
-                  />
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                    <button
-                      style={cfgBtn('primary')}
-                      onClick={saveYaml}
-                      disabled={saving || yamlDraft === selected.yaml_string}
-                    >
-                      {saving ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
-                      style={cfgBtn()}
-                      onClick={cancelEdit}
-                      disabled={saving}
-                    >
-                      Cancel
-                    </button>
-                    {saveError && (
-                      <span style={{ fontSize: 11, color: 'var(--accent-red)', fontFamily: 'monospace' }}>
-                        {saveError}
-                      </span>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <pre style={yamlPre}>{selected.yaml_string}</pre>
+              <div style={yamlBox(saveError !== null)}>
+                <Editor
+                  height="100%"
+                  language="yaml"
+                  theme="vs-dark"
+                  value={editing ? yamlDraft : selected.yaml_string}
+                  onChange={editing ? (v) => setYamlDraft(v ?? '') : undefined}
+                  options={{
+                    readOnly: !editing,
+                    domReadOnly: !editing,
+                    minimap: { enabled: false },
+                    fontSize: 12,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    tabSize: 2,
+                    insertSpaces: true,
+                    renderLineHighlight: editing ? 'line' : 'none',
+                    contextmenu: editing,
+                    padding: { top: 8 },
+                  }}
+                />
+              </div>
+              {editing && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                  <button
+                    style={cfgBtn('primary')}
+                    onClick={saveYaml}
+                    disabled={saving || yamlDraft === selected.yaml_string}
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    style={cfgBtn()}
+                    onClick={cancelEdit}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  {saveError && (
+                    <span style={{ fontSize: 11, color: 'var(--accent-red)', fontFamily: 'monospace' }}>
+                      {saveError}
+                    </span>
+                  )}
+                </div>
               )}
             </>
           )}

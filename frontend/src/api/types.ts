@@ -26,6 +26,10 @@ export type ModuleMetadata = Record<string, ModuleInfo[]>
 
 export interface StageInfo {
   name: string
+  // Older backends that pre-date the scope split omit this field; the
+  // UI defaults missing scope to 'subject'. Keep optional so callers
+  // are forced to handle the legacy shape.
+  scope?: 'subject' | 'group' | 'study'
   index: number
   description: string
   module_categories: string[]
@@ -52,6 +56,57 @@ export interface StepConfig {
 export interface AnalyzerConfig {
   name: string
   params?: Record<string, unknown>
+}
+
+/** One entry in a group config's ``group_analyze`` / ``group_report`` stage. */
+export interface GroupPluginConfig {
+  name: string
+  params?: Record<string, unknown>
+}
+
+/** One entry in a study config's ``study_analyze`` / ``study_report`` stage. */
+export interface StudyPluginConfig {
+  name: string
+  params?: Record<string, unknown>
+}
+
+/** Reference to a saved group config from a study YAML.
+ *
+ * Field names match the backend schema (``validate_study_config``):
+ * the unique per-group label key is ``name`` (not ``label``). */
+export interface StudyGroupRef {
+  name: string
+  config: string
+  // Optional subjects override (the YAML allows this but the composer
+  // form defaults to leaving it empty).
+  subjects?: string[]
+}
+
+export interface GroupConfig {
+  group?: string
+  subjects?: string[]
+  // Subject-pipeline template shared across all subjects in the group.
+  // The composer's right-pane YAML editor is the source of truth for
+  // this slice; the form provides the scope-specific shortcuts only.
+  subject_template?: Record<string, unknown>
+  subject_overrides?: Record<string, Record<string, unknown>>
+  intermediates?: Record<string, unknown>
+  qa?: Record<string, unknown>
+  group_analyze?: GroupPluginConfig[]
+  group_report?: GroupPluginConfig[]
+  output_dir?: string
+  [key: string]: unknown
+}
+
+export interface StudyConfig {
+  study?: string
+  groups?: StudyGroupRef[]
+  intermediates?: Record<string, unknown>
+  qa?: Record<string, unknown>
+  study_analyze?: StudyPluginConfig[]
+  study_report?: StudyPluginConfig[]
+  output_dir?: string
+  [key: string]: unknown
 }
 
 export interface PipelineConfig {
@@ -134,6 +189,13 @@ export interface RunEvent {
   error?: string
   message?: string
   timestamp?: number
+  // Attached to `run_failed` events: last ~200 lines of pipeline.log so
+  // the UI can show the actual failure when no run_summary.json was
+  // produced (and therefore no completedRun is fetched). Also a
+  // Python traceback when the run_manager wrapper itself raised.
+  log_tail?: string
+  log_path?: string
+  traceback?: string
 }
 
 // ── Module Editor types ──
@@ -186,6 +248,14 @@ export interface ConfigSummary {
   stimulus_loader: string
   response_loader: string
   n_runs: number
+  // 'subject' for a single-subject pipeline yaml; 'group' for a
+  // GroupOrchestrator config (top-level 'group:' + 'subjects:' list);
+  // 'study' for a StudyOrchestrator config (top-level 'study:' + 'groups:').
+  kind?: 'subject' | 'group' | 'study'
+  // For group configs only: list of subject IDs in the subjects: block.
+  group_subjects?: string[]
+  // For study configs only: list of study-scope group labels.
+  study_groups?: string[]
 }
 
 export interface ConfigDetail {
@@ -994,4 +1064,112 @@ export interface StackEvent {
   n_stages?: number
   bootstrap_kind?: string
   status?: string
+}
+
+// ── Group runs ───────────────────────────────────────────────────
+
+export interface GroupStatusCounts {
+  ok: number
+  warning: number
+  failed: number
+  unknown: number
+}
+
+export interface GroupRunListing {
+  group_name: string
+  run_id: string                  // empty string for legacy (pre-run-id) layout
+  run_dir: string
+  subjects: string[]
+  n_subjects: number
+  status_counts: GroupStatusCounts
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  has_html_report: boolean
+  has_log: boolean
+}
+
+export interface GroupSubjectStage {
+  name: string
+  status: string
+  elapsed_s: number
+  detail: string
+}
+
+export interface GroupSubjectSummary {
+  experiment: string
+  subject: string
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+}
+
+export interface GroupArtifacts {
+  group: string[]                       // file paths relative to <run_dir>
+  subjects: Record<string, string[]>    // subject -> file paths
+}
+
+export interface GroupRunDetail {
+  group_name: string
+  run_id: string
+  subjects: string[]
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  subject_summaries: GroupSubjectSummary[]
+  group_stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+  run_dir: string
+  html_report?: string
+  group_log?: string
+  artifacts: GroupArtifacts
+}
+
+// ── Study runs (one scope up from group runs) ────────────────────
+
+export interface StudyStatusCounts {
+  ok: number
+  warning?: number
+  failed: number
+}
+
+export interface StudyRunListing {
+  study_name: string
+  run_id: string
+  run_dir: string
+  group_labels: string[]
+  n_groups: number
+  status_counts: StudyStatusCounts
+  // Server-computed overall outcome (ok | warning | failed). Older
+  // backends pre-date this field — UI should fall back to deriving
+  // from status_counts when absent.
+  status?: 'ok' | 'warning' | 'failed'
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  has_html_report: boolean
+  has_log: boolean
+}
+
+export interface StudyArtifacts {
+  study: string[]                                  // files at run_dir top level
+  groups: Record<string, string[]>                 // group_label → file paths
+}
+
+export interface StudyRunDetail {
+  study_name: string
+  run_id: string
+  group_labels: string[]
+  started_at: string
+  finished_at: string
+  total_elapsed_s: number
+  group_summaries: Array<Record<string, unknown>>  // nested GroupRunSummary dicts
+  study_stages: GroupSubjectStage[]
+  config_snapshot: Record<string, unknown>
+  run_dir: string
+  html_report?: string
+  study_log?: string
+  artifacts: StudyArtifacts
 }

@@ -81,10 +81,10 @@ def validate_config(config: dict) -> list[str]:
             if "name" not in feat:
                 errors.append(f"features[{i}] missing 'name'")
             source = feat.get("source", "compute")
-            if source not in ("compute", "filesystem", "cloud", "database", "grouped_hdf"):
+            if source not in ("compute", "filesystem", "cloud", "database", "grouped_hdf", "npz_concat"):
                 errors.append(
                     f"features[{i}] invalid source '{source}', "
-                    f"must be one of: compute, filesystem, cloud, database, grouped_hdf"
+                    f"must be one of: compute, filesystem, cloud, database, grouped_hdf, npz_concat"
                 )
             if source == "filesystem" and "path" not in feat:
                 errors.append(f"features[{i}] filesystem source requires 'path'")
@@ -155,6 +155,84 @@ def validate_config(config: dict) -> list[str]:
         if model["type"] not in valid_models:
             pass  # Allow unknown models (could be external plugins)
 
+    # Intermediates validation (optional, opt-in QA feature)
+    inter = config.get("intermediates")
+    if inter is not None:
+        if not isinstance(inter, dict):
+            errors.append("'intermediates' must be a dict")
+        else:
+            from fmriflow.intermediates import SAVEABLE_STAGES
+            save = inter.get("save")
+            if save not in (None, False, True) and not isinstance(save, (list, str)):
+                errors.append(
+                    "'intermediates.save' must be bool, list of stage names, "
+                    "or a stage name string"
+                )
+            if isinstance(save, list):
+                for s in save:
+                    if s not in SAVEABLE_STAGES:
+                        errors.append(
+                            f"intermediates.save: '{s}' is not a recognised stage "
+                            f"(known: {', '.join(SAVEABLE_STAGES)})"
+                        )
+            fmt = inter.get("format", "joblib")
+            if fmt not in ("joblib",):
+                errors.append(
+                    f"intermediates.format '{fmt}' not supported "
+                    "(only 'joblib' in v1)"
+                )
+            compress = inter.get("compress", "lz4")
+            if (
+                compress not in ("lz4", "gzip", "none", None, False, True)
+                and not isinstance(compress, int)
+            ):
+                errors.append(
+                    f"intermediates.compress '{compress}' invalid "
+                    "(use 'lz4', 'gzip', 'none', or an int level)"
+                )
+
+    # QA validation (optional, opt-in QA-viz layer)
+    qa = config.get("qa")
+    if qa is not None:
+        if not isinstance(qa, dict):
+            errors.append("'qa' must be a dict")
+        else:
+            from fmriflow.intermediates import SAVEABLE_STAGES as _QA_STAGES
+            enabled = qa.get("enabled", False)
+            if not isinstance(enabled, bool):
+                errors.append("'qa.enabled' must be a bool")
+            stages = qa.get("stages")
+            if stages is not None and not (
+                isinstance(stages, bool)
+                or isinstance(stages, str)
+                or isinstance(stages, list)
+            ):
+                errors.append(
+                    "'qa.stages' must be a bool, string, or list of stage names"
+                )
+            if isinstance(stages, list):
+                for s in stages:
+                    if s not in _QA_STAGES:
+                        errors.append(
+                            f"qa.stages: '{s}' is not a recognised stage "
+                            f"(known: {', '.join(_QA_STAGES)})"
+                        )
+            # Per-stage blocks: validate ``plugins`` is a list of strings.
+            for key, val in qa.items():
+                if key in ("enabled", "stages", "output_subdir"):
+                    continue
+                if not isinstance(val, dict):
+                    continue
+                if key not in _QA_STAGES:
+                    errors.append(
+                        f"qa.{key}: not a recognised stage "
+                        f"(known: {', '.join(_QA_STAGES)})"
+                    )
+                    continue
+                plugins = val.get("plugins")
+                if plugins is not None and not isinstance(plugins, list):
+                    errors.append(f"qa.{key}.plugins must be a list of names")
+
     # Stimulus validation
     stim = config.get("stimulus", {})
     lang = stim.get("language", "en")
@@ -164,5 +242,127 @@ def validate_config(config: dict) -> list[str]:
     loader = stim.get("loader", "textgrid")
     if loader in ("audio", "video") and "path" not in stim:
         errors.append(f"stimulus loader '{loader}' requires 'stimulus.path'")
+
+    return errors
+
+
+def validate_group_config(config: dict) -> list[str]:
+    """Validate a group-scope config (top-level ``group:`` block).
+
+    A group config does not have ``experiment`` / ``subject`` at the root —
+    those live in ``subject_template`` and are filled in per-subject. The
+    subject configs built by :class:`fmriflow.group_orchestrator.GroupOrchestrator`
+    are validated against the subject schema (:func:`validate_config`) at
+    fan-out time.
+    """
+    errors: list[str] = []
+
+    if not config.get("group"):
+        errors.append("'group' (group name) is required")
+
+    if "subjects" not in config and "subjects_from" not in config:
+        errors.append("'subjects' (list) or 'subjects_from' (rule) is required")
+    elif "subjects" in config:
+        subs = config["subjects"]
+        if not isinstance(subs, list) or not subs:
+            errors.append("'subjects' must be a non-empty list")
+
+    template = config.get("subject_template")
+    if not isinstance(template, dict) or not template:
+        errors.append(
+            "'subject_template' is required and must be a dict of "
+            "shared subject-scope settings")
+
+    overrides = config.get("subject_overrides")
+    if overrides is not None and not isinstance(overrides, dict):
+        errors.append("'subject_overrides' must be a dict keyed by subject id")
+
+    for key in ("group_analyze", "group_report"):
+        section = config.get(key)
+        if section is None:
+            continue
+        if not isinstance(section, list):
+            errors.append(f"'{key}' must be a list")
+            continue
+        for i, entry in enumerate(section):
+            if not isinstance(entry, dict):
+                errors.append(f"{key}[{i}] must be a dict")
+            elif "name" not in entry:
+                errors.append(f"{key}[{i}] missing 'name'")
+
+    parallel = config.get("parallel")
+    if parallel is not None:
+        if not isinstance(parallel, dict):
+            errors.append("'parallel' must be a dict")
+        else:
+            mw = parallel.get("max_workers")
+            if mw is not None and (not isinstance(mw, int) or mw < 1):
+                errors.append("parallel.max_workers must be a positive int")
+
+    return errors
+
+
+def validate_study_config(config: dict) -> list[str]:
+    """Validate a study-scope config (top-level ``study:`` block).
+
+    A study config does not have ``experiment`` / ``subject`` / ``group``
+    at the root — those live one level down in the referenced group
+    YAMLs. The deep checks (does the referenced group YAML load? does it
+    have a top-level ``group:``?) happen inside StudyOrchestrator's
+    ``study_collect`` stage; this validator covers the top-level shape
+    only so a malformed YAML is rejected before any work happens.
+    """
+    errors: list[str] = []
+
+    if not config.get("study"):
+        errors.append("'study' (study name) is required")
+
+    groups = config.get("groups")
+    if not isinstance(groups, list) or not groups:
+        errors.append("'groups' must be a non-empty list")
+    else:
+        seen: set[str] = set()
+        for i, entry in enumerate(groups):
+            if not isinstance(entry, dict):
+                errors.append(f"groups[{i}] must be a dict")
+                continue
+            label = entry.get("name")
+            if not isinstance(label, str) or not label:
+                errors.append(f"groups[{i}] missing or empty 'name'")
+                continue
+            if label in seen:
+                errors.append(
+                    f"groups[{i}] duplicate label '{label}' "
+                    "(each study-scope group name must be unique)"
+                )
+                continue
+            seen.add(label)
+            if not isinstance(entry.get("config"), str):
+                errors.append(
+                    f"groups[{i}] ({label}) missing 'config:' path "
+                    "(inline group bodies are not supported in v1)"
+                )
+
+    for key in ("study_analyze", "study_report"):
+        section = config.get(key)
+        if section is None:
+            continue
+        if not isinstance(section, list):
+            errors.append(f"'{key}' must be a list")
+            continue
+        for i, entry in enumerate(section):
+            if not isinstance(entry, dict):
+                errors.append(f"{key}[{i}] must be a dict")
+            elif "name" not in entry:
+                errors.append(f"{key}[{i}] missing 'name'")
+
+    parallel = config.get("parallel")
+    if parallel is not None:
+        if not isinstance(parallel, dict):
+            errors.append("'parallel' must be a dict")
+        else:
+            mw = parallel.get("max_workers")
+            if mw is not None and (not isinstance(mw, int) or mw < 1):
+                errors.append("parallel.max_workers must be a positive int")
 
     return errors

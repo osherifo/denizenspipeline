@@ -4,6 +4,7 @@ Endpoints:
   GET  /preproc/subjects/{subject}/structural-qc
   POST /preproc/subjects/{subject}/structural-qc
   GET  /preproc/subjects/{subject}/structural-qc/freeview-command
+  POST /preproc/subjects/{subject}/structural-qc/drawing
   GET  /preproc/subjects/{subject}/structural-qc/report
   GET  /preproc/subjects/{subject}/structural-qc/fs-file?rel=<path>
 """
@@ -14,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -111,7 +112,12 @@ def _fs_subject_dir(manifest: dict[str, Any]) -> Path | None:
     return None
 
 
-def _build_freeview_command(fs_subject_dir: Path) -> str:
+def _build_freeview_command(
+    fs_subject_dir: Path,
+    *,
+    drawing_path: Path | None = None,
+    ras: tuple[float, float, float] | None = None,
+) -> str:
     """Build a freeview command using the files that actually exist."""
     parts: list[str] = ["freeview"]
     mri = fs_subject_dir / "mri"
@@ -127,6 +133,9 @@ def _build_freeview_command(fs_subject_dir: Path) -> str:
         if p.is_file():
             parts.append(f"-v {p}{opts}")
 
+    if drawing_path and drawing_path.is_file():
+        parts.append(f"-v {drawing_path}:colormap=lut:opacity=0.5")
+
     surfaces = [
         ("lh.pial", ":edgecolor=red"),
         ("rh.pial", ":edgecolor=red"),
@@ -137,6 +146,9 @@ def _build_freeview_command(fs_subject_dir: Path) -> str:
         p = surf / name
         if p.is_file():
             parts.append(f"-f {p}{opts}")
+
+    if ras:
+        parts.append(f"-c {ras[0]:.1f} {ras[1]:.1f} {ras[2]:.1f}")
 
     return " \\\n  ".join(parts)
 
@@ -204,6 +216,31 @@ async def freeview_command(request: Request, subject: str):
             "Could not locate a FreeSurfer subject directory for this manifest.",
         )
     return {"command": _build_freeview_command(fs_dir), "fs_subject_dir": str(fs_dir)}
+
+
+@router.post("/preproc/subjects/{subject}/structural-qc/drawing")
+async def upload_drawing(
+    request: Request,
+    subject: str,
+    file: UploadFile = File(...),
+    ras_x: float = Query(0.0),
+    ras_y: float = Query(0.0),
+    ras_z: float = Query(0.0),
+):
+    """Save a drawing NIfTI into the FS subject's mri/ dir and return
+    a freeview command centered on the annotation centroid."""
+    manifest = _manifest_for(request, subject)
+    fs_dir = _fs_subject_dir(manifest)
+    if fs_dir is None:
+        raise HTTPException(404, "No FreeSurfer subject directory")
+    dest = fs_dir / "mri" / "qc_drawing.nii"
+    data = await file.read()
+    dest.write_bytes(data)
+    logger.info("Saved QC drawing for %s (%d bytes) → %s", subject, len(data), dest)
+
+    ras = (ras_x, ras_y, ras_z) if any(v != 0 for v in (ras_x, ras_y, ras_z)) else None
+    cmd = _build_freeview_command(fs_dir, drawing_path=dest, ras=ras)
+    return {"saved": True, "path": str(dest), "command": cmd}
 
 
 # ── file serving (fmriprep report + FS files for niivue) ────────────────

@@ -9,6 +9,7 @@ import {
   deleteUserModule,
   fetchTemplate,
   fetchTemplateCategories,
+  fetchQaStages,
 } from '../api/client'
 
 interface EditorState {
@@ -28,6 +29,9 @@ interface EditorState {
 
   // Templates
   templateCategories: string[]
+  /** Stage → input value-type map for qa_reporters templates.
+   *  Empty until ``loadTemplateCategories`` finishes the lazy fetch. */
+  qaStages: Record<string, string>
 
   // Actions
   setCode: (code: string) => void
@@ -38,7 +42,9 @@ interface EditorState {
   loadUserModules: () => Promise<void>
   openModule: (name: string) => Promise<void>
   deleteModule: (name: string) => Promise<void>
-  newFromTemplate: (category: string, name: string) => Promise<void>
+  newFromTemplate: (
+    category: string, name: string, stage?: string,
+  ) => Promise<void>
   loadTemplateCategories: () => Promise<void>
   reset: () => void
 
@@ -57,6 +63,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   userModules: [],
   loadingModules: false,
   templateCategories: [],
+  qaStages: {},
   saveError: null,
   saveSuccess: false,
 
@@ -159,9 +166,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  newFromTemplate: async (category, name) => {
+  newFromTemplate: async (category, name, stage) => {
     try {
-      const result = await fetchTemplate(category, name)
+      const result = await fetchTemplate(category, name, stage)
       set({
         code: result.code,
         currentName: name,
@@ -182,6 +189,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ templateCategories: cats })
     } catch {
       // ignore
+    }
+    // QA reporters need a stage alongside the name — fetch the stage
+    // → value-type map so the sidebar can expand qa_reporters into
+    // per-stage template buttons.
+    try {
+      const stages = await fetchQaStages()
+      set({ qaStages: stages })
+    } catch {
+      // ignore — sidebar falls back to a generic qa_reporters entry
     }
   },
 

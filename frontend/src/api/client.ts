@@ -358,16 +358,25 @@ export async function deleteUserModule(name: string): Promise<{ deleted: boolean
   return json(`${BASE}/modules/user/${name}`, { method: 'DELETE' })
 }
 
-export async function fetchTemplate(category: string, name: string): Promise<TemplateResult> {
+export async function fetchTemplate(
+  category: string, name: string, stage?: string,
+): Promise<TemplateResult> {
   return json(`${BASE}/modules/template`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category, name }),
+    body: JSON.stringify({ category, name, stage }),
   })
 }
 
 export async function fetchTemplateCategories(): Promise<string[]> {
   return json(`${BASE}/modules/template-categories`)
+}
+
+/** Map of stage → value-type for QA reporters. The frontend pairs
+ *  this with ``fetchTemplateCategories()`` to gate the stage dropdown
+ *  in the "+ New module" dialog. */
+export async function fetchQaStages(): Promise<Record<string, string>> {
+  return json(`${BASE}/modules/qa-stages`)
 }
 
 // ── Preprocessing ──
@@ -449,6 +458,14 @@ export async function deletePreprocRun(runId: string): Promise<{ deleted: boolea
   return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}`, {
     method: 'DELETE',
   })
+}
+
+// ── Label Maps ──
+
+export async function fetchLabelMap(
+  version: string = '25',
+): Promise<{ version: string; labels: Record<string, string> }> {
+  return json(`${BASE}/preproc/label-map?version=${encodeURIComponent(version)}`)
 }
 
 // ── Error Knowledge Base ──
@@ -986,4 +1003,41 @@ export function openStackEventsSocket(runId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const url = `${proto}//${window.location.host}/ws/preproc/stack/${encodeURIComponent(runId)}`
   return new WebSocket(url)
+}
+
+// ── Group runs ──
+
+export async function fetchGroupRuns(
+  opts: { name?: string } = {},
+): Promise<import('./types').GroupRunListing[]> {
+  const q = opts.name ? `?name=${encodeURIComponent(opts.name)}` : ''
+  return json(`${BASE}/group-runs${q}`)
+}
+
+export async function fetchGroupRun(
+  name: string,
+  runId?: string,
+): Promise<import('./types').GroupRunDetail> {
+  const path = runId
+    ? `${BASE}/group-runs/${encodeURIComponent(name)}/${encodeURIComponent(runId)}`
+    : `${BASE}/group-runs/${encodeURIComponent(name)}`
+  return json(path)
+}
+
+// ── Study runs ──
+
+export async function fetchStudyRuns(
+  opts: { name?: string } = {},
+): Promise<import('./types').StudyRunListing[]> {
+  const q = opts.name ? `?name=${encodeURIComponent(opts.name)}` : ''
+  return json(`${BASE}/study-runs${q}`)
+}
+
+export async function fetchStudyRun(
+  name: string,
+  runId: string,
+): Promise<import('./types').StudyRunDetail> {
+  return json(
+    `${BASE}/study-runs/${encodeURIComponent(name)}/${encodeURIComponent(runId)}`,
+  )
 }

@@ -44,6 +44,17 @@ class ConcatenateStep:
                 run_feats.append(state.features[feat_name][run])
             concat_feat[run] = np.hstack(run_feats)
 
+        # Record per-run TR counts BEFORE stacking so downstream QA
+        # (carpet plots, alignment checks) can slice X_train/Y_train
+        # back into per-run blocks. Keys are run names in the order
+        # they appear under train_runs / test_runs.
+        run_lengths = {
+            run: int(state.responses[run].shape[0])
+            for run in (list(state.train_runs) + list(state.test_runs))
+            if run in state.responses
+        }
+        state.metadata['run_lengths'] = run_lengths
+
         # Stack runs and split train/test
         state.Y_train = np.vstack(
             [state.responses[r] for r in state.train_runs]).astype(np.float32)

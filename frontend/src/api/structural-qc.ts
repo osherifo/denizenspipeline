@@ -45,6 +45,22 @@ export async function fetchFreeviewCommand(
   return res.json()
 }
 
+export async function uploadDrawing(
+  subject: string,
+  niftiBytes: Uint8Array,
+  ras: [number, number, number],
+): Promise<{ saved: boolean; path: string; command: string }> {
+  const form = new FormData()
+  form.append('file', new Blob([new Uint8Array(niftiBytes)], { type: 'application/octet-stream' }), 'drawing.nii')
+  const qs = `?ras_x=${ras[0].toFixed(1)}&ras_y=${ras[1].toFixed(1)}&ras_z=${ras[2].toFixed(1)}`
+  const res = await fetch(
+    `${BASE}/preproc/subjects/${subject}/structural-qc/drawing${qs}`,
+    { method: 'POST', body: form },
+  )
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
 export function reportUrl(subject: string): string {
   return `${BASE}/preproc/subjects/${subject}/structural-qc/report`
 }

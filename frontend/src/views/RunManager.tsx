@@ -1,9 +1,11 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useRunStore } from '../stores/run-store'
 import { StageTimeline } from '../components/runs/StageTimeline'
 import { SortableArtifactList } from '../components/results/SortableArtifactList'
 import { RunComparison } from '../components/runs/RunComparison'
+import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
+import { ConfigSnapshotModal } from '../components/runs/ConfigSnapshotModal'
 import type { RunSummary } from '../api/types'
 
 // ── Styles ──
@@ -38,6 +40,29 @@ const tableContainerStyle: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 8,
   overflow: 'hidden',
+}
+
+// Two-column page layout: runs list on the left, results detail panel
+// in the center. The list is the navigator, the detail panel is the
+// main thing being looked at.
+const pageLayout: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(340px, 380px) 1fr',
+  gap: 16,
+  alignItems: 'start',
+}
+
+const listSidebar: CSSProperties = {
+  backgroundColor: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  overflow: 'hidden',
+  maxHeight: 'calc(100vh - 200px)',
+}
+
+const listScroll: CSSProperties = {
+  overflowY: 'auto',
+  maxHeight: 'calc(100vh - 200px)',
 }
 
 const tableStyle: CSSProperties = {
@@ -75,7 +100,16 @@ const detailPanel: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '24px',
-  marginTop: 20,
+}
+
+const mainEmpty: CSSProperties = {
+  backgroundColor: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: '60px 24px',
+  textAlign: 'center',
+  color: 'var(--text-secondary)',
+  fontSize: 13,
 }
 
 const detailHeader: CSSProperties = {
@@ -208,28 +242,57 @@ function formatDate(iso: string): string {
   }
 }
 
-function formatScore(score: number | null): string {
-  if (score == null) return '-'
-  return score.toFixed(4)
-}
-
 // ── Detail View ──
 
 function RunDetail({
-  run, onClose, onRefresh,
+  run, onClose, onRefresh, onOpenGraph,
 }: {
   run: RunSummary
   onClose: () => void
   onRefresh: () => void
+  onOpenGraph: (runId: string) => void
 }) {
   const artifacts = run.artifacts ? Object.values(run.artifacts) : []
+  const [yamlOpen, setYamlOpen] = useState(false)
+  const accentBtn: CSSProperties = {
+    padding: '4px 12px', fontSize: 12, fontWeight: 600,
+    borderRadius: 4, border: '1px solid rgba(0, 229, 255, 0.4)',
+    background: 'rgba(0, 229, 255, 0.08)', color: 'var(--accent-cyan)',
+    cursor: 'pointer', fontFamily: 'inherit',
+  }
 
   return (
     <div style={detailPanel}>
       <div style={detailHeader}>
         <div style={detailTitle}>Run {run.run_id}</div>
-        <button style={closeBtn} onClick={onClose}>Close</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            style={accentBtn}
+            onClick={() => onOpenGraph(run.run_id)}
+            title="Show the pipeline graph for this run"
+          >
+            View graph
+          </button>
+          <button
+            style={accentBtn}
+            onClick={() => setYamlOpen(true)}
+            title="View the resolved YAML config that produced this run"
+            disabled={!run.config_snapshot}
+          >
+            View YAML
+          </button>
+          <button style={closeBtn} onClick={onClose}>Close</button>
+        </div>
       </div>
+
+      {yamlOpen && (
+        <ConfigSnapshotModal
+          snapshot={run.config_snapshot}
+          title={`${run.experiment || 'run'}/${run.run_id} — config snapshot`}
+          downloadName={`${run.experiment || 'run'}_${run.run_id}.yaml`}
+          onClose={() => setYamlOpen(false)}
+        />
+      )}
 
       {/* Summary cards */}
       <div style={summaryGrid}>
@@ -240,12 +303,6 @@ function RunDetail({
         <div style={summaryCard}>
           <div style={summaryLabel}>Subject</div>
           <div style={summaryValue}>{run.subject || '-'}</div>
-        </div>
-        <div style={summaryCard}>
-          <div style={summaryLabel}>Mean Score</div>
-          <div style={{ ...summaryValue, color: run.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)' }}>
-            {formatScore(run.mean_score)}
-          </div>
         </div>
         <div style={summaryCard}>
           <div style={summaryLabel}>Duration</div>
@@ -321,6 +378,7 @@ export function RunManager() {
     compareIds, compareSelection, comparing, toggleCompare, clearCompare,
     openComparison, closeComparison,
   } = useRunStore()
+  const [graphRunId, setGraphRunId] = useState<string | null>(null)
 
   useEffect(() => {
     loadRuns()
@@ -379,81 +437,103 @@ export function RunManager() {
       ) : runs.length === 0 ? (
         <div style={emptyStyle}>No runs yet. Configure and launch a pipeline to see results here.</div>
       ) : (
-        <div style={tableContainerStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={{ ...thStyle, width: 32 }}></th>
-                <th style={thStyle}>Date</th>
-                <th style={thStyle}>Experiment</th>
-                <th style={thStyle}>Subject</th>
-                <th style={thStyle}>Model</th>
-                <th style={thStyle}>Mean Score</th>
-                <th style={thStyle}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => {
-                const isSelected = selectedRun?.run_id === run.run_id
-                const isCompare = compareIds.includes(run.run_id)
-                return (
-                  <tr
-                    key={run.run_id}
-                    style={rowStyle(isSelected)}
-                    onClick={() => (isSelected ? clearSelection() : selectRun(run.run_id))}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0, 229, 255, 0.03)'
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
-                    }}
-                  >
-                    <td style={{ ...tdStyle, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isCompare}
-                        onChange={() => toggleCompare(run.run_id)}
-                        title="Select to compare with another run"
-                      />
-                    </td>
-                    <td style={tdStyle}>{formatDate(run.started_at)}</td>
-                    <td style={{ ...tdStyle, color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                      {run.experiment || '-'}
-                    </td>
-                    <td style={tdStyle}>{run.subject || '-'}</td>
-                    <td style={tdStyle}>
-                      {(run.config_snapshot as any)?.model?.type || '-'}
-                    </td>
-                    <td style={{
-                      ...tdStyle,
-                      color: run.mean_score != null ? 'var(--accent-green)' : 'var(--text-secondary)',
-                      fontWeight: 600,
-                    }}>
-                      {formatScore(run.mean_score)}
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={statusBadge(run.status)}>{run.status}</span>
-                    </td>
+        <div style={pageLayout}>
+          <div style={listSidebar}>
+            <div style={listScroll}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, width: 28, padding: '10px 8px' }}></th>
+                    <th style={{ ...thStyle, padding: '10px 10px' }}>Date</th>
+                    <th style={{ ...thStyle, padding: '10px 10px' }}>Run</th>
+                    <th style={{ ...thStyle, padding: '10px 10px', textAlign: 'right' }}>Status</th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody>
+                  {runs.map((run) => {
+                    const isSelected = selectedRun?.run_id === run.run_id
+                    const isCompare = compareIds.includes(run.run_id)
+                    return (
+                      <tr
+                        key={run.run_id}
+                        style={rowStyle(isSelected)}
+                        onClick={() => (isSelected ? clearSelection() : selectRun(run.run_id))}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0, 229, 255, 0.03)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
+                        }}
+                      >
+                        <td
+                          style={{ ...tdStyle, textAlign: 'center', padding: '8px 4px' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isCompare}
+                            onChange={() => toggleCompare(run.run_id)}
+                            title="Select to compare with another run"
+                          />
+                        </td>
+                        <td style={{ ...tdStyle, padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                          {formatDate(run.started_at)}
+                        </td>
+                        <td style={{ ...tdStyle, padding: '8px 10px' }}>
+                          <div style={{ color: 'var(--accent-cyan)', fontWeight: 600, fontSize: 12 }}>
+                            {run.experiment || '-'}
+                            {run.subject && (
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
+                                {' · '}{run.subject}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{
+                            fontSize: 10, color: 'var(--text-secondary)',
+                            fontFamily: 'monospace',
+                          }}>
+                            {run.run_id}
+                          </div>
+                        </td>
+                        <td style={{ ...tdStyle, padding: '8px 10px', textAlign: 'right' }}>
+                          <span style={statusBadge(run.status)}>{run.status}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      {/* Detail panel */}
-      {selectedRun && (
-        <RunDetail
-          run={selectedRun}
-          onClose={clearSelection}
-          onRefresh={() => selectRun(selectedRun.run_id)}
-        />
+          <div>
+            {selectedRun ? (
+              <RunDetail
+                run={selectedRun}
+                onClose={clearSelection}
+                onRefresh={() => selectRun(selectedRun.run_id)}
+                onOpenGraph={(rid) => setGraphRunId(rid)}
+              />
+            ) : (
+              <div style={mainEmpty}>
+                Pick a run on the left to see its stages, artifacts, and graph.
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Comparison overlay */}
       {compareSelection && (
         <RunComparison runs={compareSelection} onClose={closeComparison} />
+      )}
+
+      {graphRunId && (
+        <AnalysisGraphModal
+          target={{ kind: 'subject', runId: graphRunId }}
+          title={`Run ${graphRunId} — analysis graph`}
+          onClose={() => setGraphRunId(null)}
+        />
       )}
     </div>
   )

@@ -1,9 +1,11 @@
 /** Config summary + inline YAML viewer/editor + action buttons. */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import Editor from '@monaco-editor/react'
 import type { ConfigDetail as ConfigDetailType } from '../../api/types'
 import { saveConfigFile, copyConfigFile } from '../../api/client'
 import { useDialog } from '../common/Dialog'
+import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
 
 interface ConfigDetailProps {
   config: ConfigDetailType
@@ -76,35 +78,11 @@ const yamlToggle: CSSProperties = {
   marginBottom: 8,
 }
 
-const yamlPre: CSSProperties = {
-  backgroundColor: 'var(--bg-secondary)',
-  padding: '12px 14px',
+const yamlBox = (hasError: boolean): CSSProperties => ({
+  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--border)'}`,
   borderRadius: 6,
-  fontSize: 11,
-  lineHeight: 1.6,
-  color: 'var(--text-primary)',
-  overflow: 'auto',
-  maxHeight: 300,
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-all',
-  margin: 0,
-}
-
-const yamlTextarea = (hasError: boolean): CSSProperties => ({
-  width: '100%',
-  minHeight: 280,
-  maxHeight: 520,
-  padding: '12px 14px',
-  borderRadius: 6,
-  fontSize: 11,
-  lineHeight: 1.6,
-  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-  backgroundColor: 'var(--bg-secondary)',
-  border: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-cyan)'}`,
-  color: 'var(--text-primary)',
-  outline: 'none',
-  resize: 'vertical',
-  tabSize: 2,
+  height: 360,
+  overflow: 'hidden',
 })
 
 const editBar: CSSProperties = {
@@ -167,6 +145,7 @@ export function ConfigDetail({
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
+  const [graphOpen, setGraphOpen] = useState(false)
   const dlg = useDialog()
 
   // Reset the draft whenever a different config is selected or reloaded.
@@ -216,21 +195,130 @@ export function ConfigDetail({
 
   const cfg = config.config as Record<string, any>
 
-  const experiment = cfg.experiment || '-'
-  const subject = cfg.subject || '-'
-  const modelType = cfg.model?.type || '-'
-  const features = (cfg.features || []).map((f: any) => f.name).join(', ') || '-'
-  const prepCfg = cfg.preparation
-  const prepType = prepCfg?.type || 'default'
-  const outputDir = cfg.reporting?.output_dir || '-'
-  const stimLoader = cfg.stimulus?.loader || '-'
-  const respLoader = cfg.response?.loader || '-'
-  const formats = (cfg.reporting?.formats || []).join(', ') || '-'
+  // YAML shape detection. Mirrors the same logic the server uses to
+  // route a config to the subject / group / study orchestrator.
+  const isStudy =
+    typeof cfg.study === 'string' && Array.isArray(cfg.groups)
+  const isGroup =
+    !isStudy && typeof cfg.group === 'string' && Array.isArray(cfg.subjects)
+  const scope: 'subject' | 'group' | 'study' =
+    isStudy ? 'study' : isGroup ? 'group' : 'subject'
 
-  // Preparation steps summary
-  let prepSummary = prepType
-  if (prepType === 'pipeline' && prepCfg?.steps) {
-    prepSummary = prepCfg.steps.map((s: any) => s.name).join(' \u2192 ')
+  // Comma-joined names with "+N more" suffix once the list gets long.
+  const summariseList = (items: any[] | undefined, max = 4): string => {
+    if (!items || items.length === 0) return '-'
+    if (items.length <= max) return items.join(', ')
+    return `${items.slice(0, max).join(', ')} +${items.length - max} more`
+  }
+
+  // Full untruncated list for the tooltip — newline-separated so the
+  // browser's native title popup renders one item per line.
+  const fullList = (items: any[] | undefined): string | undefined => {
+    if (!items || items.length === 0) return undefined
+    return items.join('\n')
+  }
+
+  // Field tuples [label, value, valueStyle?, tooltip?]. ``tooltip`` (if
+  // set) is shown as the browser's native hover title — used for
+  // truncated lists so the user can see every item without expanding.
+  // Each scope assembles its own list so we don't end up showing
+  // "Subject: -" for a group config.
+  const fields: [string, string, CSSProperties?, string?][] = []
+
+  if (scope === 'subject') {
+    const experiment = cfg.experiment || '-'
+    const subject = cfg.subject || '-'
+    const modelType = cfg.model?.type || '-'
+    const featureNames =
+      (cfg.features || []).map((f: any) => f.name) as string[]
+    const features =
+      featureNames.length > 0
+        ? summariseList(featureNames, 5)
+        : '-'
+    const prepCfg = cfg.preparation
+    const prepType = prepCfg?.type || 'default'
+    const outputDir = cfg.reporting?.output_dir || '-'
+    const stimLoader = cfg.stimulus?.loader || '-'
+    const respLoader = cfg.response?.loader || '-'
+    const formatNames = (cfg.reporting?.formats || []) as string[]
+    const formats =
+      formatNames.length > 0 ? summariseList(formatNames, 5) : '-'
+    let prepSummary = prepType
+    if (prepType === 'pipeline' && prepCfg?.steps) {
+      prepSummary = prepCfg.steps.map((s: any) => s.name).join(' \u2192 ')
+    }
+    fields.push(
+      ['Experiment', experiment],
+      ['Subject', subject],
+      ['Model', modelType],
+      ['Features', features, { fontSize: 11 }, fullList(featureNames)],
+      ['Preparation', prepSummary, { fontSize: 11 }],
+      ['Output', outputDir, { fontSize: 10, fontFamily: 'monospace' }],
+      ['Stimulus', stimLoader],
+      ['Response', respLoader],
+      ['Reporters', formats, { fontSize: 11 }, fullList(formatNames)],
+    )
+  } else if (scope === 'group') {
+    const tmpl = cfg.subject_template || {}
+    const groupName = cfg.group || '-'
+    const subjects = (cfg.subjects || []) as string[]
+    const modelType = tmpl.model?.type || '-'
+    const featureNames =
+      (tmpl.features || []).map((f: any) => f.name) as string[]
+    const stimLoader = tmpl.stimulus?.loader || '-'
+    const respLoader = tmpl.response?.loader || '-'
+    const outputDir = cfg.output_dir || '-'
+    const analyzers =
+      (cfg.group_analyze || []).map((g: any) => g.name) as string[]
+    const reporters =
+      (cfg.group_report || []).map((r: any) => r.name) as string[]
+    const workers = cfg.parallel?.max_workers
+    fields.push(
+      ['Group', groupName],
+      [
+        'Subjects',
+        subjects.length > 0
+          ? `${summariseList(subjects, 6)} (${subjects.length})`
+          : '-',
+        { fontSize: 11 },
+        fullList(subjects),
+      ],
+      ['Model', modelType],
+      ['Features', summariseList(featureNames, 5), { fontSize: 11 }, fullList(featureNames)],
+      ['Stimulus', stimLoader],
+      ['Response', respLoader],
+      ['Output', outputDir, { fontSize: 10, fontFamily: 'monospace' }],
+      ['Group Analyze', summariseList(analyzers, 4), { fontSize: 11 }, fullList(analyzers)],
+      ['Group Report', summariseList(reporters, 4), { fontSize: 11 }, fullList(reporters)],
+      ['Parallel workers', workers != null ? String(workers) : '-'],
+    )
+  } else {
+    // study
+    const studyName = cfg.study || '-'
+    const groups =
+      (cfg.groups || []) as Array<{ name?: string; config?: string }>
+    const groupNames = groups.map((g) => g.name || '?')
+    const outputDir = cfg.output_dir || '-'
+    const studyAnalyze =
+      (cfg.study_analyze || []).map((a: any) => a.name) as string[]
+    const studyReport =
+      (cfg.study_report || []).map((r: any) => r.name) as string[]
+    const workers = cfg.parallel?.max_workers
+    fields.push(
+      ['Study', studyName],
+      [
+        'Groups',
+        groupNames.length > 0
+          ? `${summariseList(groupNames, 6)} (${groupNames.length})`
+          : '-',
+        { fontSize: 11 },
+        fullList(groupNames),
+      ],
+      ['Output', outputDir, { fontSize: 10, fontFamily: 'monospace' }],
+      ['Study Analyze', summariseList(studyAnalyze, 4), { fontSize: 11 }, fullList(studyAnalyze)],
+      ['Study Report', summariseList(studyReport, 4), { fontSize: 11 }, fullList(studyReport)],
+      ['Parallel workers', workers != null ? String(workers) : '-'],
+    )
   }
 
   return (
@@ -241,42 +329,21 @@ export function ConfigDetail({
       </div>
 
       <div style={gridStyle}>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Experiment</div>
-          <div style={fieldValue}>{experiment}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Subject</div>
-          <div style={fieldValue}>{subject}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Model</div>
-          <div style={fieldValue}>{modelType}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Features</div>
-          <div style={{ ...fieldValue, fontSize: 11 }}>{features}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Preparation</div>
-          <div style={{ ...fieldValue, fontSize: 11 }}>{prepSummary}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Output</div>
-          <div style={{ ...fieldValue, fontSize: 10, fontFamily: 'monospace' }}>{outputDir}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Stimulus</div>
-          <div style={fieldValue}>{stimLoader}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Response</div>
-          <div style={fieldValue}>{respLoader}</div>
-        </div>
-        <div style={fieldCard}>
-          <div style={fieldLabel}>Reporters</div>
-          <div style={{ ...fieldValue, fontSize: 11 }}>{formats}</div>
-        </div>
+        {fields.map(([label, value, valueStyle, tooltip]) => (
+          <div key={label} style={fieldCard}>
+            <div style={fieldLabel}>{label}</div>
+            <div
+              style={{
+                ...fieldValue,
+                ...(valueStyle || {}),
+                ...(tooltip ? { cursor: 'help', textDecoration: 'underline dotted var(--text-secondary)' } : {}),
+              }}
+              title={tooltip}
+            >
+              {value}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* YAML viewer / editor */}
@@ -284,14 +351,32 @@ export function ConfigDetail({
         {showYaml ? '\u25BC Hide YAML' : '\u25B6 Show YAML'}
       </button>
       {showYaml && (
-        editing ? (
-          <>
-            <textarea
-              style={yamlTextarea(saveErr !== null)}
-              value={yamlDraft}
-              onChange={(e) => setYamlDraft(e.target.value)}
-              spellCheck={false}
+        <>
+          <div style={yamlBox(saveErr !== null)}>
+            <Editor
+              height="100%"
+              language="yaml"
+              theme="vs-dark"
+              value={editing ? yamlDraft : config.yaml_string}
+              onChange={editing ? (v) => setYamlDraft(v ?? '') : undefined}
+              options={{
+                readOnly: !editing,
+                domReadOnly: !editing,
+                minimap: { enabled: false },
+                fontSize: 12,
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                insertSpaces: true,
+                renderLineHighlight: editing ? 'line' : 'none',
+                contextmenu: editing,
+                padding: { top: 8 },
+              }}
             />
+          </div>
+          {editing && (
             <div style={editBar}>
               <button
                 style={btnStyle('primary')}
@@ -305,10 +390,8 @@ export function ConfigDetail({
               </button>
               {saveErr && <span style={saveError}>{saveErr}</span>}
             </div>
-          </>
-        ) : (
-          <pre style={yamlPre}>{config.yaml_string}</pre>
-        )
+          )}
+        </>
       )}
 
       {/* Action buttons */}
@@ -322,6 +405,9 @@ export function ConfigDetail({
         </button>
         <button style={btnStyle('secondary')} onClick={onValidate} disabled={validating}>
           {validating ? 'Validating...' : 'Validate'}
+        </button>
+        <button style={btnStyle('secondary')} onClick={() => setGraphOpen(true)}>
+          View graph
         </button>
         {showYaml && !editing && (
           <button style={btnStyle('default')} onClick={() => setEditing(true)}>
@@ -340,6 +426,14 @@ export function ConfigDetail({
             ? '\u2713 Config is valid'
             : validationErrors.map((err, i) => <div key={i}>\u2717 {err}</div>)}
         </div>
+      )}
+
+      {graphOpen && (
+        <AnalysisGraphModal
+          target={{ kind: 'config', filename: config.filename }}
+          title={`${config.filename} \u2014 preview graph`}
+          onClose={() => setGraphOpen(false)}
+        />
       )}
     </div>
   )
