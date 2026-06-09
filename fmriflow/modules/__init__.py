@@ -59,6 +59,7 @@ def register_builtins(registry):
 
     import fmriflow.modules.models.ridge  # noqa: F401
     import fmriflow.modules.models.himalaya  # noqa: F401
+    import fmriflow.modules.models.kernelized_banded_ridge  # noqa: F401
 
     import fmriflow.modules.reporters.metrics  # noqa: F401
     import fmriflow.modules.reporters.flatmap  # noqa: F401

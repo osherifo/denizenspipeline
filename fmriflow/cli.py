@@ -259,6 +259,10 @@ def _cmd_run(args) -> int:
     from fmriflow.core import paths
     output_dir = pipeline.config.get('reporting', {}).get(
         'output_dir') or str(paths.results_root())
+    # Expand `~` / `$VAR` so YAML can use them naturally without
+    # creating a literal-tilde directory under CWD.
+    import os as _os
+    output_dir = _os.path.expanduser(_os.path.expandvars(output_dir))
     log_path = _setup_file_logging(output_dir)
     logger.info("Pipeline started — config: %s", args.config)
 

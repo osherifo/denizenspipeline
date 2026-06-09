@@ -265,18 +265,26 @@ def _subject_plugin_nodes(cfg: dict, stage: str, stage_status: str,
             # Legacy schema: features may be a plain list of extractor
             # names (strings) rather than dicts.
             if isinstance(feat, str):
-                items.append(('feature_extractor', feat, {}))
+                items.append(('feature_extractor', feat, {}, feat))
                 continue
             if not isinstance(feat, dict):
                 continue
             source = feat.get('source', 'compute')
-            extractor = feat.get('extractor') or feat.get('name')
+            feat_name = feat.get('name')
+            extractor = feat.get('extractor') or feat_name
             # For 'compute' features we surface the extractor (that's the
             # interesting code path); other sources are just loaders.
+            # Label includes the feature name so 8 grouped_hdf nodes
+            # loading 8 different features are visually distinguishable.
             if source == 'compute' and extractor:
-                items.append(('feature_extractor', extractor, dict(feat)))
+                if feat_name and feat_name != extractor:
+                    label = f"{extractor}: {feat_name}"
+                else:
+                    label = extractor
+                items.append(('feature_extractor', extractor, dict(feat), label))
             else:
-                items.append(('feature_source', source, dict(feat)))
+                label = f"{source}: {feat_name}" if feat_name else source
+                items.append(('feature_source', source, dict(feat), label))
     elif stage == 'prepare':
         prep = cfg.get('preparation') or {}
         ptype = prep.get('type')
@@ -319,9 +327,21 @@ def _subject_plugin_nodes(cfg: dict, stage: str, stage_status: str,
 
     out: list[GraphNode] = []
     seen: dict[str, int] = {}
-    for kind, name, params in items:
-        # Drop the noisy `name` field — already in label
-        params = {k: v for k, v in params.items() if k != 'name'}
+    for item in items:
+        # Items may be 3- or 4-tuples; the 4th element is an optional
+        # display label override (used by feature_source/extractor to
+        # show the feature name alongside the source/extractor name).
+        if len(item) == 4:
+            kind, name, params, label = item
+        else:
+            kind, name, params = item
+            label = name
+        # Keep `name` visible in params only when it differs from the
+        # plugin name — otherwise it's redundant noise.
+        params = {
+            k: v for k, v in params.items()
+            if k != 'name' or v != name
+        }
         # Suffix duplicate names within a stage (e.g. two `trim` steps).
         base_id = f'{stage}:{name}'
         n = seen.get(base_id, 0)
@@ -330,7 +350,7 @@ def _subject_plugin_nodes(cfg: dict, stage: str, stage_status: str,
         src = _plugin_source(registry, kind, name)
         out.append(GraphNode(
             id=node_id,
-            label=name,
+            label=label,
             kind=kind,
             stage=stage,
             # Stage-status fallback. When the run was made by the

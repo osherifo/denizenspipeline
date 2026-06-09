@@ -248,12 +248,17 @@ def _apply_per_run_output_dir(config: dict, run_id: str) -> dict:
     The suffix is ``run_<YYYYmmdd-HHMMSS>_<run_id>`` — sortable and
     human-scannable. Returns a shallow copy of config (original is
     left intact for callers that hold a reference).
+
+    ``~`` and ``$VAR`` in the configured base path are expanded — a
+    literal tilde would otherwise become a directory named ``~``
+    under CWD (Python's ``Path()`` doesn't expanduser by default).
     """
     from datetime import datetime
 
     out = dict(config)
     reporting = dict(out.get('reporting') or {})
     base = reporting.get('output_dir') or './results'
+    base = os.path.expanduser(os.path.expandvars(str(base)))
     stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     reporting['output_dir'] = str(Path(base) / f"run_{stamp}_{run_id}")
     out['reporting'] = reporting

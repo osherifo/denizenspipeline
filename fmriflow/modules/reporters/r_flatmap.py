@@ -54,7 +54,7 @@ class PearsonRFlatmapReporter:
             cmap=opts.get("cmap", "magma"),
             vmin=opts.get("vmin", 0.0),
             vmax=opts.get("vmax", 0.3),
-            threshold=opts.get("threshold", 0.05),
+            threshold=opts.get("threshold"),
             with_curvature=opts.get("with_curvature", True),
             dpi=opts.get("dpi", 100),
             filename=opts.get("filename", "r_flatmap.png"),

@@ -1,17 +1,25 @@
 """QA reporters for the ``features`` stage (FeatureData).
 
-A feature-matrix carpet is the standard sanity check on feature
-loading: feature dimensions on the y-axis, time on the x-axis, colour
-by amplitude. Lets the user catch a misaligned feature, a flipped
-delay, or a per-feature scaling problem before anything downstream.
+Two layouts are supported:
 
-Layout per PNG: every feature stacked vertically (english1000 above
-letters above numwords above moten), every run concatenated along
-time, with red **vertical** lines at run boundaries and **horizontal**
-lines + right-margin labels at feature boundaries. Two views are
-emitted per call — ``feature_matrix_zscored.png`` (each column
-z-scored, the standard QA view) and ``feature_matrix_raw.png`` (raw
-amplitudes, clipped to the data's 1/99th percentile by default).
+- ``layout: combined`` (default) — every feature stacked vertically,
+  every run concatenated along time, into one carpet per panel.
+  Vertical red lines mark run boundaries, horizontal red lines + a
+  right-margin label mark feature boundaries. Best for spotting global
+  scale/alignment issues at a glance.
+
+- ``layout: grid`` — an N-feature × M-run grid of small subplots,
+  each cell is the carpet for that (feature, story) pair. Rows are
+  labelled with the feature name on the left margin; columns are
+  labelled with the run/story name across the top. Best when you want
+  per-(feature, story) inspection without the per-feature scale
+  differences squashing the colorbar.
+
+Both layouts emit two PNGs: ``feature_matrix_zscored.png`` (each
+feature column z-scored across time) and ``feature_matrix_raw.png``
+(amplitudes as loaded). In grid mode the raw panel uses **per-row**
+clipping (each feature's own 1/99th percentile) so a 6555-dim moten
+row and a 1-dim numwords row stay legible side by side.
 """
 
 from __future__ import annotations
@@ -23,7 +31,7 @@ import numpy as np
 
 from fmriflow.core.types import FeatureData
 from fmriflow.modules._decorators import qa_reporter
-from fmriflow.modules.qa_reporters._base import ensure_dir, mpl_figure, save_png
+from fmriflow.modules.qa_reporters._base import ensure_dir, save_png
 
 
 @qa_reporter("feature_matrix", stage="features")
@@ -41,6 +49,14 @@ class FeatureMatrix:
     name = "feature_matrix"
     stage = "features"
     PARAM_SCHEMA = {
+        "layout": {
+            "type": "string", "default": "combined",
+            "enum": ["combined", "grid"],
+            "description": (
+                "'combined' = one stacked carpet (all features × all runs); "
+                "'grid' = subplot per (feature, run) with row/column labels."
+            ),
+        },
         "max_dims_per_feature": {
             "type": "int", "default": None,
             "description": (
@@ -67,7 +83,17 @@ class FeatureMatrix:
         "cmap": {"type": "string", "default": "viridis"},
         "figsize": {
             "type": "list[float]", "default": [12.0, 7.0],
-            "description": "matplotlib figure size in inches.",
+            "description": (
+                "matplotlib figure size in inches (combined layout only — "
+                "grid layout sizes from cell_size × grid shape)."
+            ),
+        },
+        "cell_size": {
+            "type": "list[float]", "default": [1.4, 0.9],
+            "description": (
+                "Per-cell [width, height] in inches (grid layout only). "
+                "Figure size = ncols × w + label margin, nrows × h + title margin."
+            ),
         },
         "dpi": {"type": "int", "default": 110, "min": 50},
         "runs": {
@@ -84,6 +110,7 @@ class FeatureMatrix:
     ) -> dict[str, str]:
         ensure_dir(output_dir)
         cfg = self._my_cfg(config)
+        layout = str(cfg.get("layout", "combined"))
         max_dims = cfg.get("max_dims_per_feature", None)
         vmin_z = float(cfg.get("vmin_z", -3.0))
         vmax_z = float(cfg.get("vmax_z",  3.0))
@@ -91,6 +118,7 @@ class FeatureMatrix:
         vmax_raw = cfg.get("vmax_raw", None)
         cmap = cfg.get("cmap", "viridis")
         figsize = tuple(cfg.get("figsize", [12.0, 7.0]))
+        cell_size = tuple(cfg.get("cell_size", [1.4, 0.9]))
         dpi = int(cfg.get("dpi", 110))
         runs_filter = cfg.get("runs") or None
 
@@ -185,12 +213,16 @@ class FeatureMatrix:
             z = (raw - mu) / np.where(sigma > 0, sigma, 1.0)
         z[~np.isfinite(z)] = 0.0
 
+        # Global raw clip (used by combined layout + as the default for
+        # the grid layout's z-scored panel; grid raw uses per-row clip).
         if vmin_raw is None:
-            vmin_raw = float(np.nanpercentile(raw, 1))
+            global_vmin_raw = float(np.nanpercentile(raw, 1))
+        else:
+            global_vmin_raw = float(vmin_raw)
         if vmax_raw is None:
-            vmax_raw = float(np.nanpercentile(raw, 99))
-        vmin_raw = float(vmin_raw)
-        vmax_raw = float(vmax_raw)
+            global_vmax_raw = float(np.nanpercentile(raw, 99))
+        else:
+            global_vmax_raw = float(vmax_raw)
 
         # Headline dim totals per feature for the title.
         per_feature_dims = {
@@ -201,25 +233,59 @@ class FeatureMatrix:
             for name in feature_names
         }
 
-        out.update(self._render(
-            output_dir / "feature_matrix_zscored.png",
-            data=z, run_lengths=run_lengths, run_names=run_names_used,
-            feature_boundaries=feature_boundaries,
-            total_shown_dims=total_shown_dims, n_trs=n_trs,
-            vmin=vmin_z, vmax=vmax_z, cmap=cmap, figsize=figsize, dpi=dpi,
-            kind="z-scored per dim", colorbar_label="z",
-        ))
-        out.update(self._render(
-            output_dir / "feature_matrix_raw.png",
-            data=raw, run_lengths=run_lengths, run_names=run_names_used,
-            feature_boundaries=feature_boundaries,
-            total_shown_dims=total_shown_dims, n_trs=n_trs,
-            vmin=vmin_raw, vmax=vmax_raw, cmap=cmap, figsize=figsize, dpi=dpi,
-            kind="raw amplitudes", colorbar_label="value",
-        ))
+        if layout == "grid":
+            # Per-feature percentile clip for the raw grid so a
+            # high-amplitude feature doesn't make low-amplitude ones
+            # vanish. Each tuple is (vmin, vmax) for one feature row.
+            per_feature_raw_clip: dict[str, tuple[float, float]] = {}
+            for fname, start, end in feature_boundaries:
+                cols = raw[:, start:end]
+                lo = (float(np.nanpercentile(cols, 1))
+                      if vmin_raw is None else float(vmin_raw))
+                hi = (float(np.nanpercentile(cols, 99))
+                      if vmax_raw is None else float(vmax_raw))
+                per_feature_raw_clip[fname] = (lo, hi)
+
+            out.update(self._render_grid(
+                output_dir / "feature_matrix_zscored.png",
+                data=z, run_lengths=run_lengths, run_names=run_names_used,
+                feature_boundaries=feature_boundaries,
+                cell_size=cell_size, cmap=cmap, dpi=dpi,
+                kind="z-scored per dim", colorbar_label="z",
+                shared_clip=(vmin_z, vmax_z),
+                per_row_clip=None,
+            ))
+            out.update(self._render_grid(
+                output_dir / "feature_matrix_raw.png",
+                data=raw, run_lengths=run_lengths, run_names=run_names_used,
+                feature_boundaries=feature_boundaries,
+                cell_size=cell_size, cmap=cmap, dpi=dpi,
+                kind="raw amplitudes", colorbar_label="value",
+                shared_clip=None,
+                per_row_clip=per_feature_raw_clip,
+            ))
+        else:
+            out.update(self._render(
+                output_dir / "feature_matrix_zscored.png",
+                data=z, run_lengths=run_lengths, run_names=run_names_used,
+                feature_boundaries=feature_boundaries,
+                total_shown_dims=total_shown_dims, n_trs=n_trs,
+                vmin=vmin_z, vmax=vmax_z, cmap=cmap, figsize=figsize, dpi=dpi,
+                kind="z-scored per dim", colorbar_label="z",
+            ))
+            out.update(self._render(
+                output_dir / "feature_matrix_raw.png",
+                data=raw, run_lengths=run_lengths, run_names=run_names_used,
+                feature_boundaries=feature_boundaries,
+                total_shown_dims=total_shown_dims, n_trs=n_trs,
+                vmin=global_vmin_raw, vmax=global_vmax_raw, cmap=cmap,
+                figsize=figsize, dpi=dpi,
+                kind="raw amplitudes", colorbar_label="value",
+            ))
 
         sidecar = output_dir / "feature_matrix.json"
         sidecar.write_text(json.dumps({
+            "layout": layout,
             "n_runs": len(run_names_used),
             "n_trs": n_trs,
             "run_names": run_names_used,
@@ -228,7 +294,7 @@ class FeatureMatrix:
             "per_feature": per_feature_dims,
             "total_dims_shown": total_shown_dims,
             "zscored_clip": [vmin_z, vmax_z],
-            "raw_clip": [vmin_raw, vmax_raw],
+            "raw_clip": [global_vmin_raw, global_vmax_raw],
         }, indent=2))
         out["feature_matrix.json"] = str(sidecar)
         return out
@@ -243,7 +309,12 @@ class FeatureMatrix:
         figsize: tuple[float, float], dpi: int,
         kind: str, colorbar_label: str,
     ) -> dict[str, str]:
-        with mpl_figure(figsize=figsize, dpi=dpi) as fig:
+        import matplotlib
+        matplotlib.use('Agg', force=False)
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure(figsize=figsize, dpi=dpi)
+        try:
             ax = fig.add_subplot(111)
             ax.imshow(
                 data.T, aspect='auto', interpolation='nearest',
@@ -271,6 +342,129 @@ class FeatureMatrix:
             fig.colorbar(ax.images[0], ax=ax, shrink=0.7,
                          label=colorbar_label)
             save_png(fig, path)
+        finally:
+            plt.close(fig)
+        return {path.name: str(path)}
+
+    @staticmethod
+    def _render_grid(
+        path: Path, *, data: np.ndarray, run_lengths: list[int],
+        run_names: list[str],
+        feature_boundaries: list[tuple[str, int, int]],
+        cell_size: tuple[float, float], cmap: str, dpi: int,
+        kind: str, colorbar_label: str,
+        shared_clip: tuple[float, float] | None,
+        per_row_clip: dict[str, tuple[float, float]] | None,
+    ) -> dict[str, str]:
+        """Render a (features × runs) grid of small carpets.
+
+        ``data`` is the same ``(T_total, total_dims)`` matrix used by
+        the combined render — we slice it by feature column ranges
+        (from ``feature_boundaries``) and run row ranges (cumulative
+        ``run_lengths``).
+
+        Exactly one of ``shared_clip`` or ``per_row_clip`` must be set:
+        - ``shared_clip=(vmin, vmax)``: one colorbar at the right of
+          the figure (typical for z-scored).
+        - ``per_row_clip={fname: (vmin, vmax)}``: each feature row
+          uses its own clip, with a small colorbar at the right of
+          each row (typical for raw, so very different scales remain
+          legible).
+        """
+        import matplotlib
+        matplotlib.use('Agg', force=False)
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+        n_features = len(feature_boundaries)
+        n_runs = len(run_lengths)
+
+        # Run row-ranges (start, end) along the time axis.
+        run_ranges: list[tuple[int, int]] = []
+        t = 0
+        for L in run_lengths:
+            run_ranges.append((t, t + L))
+            t += L
+
+        # Figure size: cells + outer label margins + colorbar column.
+        w_cell, h_cell = float(cell_size[0]), float(cell_size[1])
+        left_label_w = 1.4         # inches reserved for the row labels
+        top_title_h = 0.6          # inches reserved for column headers
+        cbar_w = 0.35              # inches reserved for the colorbar column
+        fig_w = left_label_w + n_runs * w_cell + cbar_w + 0.4
+        fig_h = top_title_h + n_features * h_cell + 0.6
+
+        fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
+        try:
+            # width_ratios: [n_runs cell columns] + [colorbar column].
+            # Cells are equal width; the colorbar is narrower.
+            width_ratios = [1.0] * n_runs + [0.12]
+            gs = GridSpec(
+                n_features, n_runs + 1,
+                width_ratios=width_ratios,
+                left=left_label_w / fig_w,
+                right=1.0 - 0.05 / fig_w,
+                top=1.0 - top_title_h / fig_h,
+                bottom=0.45 / fig_h,
+                wspace=0.08, hspace=0.18,
+                figure=fig,
+            )
+
+            cell_images = []
+            for r, (fname, c_start, c_end) in enumerate(feature_boundaries):
+                if per_row_clip is not None:
+                    vmin_r, vmax_r = per_row_clip[fname]
+                else:
+                    assert shared_clip is not None
+                    vmin_r, vmax_r = shared_clip
+
+                for c, run in enumerate(run_names):
+                    t_start, t_end = run_ranges[c]
+                    cell = data[t_start:t_end, c_start:c_end]  # (T_run, n_dims_f)
+                    ax = fig.add_subplot(gs[r, c])
+                    img = ax.imshow(
+                        cell.T, aspect='auto', interpolation='nearest',
+                        cmap=cmap, vmin=vmin_r, vmax=vmax_r,
+                    )
+                    if r == 0:
+                        ax.set_title(run, fontsize=7, pad=2)
+                    if c == 0:
+                        # Row label on the left margin (feature name).
+                        ax.text(
+                            -0.06, 0.5, fname,
+                            transform=ax.transAxes,
+                            fontsize=8, ha='right', va='center',
+                            color='black',
+                        )
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    for spine in ax.spines.values():
+                        spine.set_linewidth(0.5)
+                        spine.set_color('lightgray')
+                    cell_images.append(img)
+
+                # Per-row colorbar (raw mode).
+                if per_row_clip is not None:
+                    cax = fig.add_subplot(gs[r, n_runs])
+                    last_img = cell_images[-1]
+                    cb = fig.colorbar(last_img, cax=cax)
+                    cb.ax.tick_params(labelsize=6, length=2)
+
+            # Shared colorbar (zscored mode) spans every row.
+            if shared_clip is not None and cell_images:
+                cax = fig.add_subplot(gs[:, n_runs])
+                cb = fig.colorbar(cell_images[0], cax=cax,
+                                  label=colorbar_label)
+                cb.ax.tick_params(labelsize=7)
+
+            fig.suptitle(
+                f"Feature matrix grid — {kind} "
+                f"({n_features} features × {n_runs} runs)",
+                fontsize=10, y=1.0 - 0.06 / fig_h,
+            )
+            save_png(fig, path)
+        finally:
+            plt.close(fig)
         return {path.name: str(path)}
 
     @staticmethod

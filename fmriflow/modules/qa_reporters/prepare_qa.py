@@ -185,6 +185,161 @@ class DelayStructureHeatmap:
         return {'heatmap': png}
 
 
+@qa_reporter("per_story_shape", stage="prepare")
+class PerStoryShape:
+    """Per-story TR counts + feature dim composition.
+
+    Two-panel diagnostic that confirms (and visualizes) that responses
+    and features ended up time-aligned per story by the time
+    ``concatenate`` ran. The bare fact of reaching this stage is
+    already proof that they aligned (``concatenate`` raises on
+    mismatch) — this plot just makes the per-story TR landscape
+    visible so you can spot a story with a wildly unexpected length,
+    a misordered split, or a missing run.
+
+    Panel 1 (left): bar per story, height = post-trim TR count
+    (from ``PreparedData.metadata['run_lengths']``), coloured by
+    train vs test. Each bar annotated with its TR count.
+
+    Panel 2 (right): stacked horizontal bar showing the X column
+    composition — one block per feature, width proportional to that
+    feature's dim count. Annotated with feature name + dim count.
+    """
+
+    name = "per_story_shape"
+    stage = "prepare"
+    PARAM_SCHEMA: dict = {}
+
+    def report(
+        self, value: PreparedData, config: dict, output_dir: Path,
+    ) -> dict[str, str]:
+        ensure_dir(output_dir)
+
+        run_lengths = {}
+        meta = getattr(value, 'metadata', None) or {}
+        if isinstance(meta, dict):
+            run_lengths = dict(meta.get('run_lengths') or {})
+
+        train_runs = list(value.train_runs)
+        test_runs = list(value.test_runs)
+        if not run_lengths:
+            # Older runs may pre-date the metadata stash; fall back to
+            # length-of-zero so the plot still emits a structural view.
+            run_lengths = {r: 0 for r in train_runs + test_runs}
+
+        # Preserve config order: train first, then test.
+        ordered = [r for r in train_runs if r in run_lengths] + \
+                  [r for r in test_runs if r in run_lengths]
+        # Tail any runs in run_lengths that weren't in train/test (rare,
+        # but possible if the split was patched mid-run).
+        for r in run_lengths:
+            if r not in ordered:
+                ordered.append(r)
+
+        train_set = set(train_runs)
+        test_set = set(test_runs)
+        n_stories = len(ordered)
+        feature_names = list(value.feature_names)
+        feature_dims = list(value.feature_dims)
+        total_dims = int(sum(feature_dims)) if feature_dims else 0
+        n_voxels = int(value.Y_train.shape[1]) if value.Y_train.size else 0
+        n_train_trs = int(value.X_train.shape[0]) if value.X_train.size else 0
+        n_test_trs = int(value.X_test.shape[0]) if value.X_test.size else 0
+
+        with mpl_figure(figsize=(11.0, 4.5)) as fig:
+            ax_l = fig.add_subplot(1, 2, 1)
+            ax_r = fig.add_subplot(1, 2, 2)
+
+            # ── Left panel: per-story TR counts ───────────────────
+            counts = [int(run_lengths.get(r, 0)) for r in ordered]
+            colors = [
+                'steelblue' if r in train_set
+                else 'goldenrod' if r in test_set
+                else 'lightgray'
+                for r in ordered
+            ]
+            xs = np.arange(n_stories)
+            ax_l.bar(xs, counts, color=colors, edgecolor='white')
+            for i, v in enumerate(counts):
+                ax_l.text(i, v, f'{v}', ha='center', va='bottom',
+                          fontsize=8)
+            ax_l.set_xticks(xs)
+            ax_l.set_xticklabels(ordered, rotation=40, ha='right',
+                                 fontsize=8)
+            ax_l.set_ylabel('TR count (post-trim)')
+            ax_l.set_title(
+                f'per-story TR counts — '
+                f'features ({total_dims} dims) ↔ responses '
+                f'({n_voxels} voxels) aligned'
+            )
+            # Legend
+            from matplotlib.patches import Patch
+            legend_items = [
+                Patch(facecolor='steelblue', label=f'train ({len(train_runs)})'),
+                Patch(facecolor='goldenrod', label=f'test ({len(test_runs)})'),
+            ]
+            ax_l.legend(handles=legend_items, fontsize=8, loc='upper right')
+
+            # ── Right panel: feature dim composition ──────────────
+            if feature_names and feature_dims:
+                cmap = _palette(len(feature_names))
+                left = 0.0
+                for i, (fname, d) in enumerate(zip(feature_names, feature_dims)):
+                    ax_r.barh(
+                        0, d, left=left, height=0.5,
+                        color=cmap[i], edgecolor='white',
+                    )
+                    # Label inside the bar if it's wide enough, else above.
+                    label = f'{fname}\n({d})'
+                    midpoint = left + d / 2
+                    fs = 7 if d / max(total_dims, 1) > 0.05 else 6
+                    ax_r.text(
+                        midpoint, 0, label, ha='center', va='center',
+                        fontsize=fs, color='white',
+                    )
+                    left += d
+                ax_r.set_xlim(0, total_dims if total_dims else 1)
+                ax_r.set_ylim(-1, 1)
+                ax_r.set_yticks([])
+                ax_r.set_xlabel('X-column index')
+                ax_r.set_title(
+                    f'feature composition — '
+                    f'{len(feature_names)} features, {total_dims} total dims'
+                )
+            else:
+                ax_r.set_axis_off()
+                ax_r.text(0.5, 0.5, 'no feature dims recorded',
+                          ha='center', va='center')
+
+            fig.tight_layout()
+            png = save_png(fig, output_dir / 'per_story_shape.png')
+
+        sidecar = output_dir / 'per_story_shape.json'
+        sidecar.write_text(json.dumps({
+            'per_story_trs': {r: int(run_lengths.get(r, 0)) for r in ordered},
+            'train_runs': train_runs,
+            'test_runs': test_runs,
+            'feature_names': feature_names,
+            'feature_dims': feature_dims,
+            'total_feature_dims': total_dims,
+            'n_voxels': n_voxels,
+            'n_train_trs_total': n_train_trs,
+            'n_test_trs_total': n_test_trs,
+            'aligned_message': (
+                'features and responses time-aligned for every story: '
+                'concatenate would have errored otherwise.'
+            ),
+        }, indent=2))
+        return {'shape': png, 'json': str(sidecar)}
+
+
+def _palette(n: int) -> list[str]:
+    """Return ``n`` distinct hex colours from a qualitative tab cycle."""
+    import matplotlib.pyplot as plt
+    cmap = plt.get_cmap('tab10' if n <= 10 else 'tab20')
+    return [cmap(i % cmap.N) for i in range(n)]
+
+
 @qa_reporter("feature_row_ranges", stage="prepare")
 class FeatureRowRanges:
     """Visualize which X columns map to which (feature, delay).
