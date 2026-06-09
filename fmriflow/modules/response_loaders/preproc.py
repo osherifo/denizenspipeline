@@ -163,8 +163,11 @@ class PreprocResponseLoader:
                 img = nib.load(path)
                 data = img.get_fdata()
                 if data.ndim == 4:
-                    # (x, y, z, t) → keep as 4D for masking
-                    return data
+                    # nibabel gives (x, y, z, t); the downstream cortical mask
+                    # (cortex.db.get_mask) is in pycortex order (z, y, x). Return
+                    # (t, z, y, x) so _apply_mask's reshape(t, -1)[:, mask.ravel()]
+                    # lines up columns with the mask's own ravel order.
+                    return data.transpose(3, 2, 1, 0)
                 return data
             elif fmt == "hdf5":
                 import h5py
