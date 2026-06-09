@@ -7,7 +7,7 @@ analysis pipeline render your results on the cortical surface.
 
 [Autoflatten](autoflatten.md) imports a subject's surfaces into pycortex (the *anatomy* side), but
 surface-based reporting also needs an **EPI → surface transform**: the mapping from a functional
-(BOLD) grid to the subject's cortical surface. Reporters like [`flatmap`](#) and the
+(BOLD) grid to the subject's cortical surface. Reporters like [`flatmap`](../reference/modules.md#reporters) and the
 `project_to_fsaverage` analyzer consume it via `cortex.Volume(scores, surface, transform)`.
 
 This step mints that transform with a single, uniform name (default **`fmriflow`**) so every subject
@@ -78,7 +78,7 @@ and renders a quickflat PNG on the subject's own surface — the native-space co
     pycortex can only render a score array whose length equals
     `cortex.db.get_mask(surface, transform, "thick").sum()`. Keep the transform's reference grid and
     the response data in the **same space**. When responses are loaded straight from fmriprep BOLD via
-    the [`preproc`](#) response loader, they are masked by this same `(surface, transform)` mask, so the
+    the [`preproc`](../reference/modules.md#response-loaders) response loader, they are masked by this same `(surface, transform)` mask, so the
     counts line up automatically.
 
 ## Where this fits

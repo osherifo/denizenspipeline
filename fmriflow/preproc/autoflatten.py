@@ -481,7 +481,11 @@ def _do_pycortex_import(
         # flat patches are in the subject's surf/ dir, then import non-interactively.
         import shutil
         surf_dir = Path(config.subjects_dir) / config.subject / "surf"
-        patch_name = None
+        # ``import_flat`` takes ONE ``patch`` value and applies it to every
+        # hemisphere — so the per-hemi basenames must match. Compute each
+        # one independently and reject mismatches loudly instead of
+        # silently letting whichever hemisphere ran last win.
+        hemi_patch_names: dict[str, str] = {}
         for hemi, p in (("lh", lh_patch), ("rh", rh_patch)):
             p = Path(p)
             # patch name = filename minus "<hemi>." prefix, ".patch.3d" suffix and
@@ -491,11 +495,22 @@ def _do_pycortex_import(
                 base = base[len(hemi) + 1:]
             base = base[:-len(".patch.3d")] if base.endswith(".patch.3d") else base
             base = base[:-len(".flat")] if base.endswith(".flat") else base
-            patch_name = base
+            hemi_patch_names[hemi] = base
             dest = surf_dir / p.name
             if p.resolve() != dest.resolve():
                 surf_dir.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(p, dest)
+
+        if hemi_patch_names["lh"] != hemi_patch_names["rh"]:
+            raise RuntimeError(
+                "autoflatten: LH and RH patches resolved to different patch "
+                f"names ({hemi_patch_names['lh']!r} vs "
+                f"{hemi_patch_names['rh']!r}). ``import_flat`` requires one "
+                "shared patch name across hemispheres — rename so both look "
+                "like `<hemi>.<name>.flat.patch.3d`."
+            )
+        patch_name = hemi_patch_names["lh"]
+
         try:
             cortex.freesurfer.import_flat(
                 fs_subject=config.subject,

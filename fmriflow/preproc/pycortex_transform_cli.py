@@ -21,8 +21,14 @@ def add_pycortex_transform_subcommands(subparsers: argparse._SubParsersAction) -
     create_p.add_argument("reference", help="Path to the functional reference volume (NIfTI)")
     create_p.add_argument("--xfmname", default="fmriflow", help="Transform name (default: fmriflow)")
     create_p.add_argument(
-        "--method", choices=("automatic", "manual"), default="automatic",
-        help="automatic = FreeSurfer/FSL BBR; manual = interactive aligner",
+        "--method",
+        choices=("automatic", "automatic_fsl", "manual"),
+        default="automatic",
+        help=(
+            "automatic = FreeSurfer bbregister + mri_coreg (needs $SUBJECTS_DIR + "
+            "FreeSurfer on PATH); automatic_fsl = FSL FLIRT BBR (needs FSL on PATH); "
+            "manual = interactive aligner."
+        ),
     )
     create_p.add_argument("--overwrite", action="store_true", help="Redo if the transform exists")
 
@@ -30,7 +36,10 @@ def add_pycortex_transform_subcommands(subparsers: argparse._SubParsersAction) -
     status_p.add_argument("cx_subject", help="Pycortex subject name")
     status_p.add_argument("--xfmname", default="fmriflow", help="Transform name (default: fmriflow)")
 
-    sub.add_parser("doctor", help="Check pycortex / FSL availability")
+    sub.add_parser(
+        "doctor",
+        help="Check pycortex / FreeSurfer / FSL availability",
+    )
 
 
 def dispatch_pycortex_transform(args) -> int:
@@ -97,12 +106,21 @@ def _status(args) -> int:
 
 def _doctor(args) -> int:
     from fmriflow.preproc.pycortex_transform import (
+        check_freesurfer_available,
         check_fsl_available,
     )
     from fmriflow.preproc.autoflatten import check_pycortex_available
 
     ok_px, msg_px = check_pycortex_available()
+    ok_fs, msg_fs = check_freesurfer_available()
     ok_fsl, msg_fsl = check_fsl_available()
-    print(f"pycortex : {'OK' if ok_px else 'MISSING'} — {msg_px}")
-    print(f"FSL flirt: {'OK' if ok_fsl else 'MISSING'} — {msg_fsl}")
-    return 0 if ok_px else 1
+
+    print(f"pycortex   : {'OK' if ok_px else 'MISSING'} — {msg_px}")
+    # FreeSurfer covers method='automatic' (the default); FSL covers
+    # method='automatic_fsl'. Either one being present is enough to
+    # run an automatic alignment, hence the doctor exits 0 if pycortex
+    # is OK and at least one alignment toolchain is available.
+    print(f"FreeSurfer : {'OK' if ok_fs else 'MISSING'} — {msg_fs}")
+    print(f"FSL flirt  : {'OK' if ok_fsl else 'MISSING'} — {msg_fsl}")
+
+    return 0 if ok_px and (ok_fs or ok_fsl) else 1

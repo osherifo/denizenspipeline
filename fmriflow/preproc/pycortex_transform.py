@@ -105,12 +105,27 @@ class PycortexTransformResult:
 
 
 def check_fsl_available() -> tuple[bool, str]:
-    """Check whether FSL FLIRT is on PATH (needed for automatic alignment)."""
+    """Check whether FSL FLIRT is on PATH (needed for method='automatic_fsl')."""
     if shutil.which("flirt") is not None:
         return True, "FSL flirt found"
     return False, (
-        "FSL flirt not found on PATH — required for method='automatic'. "
-        "Source FSL (e.g. `source /etc/fsl/fsl.sh`) or use method='manual'."
+        "FSL flirt not found on PATH — required for method='automatic_fsl'. "
+        "Source FSL (e.g. `source /etc/fsl/fsl.sh`), use method='automatic' "
+        "(FreeSurfer bbregister), or method='manual'."
+    )
+
+
+def check_freesurfer_available() -> tuple[bool, str]:
+    """Check whether FreeSurfer's bbregister + mri_coreg are on PATH
+    (needed for method='automatic')."""
+    missing = [t for t in ("bbregister", "mri_coreg") if shutil.which(t) is None]
+    if not missing:
+        return True, "FreeSurfer bbregister + mri_coreg found"
+    return False, (
+        f"FreeSurfer tool(s) not on PATH ({', '.join(missing)}) — required for "
+        "method='automatic'. Source your FreeSurfer install "
+        "(`source $FREESURFER_HOME/SetUpFreeSurfer.sh`), use "
+        "method='automatic_fsl' (FSL FLIRT BBR), or method='manual'."
     )
 
 
@@ -143,10 +158,11 @@ def create_transform(config: PycortexTransformConfig) -> PycortexTransformResult
     """Create (or reuse) a pycortex transform aligning ``reference`` to ``cx_subject``.
 
     Execution:
-      1. Validate config + pycortex availability (and FSL for automatic).
+      1. Validate config + pycortex availability (and FreeSurfer for
+         method='automatic', FSL for method='automatic_fsl').
       2. Verify the pycortex subject exists (autoflatten must have imported it).
       3. If the transform exists and ``overwrite`` is False → reuse it.
-      4. Otherwise run ``cortex.align.{automatic,manual}``.
+      4. Otherwise run ``cortex.align.{automatic,automatic_fsl,manual}``.
       5. Report the resulting cortical-mask voxel count.
     """
     start = time.time()
@@ -159,7 +175,11 @@ def create_transform(config: PycortexTransformConfig) -> PycortexTransformResult
     if not ok:
         raise RuntimeError(msg)
 
-    if config.method == "automatic_fsl":
+    if config.method == "automatic":
+        ok, msg = check_freesurfer_available()
+        if not ok:
+            raise RuntimeError(msg)
+    elif config.method == "automatic_fsl":
         ok, msg = check_fsl_available()
         if not ok:
             raise RuntimeError(msg)
