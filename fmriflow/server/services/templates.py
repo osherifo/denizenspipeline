@@ -236,6 +236,211 @@ class {class_name}:
         return {{"out_file": out_path}}
 ''',
 
+    'group_analyzers': '''\
+"""Custom group analyzer: {name}."""
+
+from fmriflow.core.group_types import GroupResult
+from fmriflow.modules._decorators import group_analyzer
+
+
+@group_analyzer("{name}")
+class {class_name}:
+    """Reduce across subjects within a single group.
+
+    Reads per-subject context off ``group.subjects`` and writes
+    aggregated outputs back onto the ``GroupResult`` so downstream
+    group reporters (and the optional second-pass subject analyzers)
+    can pick them up.
+    """
+
+    name = "{name}"
+
+    PARAM_SCHEMA = {{
+        # Add parameters here. Each key is a config field name; the
+        # value is a ``{{'type': ..., 'default': ..., 'description':
+        # ...}}`` dict consumed by the param-form auto-renderer.
+    }}
+
+    # Set to ``True`` if this analyzer's output should also be injected
+    # into a second subject-level pass via ``external.<key>``.
+    produces_subject_artifact = False
+
+    def analyze(self, group: GroupResult, config: dict) -> None:
+        # YOUR LOGIC HERE.
+        # ``group.subjects`` is a list of subject contexts; each carries
+        # the per-subject ``ModelResult`` under ``ctx.get('result')``.
+        # Stash aggregate outputs with e.g.
+        # ``group.put('{name}.mean_score', mean_array)``.
+        raise NotImplementedError("Implement your group analysis logic here")
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
+    'group_reporters': '''\
+"""Custom group reporter: {name}."""
+
+from pathlib import Path
+from fmriflow.core.group_types import GroupResult
+from fmriflow.modules._decorators import group_reporter
+
+
+@group_reporter("{name}")
+class {class_name}:
+    """Render group-level artifacts (HTML, PNGs, NPY dumps, …).
+
+    Runs after every group_analyzer. Output paths land under the
+    group run's ``output_dir`` and are referenced from
+    ``group_summary.json`` for the dashboard.
+    """
+
+    name = "{name}"
+
+    PARAM_SCHEMA = {{
+        # Add parameters here
+    }}
+
+    def report(self, group: GroupResult, config: dict) -> dict[str, str]:
+        output_dir = Path(config.get("output_dir", "./results"))
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # YOUR LOGIC HERE.
+        out_path = output_dir / "{name}.json"
+        out_path.write_text("{{}}")
+
+        return {{"{name}": str(out_path)}}
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
+    'study_analyzers': '''\
+"""Custom study analyzer: {name}."""
+
+from fmriflow.core.study_types import StudyResult
+from fmriflow.modules._decorators import study_analyzer
+
+
+@study_analyzer("{name}")
+class {class_name}:
+    """Reduce across groups within a single study.
+
+    Receives a :class:`StudyResult` whose ``groups`` list carries
+    one entry per included group config; each entry exposes that
+    group's subject contexts and ``GroupResult``. Stash aggregate
+    outputs back onto the ``StudyResult`` for study reporters.
+    """
+
+    name = "{name}"
+
+    # Set to ``False`` if this analyzer only computes metadata or
+    # otherwise does not produce a study-level artifact.
+    produces_group_artifact = True
+
+    PARAM_SCHEMA = {{
+        # Add parameters here
+    }}
+
+    def analyze(self, study: StudyResult, config: dict) -> None:
+        # YOUR LOGIC HERE.
+        # ``study.groups`` is a list of ``GroupResult``-shaped entries
+        # (see fmriflow/core/study_types.py).
+        raise NotImplementedError("Implement your study analysis logic here")
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
+    'study_reporters': '''\
+"""Custom study reporter: {name}."""
+
+from pathlib import Path
+from fmriflow.core.study_types import StudyResult
+from fmriflow.modules._decorators import study_reporter
+
+
+@study_reporter("{name}")
+class {class_name}:
+    """Render study-level artifacts (combined figures, HTML, …).
+
+    Runs after every study_analyzer. Output paths land under the
+    study run's ``output_dir`` and are referenced from
+    ``study_summary.json``.
+    """
+
+    name = "{name}"
+
+    PARAM_SCHEMA = {{
+        # Add parameters here
+    }}
+
+    def report(self, study: StudyResult, config: dict) -> dict[str, str]:
+        output_dir = Path(config.get("output_dir", "./results"))
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # YOUR LOGIC HERE.
+        out_path = output_dir / "{name}.json"
+        out_path.write_text("{{}}")
+
+        return {{"{name}": str(out_path)}}
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
+    'qa_reporters': '''\
+"""Custom QA reporter: {name} (stage: {stage})."""
+
+from pathlib import Path
+from fmriflow.core.types import {value_type}
+from fmriflow.modules._decorators import qa_reporter
+from fmriflow.modules.qa_reporters._base import (
+    ensure_dir, mpl_figure, save_png,
+)
+
+
+@qa_reporter("{name}", stage="{stage}")
+class {class_name}:
+    """QA reporter for the {stage} stage.
+
+    Receives the {value_type} produced by the {stage} stage; expected
+    to write one or more diagnostic artifacts (typically PNGs) into
+    ``output_dir`` and return a ``{{key: path}}`` mapping so the
+    pipeline summary + QA tab in the UI can find them.
+    """
+
+    name = "{name}"
+    stage = "{stage}"
+
+    PARAM_SCHEMA: dict = {{
+        # Add parameters here. Each key is a config field name; the
+        # value is a ``{{'type': ..., 'default': ..., 'description':
+        # ...}}`` dict consumed by the param-form auto-renderer.
+    }}
+
+    def report(
+        self, value: {value_type}, config: dict, output_dir: Path,
+    ) -> dict[str, str]:
+        ensure_dir(output_dir)
+
+        # YOUR LOGIC HERE.
+        # ``value`` is the {value_type} produced by the {stage} stage;
+        # ``config`` is the resolved pipeline config dict; pull this
+        # reporter's params via ``config.get('qa', {{}}).get(...)``.
+
+        out_path = output_dir / "{name}.png"
+        with mpl_figure(figsize=(6, 4)) as fig:
+            ax = fig.add_subplot(111)
+            ax.set_title("{name}")
+            # ax.plot(...)
+            save_png(fig, out_path)
+
+        return {{"{name}": str(out_path)}}
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
     'models': '''\
 """Custom model: {name}."""
 
@@ -273,10 +478,42 @@ def _to_class_name(module_name: str) -> str:
     return ''.join(word.capitalize() for word in module_name.split('_'))
 
 
-def render_template(category: str, name: str) -> str:
-    """Return a filled-in template for the given category and name."""
+# Stages that accept a QA reporter, mapped to the input type the
+# reporter's ``report()`` method receives. Kept in sync with the
+# stage→intermediate dataclass mapping the orchestrator uses for
+# stage-time QA dispatch (see ``fmriflow/intermediates.py``).
+QA_STAGE_VALUE_TYPES: dict[str, str] = {
+    'stimuli': 'StimulusData',
+    'responses': 'ResponseData',
+    'features': 'FeatureData',
+    'prepare': 'PreparedData',
+    'model': 'ModelResult',
+}
+
+
+def render_template(
+    category: str, name: str, *, stage: str | None = None,
+) -> str:
+    """Return a filled-in template for the given category and name.
+
+    ``stage`` is required for ``qa_reporters`` (the decorator is
+    ``@qa_reporter(name, *, stage)``) and ignored for every other
+    category.
+    """
     if category not in TEMPLATES:
         raise ValueError(f"No template for category '{category}'. "
                          f"Available: {sorted(TEMPLATES.keys())}")
     class_name = _to_class_name(name)
-    return TEMPLATES[category].format(name=name, class_name=class_name)
+    fmt: dict[str, str] = {'name': name, 'class_name': class_name}
+    if category == 'qa_reporters':
+        if not stage:
+            raise ValueError(
+                "qa_reporters template requires a 'stage' parameter. "
+                f"One of: {sorted(QA_STAGE_VALUE_TYPES.keys())}")
+        if stage not in QA_STAGE_VALUE_TYPES:
+            raise ValueError(
+                f"Unknown qa_reporter stage '{stage}'. "
+                f"One of: {sorted(QA_STAGE_VALUE_TYPES.keys())}")
+        fmt['stage'] = stage
+        fmt['value_type'] = QA_STAGE_VALUE_TYPES[stage]
+    return TEMPLATES[category].format(**fmt)

@@ -12,6 +12,22 @@ interface ModuleState {
   loading: boolean
   error: string | null
   load: () => Promise<void>
+  /** Force a fresh fetch of /api/modules + /api/stages. Used by the
+   *  Module Browser after creating a new module so the new entry
+   *  appears without a full page reload. */
+  refresh: () => Promise<void>
+}
+
+async function _doFetch(set: (s: Partial<ModuleState>) => void) {
+  set({ loading: true, error: null })
+  try {
+    const [modules, stages] = await Promise.all([fetchModules(), fetchStages()])
+    set({ modules, stages, loaded: true, loading: false })
+    // Fetch field values in background — non-critical, don't block module load
+    fetchFieldValues().then((fv) => set({ fieldValues: fv })).catch(() => {})
+  } catch (e) {
+    set({ error: String(e), loading: false })
+  }
 }
 
 export const useModuleStore = create<ModuleState>((set, get) => ({
@@ -23,14 +39,9 @@ export const useModuleStore = create<ModuleState>((set, get) => ({
   error: null,
   load: async () => {
     if (get().loaded || get().loading) return
-    set({ loading: true, error: null })
-    try {
-      const [modules, stages] = await Promise.all([fetchModules(), fetchStages()])
-      set({ modules, stages, loaded: true, loading: false })
-      // Fetch field values in background — non-critical, don't block module load
-      fetchFieldValues().then((fv) => set({ fieldValues: fv })).catch(() => {})
-    } catch (e) {
-      set({ error: String(e), loading: false })
-    }
+    await _doFetch(set)
+  },
+  refresh: async () => {
+    await _doFetch(set)
   },
 }))

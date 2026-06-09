@@ -360,16 +360,25 @@ export async function deleteUserModule(name: string): Promise<{ deleted: boolean
   return json(`${BASE}/modules/user/${name}`, { method: 'DELETE' })
 }
 
-export async function fetchTemplate(category: string, name: string): Promise<TemplateResult> {
+export async function fetchTemplate(
+  category: string, name: string, stage?: string,
+): Promise<TemplateResult> {
   return json(`${BASE}/modules/template`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category, name }),
+    body: JSON.stringify({ category, name, stage }),
   })
 }
 
 export async function fetchTemplateCategories(): Promise<string[]> {
   return json(`${BASE}/modules/template-categories`)
+}
+
+/** Map of stage → value-type for QA reporters. The frontend pairs
+ *  this with ``fetchTemplateCategories()`` to gate the stage dropdown
+ *  in the "+ New module" dialog. */
+export async function fetchQaStages(): Promise<Record<string, string>> {
+  return json(`${BASE}/modules/qa-stages`)
 }
 
 // ── Preprocessing ──

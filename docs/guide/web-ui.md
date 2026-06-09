@@ -131,6 +131,28 @@ Discover and inspect all available modules, organized by processing stage.
   **prepare** column under that tab — without leaking into the
   regular Subject columns, which stay focused on pipeline plugins.
 
+**+ New module** (next to the search bar) opens a dialog that
+creates a new plugin from a starter template:
+
+- **Category** — filtered to what the active tab can host:
+  Subject creates `feature_extractors`, `reporters`, `analyzers`,
+  `stimulus_loaders`, etc.; Group creates `group_analyzers` /
+  `group_reporters`; Study creates `study_analyzers` /
+  `study_reporters`; **QA** creates `qa_reporters`.
+- **Stage** (shown only when category is `qa_reporters`) — picks
+  which subject pipeline stage the reporter attaches to (`stimuli`,
+  `responses`, `features`, `prepare`, or `model`). The template's
+  `value` argument type matches the stage (`ModelResult` for `model`,
+  `PreparedData` for `prepare`, etc.).
+- **Name** — snake_case; the dialog validates the format inline.
+
+Submit opens the same Monaco editor used for **Edit source**, but
+pre-loaded with the rendered template and a Save button that's
+enabled from the start. Save & Reload writes the file to
+`$FMRIFLOW_HOME/addons/modules/` and registers the class in the live
+registry in one shot — the new module appears in the browser the
+moment you click **Back**.
+
 ### Composer
 
 Build encoding-model pipelines. A **scope tab bar** at the top
