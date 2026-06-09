@@ -179,6 +179,12 @@ export function ModuleSourceEditor(props: ModuleSourceEditorProps) {
   const [saveMessage, setSaveMessage] = useState<
     { kind: 'ok' | 'err' | 'partial'; text: string; traceback?: string } | null
   >(null)
+  // In create mode the editor opens with template code that's
+  // identical to ``originalCode`` — would normally read as "clean"
+  // and disable the Save button. We force-treat the buffer as dirty
+  // until the first successful save lands, after which the standard
+  // ``originalCode !== code`` rule applies.
+  const [pendingCreate, setPendingCreate] = useState<boolean>(isCreate)
 
   // Scroll back to top when entering the editor (the module list may have
   // been scrolled down when "Edit source" was clicked).
@@ -209,11 +215,10 @@ export function ModuleSourceEditor(props: ModuleSourceEditorProps) {
     return () => { cancelled = true }
   }, [category, name, isCreate])
 
-  // In create mode the source starts at the template. We treat the
-  // editor as "dirty" so the Save button is enabled even before the
-  // user types — the whole point of opening this is to land the new
-  // module on disk.
-  const dirty = isCreate ? true : (originalCode != null && code !== originalCode)
+  // Dirty when the buffer differs from the loaded source, OR when we
+  // haven't landed the initial create-mode save yet (so the Save
+  // button is available even before the user types).
+  const dirty = pendingCreate || (originalCode != null && code !== originalCode)
 
   function handleBack() {
     if (dirty && !window.confirm('You have unsaved changes. Discard them?')) return
@@ -232,6 +237,7 @@ export function ModuleSourceEditor(props: ModuleSourceEditorProps) {
         const r = await saveModule(code, name, category)
         saved = true
         setOriginalCode(code)
+        setPendingCreate(false)
         if (r.path) setPath(r.path)
         setSaveMessage({
           kind: 'ok',
@@ -281,6 +287,11 @@ export function ModuleSourceEditor(props: ModuleSourceEditorProps) {
           ← Back
         </button>
         <span style={categoryBadgeStyle}>{category}</span>
+        {stage && (
+          <span style={{ ...categoryBadgeStyle, marginLeft: -4 }}>
+            stage: {stage}
+          </span>
+        )}
         <span style={titleStyle}>{name}</span>
         <span style={pathStyle} title={path}>{path}</span>
       </div>

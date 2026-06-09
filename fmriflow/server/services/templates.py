@@ -236,6 +236,158 @@ class {class_name}:
         return {{"out_file": out_path}}
 ''',
 
+    'group_analyzers': '''\
+"""Custom group analyzer: {name}."""
+
+from fmriflow.core.group_types import GroupResult
+from fmriflow.modules._decorators import group_analyzer
+
+
+@group_analyzer("{name}")
+class {class_name}:
+    """Reduce across subjects within a single group.
+
+    Reads per-subject context off ``group.subjects`` and writes
+    aggregated outputs back onto the ``GroupResult`` so downstream
+    group reporters (and the optional second-pass subject analyzers)
+    can pick them up.
+    """
+
+    name = "{name}"
+
+    PARAM_SCHEMA = {{
+        # Add parameters here. Each key is a config field name; the
+        # value is a ``{{'type': ..., 'default': ..., 'description':
+        # ...}}`` dict consumed by the param-form auto-renderer.
+    }}
+
+    # Set to ``True`` if this analyzer's output should also be injected
+    # into a second subject-level pass via ``external.<key>``.
+    produces_subject_artifact = False
+
+    def analyze(self, group: GroupResult, config: dict) -> None:
+        # YOUR LOGIC HERE.
+        # ``group.subjects`` is a list of subject contexts; each carries
+        # the per-subject ``ModelResult`` under ``ctx.get('result')``.
+        # Stash aggregate outputs with e.g.
+        # ``group.put('{name}.mean_score', mean_array)``.
+        raise NotImplementedError("Implement your group analysis logic here")
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
+    'group_reporters': '''\
+"""Custom group reporter: {name}."""
+
+from pathlib import Path
+from fmriflow.core.group_types import GroupResult
+from fmriflow.modules._decorators import group_reporter
+
+
+@group_reporter("{name}")
+class {class_name}:
+    """Render group-level artifacts (HTML, PNGs, NPY dumps, …).
+
+    Runs after every group_analyzer. Output paths land under the
+    group run's ``output_dir`` and are referenced from
+    ``group_summary.json`` for the dashboard.
+    """
+
+    name = "{name}"
+
+    PARAM_SCHEMA = {{
+        # Add parameters here
+    }}
+
+    def report(self, group: GroupResult, config: dict) -> dict[str, str]:
+        output_dir = Path(config.get("output_dir", "./results"))
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # YOUR LOGIC HERE.
+        out_path = output_dir / "{name}.json"
+        out_path.write_text("{{}}")
+
+        return {{"{name}": str(out_path)}}
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
+    'study_analyzers': '''\
+"""Custom study analyzer: {name}."""
+
+from fmriflow.core.study_types import StudyResult
+from fmriflow.modules._decorators import study_analyzer
+
+
+@study_analyzer("{name}")
+class {class_name}:
+    """Reduce across groups within a single study.
+
+    Receives a :class:`StudyResult` whose ``groups`` list carries
+    one entry per included group config; each entry exposes that
+    group's subject contexts and ``GroupResult``. Stash aggregate
+    outputs back onto the ``StudyResult`` for study reporters.
+    """
+
+    name = "{name}"
+
+    # Set to ``False`` if this analyzer only computes metadata or
+    # otherwise does not produce a study-level artifact.
+    produces_group_artifact = True
+
+    PARAM_SCHEMA = {{
+        # Add parameters here
+    }}
+
+    def analyze(self, study: StudyResult, config: dict) -> None:
+        # YOUR LOGIC HERE.
+        # ``study.groups`` is a list of ``GroupResult``-shaped entries
+        # (see fmriflow/core/study_types.py).
+        raise NotImplementedError("Implement your study analysis logic here")
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
+    'study_reporters': '''\
+"""Custom study reporter: {name}."""
+
+from pathlib import Path
+from fmriflow.core.study_types import StudyResult
+from fmriflow.modules._decorators import study_reporter
+
+
+@study_reporter("{name}")
+class {class_name}:
+    """Render study-level artifacts (combined figures, HTML, …).
+
+    Runs after every study_analyzer. Output paths land under the
+    study run's ``output_dir`` and are referenced from
+    ``study_summary.json``.
+    """
+
+    name = "{name}"
+
+    PARAM_SCHEMA = {{
+        # Add parameters here
+    }}
+
+    def report(self, study: StudyResult, config: dict) -> dict[str, str]:
+        output_dir = Path(config.get("output_dir", "./results"))
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # YOUR LOGIC HERE.
+        out_path = output_dir / "{name}.json"
+        out_path.write_text("{{}}")
+
+        return {{"{name}": str(out_path)}}
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
     'qa_reporters': '''\
 """Custom QA reporter: {name} (stage: {stage})."""
 

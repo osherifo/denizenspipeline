@@ -201,7 +201,20 @@ export function ModuleSidebar({
               // imports differ per stage).
               if (cat === 'qa_reporters') {
                 const stages = Object.keys(qaStages).sort()
-                if (stages.length === 0) return []
+                // Stages are fetched lazily alongside templateCategories;
+                // if they haven't landed yet, render a disabled placeholder
+                // so the QA Reporter option doesn't silently disappear.
+                if (stages.length === 0) {
+                  return [
+                    <button
+                      key={`${cat}:loading`}
+                      style={{ ...templateBtn, opacity: 0.5, cursor: 'wait' }}
+                      disabled
+                    >
+                      QA Reporter (loading stages…)
+                    </button>,
+                  ]
+                }
                 return stages.map((stage) => (
                   <button
                     key={`${cat}:${stage}`}
