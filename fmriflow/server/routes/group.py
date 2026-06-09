@@ -239,13 +239,16 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
             key = "unknown"
         status_counts[key] = status_counts.get(key, 0) + 1
     # Group-scope stages (``group_collect``, ``group_analyze`` …) can
-    # fail even when every subject succeeded; reflect that at the row
-    # level so the list doesn't show such a row as all-green.
-    group_stages = data.get("group_stages", []) or []
-    group_failed = any(s.get("status") == "failed" for s in group_stages)
-    overall_status = "failed" if (status_counts.get("failed", 0) or group_failed) else (
-        "warning" if status_counts.get("warning", 0) else "ok"
-    )
+    # fail or warn even when every subject succeeded; reflect that at
+    # the row level so the list doesn't show such a row as all-green.
+    # Mirrors :func:`fmriflow.core.run_summary.derive_group_status` so
+    # /api/group-runs, the study summary, and StudyRunsView all agree
+    # on what an outcome means.
+    from fmriflow.core.run_summary import derive_group_status
+    overall_status = derive_group_status({
+        "group_stages": data.get("group_stages") or [],
+        "subject_summaries": data.get("subject_summaries") or [],
+    })
     return {
         "group_name": data.get("group_name", run_dir.name),
         "run_id": run_id,

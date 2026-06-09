@@ -313,6 +313,8 @@ class PipelineOrchestrator:
             with _record(nodes, idgen, 'stimulus_loader', loader_name) as rec:
                 stimuli = modules["stimulus_loader"].load(self.config)
                 self.ctx.put('stimuli', stimuli)
+                self.ctx.dump_intermediate('stimuli', stimuli, rec)
+                self.ctx.run_stage_qa('stimuli', stimuli, rec)
                 n = len(stimuli.runs)
                 rec.detail = f"{n} runs" if n else f"skipped ({loader_name})"
             return rec.detail
@@ -323,6 +325,8 @@ class PipelineOrchestrator:
             with _record(nodes, idgen, 'response_loader', loader_name) as rec:
                 responses = modules["response_loader"].load(self.config)
                 self.ctx.put('responses', responses)
+                self.ctx.dump_intermediate('responses', responses, rec)
+                self.ctx.run_stage_qa('responses', responses, rec)
                 n = len(responses.responses)
                 rec.detail = f"{n} runs loaded"
             return rec.detail
@@ -366,7 +370,13 @@ class PipelineOrchestrator:
                     )
                     rec.detail = f"{feature_name}: {len(feature_set.data)} runs, {feature_set.n_dims} dims"
 
-            self.ctx.put('features', FeatureData(features=feature_sets))
+            feature_data = FeatureData(features=feature_sets)
+            self.ctx.put('features', feature_data)
+            # No node_rec here — the dump spans every extractor's
+            # output, not any single one. The file lands on disk and
+            # ``load_intermediate(run_dir, 'features')`` still works.
+            self.ctx.dump_intermediate('features', feature_data)
+            self.ctx.run_stage_qa('features', feature_data)
             return f"{len(feature_sets)} feature(s)"
 
         elif stage_name == 'prepare':
@@ -380,6 +390,8 @@ class PipelineOrchestrator:
                 prepared = modules["preparer"].prepare(
                     responses, features, self.config)
                 self.ctx.put('prepared', prepared)
+                self.ctx.dump_intermediate('prepare', prepared, rec)
+                self.ctx.run_stage_qa('prepare', prepared, rec)
                 rec.detail = (f"train={prepared.X_train.shape[0]} "
                               f"test={prepared.X_test.shape[0]}")
             # The preparer's own internal sub-steps (when type=='pipeline')
@@ -408,6 +420,8 @@ class PipelineOrchestrator:
                 with ui.model_live():
                     result = modules["model"].fit(prepared, self.config)
                 self.ctx.put('result', result)
+                self.ctx.dump_intermediate('model', result, rec)
+                self.ctx.run_stage_qa('model', result, rec)
                 rec.detail = (f"mean={result.scores.mean():.4f} "
                               f"max={result.scores.max():.4f}")
             return rec.detail

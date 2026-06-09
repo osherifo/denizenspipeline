@@ -265,18 +265,26 @@ def _subject_plugin_nodes(cfg: dict, stage: str, stage_status: str,
             # Legacy schema: features may be a plain list of extractor
             # names (strings) rather than dicts.
             if isinstance(feat, str):
-                items.append(('feature_extractor', feat, {}))
+                items.append(('feature_extractor', feat, {}, feat))
                 continue
             if not isinstance(feat, dict):
                 continue
             source = feat.get('source', 'compute')
-            extractor = feat.get('extractor') or feat.get('name')
+            feat_name = feat.get('name')
+            extractor = feat.get('extractor') or feat_name
             # For 'compute' features we surface the extractor (that's the
             # interesting code path); other sources are just loaders.
+            # Label includes the feature name so 8 grouped_hdf nodes
+            # loading 8 different features are visually distinguishable.
             if source == 'compute' and extractor:
-                items.append(('feature_extractor', extractor, dict(feat)))
+                if feat_name and feat_name != extractor:
+                    label = f"{extractor}: {feat_name}"
+                else:
+                    label = extractor
+                items.append(('feature_extractor', extractor, dict(feat), label))
             else:
-                items.append(('feature_source', source, dict(feat)))
+                label = f"{source}: {feat_name}" if feat_name else source
+                items.append(('feature_source', source, dict(feat), label))
     elif stage == 'prepare':
         prep = cfg.get('preparation') or {}
         ptype = prep.get('type')
@@ -304,15 +312,36 @@ def _subject_plugin_nodes(cfg: dict, stage: str, stage_status: str,
             if isinstance(rcfg, dict) and rcfg.get('name'):
                 items.append(('reporter', rcfg['name'], dict(rcfg)))
         # Old-style: reporting.formats: [name, …]
+        # Per-reporter params live under ``reporting.<name>`` in the
+        # same block (e.g. ``reporting.r_flatmap: {cmap: magma, ...}``)
+        # — fold them into the plugin node so the params tab in the
+        # graph viewer shows what was actually configured instead of
+        # an empty ``{}``.
         for fmt in reporting.get('formats') or []:
             if isinstance(fmt, str):
-                items.append(('reporter', fmt, {}))
+                params = reporting.get(fmt)
+                items.append((
+                    'reporter', fmt,
+                    dict(params) if isinstance(params, dict) else {},
+                ))
 
     out: list[GraphNode] = []
     seen: dict[str, int] = {}
-    for kind, name, params in items:
-        # Drop the noisy `name` field — already in label
-        params = {k: v for k, v in params.items() if k != 'name'}
+    for item in items:
+        # Items may be 3- or 4-tuples; the 4th element is an optional
+        # display label override (used by feature_source/extractor to
+        # show the feature name alongside the source/extractor name).
+        if len(item) == 4:
+            kind, name, params, label = item
+        else:
+            kind, name, params = item
+            label = name
+        # Keep `name` visible in params only when it differs from the
+        # plugin name — otherwise it's redundant noise.
+        params = {
+            k: v for k, v in params.items()
+            if k != 'name' or v != name
+        }
         # Suffix duplicate names within a stage (e.g. two `trim` steps).
         base_id = f'{stage}:{name}'
         n = seen.get(base_id, 0)
@@ -321,7 +350,7 @@ def _subject_plugin_nodes(cfg: dict, stage: str, stage_status: str,
         src = _plugin_source(registry, kind, name)
         out.append(GraphNode(
             id=node_id,
-            label=name,
+            label=label,
             kind=kind,
             stage=stage,
             # Stage-status fallback. When the run was made by the
@@ -604,12 +633,24 @@ def build_study_graph(study_summary: dict,
 
 def _group_overall_status(gs: Any) -> str:
     """Coarse pass/fail for a group's GroupRunSummary dict, rolled up
-    across its subjects."""
+    across its subjects.
+
+    Honors a pre-computed ``status`` field on the dict first — that's
+    how the in-flight study graph signals "this group is running right
+    now" before any subject has finished a stage. Falls back to the
+    per-subject rollup for finished runs.
+    """
     if not isinstance(gs, dict):
         return 'unknown'
+    explicit = gs.get('status')
+    if explicit in ('running', 'failed', 'warning'):
+        return explicit
     subjects = gs.get('subject_summaries') or []
     if not subjects:
-        return 'unknown'
+        # ``status='ok'`` on a finished group with no subject records
+        # (edge case) is still useful; defer to the explicit value if
+        # set, otherwise fall through to 'unknown'.
+        return explicit if explicit == 'ok' else 'unknown'
     status = 'ok'
     for sub in subjects:
         sub_st = _subject_overall_status(sub)
@@ -635,9 +676,20 @@ def _group_has_second_pass(cfg: dict, registry: ModuleRegistry) -> bool:
 
 
 def _subject_overall_status(sub: Any) -> str:
-    """Coarse pass/fail for a per-subject RunSummary dict."""
+    """Coarse pass/fail for a per-subject RunSummary dict.
+
+    Honors an explicit ``status`` field first — that's how the
+    in-flight group / study graph signals "this subject is running
+    right now" (or has just been marked failed by its
+    ``group_subject_done`` event) before the per-stage events catch
+    up. Falls back to rolling up the per-stage status list for
+    finished runs.
+    """
     if not isinstance(sub, dict):
         return 'unknown'
+    explicit = sub.get('status')
+    if explicit in ('running', 'failed', 'warning'):
+        return explicit
     stages = sub.get('stages') or []
     status = 'ok'
     for s in stages:
@@ -646,7 +698,9 @@ def _subject_overall_status(sub: Any) -> str:
             return 'failed'
         if sst == 'warning':
             status = 'warning'
-    return status if stages else 'unknown'
+    if not stages:
+        return explicit if explicit == 'ok' else 'unknown'
+    return status
 
 
 # ── source code + outputs ──────────────────────────────────────────────

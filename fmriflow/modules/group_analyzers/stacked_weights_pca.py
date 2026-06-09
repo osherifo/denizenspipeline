@@ -6,9 +6,9 @@ subject's voxels can then be projected into that basis by the subject-scope
 :class:`fmriflow.modules.analyzers.project_to_subspace.ProjectToSubspaceAnalyzer`
 during the orchestrator's second pass.
 
-Replicates the construction of the semantic subspace used in
-Deniz 2019 Fig 4 (re-using the Huth 2016 basis in the paper; here we
-re-build it from the current cohort's weights).
+This is the "build a shared semantic subspace from the cohort" path —
+contrast with :mod:`external_pca_basis` which loads a pre-existing
+basis instead.
 """
 
 from __future__ import annotations

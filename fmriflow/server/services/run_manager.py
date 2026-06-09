@@ -86,6 +86,64 @@ def _load_state_config(state: RunStateFile) -> dict | None:
     return cfg if isinstance(cfg, dict) else None
 
 
+def discover_subject_run_summaries(
+    registry: "RunRegistry",
+) -> list[Path]:
+    """Locate every subject-scope ``run_summary.json`` we can see.
+
+    Two sources are merged and deduped by the run-dir's realpath:
+
+    1. **Default root** — ``paths.results_root().rglob('run_summary.json')``.
+       The legacy behavior; finds anything under ``$FMRIFLOW_HOME/data/results/``.
+    2. **Run registry** — every ``kind='run'`` entry that is *not* a
+       group/study run. Its ``output_dir`` is the run dir itself
+       (subject runs land flat: ``<base>/run_<stamp>_<id>/run_summary.json``),
+       which catches runs whose ``reporting.output_dir`` points outside
+       ``$FMRIFLOW_HOME/data/results/``.
+
+    Returns the ``run_summary.json`` paths so callers can hydrate
+    :class:`RunSummary` without re-discovering them.
+    """
+    seen: set[str] = set()
+    out: list[Path] = []
+
+    def add(summary_path: Path) -> None:
+        try:
+            real = str(summary_path.parent.resolve(strict=False))
+        except Exception:
+            real = str(summary_path.parent)
+        if real in seen:
+            return
+        seen.add(real)
+        out.append(summary_path)
+
+    # Source 1 — filesystem default tree.
+    root = paths.results_root()
+    if root.is_dir():
+        for summary_path in root.rglob('run_summary.json'):
+            add(summary_path)
+
+    # Source 2 — registry entries whose output_dir we know.
+    for state in registry.list_all():
+        if state.kind != 'run':
+            continue
+        is_group, is_study = kind_from_state(state)
+        if is_group or is_study:
+            continue
+        params = state.params or {}
+        output_dir = params.get('output_dir')
+        if not output_dir:
+            continue
+        # Defensive: registry entries written before the tilde-expanduser
+        # fix may still hold an unexpanded ``~/...`` path.
+        run_dir = Path(os.path.expanduser(os.path.expandvars(str(output_dir))))
+        summary_path = run_dir / 'run_summary.json'
+        if summary_path.is_file():
+            add(summary_path)
+
+    return out
+
+
 def discover_group_run_dirs(
     registry: "RunRegistry", *, name: str | None = None,
 ) -> list[tuple[str, str, Path]]:
@@ -248,12 +306,17 @@ def _apply_per_run_output_dir(config: dict, run_id: str) -> dict:
     The suffix is ``run_<YYYYmmdd-HHMMSS>_<run_id>`` — sortable and
     human-scannable. Returns a shallow copy of config (original is
     left intact for callers that hold a reference).
+
+    ``~`` and ``$VAR`` in the configured base path are expanded — a
+    literal tilde would otherwise become a directory named ``~``
+    under CWD (Python's ``Path()`` doesn't expanduser by default).
     """
     from datetime import datetime
 
     out = dict(config)
     reporting = dict(out.get('reporting') or {})
     base = reporting.get('output_dir') or './results'
+    base = os.path.expanduser(os.path.expandvars(str(base)))
     stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     reporting['output_dir'] = str(Path(base) / f"run_{stamp}_{run_id}")
     out['reporting'] = reporting
@@ -1110,6 +1173,14 @@ def _resolve_summary_path(handle: RunHandle) -> tuple[Path | None, str]:
     if handle.is_study and handle.output_dir:
         parent = Path(handle.output_dir)
         if parent.is_dir():
+            # _apply_per_run_output_dir writes ``run_<stamp>_<run_id>/`` so
+            # the handle's own run_id always suffixes its directory name.
+            # Prefer that exact match; fall back to newest-mtime for legacy
+            # layouts where the suffix convention may not apply.
+            exact = sorted(parent.glob(f'run_*_{handle.run_id}'))
+            for p in exact:
+                if (p / 'study_summary.json').is_file():
+                    return p / 'study_summary.json', 'study_stages'
             candidates = [
                 p for p in parent.iterdir()
                 if p.is_dir() and p.name != 'latest'
@@ -1122,6 +1193,10 @@ def _resolve_summary_path(handle: RunHandle) -> tuple[Path | None, str]:
     if handle.is_group and handle.output_dir:
         parent = Path(handle.output_dir)
         if parent.is_dir():
+            exact = sorted(parent.glob(f'run_*_{handle.run_id}'))
+            for p in exact:
+                if (p / 'group_summary.json').is_file():
+                    return p / 'group_summary.json', 'group_stages'
             candidates = [
                 p for p in parent.iterdir()
                 if p.is_dir() and p.name != 'latest'
@@ -1186,12 +1261,17 @@ def _apply_summary_to_handle(
         return
 
     handle.status = 'failed'
+    summary_name = summary_path.name if summary_path else (
+        'study_summary.json' if handle.is_study
+        else 'group_summary.json' if handle.is_group
+        else 'run_summary.json'
+    )
     if summary is None and returncode == 0:
-        handle.error = 'pipeline exited 0 but produced no run_summary.json'
+        handle.error = f'pipeline exited 0 but produced no {summary_name}'
     elif summary is None and returncode is not None:
         handle.error = f"pipeline exited with code {returncode}"
     elif summary is None:
-        handle.error = 'subprocess exited without a run_summary.json'
+        handle.error = f'subprocess exited without a {summary_name}'
     else:
         stages = summary.get(stages_key, [])
         failed_stage = next(

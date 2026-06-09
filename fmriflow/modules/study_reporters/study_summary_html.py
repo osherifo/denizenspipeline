@@ -106,12 +106,19 @@ def _groups_table(study: StudyResult) -> str:
                 f"</tr>"
             )
             continue
+        from fmriflow.core.run_summary import derive_group_status
         n_subj = len(gs.subject_summaries)
         n_failed = sum(
             1 for s in gs.subject_summaries
             if any(st.status == 'failed' for st in s.stages)
         )
-        overall = 'failed' if n_failed > 0 else 'ok'
+        overall = derive_group_status({
+            'group_stages': [{'status': st.status} for st in gs.group_stages],
+            'subject_summaries': [
+                {'stages': [{'status': st.status} for st in s.stages]}
+                for s in gs.subject_summaries
+            ],
+        })
         rows.append(
             f"<tr class='status-{overall}'>"
             f"<td>{html.escape(label)}</td>"

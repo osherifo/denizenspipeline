@@ -85,9 +85,52 @@ const errorStyle: CSSProperties = {
   textAlign: 'center',
 }
 
+type Scope = 'subject' | 'group' | 'study'
+
+const SCOPE_ORDER: Scope[] = ['subject', 'group', 'study']
+const SCOPE_LABELS: Record<Scope, string> = {
+  subject: 'Subject',
+  group: 'Group',
+  study: 'Study',
+}
+
+const tabsRow: CSSProperties = {
+  display: 'flex',
+  gap: 4,
+  borderBottom: '1px solid var(--border)',
+  marginBottom: 18,
+}
+
+const tabBtn = (active: boolean): CSSProperties => ({
+  padding: '8px 16px',
+  fontSize: 13,
+  fontWeight: 600,
+  border: 'none',
+  background: 'transparent',
+  color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+  borderBottom: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+  cursor: 'pointer',
+  letterSpacing: 0.5,
+  textTransform: 'uppercase',
+  fontFamily: 'inherit',
+  marginBottom: -1,
+})
+
+const scopeBadge: CSSProperties = {
+  display: 'inline-block',
+  fontSize: 10,
+  fontWeight: 600,
+  padding: '1px 6px',
+  borderRadius: 10,
+  backgroundColor: 'var(--bg-input)',
+  color: 'var(--text-secondary)',
+  marginLeft: 6,
+}
+
 export function ModuleBrowser() {
   const { modules, stages, loaded, loading, error } = useModuleStore()
   const [search, setSearch] = useState('')
+  const [scope, setScope] = useState<Scope>('subject')
   const [editing, setEditing] = useState<{ category: string; name: string } | null>(null)
 
   const filteredByStage = useMemo(() => {
@@ -109,6 +152,16 @@ export function ModuleBrowser() {
     }
     return result
   }, [modules, search])
+
+  // Per-scope module counts for the tab badges.
+  const scopeCounts = useMemo(() => {
+    const counts: Record<Scope, number> = { subject: 0, group: 0, study: 0 }
+    for (const st of stages) {
+      const s = (st.scope ?? 'subject') as Scope
+      counts[s] = (counts[s] ?? 0) + (filteredByStage[st.name]?.length ?? 0)
+    }
+    return counts
+  }, [stages, filteredByStage])
 
   if (editing) {
     return (
@@ -132,7 +185,12 @@ export function ModuleBrowser() {
     return <div style={loadingStyle}>Waiting for data...</div>
   }
 
-  const sortedStages = [...stages].sort((a, b) => a.index - b.index)
+  // Stages within the active scope, ordered by their per-scope index.
+  // Stages with no ``scope`` field (older backend) default to subject
+  // so the browser still works against a stale server.
+  const visibleStages = stages
+    .filter((s) => (s.scope ?? 'subject') === scope)
+    .sort((a, b) => a.index - b.index)
   const totalModules = Object.values(modules).reduce((sum, list) => sum + list.length, 0)
 
   return (
@@ -141,6 +199,20 @@ export function ModuleBrowser() {
       <div style={subtitleStyle}>
         {totalModules} modules across {stages.length} stages
       </div>
+
+      <div style={tabsRow}>
+        {SCOPE_ORDER.map((s) => (
+          <button
+            key={s}
+            style={tabBtn(scope === s)}
+            onClick={() => setScope(s)}
+          >
+            {SCOPE_LABELS[s]}
+            <span style={scopeBadge}>{scopeCounts[s] ?? 0}</span>
+          </button>
+        ))}
+      </div>
+
       <div style={searchWrapperStyle}>
         <input
           type="text"
@@ -150,40 +222,46 @@ export function ModuleBrowser() {
           style={searchInputStyle}
         />
       </div>
-      <div style={gridStyle}>
-        {sortedStages.map((stage) => {
-          const stageModules = filteredByStage[stage.name] || []
-          if (search && stageModules.length === 0) return null
-          return (
-            <div key={stage.name} style={stageColumnStyle}>
-              <div style={stageTitleStyle(stage.color)}>
-                {stage.index}. {stage.name}
-                <span style={countBadge}>{stageModules.length}</span>
+      {visibleStages.length === 0 ? (
+        <div style={{ ...loadingStyle, padding: '32px 0' }}>
+          No {SCOPE_LABELS[scope].toLowerCase()}-scope stages registered.
+        </div>
+      ) : (
+        <div style={gridStyle}>
+          {visibleStages.map((stage) => {
+            const stageModules = filteredByStage[stage.name] || []
+            if (search && stageModules.length === 0) return null
+            return (
+              <div key={stage.name} style={stageColumnStyle}>
+                <div style={stageTitleStyle(stage.color)}>
+                  {stage.index}. {stage.name}
+                  <span style={countBadge}>{stageModules.length}</span>
+                </div>
+                <div style={stageDescStyle}>{stage.description}</div>
+                {stageModules.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                    No modules
+                  </div>
+                ) : (
+                  <div style={{
+                    maxHeight: 330,
+                    overflowY: stageModules.length > 3 ? 'auto' : 'visible',
+                    paddingRight: stageModules.length > 3 ? 4 : 0,
+                  }}>
+                    {stageModules.map((p) => (
+                      <ModuleCard
+                        key={`${p.category}-${p.name}`}
+                        module={p}
+                        onEdit={(category, name) => setEditing({ category, name })}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div style={stageDescStyle}>{stage.description}</div>
-              {stageModules.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                  No modules
-                </div>
-              ) : (
-                <div style={{
-                  maxHeight: 330,
-                  overflowY: stageModules.length > 3 ? 'auto' : 'visible',
-                  paddingRight: stageModules.length > 3 ? 4 : 0,
-                }}>
-                  {stageModules.map((p) => (
-                    <ModuleCard
-                      key={`${p.category}-${p.name}`}
-                      module={p}
-                      onEdit={(category, name) => setEditing({ category, name })}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

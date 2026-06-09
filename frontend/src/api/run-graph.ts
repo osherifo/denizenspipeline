@@ -13,15 +13,27 @@ export type GraphTarget =
   | { kind: 'group-subject'; groupName: string; runId: string; subject: string }
   | { kind: 'study'; studyName: string; runId: string }
   | { kind: 'study-group'; studyName: string; runId: string; groupLabel: string }
+  // Subject drilldown inside a finished study — reaches into one of the
+  // study's groups, then into one of that group's subjects.
+  | { kind: 'study-group-subject'; studyName: string; runId: string; groupLabel: string; subject: string }
   // Preview the graph of a config that hasn't been run yet. Source code
   // is still viewable; outputs are not (no run dir exists).
   | { kind: 'config'; filename: string }
+  // Subject drilldown into a *group* config preview — backend derives
+  // the per-subject config from the group YAML and returns the subject
+  // graph skeleton (every stage unknown).
+  | { kind: 'config-subject'; filename: string; subject: string }
   // Live graph of a run still in progress. Backend synthesizes stage
   // records from handle.events; the modal polls this endpoint until
   // the run finishes (or the user closes it).
   | { kind: 'in-flight'; runId: string }
   // Subject drilldown inside an in-flight group/study run.
   | { kind: 'in-flight-subject'; runId: string; subject: string }
+  // Group drilldown inside an in-flight *study* run — one of the study's
+  // groups, viewed in the same live run.
+  | { kind: 'in-flight-group'; runId: string; groupLabel: string }
+  // Subject drilldown inside an in-flight study's group.
+  | { kind: 'in-flight-group-subject'; runId: string; groupLabel: string; subject: string }
 
 export interface RunGraphNode {
   id: string
@@ -79,6 +91,37 @@ export interface LogTailResponse {
 }
 
 
+export interface QaFile {
+  name: string
+  rel: string
+  size: number
+  suffix: string
+}
+
+
+export interface QaPluginGroup {
+  name: string
+  files: QaFile[]
+}
+
+
+export interface QaArtifactsResponse {
+  stage: string
+  qa_dir: string
+  available: boolean
+  plugins: QaPluginGroup[]
+  registered_plugins: string[]
+}
+
+
+// Pipeline stages where QA reporters exist. Used both to gate the QA
+// tab in the node panel and to reject obvious "no plugins here" stages
+// (analyze / report) without a round-trip.
+export const QA_STAGES = new Set([
+  'stimuli', 'responses', 'features', 'prepare', 'model',
+])
+
+
 function urlFor(target: GraphTarget, suffix: string): string {
   switch (target.kind) {
     case 'subject':
@@ -91,25 +134,38 @@ function urlFor(target: GraphTarget, suffix: string): string {
       return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}${suffix}`
     case 'study-group':
       return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}${suffix}`
+    case 'study-group-subject':
+      return `${BASE}/study-runs/${encodeURIComponent(target.studyName)}/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}/subject/${encodeURIComponent(target.subject)}${suffix}`
     case 'config':
       return `${BASE}/configs/${encodeURIComponent(target.filename)}${suffix}`
+    case 'config-subject':
+      return `${BASE}/configs/${encodeURIComponent(target.filename)}/subject/${encodeURIComponent(target.subject)}${suffix}`
     case 'in-flight':
       return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}${suffix}`
     case 'in-flight-subject':
       return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}/subject/${encodeURIComponent(target.subject)}${suffix}`
+    case 'in-flight-group':
+      return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}${suffix}`
+    case 'in-flight-group-subject':
+      return `${BASE}/runs/in-flight/${encodeURIComponent(target.runId)}/group/${encodeURIComponent(target.groupLabel)}/subject/${encodeURIComponent(target.subject)}${suffix}`
   }
 }
 
 
 export function isLiveTarget(target: GraphTarget): boolean {
-  return target.kind === 'in-flight' || target.kind === 'in-flight-subject'
+  return (
+    target.kind === 'in-flight'
+    || target.kind === 'in-flight-subject'
+    || target.kind === 'in-flight-group'
+    || target.kind === 'in-flight-group-subject'
+  )
 }
 
 
 /** True when the target is a config preview — outputs/file endpoints
  *  don't exist for these (no run dir yet). */
 export function isConfigPreview(target: GraphTarget): boolean {
-  return target.kind === 'config'
+  return target.kind === 'config' || target.kind === 'config-subject'
 }
 
 
@@ -173,4 +229,49 @@ export async function fetchLogTail(
 
 export function targetSupportsLog(target: GraphTarget): boolean {
   return target.kind === 'in-flight' || target.kind === 'in-flight-subject'
+}
+
+
+/** Targets the QA endpoints accept. Finished subject / group→subject /
+ *  study→group→subject runs plus their live in-flight counterparts —
+ *  the in-flight endpoints scan the partial run dir so QA tabs
+ *  populate as soon as each stage's plugins finish. ``config``
+ *  previews still have no on-disk run, so they're excluded. */
+export function targetSupportsQa(target: GraphTarget): boolean {
+  return (
+    target.kind === 'subject'
+    || target.kind === 'group-subject'
+    || target.kind === 'study-group-subject'
+    || target.kind === 'in-flight'
+    || target.kind === 'in-flight-subject'
+    || target.kind === 'in-flight-group-subject'
+  )
+}
+
+
+export async function fetchQaArtifacts(
+  target: GraphTarget, stage: string,
+): Promise<QaArtifactsResponse> {
+  const res = await fetch(urlFor(target, `/qa/${encodeURIComponent(stage)}`))
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
+
+export async function regenerateQa(
+  target: GraphTarget, stage: string,
+): Promise<QaArtifactsResponse> {
+  const res = await fetch(
+    urlFor(target, `/qa/regenerate/${encodeURIComponent(stage)}`),
+    { method: 'POST' },
+  )
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
+
+export function qaFileUrl(
+  target: GraphTarget, stage: string, rel: string,
+): string {
+  return urlFor(target, `/qa/${encodeURIComponent(stage)}/file/${encodeURI(rel)}`)
 }

@@ -1,7 +1,7 @@
 """Voxelwise count of subjects passing a significance threshold.
 
-Replicates the consistency map from Deniz 2019 Fig 3c/d: per voxel, how
-many subjects show a significant effect. Reads per-subject p-value (or
+Produces a per-voxel "consistency" map: how many subjects show a
+significant effect at each location. Reads per-subject p-value (or
 score-vs-null) arrays in a common space.
 """
 

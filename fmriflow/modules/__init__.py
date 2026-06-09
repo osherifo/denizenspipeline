@@ -37,6 +37,7 @@ def register_builtins(registry):
     import fmriflow.modules.feature_sources.filesystem  # noqa: F401
     import fmriflow.modules.feature_sources.cloud  # noqa: F401
     import fmriflow.modules.feature_sources.grouped_hdf  # noqa: F401
+    import fmriflow.modules.feature_sources.npz_concat  # noqa: F401
 
     import fmriflow.modules.preparers.default  # noqa: F401
     import fmriflow.modules.preparers.pre_prepared  # noqa: F401
@@ -58,6 +59,7 @@ def register_builtins(registry):
 
     import fmriflow.modules.models.ridge  # noqa: F401
     import fmriflow.modules.models.himalaya  # noqa: F401
+    import fmriflow.modules.models.kernelized_banded_ridge  # noqa: F401
 
     import fmriflow.modules.reporters.metrics  # noqa: F401
     import fmriflow.modules.reporters.flatmap  # noqa: F401
@@ -82,6 +84,7 @@ def register_builtins(registry):
     import fmriflow.modules.group_analyzers.significance_count  # noqa: F401
     import fmriflow.modules.group_analyzers.scalar_summary  # noqa: F401
     import fmriflow.modules.group_analyzers.stacked_weights_pca  # noqa: F401
+    import fmriflow.modules.group_analyzers.external_pca_basis  # noqa: F401
 
     # Group-scope reporters
     import fmriflow.modules.group_reporters.group_summary_html  # noqa: F401
@@ -91,7 +94,19 @@ def register_builtins(registry):
     # Study-scope analyzers
     import fmriflow.modules.study_analyzers.group_delta  # noqa: F401
     import fmriflow.modules.study_analyzers.cohen_d_across_groups  # noqa: F401
+    import fmriflow.modules.study_analyzers.weight_correlation_voxelwise  # noqa: F401
+    import fmriflow.modules.study_analyzers.semantic_pc_correlation  # noqa: F401
+    import fmriflow.modules.study_analyzers.cross_modal_prediction  # noqa: F401
+    import fmriflow.modules.study_analyzers.cross_within_summary  # noqa: F401
 
     # Study-scope reporters
     import fmriflow.modules.study_reporters.study_summary_html  # noqa: F401
     import fmriflow.modules.study_reporters.study_delta_flatmap  # noqa: F401
+    import fmriflow.modules.study_reporters.study_pc_correlation_bar  # noqa: F401
+    import fmriflow.modules.study_reporters.study_cross_within_flatmap  # noqa: F401
+
+    # QA reporters (per-stage diagnostic viz)
+    import fmriflow.modules.qa_reporters.model_qa  # noqa: F401
+    import fmriflow.modules.qa_reporters.prepare_qa  # noqa: F401
+    import fmriflow.modules.qa_reporters.responses_qa  # noqa: F401
+    import fmriflow.modules.qa_reporters.features_qa  # noqa: F401

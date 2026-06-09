@@ -116,9 +116,13 @@ The main control center for running experiments.
 
 ### Module Browser
 
-Discover and inspect all available modules, organized by processing stage (stimuli, responses, features, preprocessing, model, analysis, reporting).
+Discover and inspect all available modules, organized by processing stage.
 
-- Search modules by name or description
+- **Scope tabs** at the top — Subject (7 stages: stimuli → report),
+  Group (group_analyze, group_report), Study (study_analyze,
+  study_report). Each tab shows a count badge with the total modules
+  registered in that scope.
+- Search modules by name or description (filters within the active scope)
 - Each card shows: name, category badge, dimension count, parameter count
 - Expand a card to see its full parameter table (name, type, default, required, description)
 
@@ -161,11 +165,51 @@ layout.
 
 ### Run Manager
 
-Browse historical pipeline executions.
+Browse historical pipeline executions. There are three sibling views
+in the sidebar — **Subject Runs**, **Group Runs**, **Study Runs** —
+each scoped to one orchestrator level. They share the same detail
+panel features:
 
-- **Run table**: date, experiment, subject, model, mean score, status badge
-- **Expanded detail**: summary cards, stage timeline visualization, artifact list with view/download links, log tail (last 300 lines)
-- Refresh to reload
+- **Run table**: date, experiment / group / study, status badge,
+  primary metric where applicable.
+- **Expanded detail**: summary cards, stage timeline visualization,
+  artifact list with view/download links, log tail (last 300 lines).
+- **View graph** opens the pipeline graph for that run in a modal.
+  In a *finished* group or study run, clicking a child node (a group
+  inside a study, a subject inside a group) opens it as a **second
+  pane to the right** instead of replacing the current view —
+  click subject inside that pane and a third pane opens. Each pane
+  has its own ✕ that closes only itself and anything drilled from it.
+  Same drilldown chain works for in-flight runs.
+- **View YAML** opens the run's resolved `config_snapshot` as YAML
+  in a read-only Monaco editor with Copy + Download. This is the
+  *resolved* config (defaults + env vars + inheritance expanded), not
+  the original on-disk file.
+- Refresh to reload.
+
+#### Live progress dashboard
+
+The Dashboard switches between three Live-Progress panels by run
+kind. The selected progress panel shows a streaming event log:
+each subject's `▶ stage` / `✓ stage` / `✗ stage` lines are prefixed
+with `group/subject:` so you can tell which subject is in which
+stage even when several run concurrently.
+
+The graph viewer in the dashboard lights up *running* subject /
+group nodes the moment their first lifecycle event fires (cyan),
+flipping to green / red when each finishes — without waiting for
+any stage records to land. Saved runs colour purely from their
+final stage statuses.
+
+#### QA tab on graph nodes
+
+Every stage node in the graph viewer has a **QA tab** that surfaces
+any `@qa_reporter` artifacts the run wrote for that stage
+(`<run_dir>/<subject>/qa/<stage>/`). Each artifact is shown inline
+(PNG) or as a download link (JSON, etc.). A **Regenerate** button
+re-runs only the QA plugins for that stage by reloading the saved
+intermediate (when `intermediates:` was on) — no need to rerun the
+model just to tweak a plot.
 
 ### Module Editor
 

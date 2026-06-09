@@ -46,6 +46,58 @@ GROUP_STAGES = [
 EXTERNAL_PREFIX = 'external.'
 
 
+def derive_subject_config(group_config: dict, subject: str,
+                          *, output_dir: str | None = None,
+                          validate: bool | None = None) -> dict:
+    """Resolve the per-subject config that would run for *subject* under
+    *group_config*. Mirrors :meth:`GroupOrchestrator._build_subject_configs`
+    but is pure (no orchestrator state) so the preview routes and tooling
+    can use it without spinning up a real run.
+
+    ``validate`` defaults to True when ``output_dir`` is set (a real
+    run is being prepared) and False when ``output_dir`` is None
+    (preview mode — the config may legitimately be incomplete and the
+    caller just wants to inspect the merged shape). Pass ``True`` /
+    ``False`` explicitly to override.
+    """
+    template = group_config.get('subject_template') or {}
+    if not template:
+        raise ConfigError(
+            "Group config requires 'subject_template' with the shared "
+            "subject-scope settings"
+        )
+    overrides = group_config.get('subject_overrides') or {}
+
+    base = copy.deepcopy(template)
+    base['subject'] = subject
+
+    group_intermediates = group_config.get('intermediates')
+    group_qa = group_config.get('qa')
+    if group_intermediates is not None and 'intermediates' not in base:
+        base['intermediates'] = copy.deepcopy(group_intermediates)
+    if group_qa is not None and 'qa' not in base:
+        base['qa'] = copy.deepcopy(group_qa)
+
+    sub_override = overrides.get(subject) or {}
+    merged = merge_configs(base, sub_override)
+    merged = merge_configs(DEFAULT_CONFIG, merged)
+    merged = resolve_env_vars(merged)
+
+    if output_dir is not None:
+        merged.setdefault('reporting', {})['output_dir'] = output_dir
+
+    # Resolve the per-mode default: real runs validate, previews don't.
+    if validate is None:
+        validate = output_dir is not None
+
+    if validate:
+        errors = validate_config(merged)
+        if errors:
+            raise ConfigError(
+                [f"subject '{subject}': {e}" for e in errors])
+    return merged
+
+
 class GroupOrchestrator:
     """Coordinate a group-scope run across many subjects.
 
@@ -216,37 +268,14 @@ class GroupOrchestrator:
 
     def _build_subject_configs(self) -> list[dict]:
         subjects = self._resolve_subject_list()
-        template = self.config.get('subject_template') or {}
-        if not template:
-            raise ConfigError(
-                "Group config requires 'subject_template' with the shared "
-                "subject-scope settings"
+        return [
+            derive_subject_config(
+                self.config, subject,
+                output_dir=str(self._subject_output_dir(subject)),
+                validate=True,
             )
-        overrides = self.config.get('subject_overrides') or {}
-
-        configs = []
-        for subject in subjects:
-            base = copy.deepcopy(template)
-            base['subject'] = subject
-            sub_override = overrides.get(subject) or {}
-            merged = merge_configs(base, sub_override)
-
-            # Apply package defaults + env-var resolution to mirror what
-            # `load_config` does for standalone subject YAMLs.
-            merged = merge_configs(DEFAULT_CONFIG, merged)
-            merged = resolve_env_vars(merged)
-
-            # Always pin the output dir under the group dir so subject
-            # artifacts stay grouped on disk.
-            reporting = merged.setdefault('reporting', {})
-            reporting['output_dir'] = str(self._subject_output_dir(subject))
-
-            errors = validate_config(merged)
-            if errors:
-                raise ConfigError(
-                    [f"subject '{subject}': {e}" for e in errors])
-            configs.append(merged)
-        return configs
+            for subject in subjects
+        ]
 
     def _resolve_subject_list(self) -> list[str]:
         if 'subjects' in self.config:

@@ -92,8 +92,17 @@ function formatDuration(s: number): string {
 
 
 function overallStatus(r: StudyRunListing): { label: string; color: string } {
+  // Trust the server-computed status when present — it accounts for
+  // group-stage warnings / failures that the per-subject counts alone
+  // can't represent. Fall back to deriving from counts for older
+  // backends that pre-date StudyRunListing.status.
+  const fromServer = r.status
+  if (fromServer === 'failed') return { label: 'failed', color: 'var(--accent-red)' }
+  if (fromServer === 'warning') return { label: 'warning', color: 'var(--accent-yellow)' }
+  if (fromServer === 'ok') return { label: 'ok', color: 'var(--accent-green)' }
   const sc = r.status_counts || { ok: 0, failed: 0 }
   if ((sc.failed ?? 0) > 0) return { label: 'failed', color: 'var(--accent-red)' }
+  if ((sc.warning ?? 0) > 0) return { label: 'warning', color: 'var(--accent-yellow)' }
   if ((sc.ok ?? 0) > 0) return { label: 'ok', color: 'var(--accent-green)' }
   return { label: 'unknown', color: 'var(--text-secondary)' }
 }
@@ -151,8 +160,11 @@ export function StudyRunHistory({ runs, loading }: Props) {
                   {r.n_groups}
                   {' '}
                   <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
-                    {sc.ok ? `${sc.ok} ok` : ''}
-                    {sc.failed ? ` · ${sc.failed} failed` : ''}
+                    {[
+                      sc.ok ? `${sc.ok} ok` : null,
+                      sc.warning ? `${sc.warning} warning` : null,
+                      sc.failed ? `${sc.failed} failed` : null,
+                    ].filter(Boolean).join(' · ')}
                   </span>
                 </td>
                 <td style={tdStyle}>{formatDuration(r.total_elapsed_s)}</td>
@@ -197,21 +209,6 @@ export function StudyRunHistory({ runs, loading }: Props) {
           target={graph.target}
           title={graph.title}
           onClose={() => setGraph(null)}
-          onGroupClick={(label) => {
-            // Click a group node inside a study graph → drill into
-            // that group's full graph.
-            if (graph.target.kind === 'study') {
-              setGraph({
-                target: {
-                  kind: 'study-group',
-                  studyName: graph.target.studyName,
-                  runId: graph.target.runId,
-                  groupLabel: label,
-                },
-                title: `${graph.target.studyName}/${graph.target.runId} · ${label} — group graph`,
-              })
-            }
-          }}
         />
       )}
     </div>

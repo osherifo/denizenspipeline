@@ -27,8 +27,8 @@ subject scope.
 pipeline executes once per subject (in parallel), and then a new group-scope
 layer reduces the per-subject results into group-level artifacts.
 
-See `devdocs/proposals/data-processing/group-analysis.md` for the design and the
-Deniz et al. 2019 worked examples this was built around.
+See `devdocs/proposals/data-processing/group-analysis.md` for the design and
+worked examples.
 
 ## Concept
 
@@ -175,7 +175,7 @@ new analyzer/reporter that should emit diagnostic warnings.
 | Second-pass mechanism (group artifact → `external.*` → re-run analyze + report) | ✅ Phase 1 (mechanism), Phase 3 (built-in plugin) |
 | `voxelwise_mean` / `significance_count` / `scalar_summary` group analyzers | ✅ Phase 2 |
 | `group_summary_html` group reporter | ✅ Phase 2 |
-| `stacked_weights_pca` + `project_to_subspace` (bidirectional, Deniz Fig 4) | ✅ Phase 3 |
+| `stacked_weights_pca` + `project_to_subspace` (bidirectional, group-PC subspace projection) | ✅ Phase 3 |
 | `SemanticSubspace` core type | ✅ Phase 3 |
 | Group Runs view (`#group-runs`) — per-subject status, group-stage timings, HTML + log links | ✅ Phase 4 |
 | `GET /api/group-runs` + `GET /api/group-runs/{name}/{run_id}` (legacy `/{name}` retained) | ✅ Phase 4 |
@@ -206,8 +206,8 @@ Every subject must produce an array of identical shape under `input_key`
 
 Per-voxel count of subjects whose value passes a threshold. Modes:
 `below` for p-value maps (e.g. FDR-corrected), `above` for raw accuracy
-maps with a fixed cutoff. Replicates the consistency map from Deniz 2019
-Fig 3c/d.
+maps with a fixed cutoff. Produces a per-voxel "consistency" map (how
+many subjects passed the threshold).
 
 ```yaml
 group_analyze:
@@ -272,7 +272,7 @@ metadata fields (`feature`, `n_delays`, `feature_dim`,
 `project_to_subspace` analyzer writes an
 `(n_components × n_voxels_subject)` array under
 `analysis.semantic_pc_projection` ready for an RGB-from-PC1-2-3 flatmap
-reporter (Deniz Fig 4 style).
+reporter.
 
 ## Built-in group reporters
 
@@ -338,3 +338,102 @@ The orchestrator prefixes the returned keys with `external.` and re-runs
 `analyze + report` for each subject with those keys in context. A subject-scope
 analyzer can then read `context.get("external.semantic_pca_basis")` to consume
 it.
+
+### `external_pca_basis` — load a precomputed PCA basis
+
+Sometimes you want to project each subject's semantic-feature weights
+onto a **pre-existing** PCA basis (e.g. one computed from a reference
+cohort, distributed alongside the feature) rather than rebuilding the
+basis from the current cohort. Use `external_pca_basis` instead of
+`stacked_weights_pca` to read it off disk:
+
+```yaml
+group_analyze:
+  - name: external_pca_basis
+    params:
+      path: /data/.../semantic_pcs.hf5
+      dataset: c                      # (985, 985) PCs as columns
+      singular_values_dataset: l      # (985,) eigenvalues (optional)
+      feature: english1000            # which feature's weight block to project
+      n_components: 50
+      binding_name: semantic_pca_basis
+```
+
+Same downstream contract as `stacked_weights_pca`: the second pass binds
+the basis under `external.semantic_pca_basis`, the subject-scope
+`project_to_subspace` analyzer consumes it, the `semantic_rgb_flatmap`
+reporter renders RGB-from-PC1/2/3 onto the cortex.
+
+## Study scope
+
+A **study** is one level above a group: it runs M groups (typically
+one group per modality / population / condition) and then performs
+cross-group analyses on their resolved artifacts. Shape:
+
+```yaml
+study: modality_compare
+output_dir: ./testing/study_runs/modality_compare
+
+groups:
+  - {name: reading,   config: reading_group.yaml}
+  - {name: listening, config: listening_group.yaml}
+
+parallel:
+  max_workers: 1
+
+study_analyze:
+  - name: group_delta
+    params: {input_key: group.fsaverage_scores_mean, a: reading, b: listening,
+             output_key: study.fsaverage_delta_r_minus_l}
+
+study_report:
+  - name: study_summary_html
+  - name: study_delta_flatmap
+    params: {input_key: study.fsaverage_delta_r_minus_l, ...}
+```
+
+Group config paths in `groups[*].config` resolve in this order:
+
+1. Literal interpretation (cwd-relative).
+2. Sibling of the study YAML (the natural place for a self-contained study).
+3. `configs/analysis/group/<basename>`, `configs/analysis/<basename>`,
+   `configs/analysis/study/<basename>` (canonical locations).
+4. Legacy `./experiments/group/<basename>` and `./experiments/<basename>`.
+
+The first existing file wins. If the file references intermediates /
+QA at the study top level, those settings propagate into every group
+(and from there into every subject) unless overridden.
+
+### Study stages
+
+| Stage | What runs |
+|---|---|
+| `study_collect`   | resolve + parse every `groups[*].config` |
+| `groups_fanout`   | run each group orchestrator (sequential or pooled by `parallel.max_workers`) |
+| `study_analyze`   | every entry in `study_analyze:` (skipped if no group completed) |
+| `study_report`    | every entry in `study_report:` (skipped if no group completed) |
+
+The top-level `StudyRunSummary.status` reflects partial / full
+failure — `ok` only when every stage ok and every group ok;
+`failed` when a study stage hard-failed or every group failed;
+`warning` for partial outcomes.
+
+### Built-in study analyzers
+
+| Plugin | Purpose |
+|---|---|
+| `group_delta` | Voxelwise A − B on a group-level array |
+| `cohen_d_across_groups` | Per-subject Cohen's d between two groups |
+| `semantic_pc_correlation` | Per-subject per-PC Pearson r between two modalities' PC projections, restricted to top-K best-predicted voxels |
+| `weight_correlation_voxelwise` | Per-voxel correlation of one feature's weights between two groups, averaged on fsaverage |
+| `cross_modal_prediction` | `y_pred = X_test_B @ W_A` over a feature slice; per-voxel r vs `Y_test_B`; mean on fsaverage |
+| `cross_within_summary` | Pairs `max(within)` vs `mean(cross)` per fsaverage vertex |
+
+### Built-in study reporters
+
+| Plugin | Renders |
+|---|---|
+| `study_summary_html` | Index page over every group + study artifact |
+| `study_delta_flatmap` | Single-array flatmap from a study artifact (deltas, Cohen's d, cross-modal maps, …) |
+| `study_pc_correlation_bar` | Per-PC scatter + bar with optional sign-flip null line |
+| `study_cross_within_flatmap` | RGB flatmap (red=within, green/blue=cross) |

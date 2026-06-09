@@ -5,12 +5,12 @@
  * Click a plugin node to open a side drawer with its source code and
  * any output files attributable to it.
  *
- * Layout/look mirrors NipypeGraphModal so the two viewers feel of a
- * piece — ReactFlow + Dagre, status-coloured nodes, full-bleed canvas
- * with a fixed-width right drawer.
+ * Group/study targets drill down side-by-side: clicking a subject node
+ * in a group graph (or a group node in a study graph) opens a second
+ * pane to the right rather than replacing the original graph.
  */
 
-import { memo, useEffect, useMemo, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   ReactFlow,
@@ -274,65 +274,130 @@ const closeBtn: CSSProperties = {
   cursor: 'pointer',
 }
 
+const paneHeader: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '6px 10px',
+  background: 'var(--bg-secondary)',
+  borderBottom: '1px solid var(--border)',
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'var(--text-primary)',
+}
+
+const paneDivider: CSSProperties = {
+  width: 1,
+  background: 'var(--border)',
+  flexShrink: 0,
+}
+
 
 interface Props {
   target: GraphTarget
   title: string
   onClose: () => void
-  /** Optional callback when a subject node is clicked in a group graph.
-   *  Used to drill into the per-subject graph. */
-  onSubjectClick?: (subjectId: string) => void
-  /** Optional callback when a group node is clicked in a study graph.
-   *  Used to drill into the per-group graph. */
-  onGroupClick?: (groupLabel: string) => void
 }
 
 
-export function AnalysisGraphModal({ target, title, onClose, onSubjectClick, onGroupClick }: Props) {
+export function AnalysisGraphModal({ target, title, onClose }: Props) {
+  // NB: no top-level ReactFlowProvider — each GraphPane wraps its own
+  // ReactFlow in a provider so the two panes don't share viewport /
+  // node-internals state (a single provider scopes that store to all
+  // ReactFlows under it, which would make both panes mirror each other).
   return (
     <div style={backdrop} onClick={onClose}>
       <div style={card} onClick={(e) => e.stopPropagation()}>
-        <ReactFlowProvider>
-          <Inner
-            target={target}
-            title={title}
-            onClose={onClose}
-            onSubjectClick={onSubjectClick}
-            onGroupClick={onGroupClick}
-          />
-        </ReactFlowProvider>
+        <Inner target={target} title={title} onClose={onClose} />
       </div>
     </div>
   )
 }
 
 
-function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) {
-  // Internal navigation stack. The top of the stack is the currently
-  // displayed graph; the rest are parents we can pop back to.
-  // Initial entry comes from props. When a subject/group node is
-  // clicked and the parent didn't bind onSubjectClick/onGroupClick,
-  // we push a drilldown target ourselves and the Back button pops.
-  const [stack, setStack] = useState<{ target: GraphTarget; title: string }[]>(
-    [{ target, title }],
-  )
-  const active = stack[stack.length - 1]
+function Inner({ target, title, onClose }: Props) {
+  // Stack of drill-down panes appended after the primary. Each entry
+  // is the target + label for one column. The primary is rendered
+  // separately and never appears in this array. Drill events from
+  // pane i truncate everything after index i and append the new pane,
+  // so re-clicking inside an upstream pane forks the chain instead of
+  // stacking forever.
+  const [extras, setExtras] = useState<Array<{ target: GraphTarget; title: string }>>([])
 
-  // External target prop change → reset the stack (e.g. user opened a
-  // different run while the modal was open). Comparing by stringify
-  // avoids identity churn on object literals.
+  // Reset extras when the primary target changes.
   const externalKey = JSON.stringify(target)
   useEffect(() => {
-    setStack([{ target, title }])
+    setExtras([])
   }, [externalKey])
 
-  const pushTarget = (next: GraphTarget, nextTitle: string) => {
-    setStack((s) => [...s, { target: next, title: nextTitle }])
+  const drillFromPane = (paneIndex: number, next: GraphTarget, nextTitle: string) => {
+    // paneIndex == 0 is the primary; extras index = paneIndex - 1.
+    setExtras((prev) => [
+      ...prev.slice(0, paneIndex),
+      { target: next, title: nextTitle },
+    ])
   }
-  const popTarget = () => {
-    setStack((s) => s.length > 1 ? s.slice(0, -1) : s)
+  const closeFromExtra = (extraIndex: number) => {
+    setExtras((prev) => prev.slice(0, extraIndex))
   }
 
+  return (
+    <>
+      <div style={header}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
+        <div style={{ flex: 1 }} />
+        <button style={closeBtn} onClick={onClose}>Close</button>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', borderRadius: 6 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={paneHeader}>
+            <span>{title}</span>
+          </div>
+          <GraphPane
+            target={target}
+            onDrilldown={(next, nextTitle) => drillFromPane(0, next, nextTitle)}
+          />
+        </div>
+        {extras.map((extra, i) => (
+          <Fragment key={`extra-${i}`}>
+            <div style={paneDivider} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={paneHeader}>
+                <span>{extra.title}</span>
+                <div style={{ flex: 1 }} />
+                <button
+                  style={{ ...closeBtn, padding: '2px 8px', fontSize: 11 }}
+                  onClick={() => closeFromExtra(i)}
+                  title="Close this pane (and any panes opened from it)"
+                >
+                  ✕
+                </button>
+              </div>
+              <GraphPane
+                target={extra.target}
+                onDrilldown={(next, nextTitle) => drillFromPane(i + 1, next, nextTitle)}
+              />
+            </div>
+          </Fragment>
+        ))}
+      </div>
+    </>
+  )
+}
+
+
+// ── single graph pane ──────────────────────────────────────────────────
+
+
+interface GraphPaneProps {
+  target: GraphTarget
+  /** Called when the user clicks a node that opens a sub-graph. */
+  onDrilldown: (next: GraphTarget, title: string) => void
+}
+
+
+function GraphPane({ target, onDrilldown }: GraphPaneProps) {
   const [graph, setGraph] = useState<RunGraphResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openNode, setOpenNode] = useState<RunGraphNode | null>(null)
@@ -344,16 +409,13 @@ function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) 
     setError(null)
     setOpenNode(null)
 
-    const live = isLiveTarget(active.target)
+    const live = isLiveTarget(target)
 
     async function load() {
       try {
-        const g = await fetchRunGraph(active.target)
+        const g = await fetchRunGraph(target)
         if (cancelled) return
         setGraph(g)
-        // Live runs poll until the run ends. The endpoint returns the
-        // current snapshot; we stop polling once all stages are
-        // ok/failed (no running node remains).
         if (live) {
           const stillRunning = g.nodes.some((n) => n.status === 'running')
           if (stillRunning) {
@@ -370,7 +432,7 @@ function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) 
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [JSON.stringify(active.target)])
+  }, [JSON.stringify(target)])
 
   const flow = useMemo(() => graph ? _layout(graph) : { nodes: [], edges: [] }, [graph])
 
@@ -378,65 +440,106 @@ function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) 
     if (!graph) return
     const found = graph.nodes.find((n) => n.id === node.id)
     if (!found) return
+
     if (found.kind === 'subject') {
       const sub = found.plugin_name ?? found.id.replace(/^subject:/, '')
-      // Parent-controlled drilldown (e.g. GroupRunsView wires its own).
-      if (onSubjectClick) {
-        onSubjectClick(sub)
+      if (target.kind === 'group') {
+        onDrilldown(
+          {
+            kind: 'group-subject',
+            groupName: target.groupName,
+            runId: target.runId,
+            subject: sub,
+          },
+          `${target.groupName}/${target.runId} · ${sub}`,
+        )
         return
       }
-      // Self-managed drilldown for the in-flight case.
-      if (active.target.kind === 'in-flight') {
-        pushTarget(
-          { kind: 'in-flight-subject', runId: active.target.runId, subject: sub },
-          `${active.title} · ${sub}`,
+      if (target.kind === 'study-group') {
+        onDrilldown(
+          {
+            kind: 'study-group-subject',
+            studyName: target.studyName,
+            runId: target.runId,
+            groupLabel: target.groupLabel,
+            subject: sub,
+          },
+          `${target.studyName}/${target.groupLabel} · ${sub}`,
+        )
+        return
+      }
+      if (target.kind === 'in-flight') {
+        onDrilldown(
+          { kind: 'in-flight-subject', runId: target.runId, subject: sub },
+          `live · ${sub}`,
+        )
+        return
+      }
+      if (target.kind === 'in-flight-group') {
+        onDrilldown(
+          {
+            kind: 'in-flight-group-subject',
+            runId: target.runId,
+            groupLabel: target.groupLabel,
+            subject: sub,
+          },
+          `live · ${target.groupLabel} · ${sub}`,
+        )
+        return
+      }
+      if (target.kind === 'config') {
+        onDrilldown(
+          { kind: 'config-subject', filename: target.filename, subject: sub },
+          `${target.filename} · ${sub} (preview)`,
         )
         return
       }
     }
-    if (found.kind === 'group' && onGroupClick) {
-      onGroupClick(found.plugin_name ?? found.id.replace(/^group:/, ''))
-      return
+    if (found.kind === 'group') {
+      const grp = found.plugin_name ?? found.id.replace(/^group:/, '')
+      if (target.kind === 'study') {
+        onDrilldown(
+          {
+            kind: 'study-group',
+            studyName: target.studyName,
+            runId: target.runId,
+            groupLabel: grp,
+          },
+          `${target.studyName}/${target.runId} · ${grp}`,
+        )
+        return
+      }
+      if (target.kind === 'in-flight') {
+        onDrilldown(
+          { kind: 'in-flight-group', runId: target.runId, groupLabel: grp },
+          `live · ${grp}`,
+        )
+        return
+      }
     }
     if (found.kind === 'stage') return  // not interactive
     setOpenNode(found)
   }
 
   return (
-    <>
-      <div style={header}>
-        {stack.length > 1 && (
-          <button
-            style={{ ...closeBtn, padding: '4px 10px' }}
-            onClick={popTarget}
-            title="Back to the parent graph"
-          >
-            ← Back
-          </button>
-        )}
-        <div style={{ fontSize: 14, fontWeight: 700 }}>{active.title}</div>
-        {graph && (
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-            {graph.nodes.length} nodes · {graph.edges.length} edges
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+        {error && (
+          <div style={{ padding: 16, color: 'var(--accent-red)', fontSize: 12 }}>
+            Failed to load graph: {error}
           </div>
         )}
-        <div style={{ flex: 1 }} />
-        <button style={closeBtn} onClick={onClose}>Close</button>
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', borderRadius: 6 }}>
-        <div style={{ flex: 1, position: 'relative' }}>
-          {error && (
-            <div style={{ padding: 16, color: 'var(--accent-red)', fontSize: 12 }}>
-              Failed to load graph: {error}
-            </div>
-          )}
-          {!error && !graph && (
-            <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12 }}>
-              Loading…
-            </div>
-          )}
-          {graph && (
+        {!error && !graph && (
+          <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12 }}>
+            Loading…
+          </div>
+        )}
+        {graph && (
+          // Each pane gets its own ReactFlowProvider so two split
+          // panes can render independent graphs side-by-side. A
+          // shared provider would cause the second ReactFlow to
+          // overwrite the first's internal node store.
+          <ReactFlowProvider>
             <ReactFlow
               nodes={flow.nodes}
               edges={flow.edges}
@@ -451,20 +554,16 @@ function Inner({ target, title, onClose, onSubjectClick, onGroupClick }: Props) 
               <Background gap={20} color="var(--border)" />
               <Controls position="bottom-left" showInteractive={false} />
             </ReactFlow>
-          )}
-        </div>
-        {openNode && (
-          <AnalysisNodePanel
-            // Use the *active* target from the nav stack, not the
-            // prop. After a drilldown push we're showing the subject
-            // graph, so source/outputs requests need to hit the
-            // subject endpoints — not the parent group endpoint.
-            target={active.target}
-            node={openNode}
-            onClose={() => setOpenNode(null)}
-          />
+          </ReactFlowProvider>
         )}
       </div>
-    </>
+      {openNode && (
+        <AnalysisNodePanel
+          target={target}
+          node={openNode}
+          onClose={() => setOpenNode(null)}
+        />
+      )}
+    </div>
   )
 }

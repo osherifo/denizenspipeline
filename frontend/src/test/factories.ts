@@ -61,13 +61,13 @@ export function buildModules(): ModuleMetadata {
 
 export function buildStages(): StageInfo[] {
   return [
-    { name: 'stimuli', index: 0, description: 'Load stimuli', module_categories: ['stimulus_loaders'], color: '#0ff' },
-    { name: 'responses', index: 1, description: 'Load responses', module_categories: ['response_loaders'], color: '#f0f' },
-    { name: 'features', index: 2, description: 'Extract features', module_categories: ['feature_extractors'], color: '#ff0' },
-    { name: 'prepare', index: 3, description: 'Prepare', module_categories: ['preparation'], color: '#0f0' },
-    { name: 'model', index: 4, description: 'Fit', module_categories: ['models'], color: '#00f' },
-    { name: 'analyze', index: 5, description: 'Analyze', module_categories: ['analyzers'], color: '#888' },
-    { name: 'report', index: 6, description: 'Report', module_categories: ['reporters'], color: '#fff' },
+    { name: 'stimuli', scope: 'subject', index: 0, description: 'Load stimuli', module_categories: ['stimulus_loaders'], color: '#0ff' },
+    { name: 'responses', scope: 'subject', index: 1, description: 'Load responses', module_categories: ['response_loaders'], color: '#f0f' },
+    { name: 'features', scope: 'subject', index: 2, description: 'Extract features', module_categories: ['feature_extractors'], color: '#ff0' },
+    { name: 'prepare', scope: 'subject', index: 3, description: 'Prepare', module_categories: ['preparation'], color: '#0f0' },
+    { name: 'model', scope: 'subject', index: 4, description: 'Fit', module_categories: ['models'], color: '#00f' },
+    { name: 'analyze', scope: 'subject', index: 5, description: 'Analyze', module_categories: ['analyzers'], color: '#888' },
+    { name: 'report', scope: 'subject', index: 6, description: 'Report', module_categories: ['reporters'], color: '#fff' },
   ]
 }
 

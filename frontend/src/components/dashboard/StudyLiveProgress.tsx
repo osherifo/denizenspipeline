@@ -320,6 +320,17 @@ function ElapsedTimer({ startTime }: { startTime: number | null }) {
 }
 
 
+// Short "group/subject:" prefix for subject-tagged events. Falls
+// back gracefully when an event only carries one of the two tags
+// (e.g. a top-level group run won't have group_label, just group).
+function _subjectTag(a: any): string {
+  const group = a.group_label ?? a.group
+  if (group && a.subject) return `    · ${group}/${a.subject}`
+  if (a.subject) return `    · ${a.subject}`
+  if (group) return `  · ${group}`
+  return ''
+}
+
 function formatEventLine(event: RunEvent): string {
   const a = event as any
   switch (event.event) {
@@ -333,8 +344,18 @@ function formatEventLine(event: RunEvent): string {
     case 'study_done': return `✓ study done (${(a.elapsed ?? 0).toFixed(1)}s)`
     case 'group_stage_start': return `  · ${a.group_label ?? a.group ?? '?'}: ▶ ${a.stage}`
     case 'group_stage_done': return `  · ${a.group_label ?? a.group ?? '?'}: ✓ ${a.stage}`
+    case 'group_subject_start':
+      return `${_subjectTag(a)}: ▶ subject pipeline`
     case 'group_subject_done':
-      return `    · ${a.group_label ?? '?'}/${a.subject}: ${a.status === 'failed' ? '✗' : '✓'}`
+      return `${_subjectTag(a)}: ${a.status === 'failed' ? '✗' : '✓'} subject pipeline${a.elapsed != null ? ` (${(a.elapsed).toFixed(1)}s)` : ''}`
+    case 'stage_start':
+      return `${_subjectTag(a)}: ▶ ${a.stage}`
+    case 'stage_done':
+      return `${_subjectTag(a)}: ✓ ${a.stage}${a.elapsed != null ? ` (${(a.elapsed).toFixed(1)}s)` : ''}${a.detail ? ` — ${a.detail}` : ''}`
+    case 'stage_fail':
+      return `${_subjectTag(a)}: ✗ ${a.stage}: ${a.error ?? 'failed'}`
+    case 'stage_warn':
+      return `${_subjectTag(a)}: ⚠ ${a.stage}${a.detail ? ` — ${a.detail}` : ''}`
     case 'log': return event.message || ''
     case 'started': return event.message || 'Run started'
     case 'run_done': return `✓ Run complete (${(a.total_elapsed ?? 0).toFixed(1)}s)`
@@ -388,21 +409,21 @@ export function StudyLiveProgress({ runId, events, startTime, onDismiss }: Props
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {!isFinished && (
-            <button
-              onClick={() => setGraphOpen(true)}
-              style={{
-                padding: '3px 10px', fontSize: 11, fontWeight: 600,
-                border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 4,
-                background: 'rgba(0, 229, 255, 0.08)',
-                color: 'var(--accent-cyan)', cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-              title="Open the pipeline graph (live — polls until the run ends)"
-            >
-              View graph
-            </button>
-          )}
+          <button
+            onClick={() => setGraphOpen(true)}
+            style={{
+              padding: '3px 10px', fontSize: 11, fontWeight: 600,
+              border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: 4,
+              background: 'rgba(0, 229, 255, 0.08)',
+              color: 'var(--accent-cyan)', cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            title={isFinished
+              ? 'Open the pipeline graph (final state)'
+              : 'Open the pipeline graph (live — polls until the run ends)'}
+          >
+            View graph
+          </button>
           <ElapsedTimer startTime={isFinished ? null : startTime} />
           {isFinished && onDismiss && (
             <button

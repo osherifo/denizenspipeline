@@ -14,8 +14,28 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useStudyRunsStore } from '../stores/study-runs-store'
 import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
+import { ConfigSnapshotModal } from '../components/runs/ConfigSnapshotModal'
 import type { GraphTarget } from '../api/run-graph'
 import type { StudyRunDetail, StudyRunListing } from '../api/types'
+
+
+/** Mirror of ``fmriflow.core.run_summary.derive_group_status`` — roll
+ *  up a group_summary dict to ok/warning/failed using both group_stages
+ *  and per-subject stage statuses. Kept in sync with the Python side. */
+function deriveGroupStatus(group: Record<string, any>): 'ok' | 'warning' | 'failed' {
+  const statuses: string[] = []
+  for (const st of (group.group_stages ?? []) as Array<Record<string, any>>) {
+    if (st?.status) statuses.push(st.status)
+  }
+  for (const subj of (group.subject_summaries ?? []) as Array<Record<string, any>>) {
+    for (const st of (subj.stages ?? []) as Array<Record<string, any>>) {
+      if (st?.status) statuses.push(st.status)
+    }
+  }
+  if (statuses.includes('failed')) return 'failed'
+  if (statuses.includes('warning')) return 'warning'
+  return 'ok'
+}
 
 
 // ── styles ────────────────────────────────────────────────────────────
@@ -167,8 +187,15 @@ function isImage(path: string): boolean {
 function RunListItem({
   run, selected, onClick,
 }: { run: StudyRunListing; selected: boolean; onClick: () => void }) {
+  // Prefer the server-computed status (sees group_stages warnings /
+  // failures that subject counts can't represent). Fall back to
+  // count-derived status for older backends.
   const status =
+    run.status === 'failed' ? 'failed' :
+    run.status === 'warning' ? 'warning' :
+    run.status === 'ok' ? 'ok' :
     (run.status_counts?.failed ?? 0) > 0 ? 'failed' :
+    (run.status_counts?.warning ?? 0) > 0 ? 'warning' :
     (run.status_counts?.ok ?? 0) > 0 ? 'ok' : 'unknown'
   return (
     <tr style={rowStyle(selected)} onClick={onClick}>
@@ -210,7 +237,7 @@ function GroupsTable({ detail }: { detail: StudyRunDetail }) {
           const nFailed = subjects.filter((s) =>
             (s.stages ?? []).some((st: any) => st.status === 'failed'),
           ).length
-          const status = nFailed > 0 ? 'failed' : 'ok'
+          const status = deriveGroupStatus(a)
           return (
             <tr key={`${label}-${i}`}>
               <td style={tdStyle}>{label}</td>
@@ -301,6 +328,7 @@ function DetailPanel({
 }) {
   const studyArt = detail.artifacts?.study ?? []
   const groupArt = detail.artifacts?.groups ?? {}
+  const [yamlOpen, setYamlOpen] = useState(false)
   return (
     <div style={cardStyle}>
       <div style={{ padding: '16px 18px' }}>
@@ -345,8 +373,31 @@ function DetailPanel({
           >
             View graph
           </button>
+          <button
+            style={{
+              ...linkBtn,
+              cursor: 'pointer', fontFamily: 'inherit',
+              background: 'rgba(0, 229, 255, 0.08)',
+              border: '1px solid rgba(0, 229, 255, 0.4)',
+              color: 'var(--accent-cyan)',
+            }}
+            onClick={() => setYamlOpen(true)}
+            title="View the resolved YAML config that produced this study run"
+            disabled={!detail.config_snapshot}
+          >
+            View YAML
+          </button>
         </div>
       </div>
+
+      {yamlOpen && (
+        <ConfigSnapshotModal
+          snapshot={detail.config_snapshot}
+          title={`${detail.study_name}/${detail.run_id} — study config snapshot`}
+          downloadName={`${detail.study_name}_${detail.run_id}.yaml`}
+          onClose={() => setYamlOpen(false)}
+        />
+      )}
       <div style={sectionTitle}>Groups</div>
       <GroupsTable detail={detail} />
       <div style={sectionTitle}>Study stages</div>
@@ -456,19 +507,6 @@ export function StudyRunsView() {
           target={graph.target}
           title={graph.title}
           onClose={() => setGraph(null)}
-          onGroupClick={(label) => {
-            if (graph.target.kind === 'study') {
-              setGraph({
-                target: {
-                  kind: 'study-group',
-                  studyName: graph.target.studyName,
-                  runId: graph.target.runId,
-                  groupLabel: label,
-                },
-                title: `${graph.target.studyName}/${graph.target.runId} · ${label} — group graph`,
-              })
-            }
-          }}
         />
       )}
     </div>

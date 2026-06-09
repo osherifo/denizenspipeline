@@ -26,6 +26,10 @@ export type ModuleMetadata = Record<string, ModuleInfo[]>
 
 export interface StageInfo {
   name: string
+  // Older backends that pre-date the scope split omit this field; the
+  // UI defaults missing scope to 'subject'. Keep optional so callers
+  // are forced to handle the legacy shape.
+  scope?: 'subject' | 'group' | 'study'
   index: number
   description: string
   module_categories: string[]
@@ -933,6 +937,7 @@ export interface GroupRunDetail {
 
 export interface StudyStatusCounts {
   ok: number
+  warning?: number
   failed: number
 }
 
@@ -943,6 +948,10 @@ export interface StudyRunListing {
   group_labels: string[]
   n_groups: number
   status_counts: StudyStatusCounts
+  // Server-computed overall outcome (ok | warning | failed). Older
+  // backends pre-date this field — UI should fall back to deriving
+  // from status_counts when absent.
+  status?: 'ok' | 'warning' | 'failed'
   started_at: string
   finished_at: string
   total_elapsed_s: number

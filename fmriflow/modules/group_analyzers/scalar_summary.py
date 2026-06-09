@@ -1,8 +1,8 @@
 """Mean ± SEM of a per-subject scalar across the group.
 
-Replicates the cross-subject error bars in Deniz 2019 Fig 5: each subject
-contributes one scalar (e.g. the correlation of two model maps), and the
-group reports mean, std, and SEM.
+Standard cross-subject error-bar reduction: each subject contributes
+one scalar (e.g. the correlation of two model maps), and the group
+reports mean, std, and SEM.
 """
 
 from __future__ import annotations

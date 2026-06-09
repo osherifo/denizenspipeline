@@ -19,6 +19,13 @@ import {
 
 const ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
 
+// Tracks the WebSocket of the run we're currently attached to. If
+// attachToInFlightRun() fires again before the prior run finishes,
+// we close the old socket so its replayed/incoming events don't bleed
+// into the new run's liveEvents stream.
+let activeWs: WebSocket | null = null
+let activeWsRunId: string | null = null
+
 function deriveStageStatuses(events: RunEvent[]): Record<string, StageStatus> {
   const statuses: Record<string, StageStatus> = {}
   for (const stage of ALL_STAGES) {
@@ -134,12 +141,12 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       liveEvents: [],
       stageStatuses: {},
       completedRun: null,
-      // liveRunId / lastRunId are deliberately NOT cleared: if a run
-      // we launched in this tab is still in flight, the WS will keep
-      // feeding the (now cleared) liveEvents back in. If the user
-      // wants to fully reset, the Dismiss button on LiveProgress
-      // (or a config switch to a different in-flight run) clears
-      // those too.
+      // Selecting a different config detaches from any in-flight run
+      // bound to the previous config: clear liveRunId so we stop
+      // accepting new WS events as "live" for this view, and clear
+      // lastRunId so the run-history bindings on the new config start
+      // fresh. The WS socket itself is closed in attachToInFlightRun
+      // (or via run_done/run_failed) — see comment there.
       liveRunId: null,
       lastRunId: null,
       liveStartTime: null,
@@ -322,7 +329,14 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       if (startMs > 0) set({ liveStartTime: startMs })
     }).catch(() => { /* keep the Date.now() fallback */ })
 
+    // If a previous attach hasn't finished, close its socket so its
+    // events can't keep landing in liveEvents.
+    if (activeWs && activeWsRunId !== runId) {
+      try { activeWs.close() } catch { /* ignore */ }
+    }
     const ws = connectRunWs(runId)
+    activeWs = ws
+    activeWsRunId = runId
     let pending: RunEvent[] = []
     let scheduled = false
 
@@ -341,6 +355,10 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }
 
     ws.onmessage = (msg) => {
+      // If the user has moved on to a different run, drop the event.
+      // Defensive: ws.close() above should prevent further messages,
+      // but the close handshake can race the next batch of replays.
+      if (activeWsRunId !== runId) return
       const event: RunEvent = JSON.parse(msg.data)
       pending.push(event)
       if (!scheduled) {
@@ -356,12 +374,14 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
         setTimeout(() => {
           flush()
           ws.close()
+          if (activeWs === ws) { activeWs = null; activeWsRunId = null }
           set({ liveRunId: null, liveStartTime: null })
           get().loadConfigs()
         }, 0)
       }
     }
     ws.onerror = () => {
+      if (activeWs === ws) { activeWs = null; activeWsRunId = null }
       set({ liveRunId: null, liveStartTime: null })
     }
   },

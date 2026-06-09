@@ -3,8 +3,8 @@
 Reads ``analysis.fsaverage_scores`` (produced by the ``project_to_fsaverage``
 analyzer). Renders a pycortex flatmap with ``subject='fsaverage'`` so every
 subject lands on the same cortical surface — directly usable for cross-subject
-comparisons (and the input to the group ``voxelwise_mean`` analyzer for
-Deniz 2019 Fig 3a/b).
+comparisons (and the input to the group ``voxelwise_mean`` analyzer that
+produces the mean-accuracy group flatmap).
 
 If the fsaverage projection wasn't produced (no analyzer in the pipeline, or
 the analyzer hit FreeSurfer / mask-mismatch issues), this reporter no-ops with

@@ -7,6 +7,32 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
+def derive_group_status(group: dict) -> str:
+    """Roll up a single group_summary dict to ``'ok'``/``'warning'``/``'failed'``.
+
+    Walks both the group-scope stages (``group_analyze``/``group_report``/
+    ``subject_second_pass``) and per-subject stage records. Any failed
+    stage on either axis → ``'failed'``; otherwise any warning → ``'warning'``;
+    otherwise ``'ok'``. Used by study route summaries, the study summary
+    HTML reporter, and the StudyRunsView so the three surfaces agree.
+    """
+    statuses: list[str] = []
+    for st in group.get('group_stages') or []:
+        s = st.get('status') if isinstance(st, dict) else getattr(st, 'status', None)
+        if s:
+            statuses.append(s)
+    for subj in group.get('subject_summaries') or []:
+        for st in (subj.get('stages') if isinstance(subj, dict) else getattr(subj, 'stages', [])) or []:
+            s = st.get('status') if isinstance(st, dict) else getattr(st, 'status', None)
+            if s:
+                statuses.append(s)
+    if any(s == 'failed' for s in statuses):
+        return 'failed'
+    if any(s == 'warning' for s in statuses):
+        return 'warning'
+    return 'ok'
+
+
 def fmt_time(seconds: float) -> str:
     """Format seconds into a human-friendly string."""
     if seconds >= 3600:
@@ -42,6 +68,10 @@ class NodeRecord:
     # output_dir when possible (absolute when the file lives outside
     # output_dir, which happens occasionally for shared caches).
     outputs: list[str] = field(default_factory=list)
+    # Paths produced by stage-level QA reporters bound to this node.
+    # Kept separate from ``outputs`` so the QA tab can surface them
+    # without cluttering the regular Outputs tab.
+    qa_outputs: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -141,6 +171,7 @@ def _node_from_dict(n: dict) -> NodeRecord:
         elapsed_s=n.get('elapsed_s', 0.0),
         detail=n.get('detail', '') or '',
         outputs=list(n.get('outputs') or []),
+        qa_outputs=list(n.get('qa_outputs') or []),
     )
 
 
@@ -181,6 +212,13 @@ class StudyRunSummary:
     study_stages: list[StageRecord] = field(default_factory=list)
     config_snapshot: dict = field(default_factory=dict)
     run_id: str = ""
+    # Overall outcome derived from study_stages + group_summaries.
+    # 'ok' = every study stage ok and every group ok;
+    # 'failed' = a study stage hard-failed or every group failed;
+    # 'warning' = partial success (some plugins failed but the stage
+    # surrounding them kept going, or some groups failed but at least
+    # one finished).
+    status: str = "unknown"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -205,6 +243,7 @@ class StudyRunSummary:
             study_stages=[_stage_from_dict(s) for s in data.get('study_stages', [])],
             config_snapshot=data.get('config_snapshot', {}),
             run_id=data.get('run_id', ''),
+            status=data.get('status', 'unknown'),
         )
 
 

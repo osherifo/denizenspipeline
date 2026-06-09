@@ -13,8 +13,8 @@ The result is stored in the subject's :class:`PipelineContext` under
 ``analysis.<output_key>`` (default ``analysis.fsaverage_scores``). Downstream
 plugins that operate in fsaverage space (the ``fsaverage_flatmap`` reporter,
 group-scope ``voxelwise_mean`` / ``significance_count`` analyzers) can then
-consume a shape-consistent representation across subjects — which is what
-Deniz 2019 Fig 3a/b/c/d require.
+consume a shape-consistent representation across subjects — required by
+any cross-subject group flatmap or consistency analysis.
 
 This analyzer fails gracefully when:
 - pycortex's mask voxel count doesn't match ``result.scores.shape[0]`` (see
