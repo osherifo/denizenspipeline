@@ -114,7 +114,10 @@ export function ConfigSnapshotModal({
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    // Defer revoke so the browser has time to start the download —
+    // revoking synchronously after click() intermittently cancels the
+    // download in some browsers (Safari especially).
+    setTimeout(() => URL.revokeObjectURL(url), 0)
   }
 
   return (

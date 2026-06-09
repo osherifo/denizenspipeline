@@ -103,10 +103,19 @@ class NpzConcatSource:
         paths_field = config.get('paths')
         if path_field is None and paths_field is None:
             errors.append("npz_concat requires 'path' (single file) or 'paths' (per-phase)")
-        if path_field is not None and not Path(path_field).is_file():
-            errors.append(f"npz_concat: path not found: {path_field}")
+        if path_field is not None:
+            if not isinstance(path_field, str):
+                errors.append(
+                    f"npz_concat: 'path' must be a string, got {type(path_field).__name__}")
+            elif not Path(path_field).is_file():
+                errors.append(f"npz_concat: path not found: {path_field}")
         if isinstance(paths_field, dict):
             for phase, p in paths_field.items():
+                if not isinstance(p, str):
+                    errors.append(
+                        f"npz_concat: paths.{phase} must be a string, "
+                        f"got {type(p).__name__}")
+                    continue
                 if not Path(p).is_file():
                     errors.append(f"npz_concat: paths.{phase} not found: {p}")
 
@@ -136,8 +145,16 @@ def _load_phase_array(config: dict, phase: str, phase_cfg: dict) -> np.ndarray:
     paths_field = config.get('paths')
     if isinstance(paths_field, dict) and phase in paths_field:
         npz_path = Path(paths_field[phase])
-    else:
+    elif config.get('path') is not None:
         npz_path = Path(config['path'])
+    else:
+        # Validation should have caught this; raise a clear error
+        # instead of letting a bare KeyError leak through.
+        raise ValueError(
+            f"npz_concat: no path for phase '{phase}' — set either "
+            f"'path' (single file shared by all phases) or "
+            f"'paths.{phase}' (per-phase override)"
+        )
 
     key = phase_cfg['key']
     with np.load(npz_path) as npz:

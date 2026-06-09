@@ -23,7 +23,11 @@ def mpl_figure(*, figsize: tuple[float, float] = (6.0, 4.0), dpi: int = 110):
     can be imported without pulling matplotlib.
     """
     import matplotlib
-    matplotlib.use('Agg', force=False)
+    # ``force=True`` so even if another backend was already selected
+    # earlier in the process (e.g. pyplot imported by an unrelated
+    # module), QA rendering still lands on Agg. ``force=False`` would
+    # leave QA stuck on a GUI backend that crashes headlessly.
+    matplotlib.use('Agg', force=True)
     import matplotlib.pyplot as plt
 
     fig = plt.figure(figsize=figsize, dpi=dpi)

@@ -7,7 +7,7 @@ Opt-in via the ``intermediates`` block in a subject-scope config:
     intermediates:
       save: false              # bool | list[str]   (default off)
       # save: true                                  # everything
-      # save: [features, prepared]                  # selective by stage name
+      # save: [features, prepare]                   # selective by stage name
       format: joblib                                # only one in v1
       compress: lz4                                 # lz4 | gzip | none
 

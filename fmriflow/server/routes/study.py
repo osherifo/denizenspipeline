@@ -214,7 +214,13 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
     study_stages = data.get("study_stages", []) or []
     study_failed = any(s.get("status") == "failed" for s in study_stages)
     study_warning = any(s.get("status") == "warning" for s in study_stages)
-    if n_failed_groups or study_failed:
+    # Trust the orchestrator-written status when present — it has the
+    # full per-stage / per-plugin context. Fall back to the derived
+    # rollup for older summaries that pre-date StudyRunSummary.status.
+    saved_status = data.get("status")
+    if saved_status in ("ok", "warning", "failed"):
+        overall_status = saved_status
+    elif n_failed_groups or study_failed:
         overall_status = "failed"
     elif n_warning_groups or study_warning:
         overall_status = "warning"

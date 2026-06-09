@@ -187,8 +187,15 @@ function isImage(path: string): boolean {
 function RunListItem({
   run, selected, onClick,
 }: { run: StudyRunListing; selected: boolean; onClick: () => void }) {
+  // Prefer the server-computed status (sees group_stages warnings /
+  // failures that subject counts can't represent). Fall back to
+  // count-derived status for older backends.
   const status =
+    run.status === 'failed' ? 'failed' :
+    run.status === 'warning' ? 'warning' :
+    run.status === 'ok' ? 'ok' :
     (run.status_counts?.failed ?? 0) > 0 ? 'failed' :
+    (run.status_counts?.warning ?? 0) > 0 ? 'warning' :
     (run.status_counts?.ok ?? 0) > 0 ? 'ok' : 'unknown'
   return (
     <tr style={rowStyle(selected)} onClick={onClick}>

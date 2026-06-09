@@ -109,6 +109,34 @@ class ModuleRegistry:
                         logger.warning(
                             f"Failed to load module {group}/{ep.name}: {e}")
 
+        # QA reporters use a nested ``dict[stage, dict[name, cls]]``
+        # storage shape so the flat-dict loader above can't handle them
+        # directly. The class itself carries ``stage`` as a class
+        # attribute (set by the built-in @qa_reporter decorator); a
+        # third-party class is expected to do the same.
+        qa_group = 'fmriflow.qa_reporters'
+        try:
+            qa_eps = entry_points(group=qa_group)
+        except TypeError:
+            qa_eps = entry_points().get(qa_group, [])
+        for ep in qa_eps:
+            try:
+                cls = ep.load()
+                stage = getattr(cls, 'stage', None)
+                if not isinstance(stage, str) or not stage:
+                    logger.warning(
+                        f"Skipping {qa_group}/{ep.name}: class is missing a "
+                        f"'stage' class attribute")
+                    continue
+                bucket = self._qa_reporters.setdefault(stage, {})
+                if ep.name in bucket:
+                    continue
+                bucket[ep.name] = cls
+                logger.debug(f"Discovered module: {qa_group}/{ep.name} (stage={stage})")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load module {qa_group}/{ep.name}: {e}")
+
     # ─── Decorator API ──────────────────────────────────────────
 
     def stimulus_loader(self, name: str):

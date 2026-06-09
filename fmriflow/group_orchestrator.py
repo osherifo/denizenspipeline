@@ -48,16 +48,17 @@ EXTERNAL_PREFIX = 'external.'
 
 def derive_subject_config(group_config: dict, subject: str,
                           *, output_dir: str | None = None,
-                          validate: bool = True) -> dict:
+                          validate: bool | None = None) -> dict:
     """Resolve the per-subject config that would run for *subject* under
     *group_config*. Mirrors :meth:`GroupOrchestrator._build_subject_configs`
     but is pure (no orchestrator state) so the preview routes and tooling
     can use it without spinning up a real run.
 
-    When ``output_dir`` is None (preview mode), ``reporting.output_dir``
-    is left untouched and ``validate`` defaults to False — previews don't
-    need a writable directory and may be inspected before a config is
-    runnable.
+    ``validate`` defaults to True when ``output_dir`` is set (a real
+    run is being prepared) and False when ``output_dir`` is None
+    (preview mode — the config may legitimately be incomplete and the
+    caller just wants to inspect the merged shape). Pass ``True`` /
+    ``False`` explicitly to override.
     """
     template = group_config.get('subject_template') or {}
     if not template:
@@ -84,6 +85,10 @@ def derive_subject_config(group_config: dict, subject: str,
 
     if output_dir is not None:
         merged.setdefault('reporting', {})['output_dir'] = output_dir
+
+    # Resolve the per-mode default: real runs validate, previews don't.
+    if validate is None:
+        validate = output_dir is not None
 
     if validate:
         errors = validate_config(merged)
