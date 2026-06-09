@@ -70,9 +70,12 @@ export interface StudyPluginConfig {
   params?: Record<string, unknown>
 }
 
-/** Reference to a saved group config from a study YAML. */
+/** Reference to a saved group config from a study YAML.
+ *
+ * Field names match the backend schema (``validate_study_config``):
+ * the unique per-group label key is ``name`` (not ``label``). */
 export interface StudyGroupRef {
-  label: string
+  name: string
   config: string
   // Optional subjects override (the YAML allows this but the composer
   // form defaults to leaving it empty).

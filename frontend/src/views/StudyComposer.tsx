@@ -327,12 +327,12 @@ export function StudyComposer() {
             <div key={i} style={groupRefRow}>
               <input
                 type="text"
-                value={g.label}
+                value={g.name}
                 onChange={(e) =>
-                  updateGroupRef(i, { ...g, label: e.target.value })
+                  updateGroupRef(i, { ...g, name: e.target.value })
                 }
                 style={inputStyle}
-                placeholder="label (e.g. reading)"
+                placeholder="name (e.g. reading)"
               />
               <input
                 type="text"
@@ -365,7 +365,7 @@ export function StudyComposer() {
           <button
             type="button"
             style={addBtn}
-            onClick={() => addGroupRef({ label: '', config: '' })}
+            onClick={() => addGroupRef({ name: '', config: '' })}
           >
             + Add group
           </button>

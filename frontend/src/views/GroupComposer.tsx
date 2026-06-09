@@ -25,7 +25,7 @@ import {
   STAGE_DEFS, summaryFor,
   StimulusBody, ResponseBody, FeaturesBody, PreparationBody,
   ModelBody, AnalysisBody, ReportingBody,
-} from './AnalysisComposer'
+} from '../components/composer/subject-stages'
 import type {
   ModuleInfo, GroupPluginConfig,
   PipelineConfig, FeatureConfig, StepConfig, AnalyzerConfig,
@@ -215,6 +215,7 @@ function SubjectOverrideCard({
   const [parseError, setParseError] = useState<string | null>(null)
   const lastSyncedRef = useRef<string | null>(null)
   const applyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unmountedRef = useRef(false)
 
   // Hydrate / refresh editor text from the store value when the store
   // changes externally (initial load, YAML editor on right pane edits
@@ -232,12 +233,26 @@ function SubjectOverrideCard({
     return () => { cancelled = true }
   }, [value])
 
+  // Cancel the debounced YAML-apply timer + flag the card as
+  // unmounted, so a setTimeout that fires after Remove can't write
+  // to the store or call setState on a stale component.
+  useEffect(() => {
+    return () => {
+      unmountedRef.current = true
+      if (applyTimer.current) {
+        clearTimeout(applyTimer.current)
+        applyTimer.current = null
+      }
+    }
+  }, [])
+
   const handleEditorChange = (next: string) => {
     setText(next)
     if (applyTimer.current) clearTimeout(applyTimer.current)
     applyTimer.current = setTimeout(async () => {
       try {
         const result = await configFromYaml(next || '{}')
+        if (unmountedRef.current) return
         if (result.errors.length > 0) {
           setParseError(result.errors[0])
           return
@@ -246,6 +261,7 @@ function SubjectOverrideCard({
         lastSyncedRef.current = next
         onChange((result.config as Record<string, unknown>) || {})
       } catch (e) {
+        if (unmountedRef.current) return
         setParseError(String(e))
       }
     }, 600)
@@ -554,10 +570,13 @@ export function GroupComposer() {
       {/* ── Left column ── */}
       <div style={leftColStyle}>
         <div style={subtitleStyle}>
-          Author a cross-subject group config. The right pane's YAML is the
-          source of truth for <code>subject_template</code> and{' '}
-          <code>subject_overrides</code> — edit the shared subject pipeline
-          there until the full subject embed lands.
+          Author a cross-subject group config. The shared subject
+          pipeline is editable in the <code>Subject template</code> card
+          below — the same 7-stage form the Subject scope uses, rooted
+          at <code>subject_template</code> instead of the top level.
+          Per-subject deviations go under <code>Subject overrides</code>.
+          The right pane's YAML mirrors every form edit and is also
+          editable directly.
         </div>
 
         <div style={actionBarStyle}>

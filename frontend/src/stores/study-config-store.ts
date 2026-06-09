@@ -3,7 +3,7 @@
  * Shape matches the YAML the study orchestrator expects:
  *
  *   study: <name>
- *   groups: [{ label, config: <path>, subjects?: […] }, …]
+ *   groups: [{ name, config: <path>, subjects?: […] }, …]
  *   study_analyze: [{ name, params }]
  *   study_report: [{ name, params }]
  *   output_dir: <path>

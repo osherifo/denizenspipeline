@@ -205,7 +205,7 @@ anything the form doesn't surface; form edits sync into it on a
 Author a cross-group study config:
 
 - **Top fields**: `study` name, `output_dir`.
-- **Groups**: a list of `(label, config)` pairs pointing at saved
+- **Groups**: a list of `(name, config)` pairs pointing at saved
   group YAMLs. The config-path picker has a datalist sourced from
   the dashboard's saved-config index so you pick by filename.
 - **Study analyze** / **Study report**: stacks of
