@@ -58,6 +58,54 @@ export interface AnalyzerConfig {
   params?: Record<string, unknown>
 }
 
+/** One entry in a group config's ``group_analyze`` / ``group_report`` stage. */
+export interface GroupPluginConfig {
+  name: string
+  params?: Record<string, unknown>
+}
+
+/** One entry in a study config's ``study_analyze`` / ``study_report`` stage. */
+export interface StudyPluginConfig {
+  name: string
+  params?: Record<string, unknown>
+}
+
+/** Reference to a saved group config from a study YAML. */
+export interface StudyGroupRef {
+  label: string
+  config: string
+  // Optional subjects override (the YAML allows this but the composer
+  // form defaults to leaving it empty).
+  subjects?: string[]
+}
+
+export interface GroupConfig {
+  group?: string
+  subjects?: string[]
+  // Subject-pipeline template shared across all subjects in the group.
+  // The composer's right-pane YAML editor is the source of truth for
+  // this slice; the form provides the scope-specific shortcuts only.
+  subject_template?: Record<string, unknown>
+  subject_overrides?: Record<string, Record<string, unknown>>
+  intermediates?: Record<string, unknown>
+  qa?: Record<string, unknown>
+  group_analyze?: GroupPluginConfig[]
+  group_report?: GroupPluginConfig[]
+  output_dir?: string
+  [key: string]: unknown
+}
+
+export interface StudyConfig {
+  study?: string
+  groups?: StudyGroupRef[]
+  intermediates?: Record<string, unknown>
+  qa?: Record<string, unknown>
+  study_analyze?: StudyPluginConfig[]
+  study_report?: StudyPluginConfig[]
+  output_dir?: string
+  [key: string]: unknown
+}
+
 export interface PipelineConfig {
   experiment?: string
   subject?: string

@@ -19,6 +19,8 @@ import { FeatureKindSlot } from '../components/composer/FeatureKindSlot'
 import { YamlEditor } from '../components/composer/YamlEditor'
 import { StageStripPreview } from '../components/composer/StageStripPreview'
 import type { PreviewStage } from '../components/composer/StageStripPreview'
+import { GroupComposer } from './GroupComposer'
+import { StudyComposer } from './StudyComposer'
 import type {
   ModuleInfo,
   FeatureConfig,
@@ -26,6 +28,36 @@ import type {
   StepConfig,
 } from '../api/types'
 import type { FieldValues } from '../api/client'
+
+type Scope = 'subject' | 'group' | 'study'
+const SCOPE_ORDER: Scope[] = ['subject', 'group', 'study']
+const SCOPE_LABELS: Record<Scope, string> = {
+  subject: 'Subject',
+  group: 'Group',
+  study: 'Study',
+}
+
+const scopeTabsRow: CSSProperties = {
+  display: 'flex',
+  gap: 4,
+  padding: '12px 28px 0 28px',
+  borderBottom: '1px solid var(--border)',
+}
+
+const scopeTabBtn = (active: boolean): CSSProperties => ({
+  padding: '8px 18px',
+  fontSize: 12,
+  fontWeight: 700,
+  border: 'none',
+  background: 'transparent',
+  color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+  borderBottom: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+  cursor: 'pointer',
+  letterSpacing: 0.8,
+  textTransform: 'uppercase',
+  fontFamily: 'inherit',
+  marginBottom: -1,
+})
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -47,7 +79,8 @@ const pageStyle: CSSProperties = {
   gap: 24,
   alignItems: 'start',
   padding: '24px 28px',
-  height: 'calc(100vh - 48px)',
+  // 48px navbar + 48px scope tab bar; matches GroupComposer / StudyComposer.
+  height: 'calc(100vh - 48px - 48px)',
   boxSizing: 'border-box',
 }
 
@@ -604,7 +637,37 @@ function ReportingBody() {
 
 // ── Main view ─────────────────────────────────────────────────────────
 
+/** AnalysisComposer top-level — scope tabs + delegated body per scope.
+ *
+ * Subject scope keeps the existing 7-stage form (rendered inline below
+ * as :func:`SubjectComposerBody`). Group / study scopes hand off to
+ * sibling composer views that have their own state stores and
+ * scope-shaped YAML editors. */
 export function AnalysisComposer() {
+  const [scope, setScope] = useState<Scope>('subject')
+  const pageHeight: CSSProperties = { height: 'calc(100vh - 48px)' }
+  return (
+    <div style={pageHeight}>
+      <div style={scopeTabsRow}>
+        {SCOPE_ORDER.map((s) => (
+          <button
+            key={s}
+            style={scopeTabBtn(scope === s)}
+            onClick={() => setScope(s)}
+          >
+            {SCOPE_LABELS[s]}
+          </button>
+        ))}
+      </div>
+      {scope === 'subject' && <SubjectComposerBody />}
+      {scope === 'group' && <GroupComposer />}
+      {scope === 'study' && <StudyComposer />}
+    </div>
+  )
+}
+
+
+function SubjectComposerBody() {
   const config = useConfigStore((s) => s.config)
   const yamlString = useConfigStore((s) => s.yamlString)
   const validationErrors = useConfigStore((s) => s.validationErrors)

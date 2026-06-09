@@ -6,11 +6,28 @@ import yaml
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from fmriflow.config.schema import validate_config
+from fmriflow.config.schema import (
+    validate_config, validate_group_config, validate_study_config,
+)
 from fmriflow.modules._schema import extract_schema, schema_defaults
 from fmriflow.server.routes import _registry
 
 router = APIRouter(tags=["config"])
+
+
+def _detect_scope(config: dict) -> str:
+    """Sniff the YAML's top-level shape to pick the right validator.
+
+    Study configs declare ``study:`` + ``groups:``; group configs
+    declare ``group:`` + ``subjects:``; everything else is a subject
+    config. Matches the dispatch logic the on-disk config_store uses
+    (``ConfigStore.validate_config``).
+    """
+    if isinstance(config.get('study'), str) and isinstance(config.get('groups'), list):
+        return 'study'
+    if isinstance(config.get('group'), str) and isinstance(config.get('subjects'), list):
+        return 'group'
+    return 'subject'
 
 
 class ConfigBody(BaseModel):
@@ -24,15 +41,27 @@ class ModuleDefaultsBody(BaseModel):
 
 @router.post("/config/validate")
 async def validate(request: Request, body: ConfigBody):
-    """Validate a pipeline config dict."""
-    errors = validate_config(body.config)
+    """Validate a config dict — dispatches to the right schema by YAML shape.
 
-    # Also run module-level validation
-    registry = _registry(request)
-    module_errors = _validate_modules(registry, body.config)
-    errors.extend(module_errors)
+    Subject configs go through ``validate_config`` + module-level
+    parameter validation; group / study configs go through their own
+    schema validators. Returned shape is the same — ``{valid, errors}``
+    — so the composer doesn't care which scope it asked about.
+    """
+    scope = _detect_scope(body.config)
+    if scope == 'study':
+        errors = list(validate_study_config(body.config))
+    elif scope == 'group':
+        errors = list(validate_group_config(body.config))
+    else:
+        errors = validate_config(body.config)
+        # Module-level parameter checks only apply to subject configs;
+        # group / study schemas validate references + structure.
+        registry = _registry(request)
+        module_errors = _validate_modules(registry, body.config)
+        errors.extend(module_errors)
 
-    return {"valid": len(errors) == 0, "errors": errors}
+    return {"valid": len(errors) == 0, "errors": errors, "scope": scope}
 
 
 @router.post("/config/from-yaml")
