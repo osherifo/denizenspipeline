@@ -32,6 +32,10 @@ class SaveModuleRequest(BaseModel):
 class TemplateRequest(BaseModel):
     category: str
     name: str
+    # Required when ``category == 'qa_reporters'`` — the subject
+    # pipeline stage the QA reporter attaches to (stimuli, responses,
+    # features, prepare, or model). Ignored for every other category.
+    stage: str | None = None
 
 
 @router.post("/validate-code")
@@ -99,7 +103,7 @@ async def delete_user_module(name: str):
 async def get_template(req: TemplateRequest):
     """Generate a module skeleton from a template."""
     try:
-        code = render_template(req.category, req.name)
+        code = render_template(req.category, req.name, stage=req.stage)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {
@@ -113,3 +117,14 @@ async def get_template(req: TemplateRequest):
 async def get_template_categories():
     """Return which categories have templates available."""
     return sorted(TEMPLATES.keys())
+
+
+@router.get("/qa-stages")
+async def get_qa_stages():
+    """Return the stages a qa_reporter can attach to + the input type
+    its ``report()`` method receives. The frontend uses this to
+    populate a stage dropdown in the "+ New module" dialog when the
+    category is ``qa_reporters``.
+    """
+    from fmriflow.server.services.templates import QA_STAGE_VALUE_TYPES
+    return QA_STAGE_VALUE_TYPES

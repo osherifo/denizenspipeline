@@ -236,6 +236,59 @@ class {class_name}:
         return {{"out_file": out_path}}
 ''',
 
+    'qa_reporters': '''\
+"""Custom QA reporter: {name} (stage: {stage})."""
+
+from pathlib import Path
+from fmriflow.core.types import {value_type}
+from fmriflow.modules._decorators import qa_reporter
+from fmriflow.modules.qa_reporters._base import (
+    ensure_dir, mpl_figure, save_png,
+)
+
+
+@qa_reporter("{name}", stage="{stage}")
+class {class_name}:
+    """QA reporter for the {stage} stage.
+
+    Receives the {value_type} produced by the {stage} stage; expected
+    to write one or more diagnostic artifacts (typically PNGs) into
+    ``output_dir`` and return a ``{{key: path}}`` mapping so the
+    pipeline summary + QA tab in the UI can find them.
+    """
+
+    name = "{name}"
+    stage = "{stage}"
+
+    PARAM_SCHEMA: dict = {{
+        # Add parameters here. Each key is a config field name; the
+        # value is a ``{{'type': ..., 'default': ..., 'description':
+        # ...}}`` dict consumed by the param-form auto-renderer.
+    }}
+
+    def report(
+        self, value: {value_type}, config: dict, output_dir: Path,
+    ) -> dict[str, str]:
+        ensure_dir(output_dir)
+
+        # YOUR LOGIC HERE.
+        # ``value`` is the {value_type} produced by the {stage} stage;
+        # ``config`` is the resolved pipeline config dict; pull this
+        # reporter's params via ``config.get('qa', {{}}).get(...)``.
+
+        out_path = output_dir / "{name}.png"
+        with mpl_figure(figsize=(6, 4)) as fig:
+            ax = fig.add_subplot(111)
+            ax.set_title("{name}")
+            # ax.plot(...)
+            save_png(fig, out_path)
+
+        return {{"{name}": str(out_path)}}
+
+    def validate_config(self, config: dict) -> list[str]:
+        return []
+''',
+
     'models': '''\
 """Custom model: {name}."""
 
@@ -273,10 +326,42 @@ def _to_class_name(module_name: str) -> str:
     return ''.join(word.capitalize() for word in module_name.split('_'))
 
 
-def render_template(category: str, name: str) -> str:
-    """Return a filled-in template for the given category and name."""
+# Stages that accept a QA reporter, mapped to the input type the
+# reporter's ``report()`` method receives. Kept in sync with the
+# stage→intermediate dataclass mapping the orchestrator uses for
+# stage-time QA dispatch (see ``fmriflow/intermediates.py``).
+QA_STAGE_VALUE_TYPES: dict[str, str] = {
+    'stimuli': 'StimulusData',
+    'responses': 'ResponseData',
+    'features': 'FeatureData',
+    'prepare': 'PreparedData',
+    'model': 'ModelResult',
+}
+
+
+def render_template(
+    category: str, name: str, *, stage: str | None = None,
+) -> str:
+    """Return a filled-in template for the given category and name.
+
+    ``stage`` is required for ``qa_reporters`` (the decorator is
+    ``@qa_reporter(name, *, stage)``) and ignored for every other
+    category.
+    """
     if category not in TEMPLATES:
         raise ValueError(f"No template for category '{category}'. "
                          f"Available: {sorted(TEMPLATES.keys())}")
     class_name = _to_class_name(name)
-    return TEMPLATES[category].format(name=name, class_name=class_name)
+    fmt: dict[str, str] = {'name': name, 'class_name': class_name}
+    if category == 'qa_reporters':
+        if not stage:
+            raise ValueError(
+                "qa_reporters template requires a 'stage' parameter. "
+                f"One of: {sorted(QA_STAGE_VALUE_TYPES.keys())}")
+        if stage not in QA_STAGE_VALUE_TYPES:
+            raise ValueError(
+                f"Unknown qa_reporter stage '{stage}'. "
+                f"One of: {sorted(QA_STAGE_VALUE_TYPES.keys())}")
+        fmt['stage'] = stage
+        fmt['value_type'] = QA_STAGE_VALUE_TYPES[stage]
+    return TEMPLATES[category].format(**fmt)

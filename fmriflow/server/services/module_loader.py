@@ -18,6 +18,7 @@ from fmriflow.modules._decorators import (
     _analyzers,
     _models,
     _reporters,
+    _qa_reporters,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,41 @@ REQUIRED_METHODS: dict[str, list[str]] = {
     'analyzers': ['analyze'],
     'models': ['fit'],
     'reporters': ['report'],
+    'qa_reporters': ['report'],
 }
+
+
+# qa_reporters uses a nested ``dict[stage, dict[name, cls]]`` storage,
+# so CATEGORY_REGISTRY (flat name → cls dicts) can't hold it directly.
+# The helpers below give validate_code / register_code / _rollback a
+# matching snapshot + diff + undo view, keyed by ``(stage, name)``.
+
+def _qa_keys() -> set[tuple[str, str]]:
+    """Flatten ``_qa_reporters`` to ``(stage, name)`` pairs."""
+    return {
+        (stage, name)
+        for stage, plugins in _qa_reporters.items()
+        for name in plugins
+    }
+
+
+def _qa_cls_ids() -> dict[tuple[str, str], int]:
+    return {
+        (stage, name): id(cls)
+        for stage, plugins in _qa_reporters.items()
+        for name, cls in plugins.items()
+    }
+
+
+def _qa_rollback(snapshot: set[tuple[str, str]]) -> None:
+    """Drop ``(stage, name)`` entries added since ``snapshot``."""
+    for stage, name in _qa_keys() - snapshot:
+        plugins = _qa_reporters.get(stage)
+        if plugins is None:
+            continue
+        plugins.pop(name, None)
+        if not plugins:
+            _qa_reporters.pop(stage, None)
 
 
 def get_modules_dir() -> Path:
@@ -105,6 +140,8 @@ def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
     # Step 2: snapshot registries (keys AND identity of classes) to detect changes
     snapshots = {cat: set(reg.keys()) for cat, reg in CATEGORY_REGISTRY.items()}
     cls_snapshots = {cat: {k: id(v) for k, v in reg.items()} for cat, reg in CATEGORY_REGISTRY.items()}
+    qa_snapshot = _qa_keys()
+    qa_cls_snapshot = _qa_cls_ids()
 
     # Step 3: exec in controlled namespace
     try:
@@ -113,12 +150,14 @@ def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
         result['errors'].append(f"Execution error: {e}")
         # Roll back any partial registrations
         _rollback(snapshots)
+        _qa_rollback(qa_snapshot)
         return result
 
     # Step 4: find what was registered (new key OR replaced class)
     detected_category = None
     detected_name = None
     detected_cls = None
+    detected_stage: str | None = None
 
     for cat, reg in CATEGORY_REGISTRY.items():
         new_names = set(reg.keys()) - snapshots[cat]
@@ -136,11 +175,32 @@ def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
             detected_name = next(iter(new_names))
             detected_cls = reg[detected_name]
 
+    # qa_reporters: nested ``dict[stage, dict[name, cls]]`` storage.
+    # Check separately for new (stage, name) entries.
+    new_qa = _qa_keys() - qa_snapshot
+    if not new_qa:
+        # Re-registration: same (stage, name) but a different class object.
+        for key, current_id in _qa_cls_ids().items():
+            if key in qa_cls_snapshot and current_id != qa_cls_snapshot[key]:
+                new_qa = {key}
+                break
+    if new_qa:
+        if detected_category is not None:
+            result['warnings'].append(
+                f"Module registered in multiple categories: "
+                f"{detected_category}, qa_reporters")
+        stage, name = next(iter(new_qa))
+        detected_category = 'qa_reporters'
+        detected_name = name
+        detected_stage = stage
+        detected_cls = _qa_reporters[stage][name]
+
     if detected_cls is None:
         result['errors'].append(
             "No decorated module class found. "
             "Make sure you use the correct decorator (e.g. @feature_extractor(\"name\")).")
         _rollback(snapshots)
+        _qa_rollback(qa_snapshot)
         return result
 
     # Category mismatch check
@@ -151,6 +211,8 @@ def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
     result['module_name'] = detected_name
     result['class_name'] = detected_cls.__name__
     result['category'] = detected_category
+    if detected_stage is not None:
+        result['stage'] = detected_stage
 
     # Step 5: check required methods
     required = REQUIRED_METHODS.get(detected_category, [])
@@ -168,13 +230,20 @@ def validate_code(code: str, category: str | None = None) -> dict[str, Any]:
 
     # Step 7: check for name collision with built-in modules
     # (Only warn if the name was already present before exec)
-    if detected_name in snapshots.get(detected_category, set()):
+    if detected_category == 'qa_reporters':
+        if (detected_stage, detected_name) in qa_snapshot:
+            result['warnings'].append(
+                f"Module '{detected_name}' already exists in qa_reporters "
+                f"(stage={detected_stage}). Saving will override the "
+                f"existing module.")
+    elif detected_name in snapshots.get(detected_category, set()):
         result['warnings'].append(
             f"Module '{detected_name}' already exists in '{detected_category}'. "
             f"Saving will override the existing module.")
 
     # Roll back the registration — we only validate here, don't persist
     _rollback(snapshots)
+    _qa_rollback(qa_snapshot)
 
     if not result['errors']:
         result['valid'] = True
@@ -193,16 +262,22 @@ def _rollback(snapshots: dict[str, set[str]]) -> None:
 def register_code(code: str) -> tuple[str, str, str]:
     """Execute module code and register it in the live registry.
 
-    Returns (module_name, class_name, category).
-    Raises ValueError if registration fails.
+    Returns ``(module_name, class_name, category)``. Raises
+    ``ValueError`` if registration fails. For qa_reporters the
+    category is the literal string ``"qa_reporters"``; the stage the
+    reporter attached to lives on ``cls.stage`` (set by the
+    decorator).
     """
     snapshots = {cat: set(reg.keys()) for cat, reg in CATEGORY_REGISTRY.items()}
     cls_snapshots = {cat: {k: id(v) for k, v in reg.items()} for cat, reg in CATEGORY_REGISTRY.items()}
+    qa_snapshot = _qa_keys()
+    qa_cls_snapshot = _qa_cls_ids()
 
     try:
         exec(compile(code, '<user_module>', 'exec'))
     except Exception as e:
         _rollback(snapshots)
+        _qa_rollback(qa_snapshot)
         raise ValueError(f"Failed to execute module code: {e}") from e
 
     for cat, reg in CATEGORY_REGISTRY.items():
@@ -217,6 +292,18 @@ def register_code(code: str) -> tuple[str, str, str]:
             name = next(iter(new_names))
             cls = reg[name]
             return name, cls.__name__, cat
+
+    # qa_reporters — nested storage, same diff shape as above.
+    new_qa = _qa_keys() - qa_snapshot
+    if not new_qa:
+        for key, current_id in _qa_cls_ids().items():
+            if key in qa_cls_snapshot and current_id != qa_cls_snapshot[key]:
+                new_qa = {key}
+                break
+    if new_qa:
+        stage, name = next(iter(new_qa))
+        cls = _qa_reporters[stage][name]
+        return name, cls.__name__, 'qa_reporters'
 
     raise ValueError("No decorated module class found in the code.")
 
@@ -246,6 +333,15 @@ def delete_module(name: str) -> bool:
         if name in reg:
             del reg[name]
             logger.info("Unregistered module: %s from %s", name, cat)
+    # qa_reporters live under nested stage keys.
+    for stage in list(_qa_reporters.keys()):
+        plugins = _qa_reporters[stage]
+        if name in plugins:
+            del plugins[name]
+            logger.info(
+                "Unregistered qa_reporter: %s (stage=%s)", name, stage)
+            if not plugins:
+                del _qa_reporters[stage]
 
     if filepath.is_file():
         filepath.unlink()

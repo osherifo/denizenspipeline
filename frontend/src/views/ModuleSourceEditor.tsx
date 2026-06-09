@@ -1,13 +1,32 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { CodeEditor } from '../components/editor/CodeEditor'
-import { fetchModuleCode, reloadModule, saveModuleCode } from '../api/client'
+import {
+  fetchModuleCode, reloadModule, saveModuleCode, saveModule,
+} from '../api/client'
 
-interface ModuleSourceEditorProps {
+interface EditModeProps {
+  mode?: 'edit'
   category: string
   name: string
   onBack: () => void
 }
+
+interface CreateModeProps {
+  mode: 'create'
+  category: string
+  name: string
+  /** Pre-rendered template source returned by ``/modules/template``. */
+  initialCode: string
+  /** Required when the new module is a QA reporter — passed through
+   *  so the user can't accidentally rename ``stage`` away in the
+   *  decorator and break detection. (Display only — the source code
+   *  is the source of truth.) */
+  stage?: string
+  onBack: () => void
+}
+
+type ModuleSourceEditorProps = EditModeProps | CreateModeProps
 
 const rootStyle: CSSProperties = {
   display: 'flex',
@@ -145,11 +164,16 @@ const tracebackStyle: CSSProperties = {
   overflow: 'auto',
 }
 
-export function ModuleSourceEditor({ category, name, onBack }: ModuleSourceEditorProps) {
-  const [originalCode, setOriginalCode] = useState<string | null>(null)
-  const [code, setCode] = useState<string>('')
-  const [path, setPath] = useState<string>('')
-  const [loading, setLoading] = useState(true)
+export function ModuleSourceEditor(props: ModuleSourceEditorProps) {
+  const { category, name, onBack } = props
+  const isCreate = props.mode === 'create'
+  const initialCode = isCreate ? props.initialCode : null
+  const stage = isCreate ? props.stage : undefined
+
+  const [originalCode, setOriginalCode] = useState<string | null>(initialCode)
+  const [code, setCode] = useState<string>(initialCode ?? '')
+  const [path, setPath] = useState<string>(isCreate ? '(unsaved — will be created on save)' : '')
+  const [loading, setLoading] = useState(!isCreate)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<
@@ -163,6 +187,8 @@ export function ModuleSourceEditor({ category, name, onBack }: ModuleSourceEdito
   }, [])
 
   useEffect(() => {
+    // In create mode we already have the template source — no fetch.
+    if (isCreate) return
     let cancelled = false
     setLoading(true)
     setLoadError(null)
@@ -181,9 +207,13 @@ export function ModuleSourceEditor({ category, name, onBack }: ModuleSourceEdito
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [category, name])
+  }, [category, name, isCreate])
 
-  const dirty = originalCode != null && code !== originalCode
+  // In create mode the source starts at the template. We treat the
+  // editor as "dirty" so the Save button is enabled even before the
+  // user types — the whole point of opening this is to land the new
+  // module on disk.
+  const dirty = isCreate ? true : (originalCode != null && code !== originalCode)
 
   function handleBack() {
     if (dirty && !window.confirm('You have unsaved changes. Discard them?')) return
@@ -196,6 +226,19 @@ export function ModuleSourceEditor({ category, name, onBack }: ModuleSourceEdito
     setSaveMessage(null)
     let saved = false
     try {
+      if (isCreate) {
+        // POST /modules/save — writes to the addons dir AND registers
+        // in the live registry in one shot, so no separate reload.
+        const r = await saveModule(code, name, category)
+        saved = true
+        setOriginalCode(code)
+        if (r.path) setPath(r.path)
+        setSaveMessage({
+          kind: 'ok',
+          text: `Created & registered ${category}/${name} — new runs can use it immediately`,
+        })
+        return
+      }
       const sr = await saveModuleCode(category, name, code)
       saved = true
       setOriginalCode(code)
