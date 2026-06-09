@@ -1110,6 +1110,14 @@ def _resolve_summary_path(handle: RunHandle) -> tuple[Path | None, str]:
     if handle.is_study and handle.output_dir:
         parent = Path(handle.output_dir)
         if parent.is_dir():
+            # _apply_per_run_output_dir writes ``run_<stamp>_<run_id>/`` so
+            # the handle's own run_id always suffixes its directory name.
+            # Prefer that exact match; fall back to newest-mtime for legacy
+            # layouts where the suffix convention may not apply.
+            exact = sorted(parent.glob(f'run_*_{handle.run_id}'))
+            for p in exact:
+                if (p / 'study_summary.json').is_file():
+                    return p / 'study_summary.json', 'study_stages'
             candidates = [
                 p for p in parent.iterdir()
                 if p.is_dir() and p.name != 'latest'
@@ -1122,6 +1130,10 @@ def _resolve_summary_path(handle: RunHandle) -> tuple[Path | None, str]:
     if handle.is_group and handle.output_dir:
         parent = Path(handle.output_dir)
         if parent.is_dir():
+            exact = sorted(parent.glob(f'run_*_{handle.run_id}'))
+            for p in exact:
+                if (p / 'group_summary.json').is_file():
+                    return p / 'group_summary.json', 'group_stages'
             candidates = [
                 p for p in parent.iterdir()
                 if p.is_dir() and p.name != 'latest'
@@ -1186,12 +1198,17 @@ def _apply_summary_to_handle(
         return
 
     handle.status = 'failed'
+    summary_name = summary_path.name if summary_path else (
+        'study_summary.json' if handle.is_study
+        else 'group_summary.json' if handle.is_group
+        else 'run_summary.json'
+    )
     if summary is None and returncode == 0:
-        handle.error = 'pipeline exited 0 but produced no run_summary.json'
+        handle.error = f'pipeline exited 0 but produced no {summary_name}'
     elif summary is None and returncode is not None:
         handle.error = f"pipeline exited with code {returncode}"
     elif summary is None:
-        handle.error = 'subprocess exited without a run_summary.json'
+        handle.error = f'subprocess exited without a {summary_name}'
     else:
         stages = summary.get(stages_key, [])
         failed_stage = next(

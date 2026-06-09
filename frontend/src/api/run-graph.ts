@@ -232,17 +232,19 @@ export function targetSupportsLog(target: GraphTarget): boolean {
 }
 
 
-/** Targets the QA endpoints accept. Finished subject / group→subject
- *  runs plus their live in-flight counterparts — the in-flight
- *  endpoints scan the partial run dir so QA tabs populate as soon as
- *  each stage's plugins finish. ``config`` previews still have no
- *  on-disk run, so they're excluded. */
+/** Targets the QA endpoints accept. Finished subject / group→subject /
+ *  study→group→subject runs plus their live in-flight counterparts —
+ *  the in-flight endpoints scan the partial run dir so QA tabs
+ *  populate as soon as each stage's plugins finish. ``config``
+ *  previews still have no on-disk run, so they're excluded. */
 export function targetSupportsQa(target: GraphTarget): boolean {
   return (
     target.kind === 'subject'
     || target.kind === 'group-subject'
+    || target.kind === 'study-group-subject'
     || target.kind === 'in-flight'
     || target.kind === 'in-flight-subject'
+    || target.kind === 'in-flight-group-subject'
   )
 }
 

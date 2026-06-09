@@ -19,6 +19,25 @@ import type { GraphTarget } from '../api/run-graph'
 import type { StudyRunDetail, StudyRunListing } from '../api/types'
 
 
+/** Mirror of ``fmriflow.core.run_summary.derive_group_status`` — roll
+ *  up a group_summary dict to ok/warning/failed using both group_stages
+ *  and per-subject stage statuses. Kept in sync with the Python side. */
+function deriveGroupStatus(group: Record<string, any>): 'ok' | 'warning' | 'failed' {
+  const statuses: string[] = []
+  for (const st of (group.group_stages ?? []) as Array<Record<string, any>>) {
+    if (st?.status) statuses.push(st.status)
+  }
+  for (const subj of (group.subject_summaries ?? []) as Array<Record<string, any>>) {
+    for (const st of (subj.stages ?? []) as Array<Record<string, any>>) {
+      if (st?.status) statuses.push(st.status)
+    }
+  }
+  if (statuses.includes('failed')) return 'failed'
+  if (statuses.includes('warning')) return 'warning'
+  return 'ok'
+}
+
+
 // ── styles ────────────────────────────────────────────────────────────
 
 
@@ -211,7 +230,7 @@ function GroupsTable({ detail }: { detail: StudyRunDetail }) {
           const nFailed = subjects.filter((s) =>
             (s.stages ?? []).some((st: any) => st.status === 'failed'),
           ).length
-          const status = nFailed > 0 ? 'failed' : 'ok'
+          const status = deriveGroupStatus(a)
           return (
             <tr key={`${label}-${i}`}>
               <td style={tdStyle}>{label}</td>

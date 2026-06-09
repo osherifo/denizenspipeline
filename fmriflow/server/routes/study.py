@@ -192,28 +192,40 @@ def _serve_file(base: Path, file_path: str) -> FileResponse:
 
 def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
     """Project a ``StudyRunSummary`` JSON down to a row for the list view."""
+    from fmriflow.core.run_summary import derive_group_status
     groups = data.get("group_summaries", []) or []
-    n_failed_groups = 0
-    for g in groups:
-        subj_summaries = g.get("subject_summaries", []) or []
-        if any(
-            any(st.get("status") == "failed" for st in s.get("stages", []))
-            for s in subj_summaries
-        ):
-            n_failed_groups += 1
+    labels = data.get("group_labels", []) or []
+    # Count of groups for the study includes those that failed before
+    # producing a group_summary — labels is the authoritative N.
+    n_groups_total = max(len(labels), len(groups))
+    group_statuses = [derive_group_status(g) for g in groups]
+    n_failed_groups = sum(1 for s in group_statuses if s == 'failed')
+    n_warning_groups = sum(1 for s in group_statuses if s == 'warning')
+    # Groups missing from group_summaries (failed before writing) count
+    # as failed for the overall rollup.
+    missing_groups = max(0, n_groups_total - len(groups))
+    n_failed_groups += missing_groups
+    n_ok = max(0, n_groups_total - n_failed_groups - n_warning_groups)
     status_counts = {
-        "ok": max(0, len(groups) - n_failed_groups),
+        "ok": n_ok,
+        "warning": n_warning_groups,
         "failed": n_failed_groups,
     }
     study_stages = data.get("study_stages", []) or []
     study_failed = any(s.get("status") == "failed" for s in study_stages)
-    overall_status = "failed" if (n_failed_groups or study_failed) else "ok"
+    study_warning = any(s.get("status") == "warning" for s in study_stages)
+    if n_failed_groups or study_failed:
+        overall_status = "failed"
+    elif n_warning_groups or study_warning:
+        overall_status = "warning"
+    else:
+        overall_status = "ok"
     return {
         "study_name": data.get("study_name", run_dir.parent.name),
         "run_id": run_id,
         "run_dir": str(run_dir),
-        "group_labels": data.get("group_labels", []),
-        "n_groups": len(groups),
+        "group_labels": labels,
+        "n_groups": n_groups_total,
         "status_counts": status_counts,
         "status": overall_status,
         "started_at": data.get("started_at", ""),

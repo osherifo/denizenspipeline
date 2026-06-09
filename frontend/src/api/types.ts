@@ -26,7 +26,10 @@ export type ModuleMetadata = Record<string, ModuleInfo[]>
 
 export interface StageInfo {
   name: string
-  scope: 'subject' | 'group' | 'study'
+  // Older backends that pre-date the scope split omit this field; the
+  // UI defaults missing scope to 'subject'. Keep optional so callers
+  // are forced to handle the legacy shape.
+  scope?: 'subject' | 'group' | 'study'
   index: number
   description: string
   module_categories: string[]

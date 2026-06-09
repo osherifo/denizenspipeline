@@ -37,9 +37,18 @@ class TrimStep:
     def apply(self, state: PreparationState, params: dict) -> None:
         from fmriflow import ui
 
+        # ``dict.get(key, default)`` only kicks the default in for a
+        # missing key — an explicit ``trim_start: null`` returns None,
+        # which would later crash the %d logger and the slicing. Coerce
+        # None back to the documented default here so a YAML ``null``
+        # has the same effect as omitting the key.
         trim_start = params.get("trim_start", 5)
+        if trim_start is None:
+            trim_start = 5
         trim_end = params.get("trim_end", 5)
-        targets = params.get("targets", ["responses", "features"])
+        if trim_end is None:
+            trim_end = 5
+        targets = params.get("targets") or ["responses", "features"]
         per_feature: dict = params.get("per_feature") or {}
 
         logger.info(
@@ -129,10 +138,16 @@ class TrimStep:
         override = per_feature.get(feat_name)
         if not isinstance(override, dict):
             return default_start, default_end
-        return (
-            override.get("trim_start", default_start),
-            override.get("trim_end", default_end),
-        )
+        # Treat explicit ``null`` in the override the same as a missing
+        # key so ``per_feature.<x>.trim_start: null`` falls back to the
+        # global default instead of leaking None into the slicer.
+        start = override.get("trim_start", default_start)
+        end = override.get("trim_end", default_end)
+        if start is None:
+            start = default_start
+        if end is None:
+            end = default_end
+        return start, end
 
     @staticmethod
     def _trim(arr, start, end):

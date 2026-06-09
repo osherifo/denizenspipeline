@@ -7,6 +7,32 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
+def derive_group_status(group: dict) -> str:
+    """Roll up a single group_summary dict to ``'ok'``/``'warning'``/``'failed'``.
+
+    Walks both the group-scope stages (``group_analyze``/``group_report``/
+    ``subject_second_pass``) and per-subject stage records. Any failed
+    stage on either axis → ``'failed'``; otherwise any warning → ``'warning'``;
+    otherwise ``'ok'``. Used by study route summaries, the study summary
+    HTML reporter, and the StudyRunsView so the three surfaces agree.
+    """
+    statuses: list[str] = []
+    for st in group.get('group_stages') or []:
+        s = st.get('status') if isinstance(st, dict) else getattr(st, 'status', None)
+        if s:
+            statuses.append(s)
+    for subj in group.get('subject_summaries') or []:
+        for st in (subj.get('stages') if isinstance(subj, dict) else getattr(subj, 'stages', [])) or []:
+            s = st.get('status') if isinstance(st, dict) else getattr(st, 'status', None)
+            if s:
+                statuses.append(s)
+    if any(s == 'failed' for s in statuses):
+        return 'failed'
+    if any(s == 'warning' for s in statuses):
+        return 'warning'
+    return 'ok'
+
+
 def fmt_time(seconds: float) -> str:
     """Format seconds into a human-friendly string."""
     if seconds >= 3600:

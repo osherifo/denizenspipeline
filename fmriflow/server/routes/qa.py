@@ -262,6 +262,69 @@ def _resolve_in_flight_group_subject_dir(
     return sub_dir, cfg
 
 
+def _resolve_study_group_subject_dir(
+    request: Request, name: str, run_id: str, label: str, sub: str,
+) -> Path:
+    """Resolve the subject's run dir inside a finished study run.
+
+    Mirrors the path the study graph routes use:
+    ``study_runs/<study>/<run>/<groups>/<label>/subjects/<sub>``.
+    """
+    _check_path_segment(name, "study name")
+    _check_path_segment(run_id, "run_id")
+    _check_path_segment(label, "group label")
+    _check_path_segment(sub, "subject")
+    from fmriflow.server.routes.run_graph import (
+        _resolve_study_run_dir, _resolve_study_group_run_dir,
+    )
+    study_run_dir = _resolve_study_run_dir(request, name, run_id)
+    group_run_dir = _resolve_study_group_run_dir(study_run_dir, label)
+    sub_dir = group_run_dir / 'subjects' / sub
+    if not sub_dir.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=(f"subject '{sub}' not in study {name}/{run_id} "
+                    f"group '{label}'"))
+    return sub_dir
+
+
+def _resolve_in_flight_study_group_subject_dir(
+    request: Request, run_id: str, label: str, sub: str, *, strict: bool = True,
+) -> tuple[Path | None, dict]:
+    """For an active study run, resolve a specific group's subject dir.
+
+    Returns ``(sub_dir, per_subject_config)``. With ``strict=False``,
+    yields ``(None, cfg)`` instead of 404 when the dir / group hasn't
+    materialised on disk yet — used by the polling list endpoint.
+    """
+    _check_path_segment(label, "group label")
+    _check_path_segment(sub, "subject")
+    rm = request.app.state.run_manager
+    handle = rm.active_runs.get(run_id)
+    if handle is None:
+        raise HTTPException(
+            status_code=404, detail=f"in-flight run '{run_id}' not found")
+    from fmriflow.server.routes.run_graph import (
+        _resolve_in_flight_group_run_dir, _live_subject_config,
+    )
+    group_dir = _resolve_in_flight_group_run_dir(handle, label)
+    cfg = _live_subject_config(dict(handle.config or {}), sub)
+    if group_dir is None:
+        if strict:
+            raise HTTPException(
+                status_code=404,
+                detail=f"group dir not yet on disk for '{label}'")
+        return None, cfg
+    sub_dir = group_dir / 'subjects' / sub
+    if not sub_dir.is_dir():
+        if strict:
+            raise HTTPException(
+                status_code=404,
+                detail=f"subject dir not yet on disk for '{sub}'")
+        return None, cfg
+    return sub_dir, cfg
+
+
 def _load_config_snapshot(run_dir: Path) -> dict:
     """Pull the config snapshot off the per-run summary JSON."""
     candidates = [run_dir / 'run_summary.json']
@@ -394,4 +457,72 @@ async def in_flight_group_subject_qa_file(
 ):
     _check_stage(stage)
     run_dir, _ = _resolve_in_flight_group_subject_dir(request, run_id, sub)
+    return _serve_qa_file(run_dir, rel)
+
+
+# ── finished study → group → subject ───────────────────────────────────
+
+
+@router.get("/study-runs/{name}/{run_id}/group/{label}/subject/{sub}/qa/{stage}")
+async def study_group_subject_qa_list(
+    request: Request, name: str, run_id: str, label: str, sub: str, stage: str,
+):
+    _check_stage(stage)
+    run_dir = _resolve_study_group_subject_dir(request, name, run_id, label, sub)
+    return _list_qa_artifacts(run_dir, stage)
+
+
+@router.post("/study-runs/{name}/{run_id}/group/{label}/subject/{sub}/qa/regenerate/{stage}")
+async def study_group_subject_qa_regenerate(
+    request: Request, name: str, run_id: str, label: str, sub: str, stage: str,
+):
+    _check_stage(stage)
+    run_dir = _resolve_study_group_subject_dir(request, name, run_id, label, sub)
+    config = _load_config_snapshot(run_dir)
+    return _regenerate(run_dir, stage, config, _registry(request))
+
+
+@router.get("/study-runs/{name}/{run_id}/group/{label}/subject/{sub}/qa/{stage}/file/{rel:path}")
+async def study_group_subject_qa_file(
+    request: Request, name: str, run_id: str, label: str, sub: str,
+    stage: str, rel: str,
+):
+    _check_stage(stage)
+    run_dir = _resolve_study_group_subject_dir(request, name, run_id, label, sub)
+    return _serve_qa_file(run_dir, rel)
+
+
+# ── in-flight study → group → subject (live) ──────────────────────────
+
+
+@router.get("/runs/in-flight/{run_id}/group/{label}/subject/{sub}/qa/{stage}")
+async def in_flight_study_group_subject_qa_list(
+    request: Request, run_id: str, label: str, sub: str, stage: str,
+):
+    _check_stage(stage)
+    run_dir, _ = _resolve_in_flight_study_group_subject_dir(
+        request, run_id, label, sub, strict=False,
+    )
+    return _list_qa_artifacts(run_dir, stage)
+
+
+@router.post("/runs/in-flight/{run_id}/group/{label}/subject/{sub}/qa/regenerate/{stage}")
+async def in_flight_study_group_subject_qa_regenerate(
+    request: Request, run_id: str, label: str, sub: str, stage: str,
+):
+    _check_stage(stage)
+    run_dir, cfg = _resolve_in_flight_study_group_subject_dir(
+        request, run_id, label, sub,
+    )
+    return _regenerate(run_dir, stage, cfg, _registry(request))
+
+
+@router.get("/runs/in-flight/{run_id}/group/{label}/subject/{sub}/qa/{stage}/file/{rel:path}")
+async def in_flight_study_group_subject_qa_file(
+    request: Request, run_id: str, label: str, sub: str, stage: str, rel: str,
+):
+    _check_stage(stage)
+    run_dir, _ = _resolve_in_flight_study_group_subject_dir(
+        request, run_id, label, sub,
+    )
     return _serve_qa_file(run_dir, rel)

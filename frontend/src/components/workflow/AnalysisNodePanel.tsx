@@ -153,7 +153,13 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [openFile, setOpenFile] = useState<string | null>(null)
 
-  // Reset state when switching nodes.
+  // A stable string key for the active target — drilldowns swap the
+  // panel's target prop while node.id may stay the same (e.g. same
+  // stage key in two scopes), so reset/refetch effects key off this
+  // instead of the object identity.
+  const targetKey = JSON.stringify(target)
+
+  // Reset state when switching nodes or when the target changes.
   useEffect(() => {
     setSource(null)
     setOutputs(null)
@@ -162,7 +168,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
     setError(null)
     setOpenFile(null)
     setTab(_defaultTab())
-  }, [node.id])
+  }, [node.id, targetKey])
 
   useEffect(() => {
     let cancelled = false
@@ -176,7 +182,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
         .catch((e) => { if (!cancelled) setError(String(e)) })
     }
     return () => { cancelled = true }
-  }, [tab, node.id])
+  }, [tab, node.id, targetKey])
 
   // QA tab — fetch once when activated, and re-poll every 3 s while
   // the target is live so newly-finished stages light up. Stop polling
@@ -203,7 +209,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [tab, node.id, node.stage, supportsQa, live])
+  }, [tab, node.id, node.stage, supportsQa, live, targetKey])
 
   const handleRegenerateQa = async () => {
     setQaBusy(true)
@@ -238,7 +244,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [tab, node.id, supportsLog, live])
+  }, [tab, node.id, supportsLog, live, targetKey])
 
   const paramsText = useMemo(
     () => JSON.stringify(node.params ?? {}, null, 2),
