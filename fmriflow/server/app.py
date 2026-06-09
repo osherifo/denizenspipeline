@@ -85,8 +85,11 @@ def create_app(
     if n_user:
         logger.info("Loaded %d user module(s)", n_user)
 
-    run_store = RunStore(Path(results_dir))
+    # RunManager is created first so we can share its registry with
+    # RunStore — the store needs it to find subject runs whose
+    # reporting.output_dir points outside results_dir.
     run_manager = RunManager()
+    run_store = RunStore(Path(results_dir), registry=run_manager.registry)
     config_store = ConfigStore(Path(configs_dir))
     preproc_config_store = PreprocConfigStore(Path(preproc_configs_dir))
     preproc_manager = PreprocManager(Path(derivatives_dir))

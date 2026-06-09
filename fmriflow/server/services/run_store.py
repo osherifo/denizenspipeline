@@ -6,27 +6,55 @@ import hashlib
 import logging
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fmriflow.core.run_summary import RunSummary
+
+if TYPE_CHECKING:
+    from fmriflow.server.services.run_registry import RunRegistry
 
 logger = logging.getLogger(__name__)
 
 
 class RunStore:
-    """Indexes run_summary.json files from a results directory."""
+    """Indexes run_summary.json files for the subject-run views.
 
-    def __init__(self, results_dir: Path):
+    Two sources are merged (see :func:`discover_subject_run_summaries`):
+
+    1. ``results_dir`` filesystem tree (default ``$FMRIFLOW_HOME/data/results/``).
+    2. The :class:`RunRegistry` — any subject run whose
+       ``reporting.output_dir`` points outside ``results_dir``.
+
+    The second source is what keeps the dashboard's Runs tab and the
+    per-config sidebar count in sync with the Runs views for group /
+    study scopes, which were already registry-aware.
+    """
+
+    def __init__(
+        self, results_dir: Path, registry: "RunRegistry | None" = None,
+    ):
         self.results_dir = results_dir
+        self.registry = registry
         self._index: list[dict] = []
         self._last_scan = 0.0
 
     def scan(self) -> None:
-        """Re-scan results directory for run_summary.json files."""
+        """Re-scan results directory + registry for run_summary.json files."""
         self._index = []
-        if not self.results_dir.is_dir():
-            return
 
-        for summary_path in self.results_dir.rglob('run_summary.json'):
+        if self.registry is not None:
+            # Mirror the group/study discovery pattern so subject runs
+            # whose output_dir is outside results_root are visible too.
+            from fmriflow.server.services.run_manager import (
+                discover_subject_run_summaries,
+            )
+            summary_paths = discover_subject_run_summaries(self.registry)
+        elif self.results_dir.is_dir():
+            summary_paths = list(self.results_dir.rglob('run_summary.json'))
+        else:
+            summary_paths = []
+
+        for summary_path in summary_paths:
             try:
                 summary = RunSummary.from_json(summary_path)
                 run_id = hashlib.md5(

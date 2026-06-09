@@ -86,6 +86,64 @@ def _load_state_config(state: RunStateFile) -> dict | None:
     return cfg if isinstance(cfg, dict) else None
 
 
+def discover_subject_run_summaries(
+    registry: "RunRegistry",
+) -> list[Path]:
+    """Locate every subject-scope ``run_summary.json`` we can see.
+
+    Two sources are merged and deduped by the run-dir's realpath:
+
+    1. **Default root** — ``paths.results_root().rglob('run_summary.json')``.
+       The legacy behavior; finds anything under ``$FMRIFLOW_HOME/data/results/``.
+    2. **Run registry** — every ``kind='run'`` entry that is *not* a
+       group/study run. Its ``output_dir`` is the run dir itself
+       (subject runs land flat: ``<base>/run_<stamp>_<id>/run_summary.json``),
+       which catches runs whose ``reporting.output_dir`` points outside
+       ``$FMRIFLOW_HOME/data/results/``.
+
+    Returns the ``run_summary.json`` paths so callers can hydrate
+    :class:`RunSummary` without re-discovering them.
+    """
+    seen: set[str] = set()
+    out: list[Path] = []
+
+    def add(summary_path: Path) -> None:
+        try:
+            real = str(summary_path.parent.resolve(strict=False))
+        except Exception:
+            real = str(summary_path.parent)
+        if real in seen:
+            return
+        seen.add(real)
+        out.append(summary_path)
+
+    # Source 1 — filesystem default tree.
+    root = paths.results_root()
+    if root.is_dir():
+        for summary_path in root.rglob('run_summary.json'):
+            add(summary_path)
+
+    # Source 2 — registry entries whose output_dir we know.
+    for state in registry.list_all():
+        if state.kind != 'run':
+            continue
+        is_group, is_study = kind_from_state(state)
+        if is_group or is_study:
+            continue
+        params = state.params or {}
+        output_dir = params.get('output_dir')
+        if not output_dir:
+            continue
+        # Defensive: registry entries written before the tilde-expanduser
+        # fix may still hold an unexpanded ``~/...`` path.
+        run_dir = Path(os.path.expanduser(os.path.expandvars(str(output_dir))))
+        summary_path = run_dir / 'run_summary.json'
+        if summary_path.is_file():
+            add(summary_path)
+
+    return out
+
+
 def discover_group_run_dirs(
     registry: "RunRegistry", *, name: str | None = None,
 ) -> list[tuple[str, str, Path]]:
