@@ -58,7 +58,12 @@ class IdentityWorkflow:
         subject = getattr(config, "subject", "unknown")
         return PreprocManifest(
             subject=subject,
-            dataset=getattr(config, "task", None) or "unknown",
+            # ``StackRunConfig`` carries the dataset / run-group label
+            # under ``dataset`` (default "unknown"); ``task`` is a
+            # separate optional BIDS task filter and must not be used
+            # here — it would mislabel manifests for any code that
+            # queries ``manifest.dataset``.
+            dataset=getattr(config, "dataset", None) or "unknown",
             sessions=getattr(config, "sessions", None) or [],
             runs=[],
             backend="nipype",

@@ -10,8 +10,13 @@ fmriprep run, a custom pipeline, a collaborator's output); plug it
 into the stack as-is and optionally add transforms (smooth, regress)
 on top." No re-running of preproc.
 
-A scan failure (missing dir, no matching files) is a validation
-error — the workflow refuses to build a manifest from nothing.
+Validation only catches *structural* problems (no ``derivatives_dir``
+configured, the dir doesn't exist on disk, no subject id). The
+scan itself runs in :meth:`to_manifest` — *no matching files* is
+treated as a non-fatal warning and produces an empty-runs manifest
+that downstream stages may reject. If you need stricter behaviour
+(empty input → hard failure), wrap the workflow in a thin checker
+or filter on ``len(manifest.runs)`` at the call site.
 """
 
 from __future__ import annotations

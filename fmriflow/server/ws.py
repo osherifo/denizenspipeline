@@ -158,7 +158,20 @@ async def stack_websocket(websocket: WebSocket, run_id: str):
         # Live tail until the run reaches a terminal state.
         while True:
             current = manager.registry.load(run_id)
-            terminal = current is None or current.status not in ("running",)
+            # PID liveness reconciliation — if the subprocess died
+            # without writing a terminal status to state.json, the
+            # registry still says "running" indefinitely. Mirror the
+            # same check :meth:`StackManager.get_run` performs so the
+            # socket closes reliably on a crashed run.
+            live_status = current.status if current else "lost"
+            if (
+                current is not None
+                and current.status == "running"
+                and not manager.registry.pid_alive(current.pid)
+            ):
+                live_status = "lost"
+
+            terminal = current is None or live_status not in ("running",)
 
             offset, new = _stream_from(offset)
             for ev in new:
@@ -167,7 +180,7 @@ async def stack_websocket(websocket: WebSocket, run_id: str):
             if terminal:
                 await websocket.send_json({
                     "event": "_close",
-                    "status": (current.status if current else "lost"),
+                    "status": live_status,
                 })
                 break
 

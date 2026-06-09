@@ -118,6 +118,17 @@ export function RecentRunsList() {
   const onSelect = (runId: string) => {
     // Load the run into the active panel by fetching its current
     // status. Doesn't open a WebSocket — terminal runs don't need one.
+    // Close any live socket the active panel might still hold so we
+    // don't leak the connection + duplicate event handlers when the
+    // user clicks history while a run is in flight.
+    const existing = usePreprocStackStore.getState().websocket
+    if (existing) {
+      try {
+        existing.close()
+      } catch {
+        /* already-closed sockets throw on some engines; ignore */
+      }
+    }
     void fetchStackRun(runId).then((summary) => {
       usePreprocStackStore.setState({
         activeRunId: summary.run_id,

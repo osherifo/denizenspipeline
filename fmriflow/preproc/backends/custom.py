@@ -132,9 +132,37 @@ class CustomBackend:
         space = config.backend_params.get("space", "native")
         output_format = config.backend_params.get("output_format", "nifti")
 
+        # ``StackRunConfig.dataset`` is the dataset / run-group label
+        # (default "unknown"); ``task`` is a separate BIDS task filter.
+        # Falling through to ``task`` mislabels the manifest for any
+        # caller that queries ``manifest.dataset``.
+        dataset = (
+            getattr(config, "dataset", None)
+            or getattr(config, "task", None)
+            or "unknown"
+        )
+
+        # Normalise ``additional_steps`` so every entry is a
+        # ``StepRecord``. YAML configs naturally produce dicts and
+        # string-only legacy configs are common, so cover both — same
+        # contract as :meth:`PreprocManifest.from_dict`.
+        steps: list[StepRecord] = []
+        for entry in config.backend_params.get("steps", []) or []:
+            if isinstance(entry, StepRecord):
+                steps.append(entry)
+            elif isinstance(entry, str):
+                steps.append(StepRecord.from_legacy_string(entry))
+            elif isinstance(entry, dict):
+                steps.append(StepRecord.from_dict(entry))
+            else:
+                raise TypeError(
+                    "CustomBackend: backend_params.steps entries must be "
+                    f"str | dict | StepRecord, got {type(entry).__name__}"
+                )
+
         return PreprocManifest(
             subject=config.subject,
-            dataset=config.task or "unknown",
+            dataset=dataset,
             sessions=config.sessions or [],
             runs=runs,
             backend="custom",
@@ -143,10 +171,7 @@ class CustomBackend:
             space=space,
             resolution=config.backend_params.get("resolution", "native"),
             confounds_applied=[],
-            additional_steps=[
-                StepRecord(name=s) if isinstance(s, str) else s
-                for s in config.backend_params.get("steps", [])
-            ],
+            additional_steps=steps,
             output_dir=str(output_dir),
             output_format=output_format,
             file_pattern=file_pattern,

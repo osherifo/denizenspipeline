@@ -142,35 +142,40 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        result = runner.run(stack, run_config)
-    except Exception as e:
-        logger.exception("StackRunner raised unexpectedly")
-        state.status = "failed"
-        state.error = f"{type(e).__name__}: {e}"
+        try:
+            result = runner.run(stack, run_config)
+        except Exception as e:
+            logger.exception("StackRunner raised unexpectedly")
+            state.status = "failed"
+            state.error = f"{type(e).__name__}: {e}"
+            state.finished_at = time.time()
+            state.result = {
+                "status": "failed",
+                "errors": [traceback.format_exc()],
+            }
+            registry.update(state)
+            return 4
+
+        # Persist the final manifest alongside the run dir.
+        manifest_path = None
+        if result.manifest is not None:
+            run_dir = registry.run_dir(args.run_id)
+            manifest_path = run_dir / "stack_manifest.json"
+            result.manifest.save(manifest_path)
+
+        state.status = "done" if result.status == "completed" else "failed"
+        state.error = "; ".join(result.errors) if result.errors else None
         state.finished_at = time.time()
-        state.result = {
-            "status": "failed",
-            "errors": [traceback.format_exc()],
-        }
+        state.manifest_path = str(manifest_path) if manifest_path else None
+        state.result = _result_payload(result)
         registry.update(state)
-        return 4
 
-    # Persist the final manifest alongside the run dir.
-    manifest_path = None
-    if result.manifest is not None:
-        run_dir = registry.run_dir(args.run_id)
-        manifest_path = run_dir / "stack_manifest.json"
-        result.manifest.save(manifest_path)
-
-    state.status = "done" if result.status == "completed" else "failed"
-    state.error = "; ".join(result.errors) if result.errors else None
-    state.finished_at = time.time()
-    state.manifest_path = str(manifest_path) if manifest_path else None
-    state.result = _result_payload(result)
-    registry.update(state)
-    event_writer.close()
-
-    return 0 if result.status == "completed" else 1
+        return 0 if result.status == "completed" else 1
+    finally:
+        # Close the events.jsonl writer on every exit path —
+        # exception, success, or early return — so we don't leak the
+        # file descriptor + delay the final flush.
+        event_writer.close()
 
 
 if __name__ == "__main__":
