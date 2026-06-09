@@ -6,10 +6,14 @@ import type { UserModule } from '../../api/types'
 interface ModuleSidebarProps {
   userModules: UserModule[]
   templateCategories: string[]
+  /** QA stage → input value-type map. When present, the
+   *  ``qa_reporters`` template is expanded to one button per stage
+   *  so the user picks both at once. */
+  qaStages: Record<string, string>
   currentName: string
   onOpen: (name: string) => void
   onDelete: (name: string) => void
-  onNewFromTemplate: (category: string, name: string) => void
+  onNewFromTemplate: (category: string, name: string, stage?: string) => void
   onNew: () => void
 }
 
@@ -85,11 +89,14 @@ const CATEGORY_LABELS: Record<string, string> = {
   stimulus_loaders: 'Stimulus Loader',
   response_loaders: 'Response Loader',
   models: 'Model',
+  nipype_nodes: 'Nipype Node',
+  qa_reporters: 'QA Reporter',
 }
 
 export function ModuleSidebar({
   userModules,
   templateCategories,
+  qaStages,
   currentName,
   onOpen,
   onDelete,
@@ -187,32 +194,74 @@ export function ModuleSidebar({
                 Enter a name first
               </div>
             )}
-            {templateCategories.map((cat) => (
-              <button
-                key={cat}
-                style={templateBtn}
-                onClick={() => {
-                  if (templateName.trim()) {
-                    onNewFromTemplate(cat, templateName.trim())
-                    setShowTemplates(false)
-                    setTemplateName('')
-                    setNameError(false)
-                  } else {
-                    setNameError(true)
-                  }
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--bg-card)'
-                  e.currentTarget.style.color = 'var(--accent-cyan)'
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-secondary)'
-                }}
-              >
-                {CATEGORY_LABELS[cat] ?? cat}
-              </button>
-            ))}
+            {templateCategories.flatMap((cat) => {
+              // qa_reporters needs both a name and a stage — expand
+              // to one button per stage so the user picks the right
+              // input value-type up front (the rendered template
+              // imports differ per stage).
+              if (cat === 'qa_reporters') {
+                const stages = Object.keys(qaStages).sort()
+                if (stages.length === 0) return []
+                return stages.map((stage) => (
+                  <button
+                    key={`${cat}:${stage}`}
+                    style={templateBtn}
+                    onClick={() => {
+                      if (templateName.trim()) {
+                        onNewFromTemplate(cat, templateName.trim(), stage)
+                        setShowTemplates(false)
+                        setTemplateName('')
+                        setNameError(false)
+                      } else {
+                        setNameError(true)
+                      }
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-card)'
+                      e.currentTarget.style.color = 'var(--accent-cyan)'
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                      e.currentTarget.style.color = 'var(--text-secondary)'
+                    }}
+                  >
+                    QA Reporter ({stage})
+                    <span style={{
+                      marginLeft: 8, fontSize: 10,
+                      color: 'var(--text-secondary)',
+                    }}>
+                      {qaStages[stage]}
+                    </span>
+                  </button>
+                ))
+              }
+              return [
+                <button
+                  key={cat}
+                  style={templateBtn}
+                  onClick={() => {
+                    if (templateName.trim()) {
+                      onNewFromTemplate(cat, templateName.trim())
+                      setShowTemplates(false)
+                      setTemplateName('')
+                      setNameError(false)
+                    } else {
+                      setNameError(true)
+                    }
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-card)'
+                    e.currentTarget.style.color = 'var(--accent-cyan)'
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                  }}
+                >
+                  {CATEGORY_LABELS[cat] ?? cat}
+                </button>,
+              ]
+            })}
             <button
               style={{ ...templateBtn, color: 'var(--text-secondary)', fontSize: 11, marginTop: 4 }}
               onClick={() => { setShowTemplates(false); setTemplateName('') }}
