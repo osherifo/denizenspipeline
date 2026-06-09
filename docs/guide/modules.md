@@ -101,6 +101,11 @@ for `responses`, `FeatureData` for `features`, `PreparedData` for
 `prepare`, `ModelResult` for `model`, etc.) as `value`. Plugins are
 failure-isolated — one raising doesn't kill the pipeline.
 
+The web UI's **Module Browser → + New module** flow ([web-ui guide](web-ui.md#module-browser))
+includes `qa_reporters` as a first-class creatable category: pick
+the category, pick the stage, name the module, and you land in the
+Monaco editor with a working template scaffold.
+
 ## Built-ins
 
 These ship out of the box (see `fmriflow/modules/` for the source).
