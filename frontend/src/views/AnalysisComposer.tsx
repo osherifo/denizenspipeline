@@ -21,6 +21,10 @@ import { StageStripPreview } from '../components/composer/StageStripPreview'
 import type { PreviewStage } from '../components/composer/StageStripPreview'
 import { GroupComposer } from './GroupComposer'
 import { StudyComposer } from './StudyComposer'
+import {
+  SubjectStagesProvider, useSubjectStages,
+} from '../components/composer/SubjectStagesContext'
+import type { SubjectStagesAPI } from '../components/composer/SubjectStagesContext'
 import type {
   ModuleInfo,
   FeatureConfig,
@@ -61,7 +65,7 @@ const scopeTabBtn = (active: boolean): CSSProperties => ({
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const STAGE_DEFS = [
+export const STAGE_DEFS = [
   { num: 1, key: 'stimulus',    name: 'Stimuli',     color: '#00e5ff' },
   { num: 2, key: 'response',    name: 'Responses',   color: '#00e676' },
   { num: 3, key: 'features',    name: 'Features',    color: '#ffd600' },
@@ -70,6 +74,8 @@ const STAGE_DEFS = [
   { num: 6, key: 'analysis',    name: 'Analyze',     color: '#448aff' },
   { num: 7, key: 'reporting',   name: 'Report',      color: '#69f0ae' },
 ] as const
+
+export type StageKey = typeof STAGE_DEFS[number]['key']
 
 // ── Styles ────────────────────────────────────────────────────────────
 
@@ -236,7 +242,7 @@ function suggestionsForPrefix(fv: FieldValues, prefix: string): Record<string, s
   return out
 }
 
-function summaryFor(stage: typeof STAGE_DEFS[number]['key'], config: any): { summary: string; status: StageStatus; badge?: string } {
+export function summaryFor(stage: typeof STAGE_DEFS[number]['key'], config: any): { summary: string; status: StageStatus; badge?: string } {
   switch (stage) {
     case 'stimulus': {
       const loader = config.stimulus?.loader
@@ -310,7 +316,7 @@ function summaryFor(stage: typeof STAGE_DEFS[number]['key'], config: any): { sum
 
 // Find the validation-error message that mentions the given stage
 // keyword. The backend doesn't tag errors, so we string-match.
-function errorFor(stage: string, errors: string[]): string | undefined {
+export function errorFor(stage: string, errors: string[]): string | undefined {
   const needles: Record<string, string[]> = {
     stimulus: ['stimulus'],
     response: ['response'],
@@ -326,11 +332,10 @@ function errorFor(stage: string, errors: string[]): string | undefined {
 
 // ── Section Components ────────────────────────────────────────────────
 
-function StimulusBody() {
+export function StimulusBody() {
   const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
-  const config = useConfigStore((s) => s.config)
-  const setField = useConfigStore((s) => s.setField)
+  const { config, setField } = useSubjectStages()
 
   const available = modulesIn(modules, ['stimulus_loaders'])
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'stimulus'), [fieldValues])
@@ -347,7 +352,7 @@ function StimulusBody() {
   )
 }
 
-function ResponseBody() {
+export function ResponseBody() {
   // Single-pick "Loader" slot. Same "+ Add" affordance as every
   // other stage. The reader is loader-specific (only meaningful for
   // `local`) and lives inside the loader's params via the schema, so
@@ -356,8 +361,7 @@ function ResponseBody() {
   // field, ParamForm renders it normally.
   const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
-  const config = useConfigStore((s) => s.config)
-  const setField = useConfigStore((s) => s.setField)
+  const { config, setField } = useSubjectStages()
 
   const loaders = modulesIn(modules, ['response_loaders'])
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'response'), [fieldValues])
@@ -374,9 +378,8 @@ function ResponseBody() {
   )
 }
 
-function FeaturesBody() {
-  const config = useConfigStore((s) => s.config)
-  const { addFeature, removeFeature, updateFeature, reorderFeatures } = useConfigStore()
+export function FeaturesBody() {
+  const { config, addFeature, removeFeature, updateFeature, reorderFeatures } = useSubjectStages()
   const features = config.features || []
 
   return (
@@ -403,16 +406,17 @@ function FeaturesBody() {
   )
 }
 
-function PreparationBody() {
+export function PreparationBody() {
   // SingleModuleSlot picks the preparer (default, pipeline, …) with
   // the same "+ Add" affordance as the other single-pick stages.
   // The pipeline preparer's `steps` is a list-of-dicts ParamForm
   // can't sensibly render; we hide it and surface an inline
   // ModuleStack of preparation_step modules below when type=pipeline.
   const modules = useModuleStore((s) => s.modules)
-  const config = useConfigStore((s) => s.config)
-  const setField = useConfigStore((s) => s.setField)
-  const { addStep, removeStep, updateStep, reorderSteps } = useConfigStore()
+  const {
+    config, setField,
+    addStep, removeStep, updateStep, reorderSteps,
+  } = useSubjectStages()
 
   const prep = config.preparation || {}
   const prepType = (prep.type as string) || ''
@@ -485,15 +489,14 @@ function PreparationBody() {
   )
 }
 
-function ModelBody() {
+export function ModelBody() {
   // Model is `{type, params}` on disk. The SingleModuleSlot wrapper
   // wants a flat object with the selector key at the top level, so
   // we pass `{type, ...params}` as the slot's value and re-split
   // when writing back.
   const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
-  const config = useConfigStore((s) => s.config)
-  const setField = useConfigStore((s) => s.setField)
+  const { config, setField } = useSubjectStages()
 
   const available = modulesIn(modules, ['models'])
   const hints = useMemo(() => suggestionsForPrefix(fieldValues, 'model.params'), [fieldValues])
@@ -526,10 +529,9 @@ function ModelBody() {
   )
 }
 
-function AnalysisBody() {
+export function AnalysisBody() {
   const modules = useModuleStore((s) => s.modules)
-  const config = useConfigStore((s) => s.config)
-  const { addAnalyzer, removeAnalyzer, updateAnalyzer } = useConfigStore()
+  const { config, addAnalyzer, removeAnalyzer, updateAnalyzer } = useSubjectStages()
 
   const available = modulesIn(modules, ['analyzers'])
   const analyzers = (config.analysis as AnalyzerConfig[]) || []
@@ -570,7 +572,7 @@ function AnalysisBody() {
   )
 }
 
-function ReportingBody() {
+export function ReportingBody() {
   // ModuleStack of reporter modules, mirroring the analyze stage.
   // Each entry is { name } (no params surfaced — most reporters
   // don't take any). The entry list is round-tripped to/from
@@ -578,8 +580,7 @@ function ReportingBody() {
   // shape every existing analysis YAML uses.
   const modules = useModuleStore((s) => s.modules)
   const fieldValues = useModuleStore((s) => s.fieldValues)
-  const config = useConfigStore((s) => s.config)
-  const setField = useConfigStore((s) => s.setField)
+  const { config, setField } = useSubjectStages()
 
   const reporters = modulesIn(modules, ['reporters'])
   const formats = (config.reporting?.formats || []) as string[]
@@ -681,9 +682,33 @@ function SubjectComposerBody() {
   const setYamlDirect = useConfigStore((s) => s.setYamlDirect)
   const applyYaml = useConfigStore((s) => s.applyYaml)
   const reset = useConfigStore((s) => s.reset)
+  const addFeature = useConfigStore((s) => s.addFeature)
+  const removeFeature = useConfigStore((s) => s.removeFeature)
+  const updateFeature = useConfigStore((s) => s.updateFeature)
+  const reorderFeatures = useConfigStore((s) => s.reorderFeatures)
+  const addStep = useConfigStore((s) => s.addStep)
+  const removeStep = useConfigStore((s) => s.removeStep)
+  const updateStep = useConfigStore((s) => s.updateStep)
+  const reorderSteps = useConfigStore((s) => s.reorderSteps)
+  const addAnalyzer = useConfigStore((s) => s.addAnalyzer)
+  const removeAnalyzer = useConfigStore((s) => s.removeAnalyzer)
+  const updateAnalyzer = useConfigStore((s) => s.updateAnalyzer)
   const fieldValues = useModuleStore((s) => s.fieldValues)
   const moduleStoreLoaded = useModuleStore((s) => s.loaded)
   const yamlApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const stagesApi = useMemo<SubjectStagesAPI>(() => ({
+    config,
+    setField,
+    addFeature, removeFeature, updateFeature, reorderFeatures,
+    addStep, removeStep, updateStep, reorderSteps,
+    addAnalyzer, removeAnalyzer, updateAnalyzer,
+  }), [
+    config, setField,
+    addFeature, removeFeature, updateFeature, reorderFeatures,
+    addStep, removeStep, updateStep, reorderSteps,
+    addAnalyzer, removeAnalyzer, updateAnalyzer,
+  ])
 
   // form → YAML sync
   useEffect(() => {
@@ -744,6 +769,7 @@ function SubjectComposerBody() {
   }
 
   return (
+   <SubjectStagesProvider api={stagesApi}>
     <div style={pageStyle}>
       {/* ── Left column ── */}
       <div style={leftColStyle}>
@@ -876,5 +902,6 @@ function SubjectComposerBody() {
         )}
       </div>
     </div>
+   </SubjectStagesProvider>
   )
 }

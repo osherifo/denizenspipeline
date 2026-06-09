@@ -6,14 +6,30 @@
  * editor that is the source of truth for nested
  * ``subject_template`` / ``subject_overrides`` blocks.
  */
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useGroupConfigStore } from '../stores/group-config-store'
 import { useModuleStore } from '../stores/module-store'
+import { configFromYaml, configToYaml } from '../api/client'
 import { ModuleStack } from '../components/composer/ModuleStack'
 import { ModuleSlot } from '../components/composer/ModuleSlot'
 import { YamlEditor } from '../components/composer/YamlEditor'
-import type { ModuleInfo, GroupPluginConfig } from '../api/types'
+import { StageCard } from '../components/composer/StageCard'
+import {
+  SubjectStagesProvider,
+} from '../components/composer/SubjectStagesContext'
+import type {
+  SubjectStagesAPI,
+} from '../components/composer/SubjectStagesContext'
+import {
+  STAGE_DEFS, summaryFor,
+  StimulusBody, ResponseBody, FeaturesBody, PreparationBody,
+  ModelBody, AnalysisBody, ReportingBody,
+} from './AnalysisComposer'
+import type {
+  ModuleInfo, GroupPluginConfig,
+  PipelineConfig, FeatureConfig, StepConfig, AnalyzerConfig,
+} from '../api/types'
 
 
 const pageStyle: CSSProperties = {
@@ -158,6 +174,221 @@ function modulesIn(modules: Record<string, ModuleInfo[]>, categories: string[]):
 }
 
 
+const overrideEditorWrap: CSSProperties = {
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  overflow: 'hidden',
+  height: 160,
+}
+
+const overrideHeaderRow: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: 6,
+}
+
+const overrideErrorBlock: CSSProperties = {
+  marginTop: 4,
+  padding: '4px 8px',
+  fontSize: 10,
+  color: 'var(--accent-red, #ef5350)',
+  backgroundColor: 'rgba(239, 83, 80, 0.08)',
+  border: '1px solid var(--accent-red, #ef5350)',
+  borderRadius: 4,
+}
+
+
+/** One per-subject override slot — Monaco YAML editor wired to a
+ *  ``subject_overrides[<subject>]`` slice of the group config.
+ *  Parses on a 600ms debounce; bad YAML leaves the store value
+ *  untouched and surfaces a small error band. */
+function SubjectOverrideCard({
+  subject, value, onChange, onRemove,
+}: {
+  subject: string
+  value: Record<string, unknown>
+  onChange: (next: Record<string, unknown>) => void
+  onRemove: () => void
+}) {
+  const [text, setText] = useState<string>('')
+  const [parseError, setParseError] = useState<string | null>(null)
+  const lastSyncedRef = useRef<string | null>(null)
+  const applyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Hydrate / refresh editor text from the store value when the store
+  // changes externally (initial load, YAML editor on right pane edits
+  // the same key, …). Skip when the change came from this editor's
+  // own debounced apply — lastSyncedRef tracks that.
+  useEffect(() => {
+    let cancelled = false
+    configToYaml(value || {}).then((yaml) => {
+      if (cancelled) return
+      if (yaml.trim() === (lastSyncedRef.current || '').trim()) return
+      setText(yaml)
+      lastSyncedRef.current = yaml
+      setParseError(null)
+    }).catch(() => { /* leave text as-is */ })
+    return () => { cancelled = true }
+  }, [value])
+
+  const handleEditorChange = (next: string) => {
+    setText(next)
+    if (applyTimer.current) clearTimeout(applyTimer.current)
+    applyTimer.current = setTimeout(async () => {
+      try {
+        const result = await configFromYaml(next || '{}')
+        if (result.errors.length > 0) {
+          setParseError(result.errors[0])
+          return
+        }
+        setParseError(null)
+        lastSyncedRef.current = next
+        onChange((result.config as Record<string, unknown>) || {})
+      } catch (e) {
+        setParseError(String(e))
+      }
+    }, 600)
+  }
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={overrideHeaderRow}>
+        <span style={{
+          fontSize: 12, fontWeight: 700, color: 'var(--text-primary)',
+          fontFamily: "'JetBrains Mono', monospace",
+        }}>{subject}</span>
+        <button
+          type="button"
+          onClick={onRemove}
+          style={{
+            padding: '4px 10px', fontSize: 10, fontWeight: 600,
+            border: '1px solid var(--border)', borderRadius: 4,
+            backgroundColor: 'transparent', color: 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}
+        >
+          Remove
+        </button>
+      </div>
+      <div style={overrideEditorWrap}>
+        <YamlEditor value={text} onChange={handleEditorChange} height="100%" />
+      </div>
+      {parseError && (
+        <div style={overrideErrorBlock}>YAML: {parseError}</div>
+      )}
+    </div>
+  )
+}
+
+
+/** Subject overrides card — list of per-subject sparse override dicts.
+ *
+ * Subjects with overrides come from ``config.subject_overrides``;
+ * the "+ Add override" dropdown offers any subject in ``config.subjects``
+ * that doesn't yet have one. Each card is a small YAML editor scoped
+ * to ``subject_overrides[<subject>]``. */
+function SubjectOverridesCard() {
+  const config = useGroupConfigStore((s) => s.config)
+  const setField = useGroupConfigStore((s) => s.setField)
+  const [pickSubject, setPickSubject] = useState<string>('')
+
+  const subjects = (config.subjects || []) as string[]
+  const overrides = (config.subject_overrides || {}) as Record<string, Record<string, unknown>>
+  const overrideKeys = useMemo(() => Object.keys(overrides), [overrides])
+
+  // Subjects that don't yet have an override entry.
+  const candidates = subjects.filter((s) => !(s in overrides))
+
+  const handleAdd = () => {
+    if (!pickSubject) return
+    if (pickSubject in overrides) {
+      setPickSubject('')
+      return
+    }
+    setField('subject_overrides', { ...overrides, [pickSubject]: {} })
+    setPickSubject('')
+  }
+
+  const handleRemove = (subject: string) => {
+    const next = { ...overrides }
+    delete next[subject]
+    setField('subject_overrides', next)
+  }
+
+  const handleUpdate = (subject: string, next: Record<string, unknown>) => {
+    setField('subject_overrides', { ...overrides, [subject]: next })
+  }
+
+  return (
+    <div style={cardStyle}>
+      <div style={sectionTitle}>Subject overrides</div>
+      <div style={{
+        fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12,
+      }}>
+        Sparse per-subject deviations from the template above. Each entry
+        is deep-merged on top of the template for that subject's run.
+      </div>
+
+      {overrideKeys.map((sub) => (
+        <SubjectOverrideCard
+          key={sub}
+          subject={sub}
+          value={overrides[sub] || {}}
+          onChange={(next) => handleUpdate(sub, next)}
+          onRemove={() => handleRemove(sub)}
+        />
+      ))}
+
+      {overrideKeys.length === 0 && (
+        <div style={{
+          fontSize: 11, fontStyle: 'italic',
+          color: 'var(--text-secondary)', marginBottom: 10,
+        }}>
+          No overrides yet — every subject uses the shared template.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <select
+          value={pickSubject}
+          onChange={(e) => setPickSubject(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 220 }}
+          disabled={candidates.length === 0}
+        >
+          <option value="">
+            {candidates.length === 0
+              ? subjects.length === 0
+                ? 'No subjects defined yet'
+                : 'Every subject already overridden'
+              : 'Pick a subject…'}
+          </option>
+          {candidates.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!pickSubject}
+          style={{
+            padding: '8px 14px', fontSize: 12, fontWeight: 600,
+            border: '1px solid var(--accent-cyan)',
+            borderRadius: 6,
+            backgroundColor: 'rgba(0, 229, 255, 0.1)',
+            color: 'var(--accent-cyan)',
+            cursor: pickSubject ? 'pointer' : 'not-allowed',
+            opacity: pickSubject ? 1 : 0.5,
+          }}
+        >
+          + Add override
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
 export function GroupComposer() {
   const config = useGroupConfigStore((s) => s.config)
   const yamlString = useGroupConfigStore((s) => s.yamlString)
@@ -208,6 +439,94 @@ export function GroupComposer() {
       // clipboard rejected; user can copy from the editor
     }
   }, [exportYaml])
+
+  // Adapter so the 7 stage bodies (StimulusBody / ResponseBody / …)
+  // can edit ``subject_template`` without ever knowing they're inside
+  // a group config. Every read / write is scoped to that nested slice.
+  const subjectTemplate = useMemo<PipelineConfig>(() => {
+    return (config.subject_template as PipelineConfig | undefined) || {}
+  }, [config.subject_template])
+
+  const stagesApi = useMemo<SubjectStagesAPI>(() => {
+    const writeTemplate = (next: PipelineConfig) => {
+      setField('subject_template', next)
+    }
+    return {
+      config: subjectTemplate,
+      setField: (path: string, value: unknown) => {
+        // Same dot-path semantics the subject store uses, but rooted
+        // at ``subject_template``.
+        setField(`subject_template.${path}`, value)
+      },
+      addFeature: (f: FeatureConfig) => {
+        writeTemplate({
+          ...subjectTemplate,
+          features: [...(subjectTemplate.features || []), f],
+        })
+      },
+      removeFeature: (i: number) => {
+        writeTemplate({
+          ...subjectTemplate,
+          features: (subjectTemplate.features || []).filter((_, idx) => idx !== i),
+        })
+      },
+      updateFeature: (i: number, f: FeatureConfig) => {
+        const arr = [...(subjectTemplate.features || [])]
+        arr[i] = f
+        writeTemplate({ ...subjectTemplate, features: arr })
+      },
+      reorderFeatures: (from: number, to: number) => {
+        const arr = [...(subjectTemplate.features || [])]
+        const [m] = arr.splice(from, 1)
+        arr.splice(to, 0, m)
+        writeTemplate({ ...subjectTemplate, features: arr })
+      },
+      addStep: (s: StepConfig) => {
+        const prep = { ...(subjectTemplate.preparation || {}) }
+        prep.steps = [...((prep.steps as StepConfig[]) || []), s]
+        writeTemplate({ ...subjectTemplate, preparation: prep })
+      },
+      removeStep: (i: number) => {
+        const prep = { ...(subjectTemplate.preparation || {}) }
+        prep.steps = ((prep.steps as StepConfig[]) || []).filter((_, idx) => idx !== i)
+        writeTemplate({ ...subjectTemplate, preparation: prep })
+      },
+      updateStep: (i: number, s: StepConfig) => {
+        const prep = { ...(subjectTemplate.preparation || {}) }
+        const arr = [...((prep.steps as StepConfig[]) || [])]
+        arr[i] = s
+        prep.steps = arr
+        writeTemplate({ ...subjectTemplate, preparation: prep })
+      },
+      reorderSteps: (from: number, to: number) => {
+        const prep = { ...(subjectTemplate.preparation || {}) }
+        const arr = [...((prep.steps as StepConfig[]) || [])]
+        const [m] = arr.splice(from, 1)
+        arr.splice(to, 0, m)
+        prep.steps = arr
+        writeTemplate({ ...subjectTemplate, preparation: prep })
+      },
+      addAnalyzer: (a: AnalyzerConfig) => {
+        writeTemplate({
+          ...subjectTemplate,
+          analysis: [...((subjectTemplate.analysis as AnalyzerConfig[]) || []), a],
+        })
+      },
+      removeAnalyzer: (i: number) => {
+        writeTemplate({
+          ...subjectTemplate,
+          analysis: ((subjectTemplate.analysis as AnalyzerConfig[]) || []).filter(
+            (_, idx) => idx !== i,
+          ),
+        })
+      },
+      updateAnalyzer: (i: number, a: AnalyzerConfig) => {
+        const arr = [...((subjectTemplate.analysis as AnalyzerConfig[]) || [])]
+        arr[i] = a
+        writeTemplate({ ...subjectTemplate, analysis: arr })
+      },
+    }
+  }, [subjectTemplate, setField])
 
   const groupAnalyzers = useMemo(
     () => modulesIn(modules, ['group_analyzers']),
@@ -285,6 +604,49 @@ export function GroupComposer() {
             />
           </div>
         </div>
+
+        {/* Subject template — full 7-stage subject pipeline editor.
+            Renders the same StageCard / body components SubjectComposer
+            uses, but rooted at config.subject_template via the
+            SubjectStagesProvider adapter. */}
+        <div style={cardStyle}>
+          <div style={sectionTitle}>Subject template</div>
+          <div style={{
+            fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12,
+          }}>
+            Shared subject pipeline applied to every subject in the group.
+            Per-subject deviations go under <code>subject_overrides</code>.
+          </div>
+          <SubjectStagesProvider api={stagesApi}>
+            {STAGE_DEFS.map((s) => {
+              const { summary, status, badge } = summaryFor(s.key, subjectTemplate)
+              return (
+                <StageCard
+                  key={s.key}
+                  num={s.num}
+                  name={s.name}
+                  color={s.color}
+                  status={status}
+                  summary={summary}
+                  badge={badge}
+                  anchorId={`group-stage-${s.key}`}
+                  initiallyCollapsed={true}
+                >
+                  {s.key === 'stimulus' && <StimulusBody />}
+                  {s.key === 'response' && <ResponseBody />}
+                  {s.key === 'features' && <FeaturesBody />}
+                  {s.key === 'preparation' && <PreparationBody />}
+                  {s.key === 'model' && <ModelBody />}
+                  {s.key === 'analysis' && <AnalysisBody />}
+                  {s.key === 'reporting' && <ReportingBody />}
+                </StageCard>
+              )
+            })}
+          </SubjectStagesProvider>
+        </div>
+
+        {/* Subject overrides — per-subject sparse override dicts. */}
+        <SubjectOverridesCard />
 
         {/* Group analyze */}
         <div style={cardStyle}>
