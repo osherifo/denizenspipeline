@@ -38,9 +38,26 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import joblib
-
 logger = logging.getLogger(__name__)
+
+
+def _import_joblib():
+    """Lazy joblib import — only required for dump/load, not for
+    importing SAVEABLE_STAGES (which the config schema validator
+    pulls in for every config check, regardless of whether the
+    user wants intermediates). joblib is not in the base
+    ``pyproject.toml`` dependencies, so a base install must be
+    able to import this module without it."""
+    try:
+        import joblib
+        return joblib
+    except ImportError as exc:
+        raise ImportError(
+            "fmriflow.intermediates: 'joblib' is required for the "
+            "intermediates feature. Install it directly (`pip install "
+            "joblib`) or pull in an extra that depends on it "
+            "(`pip install fmriflow[ml]` / `fmriflow[himalaya]`)."
+        ) from exc
 
 # Stages the orchestrator can hand off to dump(). The literal names are
 # the same as the orchestrator's stage names so configs can request
@@ -130,6 +147,7 @@ def resolve_save_set(spec: Any) -> set[str]:
 
 def dump(obj: Any, path: Path, *, compress: str | int | None = 'lz4') -> Path:
     """Joblib-dump ``obj`` to ``path``, creating parent dirs as needed."""
+    joblib = _import_joblib()
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(obj, str(path), compress=_joblib_compress(compress))
@@ -138,6 +156,7 @@ def dump(obj: Any, path: Path, *, compress: str | int | None = 'lz4') -> Path:
 
 def load(path: Path | str) -> Any:
     """Counterpart to :func:`dump` — read a saved intermediate back."""
+    joblib = _import_joblib()
     return joblib.load(str(path))
 
 

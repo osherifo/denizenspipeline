@@ -68,6 +68,10 @@ class NodeRecord:
     # output_dir when possible (absolute when the file lives outside
     # output_dir, which happens occasionally for shared caches).
     outputs: list[str] = field(default_factory=list)
+    # Paths produced by stage-level QA reporters bound to this node.
+    # Kept separate from ``outputs`` so the QA tab can surface them
+    # without cluttering the regular Outputs tab.
+    qa_outputs: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -167,6 +171,7 @@ def _node_from_dict(n: dict) -> NodeRecord:
         elapsed_s=n.get('elapsed_s', 0.0),
         detail=n.get('detail', '') or '',
         outputs=list(n.get('outputs') or []),
+        qa_outputs=list(n.get('qa_outputs') or []),
     )
 
 

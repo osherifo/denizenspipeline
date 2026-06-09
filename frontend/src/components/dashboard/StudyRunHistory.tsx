@@ -160,8 +160,11 @@ export function StudyRunHistory({ runs, loading }: Props) {
                   {r.n_groups}
                   {' '}
                   <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
-                    {sc.ok ? `${sc.ok} ok` : ''}
-                    {sc.failed ? ` · ${sc.failed} failed` : ''}
+                    {[
+                      sc.ok ? `${sc.ok} ok` : null,
+                      sc.warning ? `${sc.warning} warning` : null,
+                      sc.failed ? `${sc.failed} failed` : null,
+                    ].filter(Boolean).join(' · ')}
                   </span>
                 </td>
                 <td style={tdStyle}>{formatDuration(r.total_elapsed_s)}</td>

@@ -239,11 +239,10 @@ class PipelineContext:
         if produced and node_rec is not None:
             # Surface QA outputs separately from the node's regular
             # outputs so the existing Outputs tab stays uncluttered.
-            qa_field = getattr(node_rec, 'qa_outputs', None)
-            if qa_field is None:
-                node_rec.qa_outputs = list(produced)
-            else:
-                qa_field.extend(produced)
+            # ``qa_outputs`` is a declared NodeRecord field — extends
+            # cleanly across multiple calls if the same stage runs
+            # several reporters that contribute paths.
+            node_rec.qa_outputs.extend(produced)
         return produced
 
     def get(self, key: str, expected_type: type[T] | None = None) -> T:
