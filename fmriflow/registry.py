@@ -467,4 +467,24 @@ class ModuleRegistry:
                 if hasattr(cls, 'n_dims'):
                     entry['n_dims'] = cls.n_dims
                 result[category].append(entry)
+
+        # QA reporters use a nested ``dict[stage, dict[name, cls]]``
+        # storage shape (a single plugin name may register against
+        # multiple stages). Flatten to a single ``qa_reporters`` list so
+        # the browser's per-category grouping treats them like any
+        # other plugin type — each entry keeps its own ``stage`` so
+        # downstream UI groups them under the right subject stage.
+        result['qa_reporters'] = []
+        for stage, plugins in self._qa_reporters.items():
+            for name, cls in sorted(plugins.items()):
+                doc = (cls.__doc__ or '').strip()
+                entry = {
+                    'name': name,
+                    'docstring': doc.split('\n')[0] if doc else '',
+                    'full_docstring': doc,
+                    'category': 'qa_reporters',
+                    'stage': stage,
+                    'params': extract_schema(cls),
+                }
+                result['qa_reporters'].append(entry)
         return result
