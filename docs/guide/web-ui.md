@@ -120,18 +120,30 @@ Discover and inspect all available modules, organized by processing stage.
 
 - **Scope tabs** at the top — Subject (7 stages: stimuli → report),
   Group (group_analyze, group_report), Study (study_analyze,
-  study_report). Each tab shows a count badge with the total modules
-  registered in that scope.
+  study_report), **QA** (qa_reporters grouped by the subject pipeline
+  stage they target). Each tab shows a count badge with the total
+  modules registered in that scope.
 - Search modules by name or description (filters within the active scope)
 - Each card shows: name, category badge, dimension count, parameter count
 - Expand a card to see its full parameter table (name, type, default, required, description)
+- The QA tab borrows the subject pipeline stage layout — a
+  `qa_reporter` decorated with `stage="prepare"` shows up in the
+  **prepare** column under that tab — without leaking into the
+  regular Subject columns, which stay focused on pipeline plugins.
 
 ### Composer
 
-Build encoding-model pipelines as a vertical strip of seven
-collapsible **stage cards** (stimuli, responses, features,
-prepare, model, analyze, report). Each card holds the modules
-plugged into that stage plus their parameters.
+Build encoding-model pipelines. A **scope tab bar** at the top
+switches between **Subject**, **Group**, and **Study** composers —
+each tab has its own form, its own YAML editor, and its own
+state, so switching between them never loses unsaved edits in
+another scope.
+
+#### Subject scope
+
+A vertical strip of seven collapsible **stage cards** (stimuli,
+responses, features, prepare, model, analyze, report). Each card
+holds the modules plugged into that stage plus their parameters.
 
 **Stage cards** (left column):
 
@@ -162,6 +174,48 @@ The composer reads and writes
 `$FMRIFLOW_HOME/configs/analysis/*.yaml`. See the
 [Working Directory](working-dir.md) guide for the surrounding
 layout.
+
+#### Group scope
+
+Author a cross-subject group config. Form sections:
+
+- **Top fields**: `group` name, `subjects` (comma-separated list),
+  `output_dir`.
+- **Subject template**: the same seven stage cards the Subject
+  composer renders, scoped to `subject_template.*`. Edits here flow
+  into the YAML editor's `subject_template:` block; every subject
+  in the group inherits this pipeline unless overridden.
+- **Subject overrides**: a list of per-subject sparse override
+  dicts. Pick a subject from the dropdown (only subjects defined
+  above are offered), click **+ Add override**, and edit the
+  partial dict in its own mini Monaco editor (~160 px tall).
+  Overrides are deep-merged on top of the template at run time —
+  set just the key you want to deviate (e.g.
+  `model: {params: {alpha: 0.5}}`).
+- **Group analyze** / **Group report**: stacks of
+  `group_analyzer` / `group_reporter` plugin picks, same UX as the
+  Subject composer's analyze stage.
+
+The right pane's Monaco YAML editor stays the source of truth for
+anything the form doesn't surface; form edits sync into it on a
+500 ms debounce, and raw YAML edits apply back after 800 ms.
+
+#### Study scope
+
+Author a cross-group study config:
+
+- **Top fields**: `study` name, `output_dir`.
+- **Groups**: a list of `(name, config)` pairs pointing at saved
+  group YAMLs. The config-path picker has a datalist sourced from
+  the dashboard's saved-config index so you pick by filename.
+- **Study analyze** / **Study report**: stacks of
+  `study_analyzer` / `study_reporter` plugin picks.
+- Right pane: Monaco YAML editor.
+
+`/api/config/validate` sniffs the YAML shape (`subject` vs
+`group:` + `subjects:` vs `study:` + `groups:`) and dispatches to
+the right schema validator, so the Validate button works from any
+scope tab without an extra round-trip.
 
 ### Run Manager
 

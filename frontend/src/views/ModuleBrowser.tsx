@@ -85,13 +85,37 @@ const errorStyle: CSSProperties = {
   textAlign: 'center',
 }
 
-type Scope = 'subject' | 'group' | 'study'
+type Scope = 'subject' | 'group' | 'study' | 'qa'
 
-const SCOPE_ORDER: Scope[] = ['subject', 'group', 'study']
+const SCOPE_ORDER: Scope[] = ['subject', 'group', 'study', 'qa']
 const SCOPE_LABELS: Record<Scope, string> = {
   subject: 'Subject',
   group: 'Group',
   study: 'Study',
+  qa: 'QA',
+}
+
+// Plugin categories that belong to each scope. ``qa_reporters`` registers
+// against subject pipeline stages but is shown in its own tab so the
+// regular subject columns don't conflate "pipeline plugins" with
+// "stage-level QA reporters".
+const CATEGORIES_BY_SCOPE: Record<Scope, ReadonlySet<string>> = {
+  subject: new Set([
+    'stimulus_loaders', 'response_loaders', 'response_readers',
+    'feature_extractors', 'feature_sources',
+    'preparers', 'preparation_steps',
+    'analyzers', 'models', 'reporters', 'nipype_nodes',
+  ]),
+  group: new Set(['group_analyzers', 'group_reporters']),
+  study: new Set(['study_analyzers', 'study_reporters']),
+  qa: new Set(['qa_reporters']),
+}
+
+function scopeForCategory(category: string): Scope {
+  for (const scope of SCOPE_ORDER) {
+    if (CATEGORIES_BY_SCOPE[scope].has(category)) return scope
+  }
+  return 'subject'
 }
 
 const tabsRow: CSSProperties = {
@@ -133,9 +157,15 @@ export function ModuleBrowser() {
   const [scope, setScope] = useState<Scope>('subject')
   const [editing, setEditing] = useState<{ category: string; name: string } | null>(null)
 
-  const filteredByStage = useMemo(() => {
+  // Group modules by (scope, stage). Keying by scope alongside stage
+  // keeps qa_reporters from leaking into the regular subject columns
+  // — a qa_reporter with ``stage: prepare`` lives under the QA tab's
+  // ``prepare`` column, not next to the subject ``preparers``.
+  const filteredByScopeStage = useMemo(() => {
     const query = search.toLowerCase().trim()
-    const result: Record<string, ModuleInfo[]> = {}
+    const result: Record<Scope, Record<string, ModuleInfo[]>> = {
+      subject: {}, group: {}, study: {}, qa: {},
+    }
     for (const [category, moduleList] of Object.entries(modules)) {
       const filtered = query
         ? moduleList.filter(
@@ -144,10 +174,12 @@ export function ModuleBrowser() {
               (p.docstring && p.docstring.toLowerCase().includes(query))
           )
         : moduleList
-      if (filtered.length > 0) {
-        const stage = filtered[0]?.stage || category
-        if (!result[stage]) result[stage] = []
-        result[stage].push(...filtered)
+      if (filtered.length === 0) continue
+      const scope = scopeForCategory(category)
+      for (const m of filtered) {
+        const stage = m.stage || category
+        if (!result[scope][stage]) result[scope][stage] = []
+        result[scope][stage].push(m)
       }
     }
     return result
@@ -155,13 +187,14 @@ export function ModuleBrowser() {
 
   // Per-scope module counts for the tab badges.
   const scopeCounts = useMemo(() => {
-    const counts: Record<Scope, number> = { subject: 0, group: 0, study: 0 }
-    for (const st of stages) {
-      const s = (st.scope ?? 'subject') as Scope
-      counts[s] = (counts[s] ?? 0) + (filteredByStage[st.name]?.length ?? 0)
+    const counts: Record<Scope, number> = { subject: 0, group: 0, study: 0, qa: 0 }
+    for (const scope of SCOPE_ORDER) {
+      for (const list of Object.values(filteredByScopeStage[scope])) {
+        counts[scope] += list.length
+      }
     }
     return counts
-  }, [stages, filteredByStage])
+  }, [filteredByScopeStage])
 
   if (editing) {
     return (
@@ -186,11 +219,16 @@ export function ModuleBrowser() {
   }
 
   // Stages within the active scope, ordered by their per-scope index.
-  // Stages with no ``scope`` field (older backend) default to subject
-  // so the browser still works against a stale server.
+  // Stages with no ``scope`` field (older backend) default to subject.
+  // The QA tab borrows the subject pipeline stages — qa_reporters
+  // register against them but live in this dedicated tab so the
+  // regular subject columns stay focused on pipeline plugins.
+  const stagesForScope = scope === 'qa' ? 'subject' : scope
   const visibleStages = stages
-    .filter((s) => (s.scope ?? 'subject') === scope)
+    .filter((s) => (s.scope ?? 'subject') === stagesForScope)
     .sort((a, b) => a.index - b.index)
+  const stageModulesAt = (stageName: string): ModuleInfo[] =>
+    filteredByScopeStage[scope][stageName] || []
   const totalModules = Object.values(modules).reduce((sum, list) => sum + list.length, 0)
 
   return (
@@ -229,7 +267,7 @@ export function ModuleBrowser() {
       ) : (
         <div style={gridStyle}>
           {visibleStages.map((stage) => {
-            const stageModules = filteredByStage[stage.name] || []
+            const stageModules = stageModulesAt(stage.name)
             if (search && stageModules.length === 0) return null
             return (
               <div key={stage.name} style={stageColumnStyle}>
