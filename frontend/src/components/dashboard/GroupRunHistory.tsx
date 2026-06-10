@@ -10,6 +10,7 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { GroupRunListing } from '../../api/types'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
+import { formatDuration } from '../../utils/format'
 
 
 interface Props {
@@ -81,11 +82,6 @@ function formatDate(iso: string): string {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })
   } catch { return iso }
-}
-
-function formatDuration(s: number): string {
-  if (s < 60) return `${s.toFixed(1)}s`
-  return `${Math.floor(s / 60)}m ${(s % 60).toFixed(0)}s`
 }
 
 

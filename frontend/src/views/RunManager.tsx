@@ -7,6 +7,7 @@ import { RunComparison } from '../components/runs/RunComparison'
 import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
 import { ConfigSnapshotModal } from '../components/runs/ConfigSnapshotModal'
 import type { RunSummary } from '../api/types'
+import { formatDuration } from '../utils/format'
 
 // ── Styles ──
 
@@ -307,9 +308,7 @@ function RunDetail({
         <div style={summaryCard}>
           <div style={summaryLabel}>Duration</div>
           <div style={summaryValue}>
-            {run.total_elapsed_s < 60
-              ? `${run.total_elapsed_s.toFixed(1)}s`
-              : `${Math.floor(run.total_elapsed_s / 60)}m ${(run.total_elapsed_s % 60).toFixed(0)}s`}
+            {formatDuration(run.total_elapsed_s)}
           </div>
         </div>
         <div style={summaryCard}>

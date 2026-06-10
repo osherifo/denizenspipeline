@@ -21,6 +21,7 @@ import type { CSSProperties } from 'react'
 import type { RunEvent } from '../../api/types'
 import { TriageMatches } from '../triage/TriageMatches'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
+import { formatDuration } from '../../utils/format'
 
 
 interface Props {
@@ -337,28 +338,28 @@ function formatEventLine(event: RunEvent): string {
     case 'study_started': return `▶ study ${a.study} — ${a.n_groups} groups`
     case 'study_group_start': return `▶ group ${a.group_label}`
     case 'study_group_done':
-      return `${a.status === 'failed' ? '✗' : '✓'} group ${a.group_label} (${(a.elapsed ?? 0).toFixed(1)}s)`
+      return `${a.status === 'failed' ? '✗' : '✓'} group ${a.group_label} (${formatDuration(a.elapsed ?? 0)})`
     case 'study_stage_start': return `▶ ${a.stage}`
-    case 'study_stage_done': return `✓ ${a.stage} (${(a.elapsed ?? 0).toFixed(1)}s)`
+    case 'study_stage_done': return `✓ ${a.stage} (${formatDuration(a.elapsed ?? 0)})`
     case 'study_stage_fail': return `✗ ${a.stage}: ${a.error ?? 'failed'}`
-    case 'study_done': return `✓ study done (${(a.elapsed ?? 0).toFixed(1)}s)`
+    case 'study_done': return `✓ study done (${formatDuration(a.elapsed ?? 0)})`
     case 'group_stage_start': return `  · ${a.group_label ?? a.group ?? '?'}: ▶ ${a.stage}`
     case 'group_stage_done': return `  · ${a.group_label ?? a.group ?? '?'}: ✓ ${a.stage}`
     case 'group_subject_start':
       return `${_subjectTag(a)}: ▶ subject pipeline`
     case 'group_subject_done':
-      return `${_subjectTag(a)}: ${a.status === 'failed' ? '✗' : '✓'} subject pipeline${a.elapsed != null ? ` (${(a.elapsed).toFixed(1)}s)` : ''}`
+      return `${_subjectTag(a)}: ${a.status === 'failed' ? '✗' : '✓'} subject pipeline${a.elapsed != null ? ` (${formatDuration(a.elapsed)})` : ''}`
     case 'stage_start':
       return `${_subjectTag(a)}: ▶ ${a.stage}`
     case 'stage_done':
-      return `${_subjectTag(a)}: ✓ ${a.stage}${a.elapsed != null ? ` (${(a.elapsed).toFixed(1)}s)` : ''}${a.detail ? ` — ${a.detail}` : ''}`
+      return `${_subjectTag(a)}: ✓ ${a.stage}${a.elapsed != null ? ` (${formatDuration(a.elapsed)})` : ''}${a.detail ? ` — ${a.detail}` : ''}`
     case 'stage_fail':
       return `${_subjectTag(a)}: ✗ ${a.stage}: ${a.error ?? 'failed'}`
     case 'stage_warn':
       return `${_subjectTag(a)}: ⚠ ${a.stage}${a.detail ? ` — ${a.detail}` : ''}`
     case 'log': return event.message || ''
     case 'started': return event.message || 'Run started'
-    case 'run_done': return `✓ Run complete (${(a.total_elapsed ?? 0).toFixed(1)}s)`
+    case 'run_done': return `✓ Run complete (${formatDuration(a.total_elapsed ?? 0)})`
     case 'run_failed': return `✗ Run failed: ${event.error || ''}`
     default: return event.event
   }
@@ -474,7 +475,7 @@ export function StudyLiveProgress({ runId, events, startTime, onDismiss }: Props
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
                 {st.status === 'pending' ? '·' : st.status}
-                {st.elapsed_s > 0 && ` · ${st.elapsed_s.toFixed(1)}s`}
+                {st.elapsed_s > 0 && ` · ${formatDuration(st.elapsed_s)}`}
               </div>
             </div>
           )
@@ -500,7 +501,7 @@ export function StudyLiveProgress({ runId, events, startTime, onDismiss }: Props
                       color: statusColor(g.status),
                     }}>
                       {g.status}
-                      {g.elapsed_s > 0 && ` · ${g.elapsed_s.toFixed(0)}s`}
+                      {g.elapsed_s > 0 && ` · ${formatDuration(g.elapsed_s)}`}
                     </span>
                   </div>
                   {g.group_name && (

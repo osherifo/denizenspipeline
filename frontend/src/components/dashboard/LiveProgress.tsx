@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import type { RunEvent, StageStatus, RunSummary, ArtifactInfo } from '../../api/types'
 import { StageTracker } from './StageTracker'
 import { StageTimeline } from '../runs/StageTimeline'
+import { formatDuration } from '../../utils/format'
 import { artifactUrl } from '../../api/client'
 import { TriageMatches } from '../triage/TriageMatches'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
@@ -86,7 +87,7 @@ function formatEventLine(event: RunEvent): string {
     case 'stage_start':
       return `\u25B6 ${event.stage}`
     case 'stage_done':
-      return `\u2713 ${event.stage}: ${event.detail || 'done'} (${event.elapsed?.toFixed(1)}s)`
+      return `\u2713 ${event.stage}: ${event.detail || 'done'} (${formatDuration(event.elapsed ?? 0)})`
     case 'stage_fail':
       return `\u2717 ${event.stage}: ${event.error || 'failed'}`
     case 'stage_warn':
@@ -96,7 +97,7 @@ function formatEventLine(event: RunEvent): string {
     case 'data_warning':
       return `  warning: ${(event as any).message || ''}`
     case 'run_done':
-      return `\u2713 Run completed (${(event as any).total_elapsed?.toFixed(1)}s)`
+      return `\u2713 Run completed (${formatDuration((event as any).total_elapsed ?? 0)})`
     case 'run_failed':
       return `\u2717 Run failed: ${event.error || ''}`
     case 'log':
@@ -174,11 +175,6 @@ const artifactLink: CSSProperties = {
   textDecoration: 'none',
   fontWeight: 600,
   fontSize: 11,
-}
-
-function formatDuration(s: number): string {
-  if (s < 60) return `${s.toFixed(1)}s`
-  return `${Math.floor(s / 60)}m ${(s % 60).toFixed(0)}s`
 }
 
 function formatSize(bytes: number): string {
