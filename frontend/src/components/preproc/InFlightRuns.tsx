@@ -6,6 +6,7 @@ import { fetchPreprocRun, deletePreprocRun } from '../../api/client'
 import type { PreprocRunSummary } from '../../api/types'
 import { useDialog } from '../common/Dialog'
 import { TriageMatches } from '../triage/TriageMatches'
+import { formatDurationVerbose } from '../../utils/format'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -77,11 +78,9 @@ function statusColor(status: string): string {
 }
 
 function formatElapsed(startedAt: number, finishedAt: number, isRunning: boolean): string {
+  // Time-tracking shim around the shared verbose duration formatter.
   const end = isRunning ? Date.now() / 1000 : finishedAt
-  const s = Math.max(0, end - startedAt)
-  if (s < 60) return `${Math.round(s)}s`
-  if (s < 3600) return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`
-  return `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m`
+  return formatDurationVerbose(Math.max(0, end - startedAt))
 }
 
 function formatWhen(ts: number): string {

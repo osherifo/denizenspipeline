@@ -19,6 +19,7 @@ import dagre from 'dagre'
 
 import { fetchPreprocRunLive, fetchLabelMap } from '../../api/client'
 import { fetchWorkTree } from '../../api/node-outputs'
+import { formatDuration } from '../../utils/format'
 import type { NipypeNodeStatus, NipypeStatusBlock } from '../../api/types'
 import { buildNipypeTree, type NipypeTree, type NipypeTreeNode } from './nipype_tree'
 import { allWorkflowIds, filterVisible } from './nipype_tree_filter'
@@ -103,7 +104,7 @@ const DocsLinkIcon = memo(_DocsLinkIcon)
 function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
   const color = STATUS_COLOR[data.status ?? ''] ?? NEUTRAL
   const elapsed = data.elapsed && data.elapsed > 0
-    ? ` · ${data.elapsed.toFixed(1)}s`
+    ? ` · ${formatDuration(data.elapsed)}`
     : ''
   const w = (data as Record<string, unknown>)._allocatedWidth as number | undefined
   return (

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { StageRecord } from '../../api/types'
+import { formatDuration as formatElapsed } from '../../utils/format'
 
 interface StageTimelineProps {
   stages: StageRecord[]
@@ -70,13 +71,6 @@ const timeStyle: CSSProperties = {
   flexShrink: 0,
 }
 
-function formatElapsed(s: number): string {
-  if (s < 1) return `${(s * 1000).toFixed(0)}ms`
-  if (s < 60) return `${s.toFixed(1)}s`
-  const min = Math.floor(s / 60)
-  const sec = s % 60
-  return `${min}m ${sec.toFixed(0)}s`
-}
 
 export function StageTimeline({ stages }: StageTimelineProps) {
   const maxElapsed = Math.max(...stages.map((s) => s.elapsed_s), 0.001)

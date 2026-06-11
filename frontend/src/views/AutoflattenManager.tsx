@@ -6,6 +6,7 @@ import { AutoflattenProgress } from '../components/autoflatten/AutoflattenProgre
 import { FlatmapPreview } from '../components/autoflatten/FlatmapPreview'
 import { AutoflattenConfigBrowser } from '../components/autoflatten/AutoflattenConfigBrowser'
 import { fetchAutoflattenVisualizations } from '../api/client'
+import { formatDuration } from '../utils/format'
 
 const tabBarStyle: CSSProperties = {
   display: 'flex', gap: 4, marginBottom: 16,
@@ -302,7 +303,7 @@ function RunTab() {
               <div key={h}>{h} patch: {p}</div>
             ))}
             {runResult.pycortex_surface && <div>pycortex: {runResult.pycortex_surface}</div>}
-            <div>Elapsed: {runResult.elapsed_s.toFixed(1)}s</div>
+            <div>Elapsed: {formatDuration(runResult.elapsed_s)}</div>
           </div>
           <FlatmapPreview images={previewImages} patches={runResult.flat_patches} />
         </>

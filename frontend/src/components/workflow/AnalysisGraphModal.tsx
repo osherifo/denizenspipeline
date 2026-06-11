@@ -33,6 +33,7 @@ import {
   type RunGraphNode,
 } from '../../api/run-graph'
 import { AnalysisNodePanel } from './AnalysisNodePanel'
+import { formatDuration } from '../../utils/format'
 
 
 // ── status colours (kept in sync with NipypeGraphModal) ────────────────
@@ -76,7 +77,7 @@ function _StageInner({ data }: NodeProps & { data: StageNodeData }) {
       {data.label}
       <div style={{ fontSize: 9, color, fontWeight: 600, marginTop: 2 }}>
         {data.status}
-        {data.elapsed_s != null && ` · ${data.elapsed_s.toFixed(1)}s`}
+        {data.elapsed_s != null && ` · ${formatDuration(data.elapsed_s)}`}
       </div>
       <Handle type="source" position={Position.Right} id="next" style={{ background: color }} />
       {/* Bottom handle feeds the stack of plugin nodes below this stage. */}
