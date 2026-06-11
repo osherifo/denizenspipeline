@@ -86,8 +86,10 @@ function formatEventLine(event: RunEvent): string {
   switch (event.event) {
     case 'stage_start':
       return `\u25B6 ${event.stage}`
-    case 'stage_done':
-      return `\u2713 ${event.stage}: ${event.detail || 'done'} (${formatDuration(event.elapsed ?? 0)})`
+    case 'stage_done': {
+      const tail = formatDuration(event.elapsed)
+      return `\u2713 ${event.stage}: ${event.detail || 'done'}${tail ? ` (${tail})` : ''}`
+    }
     case 'stage_fail':
       return `\u2717 ${event.stage}: ${event.error || 'failed'}`
     case 'stage_warn':
@@ -96,8 +98,13 @@ function formatEventLine(event: RunEvent): string {
       return `  feature: ${(event as any).name || ''} (${(event as any).source || ''})`
     case 'data_warning':
       return `  warning: ${(event as any).message || ''}`
-    case 'run_done':
-      return `\u2713 Run completed (${formatDuration((event as any).total_elapsed ?? 0)})`
+    case 'run_done': {
+      // ws.py emits a bare ``{event: 'run_done'}`` on terminal \u2014
+      // ``total_elapsed`` is often missing. Drop the parenthetical
+      // entirely in that case rather than render an empty ``()``.
+      const tail = formatDuration((event as any).total_elapsed)
+      return `\u2713 Run completed${tail ? ` (${tail})` : ''}`
+    }
     case 'run_failed':
       return `\u2717 Run failed: ${event.error || ''}`
     case 'log':

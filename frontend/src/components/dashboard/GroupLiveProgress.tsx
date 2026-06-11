@@ -21,6 +21,14 @@ import { TriageMatches } from '../triage/TriageMatches'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
 import { formatDuration } from '../../utils/format'
 
+/** Render `` (1.2m)`` for a known elapsed value, empty string for
+ *  null / undefined / non-positive. Keeps the log lines free of
+ *  ``(0s)`` placeholders when the backend omits the duration. */
+function _parenElapsed(s: number | null | undefined): string {
+  const t = formatDuration(s)
+  return t ? ` (${t})` : ''
+}
+
 
 interface Props {
   runId: string
@@ -275,18 +283,20 @@ function formatEventLine(event: RunEvent): string {
     case 'group_started': return `▶ group ${a.group} — ${a.n_subjects} subjects`
     case 'group_subject_start': return `▶ subject ${a.subject}`
     case 'group_subject_done':
-      return `${a.status === 'failed' ? '✗' : '✓'} subject ${a.subject} (${formatDuration(a.elapsed ?? 0)})`
+      return `${a.status === 'failed' ? '✗' : '✓'} subject ${a.subject}${_parenElapsed(a.elapsed)}`
     case 'group_stage_start': return `▶ ${a.stage}`
-    case 'group_stage_done': return `✓ ${a.stage} (${formatDuration(a.elapsed ?? 0)})`
+    case 'group_stage_done': return `✓ ${a.stage}${_parenElapsed(a.elapsed)}`
     case 'group_stage_fail': return `✗ ${a.stage}: ${a.error ?? 'failed'}`
-    case 'group_done': return `✓ group done (${formatDuration(a.elapsed ?? 0)})`
+    case 'group_done': return `✓ group done${_parenElapsed(a.elapsed)}`
     case 'stage_start': return `  · ${a.subject ?? '?'}: ▶ ${a.stage}`
-    case 'stage_done': return `  · ${a.subject ?? '?'}: ✓ ${a.stage} (${formatDuration(a.elapsed ?? 0)})`
+    case 'stage_done': return `  · ${a.subject ?? '?'}: ✓ ${a.stage}${_parenElapsed(a.elapsed)}`
     case 'stage_fail': return `  · ${a.subject ?? '?'}: ✗ ${a.stage}: ${a.error ?? ''}`
     case 'stage_warn': return `  · ${a.subject ?? '?'}: ! ${a.stage}: ${a.detail ?? ''}`
     case 'log': return event.message || ''
     case 'started': return event.message || 'Run started'
-    case 'run_done': return `✓ Run complete (${formatDuration(a.total_elapsed ?? 0)})`
+    // ws.py emits a bare ``{event: 'run_done'}`` on terminal — total_elapsed
+    // is often missing, so suppress the parenthetical instead of showing "(0s)".
+    case 'run_done': return `✓ Run complete${_parenElapsed(a.total_elapsed)}`
     case 'run_failed': return `✗ Run failed: ${event.error || ''}`
     default: return event.event
   }

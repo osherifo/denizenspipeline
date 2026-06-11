@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConvertEvent } from '../../api/types'
+import { formatDurationVerbose as formatElapsed } from '../../utils/format'
 
 interface Props {
   events: ConvertEvent[]
@@ -85,12 +86,6 @@ function ElapsedTimer({ startTime }: { startTime: number | null }) {
   )
 }
 
-function formatElapsed(seconds: number): string {
-  const min = Math.floor(seconds / 60)
-  const sec = Math.round(seconds % 60)
-  if (min > 0) return `${min}m ${sec}s`
-  return `${sec}s`
-}
 
 export function ConvertProgress({ events, startTime, running, error, onDismiss }: Props) {
   const lastEvent = events[events.length - 1]

@@ -15,24 +15,27 @@
  * Rules — picked to match the most-used existing helpers in the
  * codebase and give graph nodes / stage timings legible labels:
  *
- *   < 0           → empty string (caller shouldn't have rendered)
- *   == 0          → "0s"
- *   < 1s          → ``"<n>ms"`` (integer ms)
- *   < 10s         → ``"<n.n>s"`` (one decimal)
- *   < 60s         → ``"<n>s"`` (integer seconds — past ~10s the
- *                   trailing .x is noise)
- *   < 3600s       → ``"<n.n>m"``
- *   ≥ 3600s       → ``"<n.n>h"``
+ *   nullish / ≤ 0 → empty string (a duration that hasn't elapsed or
+ *                   wasn't reported isn't worth a slot of UI noise —
+ *                   callers can guard render with a truthy check)
+ *   < 1s          → ``"<n>ms"`` (integer ms, truncated)
+ *   < 10s         → ``"<n.n>s"`` (one decimal, truncated)
+ *   < 60s         → ``"<n>s"`` (integer seconds, truncated — past
+ *                   ~10s the trailing .x is noise)
+ *   < 3600s       → ``"<n.n>m"`` (truncated to a tenth)
+ *   ≥ 3600s       → ``"<n.n>h"`` (truncated to a tenth)
+ *
+ * Truncation (not rounding) so an in-range value never spills into
+ * the next unit: 0.9996s → ``"999ms"`` (not ``"1000ms"``); 59.6s →
+ * ``"59s"`` (not ``"60s"``); 3599.9s → ``"59.9m"`` (not ``"60.0m"``).
  */
 export function formatDuration(seconds: number | null | undefined): string {
-  if (seconds == null) return ''
-  if (seconds < 0) return ''
-  if (seconds === 0) return '0s'
-  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`
-  if (seconds < 10) return `${seconds.toFixed(1)}s`
-  if (seconds < 60) return `${Math.round(seconds)}s`
-  if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`
-  return `${(seconds / 3600).toFixed(1)}h`
+  if (seconds == null || seconds <= 0) return ''
+  if (seconds < 1) return `${Math.floor(seconds * 1000)}ms`
+  if (seconds < 10) return `${(Math.floor(seconds * 10) / 10).toFixed(1)}s`
+  if (seconds < 60) return `${Math.floor(seconds)}s`
+  if (seconds < 3600) return `${(Math.floor(seconds / 6) / 10).toFixed(1)}m`
+  return `${(Math.floor(seconds / 360) / 10).toFixed(1)}h`
 }
 
 
@@ -40,18 +43,24 @@ export function formatDuration(seconds: number | null | undefined): string {
  *  surface the lower unit alongside the dominant one. Use when
  *  precision matters (e.g. detail panels, tooltips). Most call sites
  *  should prefer :func:`formatDuration` instead.
+ *
+ *  Rounds to whole seconds once, then derives h/m/s — avoids the
+ *  ``"1h 60m"`` / ``"5m 60s"`` carry bugs that a floor-then-round of
+ *  the two parts independently produces at unit boundaries.
  */
 export function formatDurationVerbose(seconds: number | null | undefined): string {
-  if (seconds == null || seconds < 0) return ''
-  if (seconds === 0) return '0s'
+  if (seconds == null || seconds <= 0) return ''
   if (seconds < 1) return `${Math.round(seconds * 1000)}ms`
-  if (seconds < 60) return `${seconds.toFixed(1)}s`
-  if (seconds < 3600) {
-    const m = Math.floor(seconds / 60)
-    const s = Math.round(seconds % 60)
+  // Quantise to whole seconds first so 3599.6s and 7199.6s carry
+  // through the unit boundary cleanly.
+  const total = Math.round(seconds)
+  if (total < 60) return `${total}s`
+  if (total < 3600) {
+    const m = Math.floor(total / 60)
+    const s = total % 60
     return s ? `${m}m ${s}s` : `${m}m`
   }
-  const h = Math.floor(seconds / 3600)
-  const m = Math.round((seconds % 3600) / 60)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
   return m ? `${h}h ${m}m` : `${h}h`
 }

@@ -23,6 +23,14 @@ import { TriageMatches } from '../triage/TriageMatches'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
 import { formatDuration } from '../../utils/format'
 
+/** Render `` (1.2m)`` for a known elapsed value, empty string for
+ *  null / undefined / non-positive. Keeps the log lines free of
+ *  ``(0s)`` placeholders when the backend omits the duration. */
+function _parenElapsed(s: number | null | undefined): string {
+  const t = formatDuration(s)
+  return t ? ` (${t})` : ''
+}
+
 
 interface Props {
   runId: string
@@ -338,28 +346,30 @@ function formatEventLine(event: RunEvent): string {
     case 'study_started': return `▶ study ${a.study} — ${a.n_groups} groups`
     case 'study_group_start': return `▶ group ${a.group_label}`
     case 'study_group_done':
-      return `${a.status === 'failed' ? '✗' : '✓'} group ${a.group_label} (${formatDuration(a.elapsed ?? 0)})`
+      return `${a.status === 'failed' ? '✗' : '✓'} group ${a.group_label}${_parenElapsed(a.elapsed)}`
     case 'study_stage_start': return `▶ ${a.stage}`
-    case 'study_stage_done': return `✓ ${a.stage} (${formatDuration(a.elapsed ?? 0)})`
+    case 'study_stage_done': return `✓ ${a.stage}${_parenElapsed(a.elapsed)}`
     case 'study_stage_fail': return `✗ ${a.stage}: ${a.error ?? 'failed'}`
-    case 'study_done': return `✓ study done (${formatDuration(a.elapsed ?? 0)})`
+    case 'study_done': return `✓ study done${_parenElapsed(a.elapsed)}`
     case 'group_stage_start': return `  · ${a.group_label ?? a.group ?? '?'}: ▶ ${a.stage}`
     case 'group_stage_done': return `  · ${a.group_label ?? a.group ?? '?'}: ✓ ${a.stage}`
     case 'group_subject_start':
       return `${_subjectTag(a)}: ▶ subject pipeline`
     case 'group_subject_done':
-      return `${_subjectTag(a)}: ${a.status === 'failed' ? '✗' : '✓'} subject pipeline${a.elapsed != null ? ` (${formatDuration(a.elapsed)})` : ''}`
+      return `${_subjectTag(a)}: ${a.status === 'failed' ? '✗' : '✓'} subject pipeline${_parenElapsed(a.elapsed)}`
     case 'stage_start':
       return `${_subjectTag(a)}: ▶ ${a.stage}`
     case 'stage_done':
-      return `${_subjectTag(a)}: ✓ ${a.stage}${a.elapsed != null ? ` (${formatDuration(a.elapsed)})` : ''}${a.detail ? ` — ${a.detail}` : ''}`
+      return `${_subjectTag(a)}: ✓ ${a.stage}${_parenElapsed(a.elapsed)}${a.detail ? ` — ${a.detail}` : ''}`
     case 'stage_fail':
       return `${_subjectTag(a)}: ✗ ${a.stage}: ${a.error ?? 'failed'}`
     case 'stage_warn':
       return `${_subjectTag(a)}: ⚠ ${a.stage}${a.detail ? ` — ${a.detail}` : ''}`
     case 'log': return event.message || ''
     case 'started': return event.message || 'Run started'
-    case 'run_done': return `✓ Run complete (${formatDuration(a.total_elapsed ?? 0)})`
+    // ws.py emits a bare ``{event: 'run_done'}`` on terminal — total_elapsed
+    // is often missing, so suppress the parenthetical instead of "(0s)".
+    case 'run_done': return `✓ Run complete${_parenElapsed(a.total_elapsed)}`
     case 'run_failed': return `✗ Run failed: ${event.error || ''}`
     default: return event.event
   }

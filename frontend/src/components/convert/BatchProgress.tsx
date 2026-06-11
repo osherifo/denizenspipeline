@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 import type { BatchEvent, BatchJobStatus } from '../../api/types'
+import { formatDurationVerbose as formatElapsed } from '../../utils/format'
 
 const panelStyle = (status: 'running' | 'done' | 'failed'): CSSProperties => ({
   backgroundColor: 'var(--bg-card)',
@@ -104,12 +105,6 @@ function statusBadge(status: string): CSSProperties {
   }
 }
 
-function formatElapsed(seconds: number): string {
-  const min = Math.floor(seconds / 60)
-  const sec = Math.round(seconds % 60)
-  if (min > 0) return `${min}m ${sec}s`
-  return `${sec}s`
-}
 
 function ElapsedTimer({ startTime }: { startTime: number | null }) {
   const [elapsed, setElapsed] = useState(0)
