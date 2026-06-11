@@ -91,10 +91,21 @@ def _create(args) -> int:
 
 
 def _status(args) -> int:
+    from fmriflow.preproc.autoflatten import check_pycortex_available
     from fmriflow.preproc.pycortex_transform import (
         transform_exists,
         mask_voxel_count,
     )
+
+    # Both transform_exists() and mask_voxel_count() ``import cortex``
+    # unconditionally; without the guard the user gets an ImportError
+    # stack trace on a missing-dep box. Mirror the friendly-message
+    # pattern ``autoflatten status`` uses.
+    ok_px, msg_px = check_pycortex_available()
+    if not ok_px:
+        print(f"pycortex unavailable — {msg_px}")
+        print("Run `fmriflow pycortex-transform doctor` for details.")
+        return 1
 
     if not transform_exists(args.cx_subject, args.xfmname):
         print(f"Transform '{args.xfmname}' not found for '{args.cx_subject}'.")
@@ -117,10 +128,10 @@ def _doctor(args) -> int:
 
     print(f"pycortex   : {'OK' if ok_px else 'MISSING'} — {msg_px}")
     # FreeSurfer covers method='automatic' (the default); FSL covers
-    # method='automatic_fsl'. Either one being present is enough to
-    # run an automatic alignment, hence the doctor exits 0 if pycortex
-    # is OK and at least one alignment toolchain is available.
+    # method='automatic_fsl'. The doctor is purely informational and
+    # always exits 0 — matches the convert/autoflatten doctor convention
+    # so setup scripts can pipe its output without conditional handling.
     print(f"FreeSurfer : {'OK' if ok_fs else 'MISSING'} — {msg_fs}")
     print(f"FSL flirt  : {'OK' if ok_fsl else 'MISSING'} — {msg_fsl}")
 
-    return 0 if ok_px and (ok_fs or ok_fsl) else 1
+    return 0
