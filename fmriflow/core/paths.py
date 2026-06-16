@@ -94,8 +94,12 @@ LEGACY_RESULTS = Path("./results")
 LEGACY_DERIVATIVES = Path("./derivatives")
 
 
-AddonKind = Literal["heuristics", "workflows", "modules"]
-BuiltinKind = Literal["heuristics", "workflows", "modules", "text"]
+AddonKind = Literal[
+    "heuristics", "workflows", "modules", "transforms", "pipelines",
+]
+BuiltinKind = Literal[
+    "heuristics", "workflows", "modules", "text", "transforms", "pipelines",
+]
 
 
 # ── Roots ────────────────────────────────────────────────────────────

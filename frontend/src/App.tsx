@@ -12,6 +12,7 @@ import { ErrorBrowser } from './views/ErrorBrowser'
 import { AutoflattenManager } from './views/AutoflattenManager'
 import { WorkflowsView } from './views/WorkflowsView'
 import { PostPreprocBuilder } from './views/PostPreprocBuilder'
+import { PreprocStackView } from './views/PreprocStackView'
 import { QCReviews } from './views/QCReviews'
 import { Settings } from './views/Settings'
 import { GroupRunsView } from './views/GroupRunsView'
@@ -20,7 +21,7 @@ import { useModuleStore } from './stores/module-store'
 
 type Route =
   | 'modules' | 'analysis' | 'runs' | 'editor' | 'dashboard'
-  | 'preproc' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
+  | 'preproc' | 'preproc-stack' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
   | 'post-preproc' | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs'
 
 function getRoute(): Route {
@@ -33,6 +34,7 @@ function getRoute(): Route {
   if (hash === 'editor') return 'editor'
   if (hash === 'dashboard') return 'dashboard'
   if (hash === 'preproc') return 'preproc'
+  if (hash === 'preproc-stack') return 'preproc-stack'
   if (hash === 'convert') return 'convert'
   if (hash === 'autoflatten') return 'autoflatten'
   if (hash === 'errors') return 'errors'
@@ -137,6 +139,7 @@ export function App() {
         {route === 'editor' && <ModuleEditor />}
         {route === 'dashboard' && <ExperimentDashboard />}
         {route === 'preproc' && <PreprocManager />}
+        {route === 'preproc-stack' && <PreprocStackView />}
         {route === 'convert' && <DicomBidsConverter />}
         {route === 'autoflatten' && <AutoflattenManager />}
         {route === 'errors' && <ErrorBrowser />}

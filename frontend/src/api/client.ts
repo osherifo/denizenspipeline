@@ -29,8 +29,6 @@ import type {
   BatchSummary,
   SavedConvertConfig,
   SavedConvertConfigDetail,
-  PreprocConfigSummary,
-  PreprocConfigDetail,
   PreprocRunSummary,
   AutoflattenConfigSummary,
   AutoflattenConfigDetail,
@@ -427,60 +425,6 @@ export async function collectPreprocOutputs(params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
-  })
-}
-
-export async function startPreprocRun(params: {
-  backend: string
-  output_dir: string
-  subject: string
-  bids_dir?: string
-  raw_dir?: string
-  work_dir?: string
-  task?: string
-  sessions?: string[]
-  run_map?: Record<string, string>
-  backend_params?: Record<string, unknown>
-  confounds?: Record<string, unknown>
-}): Promise<{ run_id: string; status: string }> {
-  return json(`${BASE}/preproc/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-}
-
-export async function validatePreprocConfig(params: {
-  backend: string
-  output_dir: string
-  subject: string
-  bids_dir?: string
-  raw_dir?: string
-  backend_params?: Record<string, unknown>
-}): Promise<{ valid: boolean; errors: string[] }> {
-  return json(`${BASE}/preproc/validate-config`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-}
-
-export async function fetchPreprocConfigs(): Promise<PreprocConfigSummary[]> {
-  return json(`${BASE}/preproc/configs`)
-}
-
-export async function fetchPreprocConfigDetail(filename: string): Promise<PreprocConfigDetail> {
-  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}`)
-}
-
-export async function runPreprocConfigFile(
-  filename: string,
-  overrides?: Record<string, unknown>,
-): Promise<{ run_id: string; status: string; config: string }> {
-  return json(`${BASE}/preproc/configs/${encodeURIComponent(filename)}/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(overrides || {}),
   })
 }
 
@@ -946,6 +890,119 @@ export async function saveSettings(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+// ── Preproc stack ────────────────────────────────────────────────────
+
+export async function fetchStackWorkflows(): Promise<{ workflows: import('./types').WorkflowInfo[] }> {
+  return json(`${BASE}/preproc/backends/workflows`)
+}
+
+export async function fetchStackTransforms(): Promise<{ transforms: import('./types').TransformInfo[] }> {
+  return json(`${BASE}/preproc/backends/transforms`)
+}
+
+export async function workflowPreflight(
+  name: string,
+): Promise<import('./types').PreflightResult> {
+  return json(`${BASE}/preproc/backends/workflows/${encodeURIComponent(name)}/preflight`)
+}
+
+export async function transformPreflight(
+  name: string,
+): Promise<import('./types').PreflightResult> {
+  return json(`${BASE}/preproc/backends/transforms/${encodeURIComponent(name)}/preflight`)
+}
+
+export async function launchStackRun(
+  body: import('./types').StackRunBody,
+): Promise<{ run_id: string; status: string }> {
+  return json(`${BASE}/preproc/stack/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function fetchStackRuns(): Promise<{ runs: import('./types').StackRunSummary[] }> {
+  return json(`${BASE}/preproc/stack/runs`)
+}
+
+export async function fetchStackRun(
+  runId: string,
+): Promise<import('./types').StackRunSummary> {
+  return json(`${BASE}/preproc/stack/${encodeURIComponent(runId)}/status`)
+}
+
+export async function fetchStackManifest(
+  runId: string,
+): Promise<Record<string, unknown>> {
+  return json(`${BASE}/preproc/stack/${encodeURIComponent(runId)}/manifest`)
+}
+
+export async function cancelStackRun(
+  runId: string,
+): Promise<{ cancelled: boolean; reason?: string }> {
+  return json(`${BASE}/preproc/stack/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export async function listStackPresets(): Promise<{ presets: import('./types').PresetSummary[] }> {
+  return json(`${BASE}/preproc/stack/presets`)
+}
+
+export async function loadStackPreset(name: string): Promise<import('./types').PresetDetail> {
+  return json(`${BASE}/preproc/stack/presets/${encodeURIComponent(name)}`)
+}
+
+export async function saveStackPreset(body: {
+  name: string
+  description: string
+  stack: import('./types').PreprocStackBody
+}): Promise<{ saved: boolean; path: string }> {
+  return json(`${BASE}/preproc/stack/presets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteStackPreset(name: string): Promise<{ deleted: boolean }> {
+  return json(`${BASE}/preproc/stack/presets/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function saveCustomWorkflow(
+  name: string, code: string,
+): Promise<{ saved: boolean; path: string }> {
+  return json(`${BASE}/preproc/backends/workflows/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, code }),
+  })
+}
+
+export async function saveCustomTransform(
+  name: string, code: string,
+): Promise<{ saved: boolean; path: string }> {
+  return json(`${BASE}/preproc/backends/transforms/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, code }),
+  })
+}
+
+/** Open a WebSocket to stream events from a running stack.
+ *
+ * Caller is responsible for closing the socket when done. The URL is
+ * derived from window.location so dev and prod both work.
+ */
+export function openStackEventsSocket(runId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = `${proto}//${window.location.host}/ws/preproc/stack/${encodeURIComponent(runId)}`
+  return new WebSocket(url)
 }
 
 // ── Group runs ──

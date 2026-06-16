@@ -12,6 +12,19 @@ from fmriflow.modules._decorators import nipype_node
 class SmoothNode:
     """Apply isotropic Gaussian smoothing with a given FWHM (mm)."""
 
+    # ── Transform Protocol metadata ────────────────────────────────
+    # Same class also serves as a preproc-stack Transform via
+    # fmriflow.preproc.builtin_transforms.smooth, which re-registers
+    # it. These attributes satisfy the Transform Protocol and have
+    # no effect on the nipype-node DAG builder.
+    name = "smooth"
+    version = "0.1.0"
+    description = "Isotropic Gaussian spatial smoothing (scipy.ndimage)."
+    REQUIRED_PYTHON: list[str] = []
+    REQUIRED_TOOLS: list[str] = []
+    REQUIRED_ENV: list[str] = []
+    CONTAINER: str | None = None
+
     INPUTS = ["in_file"]
     OUTPUTS = ["out_file"]
 

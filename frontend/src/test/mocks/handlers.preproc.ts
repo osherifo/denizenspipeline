@@ -50,26 +50,6 @@ export const preprocHandlers = [
     HttpResponse.json({ manifest: {}, manifest_path: '/tmp/m.json' }),
   ),
 
-  http.post('/api/preproc/run', () =>
-    HttpResponse.json({ run_id: 'preproc-1', status: 'started' }),
-  ),
-
-  http.post('/api/preproc/validate-config', () =>
-    HttpResponse.json({ valid: true, errors: [] }),
-  ),
-
-  http.get('/api/preproc/configs', () => HttpResponse.json([])),
-  http.get('/api/preproc/configs/:filename', ({ params }) =>
-    HttpResponse.json({
-      filename: String(params.filename),
-      path: '/tmp/x.yaml',
-      config: {},
-      yaml_string: '',
-    }),
-  ),
-  http.post('/api/preproc/configs/:filename/run', () =>
-    HttpResponse.json({ run_id: 'preproc-cfg', status: 'started', config: 'x.yaml' }),
-  ),
   http.get('/api/preproc/runs', () => HttpResponse.json({ runs: [buildPreprocRun()] })),
   http.get('/api/preproc/runs/:runId', ({ params }) =>
     HttpResponse.json(buildPreprocRun({ run_id: String(params.runId) })),
