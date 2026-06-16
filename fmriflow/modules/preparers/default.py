@@ -46,12 +46,25 @@ class DefaultPreparer:
         trim_responses = prep_cfg.get('trim_responses', True)
         apply_delays = prep_cfg.get('apply_delays', True)
 
-        test_runs = split_cfg['test_runs']
         all_runs = sorted(
             set(responses.responses.keys())
             & set(self._get_feature_runs(features))
         )
-        train_runs = sorted(set(all_runs) - set(test_runs))
+
+        # Two split modes:
+        #  - run-level (default): whole runs are held out (split.test_runs)
+        #  - trial-level: rows within every run are split by a per-run boolean
+        #    mask named in split.test_trials and carried on
+        #    responses.metadata['trial_split'][name] (e.g. NSD shared1000).
+        test_trials = split_cfg.get('test_trials')
+        if test_trials:
+            test_mask = self._resolve_trial_mask(responses, test_trials, all_runs)
+            test_runs = all_runs
+            train_runs = all_runs
+        else:
+            test_mask = None
+            test_runs = split_cfg['test_runs']
+            train_runs = sorted(set(all_runs) - set(test_runs))
 
         # Trim and z-score responses
         trimmed_resp = {}
@@ -92,10 +105,22 @@ class DefaultPreparer:
             logger.info("Run '%s': %d TRs", run, nr)
 
         # Concatenate runs, split train/test
-        Y_train = np.vstack([trimmed_resp[r] for r in train_runs])
-        Y_test = np.vstack([trimmed_resp[r] for r in test_runs])
-        X_train = np.vstack([trimmed_feat[r] for r in train_runs])
-        X_test = np.vstack([trimmed_feat[r] for r in test_runs])
+        if test_mask is not None:
+            # Trial-level: every run contributes its test rows to the test set
+            # and its remaining rows to the train set.
+            trim_mask = test_mask
+            if trim_responses:
+                trim_mask = {r: self._trim(m, trim_start, trim_end)
+                             for r, m in test_mask.items()}
+            Y_train = np.vstack([trimmed_resp[r][~trim_mask[r]] for r in all_runs])
+            Y_test = np.vstack([trimmed_resp[r][trim_mask[r]] for r in all_runs])
+            X_train = np.vstack([trimmed_feat[r][~trim_mask[r]] for r in all_runs])
+            X_test = np.vstack([trimmed_feat[r][trim_mask[r]] for r in all_runs])
+        else:
+            Y_train = np.vstack([trimmed_resp[r] for r in train_runs])
+            Y_test = np.vstack([trimmed_resp[r] for r in test_runs])
+            X_train = np.vstack([trimmed_feat[r] for r in train_runs])
+            X_test = np.vstack([trimmed_feat[r] for r in test_runs])
 
         logger.info("X_train=%s Y_train=%s X_test=%s Y_test=%s",
                      X_train.shape, Y_train.shape, X_test.shape, Y_test.shape)
@@ -118,9 +143,32 @@ class DefaultPreparer:
 
     def validate_config(self, config: dict) -> list[str]:
         errors = []
-        if 'split' not in config or 'test_runs' not in config.get('split', {}):
-            errors.append("split.test_runs is required")
+        split_cfg = config.get('split', {})
+        if 'test_runs' not in split_cfg and 'test_trials' not in split_cfg:
+            errors.append("split requires either test_runs or test_trials")
         return errors
+
+    @staticmethod
+    def _resolve_trial_mask(responses, name, all_runs):
+        """Per-run boolean test mask named by split.test_trials.
+
+        Looked up on ``responses.metadata['trial_split'][name]``; the response
+        loader is responsible for populating it (e.g. NSD shared1000).
+        """
+        trial_split = responses.metadata.get('trial_split', {})
+        if name not in trial_split:
+            available = ", ".join(sorted(trial_split)) or "<none>"
+            raise ValueError(
+                f"split.test_trials='{name}' but responses carry no such trial "
+                f"mask. Available: {available}. The response loader must populate "
+                f"responses.metadata['trial_split'].")
+        masks = trial_split[name]
+        out = {}
+        for run in all_runs:
+            if run not in masks:
+                raise ValueError(f"trial mask '{name}' missing run '{run}'")
+            out[run] = np.asarray(masks[run], dtype=bool)
+        return out
 
     def _trim(self, arr, start, end):
         if end == 0:

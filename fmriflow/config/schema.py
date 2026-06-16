@@ -93,10 +93,11 @@ def validate_config(config: dict) -> list[str]:
             if source == "grouped_hdf" and "paths" not in feat:
                 errors.append(f"features[{i}] grouped_hdf source requires 'paths'")
 
-    # Split validation
+    # Split validation — either whole-run holdout (test_runs) or a trial-level
+    # holdout named by test_trials (a per-run mask the response loader supplies).
     split = config.get("split", {})
-    if "test_runs" not in split:
-        errors.append("'split.test_runs' is required")
+    if "test_runs" not in split and "test_trials" not in split:
+        errors.append("'split' requires either 'test_runs' or 'test_trials'")
 
     # Preparation validation
     prep = config.get("preparation", {})

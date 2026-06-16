@@ -17,6 +17,9 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | `bert` | 768+ | BERT contextual embeddings (configurable layer) |
 | `fasttext` | 300 | FastText subword embeddings |
 | `gpt2` | 768+ | GPT-2 hidden states (configurable layer) |
+| `luminance` | 1 | Mean frame luminance per TR (video) |
+| `motion_energy` | 1 | Frame-differencing motion energy per TR (video) |
+| `clip` | 512+ | CLIP image embeddings, one row per shown image (open_clip; consumes an image sequence) |
 
 ## Feature Sources
 
@@ -32,6 +35,9 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | Module | Description |
 |--------|-------------|
 | `textgrid` | Load from Praat TextGrid files (long, short, and chronological formats) |
+| `audio` | Load audio (.wav) stimulus files |
+| `video` | Load video stimulus files (metadata only) |
+| `nsd` | Per-trial image references for an event-related image-viewing dataset (emits one image sequence per session) |
 | `skip` | Skip stimulus loading (for pre-prepared data) |
 
 ## Response Loaders
@@ -42,6 +48,7 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | `local` | Load from local filesystem |
 | `bids` | Load from BIDS-formatted dataset |
 | `preproc` | Load from a PreprocManifest (fmriprep outputs) |
+| `nsd` | Single-trial GLM betas (one pseudo-run per session), masked to an ROI and scaled; carries the 3-D ROI mask for surface reporters |
 
 ## Preparers
 
@@ -82,6 +89,7 @@ For use with `type: pipeline`:
 |--------|-------------|
 | `metrics` | Prediction accuracy metrics (JSON) |
 | `flatmap` | Pycortex surface flatmaps |
+| `nsd_fsaverage_flatmap` | Flatmap of func-volume scores resampled onto fsaverage (no per-subject surface registration) |
 | `weights` | Model weight matrices |
 | `histogram` | Accuracy distribution plots |
 | `webgl` | Interactive 3D brain viewer |

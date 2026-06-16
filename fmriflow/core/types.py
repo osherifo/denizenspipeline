@@ -95,13 +95,28 @@ class VisualStim:
     tr_times: np.ndarray    # TR onset times in seconds
 
 
+@dataclass(frozen=True)
+class ImageSeqStim:
+    """A sequence of still images, one per row/trial (event-related viewing).
+
+    Unlike :class:`VisualStim` (a continuous video resampled onto a TR grid),
+    each image corresponds to exactly one response row, so no temporal
+    alignment is needed.  Images are referenced — not decoded — here; the
+    feature extractor reads them on demand from ``source``.
+    """
+    source: str             # path or URL to the image store (e.g. an HDF5 file)
+    image_ids: np.ndarray   # (n_trials,) 0-based indices into the store, in trial order
+    source_kind: str = "hdf5"   # how to read `source`: "hdf5" | "image_dir"
+    dataset: str = ""       # dataset name within an HDF5 source (e.g. "imgBrick")
+
+
 # ─── Stimulus Data ────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class StimRun:
     """Stimulus data for a single run/story."""
     name: str
-    stimulus: LanguageStim | AudioStim | VisualStim
+    stimulus: LanguageStim | AudioStim | VisualStim | ImageSeqStim
     language: str = "en"
     modality: str = "reading"  # "reading" | "listening" | "visual"
 
