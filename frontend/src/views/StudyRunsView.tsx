@@ -17,6 +17,7 @@ import { AnalysisGraphModal } from '../components/workflow/AnalysisGraphModal'
 import { ConfigSnapshotModal } from '../components/runs/ConfigSnapshotModal'
 import type { GraphTarget } from '../api/run-graph'
 import type { StudyRunDetail, StudyRunListing } from '../api/types'
+import { formatDuration as formatElapsed } from '../utils/format'
 
 
 /** Mirror of ``fmriflow.core.run_summary.derive_group_status`` — roll
@@ -149,10 +150,6 @@ function formatTimestamp(iso: string): string {
 }
 
 
-function formatElapsed(s: number): string {
-  if (s < 60) return `${s.toFixed(1)}s`
-  return `${Math.floor(s / 60)}m ${(s % 60).toFixed(0)}s`
-}
 
 
 function statusPill(status: string): CSSProperties {

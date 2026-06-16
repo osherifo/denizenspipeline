@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 /** Vertical stage status tracker for live runs. */
 import type { StageStatus } from '../../api/types'
+import { formatDuration as formatElapsed } from '../../utils/format'
 
 interface StageTrackerProps {
   stageStatuses: Record<string, StageStatus>
@@ -40,14 +41,6 @@ function statusIcon(status: StageStatus['status']): { symbol: string; color: str
   }
 }
 
-function formatElapsed(s: number): string {
-  if (s <= 0) return ''
-  if (s < 1) return `${(s * 1000).toFixed(0)}ms`
-  if (s < 60) return `${s.toFixed(1)}s`
-  const min = Math.floor(s / 60)
-  const sec = s % 60
-  return `${min}m ${sec.toFixed(0)}s`
-}
 
 export function StageTracker({ stageStatuses }: StageTrackerProps) {
   return (

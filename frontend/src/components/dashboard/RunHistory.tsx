@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { RunSummary, ArtifactInfo } from '../../api/types'
 import { StageTimeline } from '../runs/StageTimeline'
 import { artifactUrl } from '../../api/client'
+import { formatDuration } from '../../utils/format'
 
 interface RunHistoryProps {
   runs: RunSummary[]
@@ -82,10 +83,6 @@ function formatDate(iso: string): string {
   } catch { return iso }
 }
 
-function formatDuration(s: number): string {
-  if (s < 60) return `${s.toFixed(1)}s`
-  return `${Math.floor(s / 60)}m ${(s % 60).toFixed(0)}s`
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`

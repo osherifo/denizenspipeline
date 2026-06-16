@@ -9,6 +9,7 @@ import type { CSSProperties } from 'react'
 import type { StudyRunListing } from '../../api/types'
 import type { GraphTarget } from '../../api/run-graph'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
+import { formatDuration } from '../../utils/format'
 
 
 interface Props {
@@ -84,11 +85,6 @@ function formatDate(iso: string): string {
   } catch { return iso }
 }
 
-
-function formatDuration(s: number): string {
-  if (s < 60) return `${s.toFixed(1)}s`
-  return `${Math.floor(s / 60)}m ${(s % 60).toFixed(0)}s`
-}
 
 
 function overallStatus(r: StudyRunListing): { label: string; color: string } {

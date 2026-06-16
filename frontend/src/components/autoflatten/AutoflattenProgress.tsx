@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { AutoflattenEvent } from '../../stores/autoflatten-store'
+import { formatDuration } from '../../utils/format'
 
 interface Props {
   events: AutoflattenEvent[]
@@ -132,7 +133,7 @@ export function AutoflattenProgress({ events, startTime, running, error, onDismi
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--accent-green)', fontWeight: 600 }}>
             {lastEvent.message}
-            {lastEvent.elapsed !== undefined && ` in ${lastEvent.elapsed.toFixed(1)}s`}
+            {lastEvent.elapsed !== undefined && ` in ${formatDuration(lastEvent.elapsed)}`}
           </div>
           {lastEvent.pycortex_surface && (
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>

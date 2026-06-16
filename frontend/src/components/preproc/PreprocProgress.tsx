@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PreprocEvent } from '../../api/types'
+import { formatDuration } from '../../utils/format'
 
 interface Props {
   events: PreprocEvent[]
@@ -118,7 +119,7 @@ export function PreprocProgress({ events, startTime, running, error, onDismiss }
       {isDone && lastEvent && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--accent-green)', fontWeight: 600 }}>
-            {lastEvent.n_runs} runs preprocessed in {lastEvent.elapsed?.toFixed(1)}s
+            {lastEvent.n_runs} runs preprocessed in {formatDuration(lastEvent.elapsed ?? 0)}
           </div>
           {lastEvent.manifest_path && (
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>

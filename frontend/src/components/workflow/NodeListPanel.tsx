@@ -16,6 +16,7 @@ import type {
 import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
 import { inferredName } from './fmriprep_labels'
 import type { LabelMode } from './use_label_mode'
+import { formatDuration } from '../../utils/format'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -327,7 +328,7 @@ export function NodeListPanel({ nodes, selected, onSelect, onPanTo, labelMode = 
           </span>
           {n.elapsed !== undefined && n.elapsed > 0 && (
             <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
-              {n.elapsed.toFixed(1)}s
+              {formatDuration(n.elapsed)}
             </span>
           )}
         </div>
