@@ -338,6 +338,32 @@ function ArtifactGrid({
   )
 }
 
+// Collapsible per-subject stage breakdown (stimuli…report with elapsed),
+// mirroring the study view's drill-down so group runs expose timings down to
+// every stage — not just the per-subject stage count in SubjectsTable.
+function SubjectStageDetails({ detail }: { detail: GroupRunDetail }) {
+  if (!detail.subject_summaries.length) {
+    return <div style={emptyState}>No per-subject stages recorded.</div>
+  }
+  return (
+    <div style={{ padding: '2px 16px 8px' }}>
+      {detail.subject_summaries.map((s) => {
+        const failed = (s.stages ?? []).some((st) => st.status === 'failed')
+        return (
+          <details key={s.subject} style={{ margin: '4px 0' }}>
+            <summary style={{ cursor: 'pointer', padding: '4px 0', ...monoSmall }}>
+              {s.subject} — {formatElapsed(s.total_elapsed_s)}
+              {failed && ' · ⚠ failed'}
+            </summary>
+            <StagesTable stages={s.stages} />
+          </details>
+        )
+      })}
+    </div>
+  )
+}
+
+
 function DetailPanel({
   detail, onOpenGraph,
 }: {
@@ -435,6 +461,8 @@ function DetailPanel({
       />
       <div style={sectionTitle}>Group stages</div>
       <StagesTable stages={detail.group_stages} />
+      <div style={sectionTitle}>Per-subject stage timings</div>
+      <SubjectStageDetails detail={detail} />
       {groupArt.length > 0 && (
         <>
           <div style={sectionTitle}>Group artifacts</div>

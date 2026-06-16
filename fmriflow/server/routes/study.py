@@ -127,16 +127,18 @@ def _read_detail(run_dir: Path) -> dict:
 def _walk_artifacts(run_dir: Path) -> dict:
     """List image/text artifacts in the run dir, grouped for the UI.
 
-    Returns a dict with two keys:
-      ``study``  — files at the top level of the run dir
-      ``groups`` — {group_label: [file_rel_paths]} for each group dir
+    Returns a dict with three keys:
+      ``study``    — files at the top level of the run dir
+      ``groups``   — {group_label: [file_rel_paths]} for each group dir
+      ``subjects`` — {group_label: {subject: [file_rel_paths]}} for the
+                     per-subject plots nested under each group's run dir
 
     Each entry is a path RELATIVE to ``run_dir`` so the frontend can
     build URLs against ``/api/study-runs/{name}/{run_id}/file/{path}``.
     """
     SHOWABLE_EXT = {".png", ".jpg", ".jpeg", ".svg", ".html",
                     ".json", ".log", ".txt", ".npy"}
-    out: dict = {"study": [], "groups": {}}
+    out: dict = {"study": [], "groups": {}, "subjects": {}}
     try:
         for entry in sorted(run_dir.iterdir()):
             if entry.is_file() and entry.suffix.lower() in SHOWABLE_EXT:
@@ -156,7 +158,8 @@ def _walk_artifacts(run_dir: Path) -> dict:
                     if entry.is_file() and entry.suffix.lower() in SHOWABLE_EXT:
                         files.append(f"groups/{grp.name}/{entry.name}")
                 # Each group dir contains its own <group_run_id>/ —
-                # surface only the top-level group summaries / HTML.
+                # surface its top-level group summaries / HTML, plus the
+                # per-subject plots nested under <group_run_id>/subjects/<subj>/.
                 for inner in sorted(grp.iterdir()):
                     if not inner.is_dir() or inner.name == "latest":
                         continue
@@ -165,6 +168,18 @@ def _walk_artifacts(run_dir: Path) -> dict:
                             files.append(
                                 f"groups/{grp.name}/{inner.name}/{entry.name}"
                             )
+                    subj_root = inner / "subjects"
+                    if subj_root.is_dir():
+                        for subj in sorted(subj_root.iterdir()):
+                            if not subj.is_dir():
+                                continue
+                            sfiles = [
+                                f"groups/{grp.name}/{inner.name}/subjects/{subj.name}/{e.name}"
+                                for e in sorted(subj.iterdir())
+                                if e.is_file() and e.suffix.lower() in SHOWABLE_EXT
+                            ]
+                            if sfiles:
+                                out["subjects"].setdefault(grp.name, {})[subj.name] = sfiles
                 if files:
                     out["groups"][grp.name] = files
     except Exception:

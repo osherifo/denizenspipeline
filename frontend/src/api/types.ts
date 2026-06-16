@@ -1156,6 +1156,8 @@ export interface StudyRunListing {
 export interface StudyArtifacts {
   study: string[]                                  // files at run_dir top level
   groups: Record<string, string[]>                 // group_label → file paths
+  // group_label → subject → per-subject file paths (plots etc.)
+  subjects?: Record<string, Record<string, string[]>>
 }
 
 export interface StudyRunDetail {

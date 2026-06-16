@@ -317,6 +317,112 @@ function ArtifactGrid({
 }
 
 
+const stageHead = (
+  <thead>
+    <tr>
+      <th style={thStyle}>Stage</th>
+      <th style={thStyle}>Status</th>
+      <th style={thStyle}>Elapsed</th>
+      <th style={thStyle}>Detail</th>
+    </tr>
+  </thead>
+)
+
+
+function StageRows({ stages }: { stages: Array<Record<string, any>> }) {
+  return (
+    <>
+      {stages.map((s, i) => (
+        <tr key={`${s.name}-${i}`}>
+          <td style={tdStyle}>{s.name}</td>
+          <td style={tdStyle}><span style={statusPill(s.status)}>{s.status}</span></td>
+          <td style={tdStyle}>{formatElapsed(s.elapsed_s ?? 0)}</td>
+          <td style={{ ...tdStyle, color: 'var(--text-secondary)', fontSize: 12 }}>
+            {s.detail || '—'}
+          </td>
+        </tr>
+      ))}
+    </>
+  )
+}
+
+
+// Drill-down timings: per group, the group-scope stages plus a collapsible
+// per-subject stage breakdown (stimuli/responses/features/prepare/model/…).
+function DetailedTimings({ detail }: { detail: StudyRunDetail }) {
+  if (!detail.group_summaries.length) {
+    return <div style={emptyState}>No group timings recorded.</div>
+  }
+  return (
+    <>
+      {detail.group_summaries.map((g, i) => {
+        const a = g as Record<string, any>
+        const label = detail.group_labels[i] || a.group_name || '?'
+        const gStages = (a.group_stages ?? []) as Array<Record<string, any>>
+        const subs = (a.subject_summaries ?? []) as Array<Record<string, any>>
+        return (
+          <div key={`${label}-${i}`} style={{ marginBottom: 6 }}>
+            <div style={{ ...monoSmall, fontWeight: 600, margin: '8px 0 4px 2px' }}>
+              {label} — group stages
+            </div>
+            {gStages.length ? (
+              <table style={tableStyle}>{stageHead}<tbody><StageRows stages={gStages} /></tbody></table>
+            ) : <div style={emptyState}>No group stages.</div>}
+            {subs.map((s, j) => {
+              const stages = (s.stages ?? []) as Array<Record<string, any>>
+              const failed = stages.some((st) => st.status === 'failed')
+              return (
+                <details key={`${s.subject ?? j}`} style={{ margin: '4px 0 4px 2px' }}>
+                  <summary style={{ cursor: 'pointer', padding: '4px 0', ...monoSmall }}>
+                    {s.subject ?? `subject ${j}`} — {formatElapsed(s.total_elapsed_s ?? 0)}
+                    {failed && ' · ⚠ failed'}
+                  </summary>
+                  <table style={tableStyle}>{stageHead}<tbody><StageRows stages={stages} /></tbody></table>
+                </details>
+              )
+            })}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+
+// All per-subject plots, ordered by group (study group_labels order) then
+// subject name. Images only — other artifacts stay in the download lists.
+function SubjectPlots({ detail }: { detail: StudyRunDetail }) {
+  const bySubj = detail.artifacts?.subjects ?? {}
+  const labels = detail.group_labels.filter((l) => bySubj[l])
+  if (!labels.length) return null
+  return (
+    <>
+      {labels.map((label) => {
+        const subs = bySubj[label]
+        const names = Object.keys(subs).sort()
+        return (
+          <div key={label}>
+            <div style={sectionTitle}>Per-subject plots · {label}</div>
+            {names.map((name) => {
+              const imgs = subs[name].filter(isImage)
+              if (!imgs.length) return null
+              return (
+                <div key={name} style={{ marginBottom: 10 }}>
+                  <div style={{ ...monoSmall, fontWeight: 600, margin: '6px 0 4px 2px' }}>
+                    {name}
+                  </div>
+                  <ArtifactGrid detail={detail} paths={imgs} />
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+
 function DetailPanel({
   detail, onOpenGraph,
 }: {
@@ -399,6 +505,8 @@ function DetailPanel({
       <GroupsTable detail={detail} />
       <div style={sectionTitle}>Study stages</div>
       <StagesTable detail={detail} />
+      <div style={sectionTitle}>Detailed timings (group + per-subject stages)</div>
+      <DetailedTimings detail={detail} />
       {studyArt.length > 0 && (
         <>
           <div style={sectionTitle}>Study artifacts</div>
@@ -411,6 +519,7 @@ function DetailPanel({
           <ArtifactGrid detail={detail} paths={files} />
         </div>
       ))}
+      <SubjectPlots detail={detail} />
     </div>
   )
 }
