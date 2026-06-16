@@ -56,6 +56,7 @@ nav:
     - Structural QC: guide/structural-qc.md
     - DICOM to BIDS: guide/dicom-to-bids.md
     - Autoflatten: guide/autoflatten.md
+    - Pycortex Transforms: guide/pycortex-transforms.md
     - Post-preproc: guide/post-preproc.md
     - Workflows: guide/workflows.md
     - Group Analysis: guide/group-analysis.md

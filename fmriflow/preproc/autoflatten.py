@@ -406,7 +406,8 @@ def _execute_autoflatten(
 def _build_autoflatten_command(config: AutoflattenConfig) -> list[str]:
     """Build the autoflatten CLI command."""
     subject_path = str(Path(config.subjects_dir) / config.subject)
-    cmd = ["autoflatten", subject_path]
+    # autoflatten >=1.0 exposes the full pipeline under the ``run`` subcommand.
+    cmd = ["autoflatten", "run", subject_path]
 
     if config.hemispheres != "both":
         cmd += ["--hemispheres", config.hemispheres]
@@ -474,23 +475,51 @@ def _do_pycortex_import(
 
     if lh_patch and rh_patch:
         logger.info("Importing flat patches into pycortex subject '%s'", cx_name)
+        # pycortex's import_flat resolves patches from
+        # <freesurfer_subject_dir>/<fs_subject>/surf/<hemi>.<patch>.flat.patch.3d
+        # and takes a *patch name* (it appends ".flat"), not a path. Make sure the
+        # flat patches are in the subject's surf/ dir, then import non-interactively.
+        import shutil
+        surf_dir = Path(config.subjects_dir) / config.subject / "surf"
+        # ``import_flat`` takes ONE ``patch`` value and applies it to every
+        # hemisphere — so the per-hemi basenames must match. Compute each
+        # one independently and reject mismatches loudly instead of
+        # silently letting whichever hemisphere ran last win.
+        hemi_patch_names: dict[str, str] = {}
+        for hemi, p in (("lh", lh_patch), ("rh", rh_patch)):
+            p = Path(p)
+            # patch name = filename minus "<hemi>." prefix, ".patch.3d" suffix and
+            # the trailing ".flat" that import_flat re-adds (e.g. "autoflatten").
+            base = p.name
+            if base.startswith(f"{hemi}."):
+                base = base[len(hemi) + 1:]
+            base = base[:-len(".patch.3d")] if base.endswith(".patch.3d") else base
+            base = base[:-len(".flat")] if base.endswith(".flat") else base
+            hemi_patch_names[hemi] = base
+            dest = surf_dir / p.name
+            if p.resolve() != dest.resolve():
+                surf_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, dest)
+
+        if hemi_patch_names["lh"] != hemi_patch_names["rh"]:
+            raise RuntimeError(
+                "autoflatten: LH and RH patches resolved to different patch "
+                f"names ({hemi_patch_names['lh']!r} vs "
+                f"{hemi_patch_names['rh']!r}). ``import_flat`` requires one "
+                "shared patch name across hemispheres — rename so both look "
+                "like `<hemi>.<name>.flat.patch.3d`."
+            )
+        patch_name = hemi_patch_names["lh"]
+
         try:
             cortex.freesurfer.import_flat(
-                subject=cx_name,
-                patch=str(lh_patch),
+                fs_subject=config.subject,
+                patch=patch_name,
                 hemis=("lh", "rh"),
                 cx_subject=cx_name,
-                flat_type="autoflatten",
+                freesurfer_subject_dir=config.subjects_dir,
+                auto_overwrite=True,
             )
-        except TypeError:
-            # Older pycortex API — try positional args
-            try:
-                cortex.freesurfer.import_flat(
-                    cx_name, str(lh_patch), str(rh_patch),
-                )
-            except Exception as e:
-                logger.error("Failed to import flat patches: %s", e)
-                return None
         except Exception as e:
             logger.error("Failed to import flat patches: %s", e)
             return None

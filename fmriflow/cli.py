@@ -173,6 +173,10 @@ def main(argv: list[str] | None = None) -> int:
     from fmriflow.preproc.autoflatten_cli import add_autoflatten_subcommands
     add_autoflatten_subcommands(subparsers)
 
+    # ── pycortex transforms (EPI→surface alignment) ──
+    from fmriflow.preproc.pycortex_transform_cli import add_pycortex_transform_subcommands
+    add_pycortex_transform_subcommands(subparsers)
+
     # ── triage (automatic error capture) ──
     from fmriflow.triage.cli import add_triage_subcommands
     add_triage_subcommands(subparsers)
@@ -186,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     # Set up logging — suppress standard log format, let rich handle output.
     # Always show logs for preproc commands (they are long-running).
     level = logging.DEBUG if args.verbose else logging.INFO
-    show_logs = args.verbose or args.command in ('preproc', 'convert', 'autoflatten')
+    show_logs = args.verbose or args.command in ('preproc', 'convert', 'autoflatten', 'pycortex-transform')
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -202,6 +206,8 @@ def main(argv: list[str] | None = None) -> int:
         args.command = 'convert'
     if args.command is None and getattr(args, 'autoflatten_command', None):
         args.command = 'autoflatten'
+    if args.command is None and getattr(args, 'pycortex_transform_command', None):
+        args.command = 'pycortex-transform'
     if args.command is None and getattr(args, 'triage_command', None):
         args.command = 'triage'
 
@@ -230,6 +236,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == 'autoflatten':
         from fmriflow.preproc.autoflatten_cli import dispatch_autoflatten
         return dispatch_autoflatten(args)
+    elif args.command == 'pycortex-transform':
+        from fmriflow.preproc.pycortex_transform_cli import dispatch_pycortex_transform
+        return dispatch_pycortex_transform(args)
     elif args.command == 'triage':
         from fmriflow.triage.cli import run_triage_command
         return run_triage_command(args)
