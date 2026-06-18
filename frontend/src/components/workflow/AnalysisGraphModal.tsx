@@ -10,7 +10,7 @@
  * pane to the right rather than replacing the original graph.
  */
 
-import { Fragment, memo, useEffect, useMemo, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   ReactFlow,
@@ -287,11 +287,15 @@ const paneHeader: CSSProperties = {
   color: 'var(--text-primary)',
 }
 
-const paneDivider: CSSProperties = {
-  width: 1,
+const paneResizer: CSSProperties = {
+  width: 6,
   background: 'var(--border)',
+  cursor: 'col-resize',
   flexShrink: 0,
 }
+
+// Below this width a pane is too small to read; the drag clamps to this.
+const MIN_PANE_PX = 160
 
 
 interface Props {
@@ -342,6 +346,70 @@ function Inner({ target, title, onClose }: Props) {
     setExtras((prev) => prev.slice(0, extraIndex))
   }
 
+  // Per-pane flex-grow weights (one entry per visible pane: primary + extras).
+  // Drag-resize shifts weight between adjacent panes; the array auto-grows
+  // when a drill-down adds a pane and truncates when one closes, so new
+  // panes always join at equal width.
+  const [weights, setWeights] = useState<number[]>([1])
+  useEffect(() => {
+    const want = 1 + extras.length
+    setWeights((prev) => {
+      if (prev.length === want) return prev
+      if (prev.length < want) return [...prev, ...Array(want - prev.length).fill(1)]
+      return prev.slice(0, want)
+    })
+  }, [extras.length])
+
+  const rowRef = useRef<HTMLDivElement | null>(null)
+
+  // Mousedown on the handle between pane `i` and pane `i+1`. Shifts flex
+  // weight between the two as the cursor moves, clamped so neither side
+  // drops below MIN_PANE_PX. Listeners attach to window so the drag keeps
+  // working even when the cursor leaves the 6px handle strip.
+  const startResize = (i: number) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    const row = rowRef.current
+    if (!row) return
+    const rowWidth = row.getBoundingClientRect().width
+    if (rowWidth <= 0) return
+    const startX = e.clientX
+    const startWeights = weights.slice()
+    const totalWeight = startWeights.reduce((a, b) => a + b, 0)
+    const minWeight = (MIN_PANE_PX / rowWidth) * totalWeight
+
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - startX
+      let dWeight = (dx / rowWidth) * totalWeight
+      const newLeft = startWeights[i] + dWeight
+      const newRight = startWeights[i + 1] - dWeight
+      if (newLeft < minWeight) dWeight = minWeight - startWeights[i]
+      if (newRight < minWeight) dWeight = startWeights[i + 1] - minWeight
+      const next = startWeights.slice()
+      next[i] = startWeights[i] + dWeight
+      next[i + 1] = startWeights[i + 1] - dWeight
+      setWeights(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+    }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const paneStyle = (i: number): CSSProperties => ({
+    flexGrow: weights[i] ?? 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+  })
+
   return (
     <>
       <div style={header}>
@@ -350,8 +418,8 @@ function Inner({ target, title, onClose }: Props) {
         <button style={closeBtn} onClick={onClose}>Close</button>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', borderRadius: 6 }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div ref={rowRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', borderRadius: 6 }}>
+        <div style={paneStyle(0)}>
           <div style={paneHeader}>
             <span>{title}</span>
           </div>
@@ -362,8 +430,14 @@ function Inner({ target, title, onClose }: Props) {
         </div>
         {extras.map((extra, i) => (
           <Fragment key={`extra-${i}`}>
-            <div style={paneDivider} />
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div
+              style={paneResizer}
+              onMouseDown={startResize(i)}
+              role="separator"
+              aria-orientation="vertical"
+              title="Drag to resize"
+            />
+            <div style={paneStyle(i + 1)}>
               <div style={paneHeader}>
                 <span>{extra.title}</span>
                 <div style={{ flex: 1 }} />
@@ -402,6 +476,44 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
   const [graph, setGraph] = useState<RunGraphResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openNode, setOpenNode] = useState<RunGraphNode | null>(null)
+  // Width (px) of the source/outputs/params/qa drawer when it's open.
+  // Preserved across node clicks so the user's chosen size sticks; the
+  // graph half of the pane simply takes whatever's left.
+  const [panelWidth, setPanelWidth] = useState(480)
+  const paneRowRef = useRef<HTMLDivElement | null>(null)
+
+  const startPanelResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const row = paneRowRef.current
+    if (!row) return
+    const rowWidth = row.getBoundingClientRect().width
+    if (rowWidth <= 0) return
+    const startX = e.clientX
+    const startWidth = panelWidth
+    const min = 280
+    // Always leave room for the graph half — but never shrink the floor
+    // below `min`, so a too-narrow pane just locks at min instead of
+    // flipping the clamp.
+    const max = Math.max(min, rowWidth - 200)
+
+    const onMove = (ev: MouseEvent) => {
+      // The drawer is on the right, so cursor moving LEFT widens it.
+      let next = startWidth - (ev.clientX - startX)
+      if (next < min) next = min
+      if (next > max) next = max
+      setPanelWidth(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+    }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -523,7 +635,7 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+    <div ref={paneRowRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
       <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
         {error && (
           <div style={{ padding: 16, color: 'var(--accent-red)', fontSize: 12 }}>
@@ -559,11 +671,21 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
         )}
       </div>
       {openNode && (
-        <AnalysisNodePanel
-          target={target}
-          node={openNode}
-          onClose={() => setOpenNode(null)}
-        />
+        <>
+          <div
+            style={paneResizer}
+            onMouseDown={startPanelResize}
+            role="separator"
+            aria-orientation="vertical"
+            title="Drag to resize"
+          />
+          <AnalysisNodePanel
+            target={target}
+            node={openNode}
+            onClose={() => setOpenNode(null)}
+            style={{ width: panelWidth, minWidth: 0, maxWidth: 'none', flexShrink: 0 }}
+          />
+        </>
       )}
     </div>
   )

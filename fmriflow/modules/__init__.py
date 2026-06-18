@@ -99,12 +99,17 @@ def register_builtins(registry):
     import fmriflow.modules.study_analyzers.semantic_pc_correlation  # noqa: F401
     import fmriflow.modules.study_analyzers.cross_modal_prediction  # noqa: F401
     import fmriflow.modules.study_analyzers.cross_within_summary  # noqa: F401
+    import fmriflow.modules.study_analyzers.cross_group_score_pairs  # noqa: F401
 
     # Study-scope reporters
     import fmriflow.modules.study_reporters.study_summary_html  # noqa: F401
     import fmriflow.modules.study_reporters.study_delta_flatmap  # noqa: F401
     import fmriflow.modules.study_reporters.study_pc_correlation_bar  # noqa: F401
     import fmriflow.modules.study_reporters.study_cross_within_flatmap  # noqa: F401
+    import fmriflow.modules.study_reporters.study_score_pair_density  # noqa: F401
+    import fmriflow.modules.study_reporters.study_semantic_rgb_flatmap  # noqa: F401
+    import fmriflow.modules.study_reporters.study_cross_modal_flatmap  # noqa: F401
+    import fmriflow.modules.study_reporters.study_amodal_flatmap  # noqa: F401
 
     # QA reporters (per-stage diagnostic viz)
     import fmriflow.modules.qa_reporters.model_qa  # noqa: F401

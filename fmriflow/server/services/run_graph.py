@@ -45,6 +45,8 @@ _GETTERS = {
     'reporter': lambda r, n: r.get_reporter(n),
     'group_analyzer': lambda r, n: r.get_group_analyzer(n),
     'group_reporter': lambda r, n: r.get_group_reporter(n),
+    'study_analyzer': lambda r, n: r.get_study_analyzer(n),
+    'study_reporter': lambda r, n: r.get_study_reporter(n),
 }
 
 
