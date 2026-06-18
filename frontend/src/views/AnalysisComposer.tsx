@@ -3,7 +3,7 @@
  * Replaces both PipelineComposer (form-driven) and PipelineGraph
  * (free DAG editor). The analysis pipeline is a fixed sequence
  * of seven stages with module slots; the UI mirrors that
- * directly. See devdocs/proposals/frontend/analysis-composer-redesign.md.
+ * directly.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'

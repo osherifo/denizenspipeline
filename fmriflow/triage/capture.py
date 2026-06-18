@@ -5,9 +5,6 @@ fails, a capture is assembled from ``~/.fmriflow/runs/{run_id}/``
 (state.json + stdout.log) plus stage-specific artefacts (e.g.
 fmriprep's nipype ``crash-*.txt`` files), matched against the error
 knowledge base, and written alongside as ``triage.json``.
-
-See ``devdocs/proposals/infrastructure/automatic-error-capture.md``
-for the design.
 """
 
 from __future__ import annotations
@@ -56,7 +53,7 @@ class Fingerprint:
 class CandidateMatch:
     """A KB entry that the matcher thinks explains this capture."""
 
-    id: int                           # error entry id (matches devdocs/errors/NNNN.yaml)
+    id: int                           # error entry id (matches an error-KB NNNN.yaml)
     title: str                        # entry title, for display
     confidence: float                 # [0.0, 1.0]
     match_on: str                     # short human label: "exact-regex", "weak-tag-overlap", etc.

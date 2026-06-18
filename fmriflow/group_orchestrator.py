@@ -2,8 +2,7 @@
 
 Sits above :class:`fmriflow.orchestrator.PipelineOrchestrator`. The subject
 pipeline (the 7 stages) is untouched; this orchestrator just fans out, then
-reduces. See ``devdocs/proposals/data-processing/group-analysis.md`` for the
-design.
+reduces.
 """
 
 from __future__ import annotations

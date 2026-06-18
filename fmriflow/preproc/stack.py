@@ -12,9 +12,6 @@ A preprocessing pipeline is an ordered stack of stages:
 Stages are pure recipe — they do not bind to a subject. Subject
 and dataset binding lives at the run-launch layer (see
 PreprocConfig, which Phase 1 keeps untouched for back-compat).
-
-See devdocs/proposals/data-processing/preprocessing-stack.md for
-the full design.
 """
 
 from __future__ import annotations

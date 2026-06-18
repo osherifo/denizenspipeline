@@ -16,9 +16,6 @@ The contract is intentionally minimal:
   emitted into the backend-agnostic ``PreprocManifest`` contract.
   Without it, downstream consumers (analysis, autoflatten, QC)
   can't find anything — so it's the load-bearing piece.
-
-See ``devdocs/proposals/data-processing/preprocessing-stack.md``
-(Importing user nipype workflows) for the full design.
 """
 
 from __future__ import annotations

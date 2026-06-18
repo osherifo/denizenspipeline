@@ -16,8 +16,8 @@ subject folder). Downstream, flatmap reporters and ``project_to_fsaverage``
 consume it via ``cortex.Volume(scores, surface, xfmname)`` /
 ``cortex.get_mapper(surface, xfmname, ...)``.
 
-See ``devdocs/projectboard/cards/05-pycortex-transforms.md`` for the design and the
-mask-voxel-count constraint (error KB 0035).
+Note the mask-voxel-count constraint between a transform and the masks
+derived from it (see error KB entry 0035).
 """
 
 from __future__ import annotations

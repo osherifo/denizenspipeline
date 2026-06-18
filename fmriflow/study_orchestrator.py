@@ -5,9 +5,8 @@ group pipeline (collect → analyze → optional second pass → report) is
 untouched; this orchestrator fans out groups and reduces across them
 the same way GroupOrchestrator fans out subjects.
 
-See ``devdocs/proposals/data-processing/study-analysis.md`` for the
-design and the resolved decisions baked in here (in-memory contexts,
-unique group labels, default output dir, reference-only groups).
+Key resolved decisions baked in here: in-memory contexts, unique group
+labels, a default output dir, and reference-only groups.
 """
 
 from __future__ import annotations

@@ -18,9 +18,6 @@ Phase 4a (this module): minimum viable runner.
 Phase 4b adds fingerprint caching and "run from stage N". Phase
 4c adds resume-mid-stack. Phase 5 wires this into the server's
 detached-subprocess + run-registry machinery.
-
-See ``devdocs/proposals/data-processing/preprocessing-stack.md``
-for the full design.
 """
 
 from __future__ import annotations

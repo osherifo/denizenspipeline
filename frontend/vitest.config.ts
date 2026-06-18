@@ -30,8 +30,7 @@ export default defineConfig({
       //   lines/statements (~14% overall): diluted by many files that have no
       //   tests yet; the per-file numbers are much higher for covered files.
       //   functions/branches reflect coverage quality inside tested files.
-      // Bump all values as more views/components land tests
-      // (target: devdocs/proposals/infrastructure/frontend-testing-plan.md → 70%+).
+      // Bump all values as more views/components land tests (target: 70%+).
       thresholds: {
         lines: 13,
         statements: 13,
