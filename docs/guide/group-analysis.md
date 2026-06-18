@@ -27,9 +27,6 @@ subject scope.
 pipeline executes once per subject (in parallel), and then a new group-scope
 layer reduces the per-subject results into group-level artifacts.
 
-See `devdocs/proposals/data-processing/group-analysis.md` for the design and
-worked examples.
-
 ## Concept
 
 ```text
