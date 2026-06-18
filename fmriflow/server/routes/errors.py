@@ -1,19 +1,18 @@
-"""Error knowledge base endpoints — serves devdocs/errors/*.yaml entries."""
+"""Error knowledge base endpoints — serves YAML entries from the local
+error KB (``$FMRIFLOW_ERRORS``, default ``$FMRIFLOW_HOME/errors/``)."""
 
 from __future__ import annotations
 
 import logging
 import time
-from pathlib import Path
 
 import yaml
 from fastapi import APIRouter, HTTPException
 
+from fmriflow.core import paths
+
 router = APIRouter(tags=["errors"])
 logger = logging.getLogger(__name__)
-
-# Locate the errors directory relative to the repo root
-_ERRORS_DIR = Path(__file__).resolve().parents[3] / "devdocs" / "errors"
 
 # Simple cache
 _cache: list[dict] | None = None
@@ -28,14 +27,15 @@ def _scan_errors() -> list[dict]:
     if _cache is not None and (now - _cache_time) < _CACHE_TTL:
         return _cache
 
+    errors_dir = paths.errors_dir()
     entries: list[dict] = []
-    if not _ERRORS_DIR.is_dir():
-        logger.warning("Errors directory not found: %s", _ERRORS_DIR)
+    if not errors_dir.is_dir():
+        logger.warning("Errors directory not found: %s", errors_dir)
         _cache = []
         _cache_time = now
         return []
 
-    for path in sorted(_ERRORS_DIR.glob("*.yaml")):
+    for path in sorted(errors_dir.glob("*.yaml")):
         try:
             with open(path) as f:
                 raw = yaml.safe_load(f) or {}

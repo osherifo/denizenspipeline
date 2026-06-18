@@ -1,6 +1,6 @@
 """Match an :class:`ErrorCapture` against the error knowledge base.
 
-Schema extension to ``devdocs/errors/*.yaml`` — a new optional key:
+Schema extension to the error-KB YAML entries — a new optional key:
 
 .. code-block:: yaml
 
@@ -36,13 +36,10 @@ from pathlib import Path
 
 import yaml
 
+from fmriflow.core import paths
 from fmriflow.triage.capture import CandidateMatch, ErrorCapture
 
 logger = logging.getLogger(__name__)
-
-
-# Default KB location — same as the errors route uses.
-_DEFAULT_KB_DIR = Path(__file__).resolve().parents[2] / "devdocs" / "errors"
 
 
 # ── KB loading ──────────────────────────────────────────────────────────
@@ -60,7 +57,7 @@ def load_kb_entries(kb_dir: Path | None = None, *, force_rescan: bool = False) -
     are cheap; pass ``force_rescan=True`` to skip the cache.
     """
     global _kb_cache, _kb_cache_mtime, _kb_cache_dir
-    kb_dir = kb_dir or _DEFAULT_KB_DIR
+    kb_dir = kb_dir or paths.errors_dir()
 
     if not kb_dir.is_dir():
         return []
@@ -130,7 +127,7 @@ def match_capture(
     """Rank KB entries by how well they explain ``capture``.
 
     Pass ``kb_entries`` to match against a pre-loaded list; otherwise
-    the matcher loads from ``kb_dir`` (default ``devdocs/errors/``).
+    the matcher loads from ``kb_dir`` (default ``$FMRIFLOW_ERRORS``).
 
     Returns at most ``max_candidates`` candidates, newest-first for ties.
     """

@@ -307,9 +307,9 @@ Saved modules go to `$FMRIFLOW_HOME/addons/modules/` and are auto-loaded on serv
 
 ### Error Knowledge Base
 
-A searchable reference of known pipeline errors with symptoms, root causes, and fixes. The server loads entries from `devdocs/errors/`.
+A searchable reference of known pipeline errors with symptoms, root causes, and fixes. The server loads entries from your local error knowledge base — `$FMRIFLOW_ERRORS/` (default `$FMRIFLOW_HOME/errors/`). This is a per-user directory of `*.yaml` entries; it is never committed and the location is configurable via the `$FMRIFLOW_ERRORS` environment variable or the Settings tab.
 
-If you have not created any local error definitions in `devdocs/errors/`, this page may be empty by default.
+If you have not added any error definitions there yet, this page may be empty by default.
 
 - **Search** across symptoms, root cause, fix text, and tags
 - **Filter** by pipeline stage (stimuli, responses, features, preprocess, model, etc.)
