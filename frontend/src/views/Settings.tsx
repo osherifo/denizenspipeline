@@ -415,10 +415,11 @@ function ResultRootsSection() {
   const [path, setPath] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [envOverride, setEnvOverride] = useState(false)
 
   const load = () => {
     fetchResultRoots()
-      .then((s) => setRoots(s.roots))
+      .then((s) => { setRoots(s.roots); setEnvOverride(!!s.env_override) })
       .catch((e) => setErr(String(e)))
   }
   useEffect(load, [])
@@ -452,6 +453,13 @@ function ResultRootsSection() {
 
       {err && <div style={bannerStyle('warning')}>{err}</div>}
 
+      {envOverride && (
+        <div style={bannerStyle('info')}>
+          <code>$FMRIFLOW_RESULT_ROOTS</code> is set in the environment and
+          overrides this list — unset it in your shell to manage roots here.
+        </div>
+      )}
+
       <table style={resolvedTable}>
         <tbody>
           {roots.map((r) => (
@@ -471,7 +479,7 @@ function ResultRootsSection() {
                 {!r.is_primary && (
                   <button
                     style={{ fontSize: 11, padding: '2px 8px', cursor: 'pointer' }}
-                    disabled={busy}
+                    disabled={busy || envOverride}
                     onClick={() => remove(r.path)}
                   >
                     Remove
@@ -489,12 +497,13 @@ function ResultRootsSection() {
           style={{ ...inputStyle, flex: 1 }}
           placeholder="/path/to/another/fmriflow"
           value={path}
+          disabled={envOverride}
           onChange={(e) => setPath(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') add() }}
         />
         <button
           style={{ padding: '6px 14px', cursor: 'pointer' }}
-          disabled={busy || !path.trim()}
+          disabled={busy || envOverride || !path.trim()}
           onClick={add}
         >
           Add location

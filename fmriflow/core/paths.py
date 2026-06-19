@@ -504,7 +504,12 @@ def add_result_root(path: str) -> list[str]:
     is the primary root.
     """
     p = Path(path).expanduser()
-    if not p.is_dir():
+    try:
+        reachable = p.is_dir()
+    except OSError as e:
+        # Stale/offline mount (e.g. NFS "stale file handle").
+        raise FileNotFoundError(f"{p} is not reachable: {e}") from e
+    if not reachable:
         raise FileNotFoundError(f"{p} does not exist or is not a directory")
     abspath = _realkey(p)
     if abspath == _realkey(home()):

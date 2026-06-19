@@ -13,6 +13,7 @@ successful POST.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -104,7 +105,14 @@ def _result_roots_snapshot() -> dict:
             "read_only": rid != primary_id,
             "reachable": reachable,
         })
-    return {"roots": roots, "configured": paths.result_roots_config()}
+    # When $FMRIFLOW_RESULT_ROOTS is exported it overrides the persisted
+    # list (same precedence as the scalar path settings), so add/remove
+    # here would be ineffective — the UI locks the controls in that case.
+    return {
+        "roots": roots,
+        "configured": paths.result_roots_config(),
+        "env_override": bool(os.environ.get(paths.ENV_RESULT_ROOTS)),
+    }
 
 
 @router.get("/result-roots")

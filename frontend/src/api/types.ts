@@ -936,6 +936,9 @@ export interface ResultRoot {
 export interface ResultRootsSnapshot {
   roots: ResultRoot[]
   configured: string[]
+  // True when $FMRIFLOW_RESULT_ROOTS is set in the environment, which
+  // overrides the persisted list — the UI locks add/remove in that case.
+  env_override?: boolean
 }
 
 // ── Preproc stack ────────────────────────────────────────────────────
