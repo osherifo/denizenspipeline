@@ -58,11 +58,16 @@ async def list_study_runs(request: Request, name: str | None = None):
 
 
 @router.get("/study-runs/{name}/{run_id}")
-async def get_study_run(request: Request, name: str, run_id: str):
-    """Return the full ``StudyRunSummary`` for one timestamped run."""
+async def get_study_run(request: Request, name: str, run_id: str, root: str | None = None):
+    """Return the full ``StudyRunSummary`` for one timestamped run.
+
+    Optional ``?root=<root_id>`` disambiguates when the same study/run_id
+    exists in more than one result root.
+    """
     _check_path_segment(name, "study name")
     _check_path_segment(run_id, "run_id")
-    run_dir = resolve_study_run_dir(request.app.state.run_manager.registry, name, run_id)
+    run_dir = resolve_study_run_dir(
+        request.app.state.run_manager.registry, name, run_id, root_id=root)
     if run_dir is None:
         raise HTTPException(
             status_code=404,
@@ -73,12 +78,13 @@ async def get_study_run(request: Request, name: str, run_id: str):
 
 @router.get("/study-runs/{name}/{run_id}/file/{file_path:path}")
 async def get_study_run_file(
-    request: Request, name: str, run_id: str, file_path: str,
+    request: Request, name: str, run_id: str, file_path: str, root: str | None = None,
 ):
     """Serve a single file from inside a timestamped study run directory."""
     _check_path_segment(name, "study name")
     _check_path_segment(run_id, "run_id")
-    run_dir = resolve_study_run_dir(request.app.state.run_manager.registry, name, run_id)
+    run_dir = resolve_study_run_dir(
+        request.app.state.run_manager.registry, name, run_id, root_id=root)
     if run_dir is None:
         raise HTTPException(
             status_code=404,
@@ -207,6 +213,7 @@ def _serve_file(base: Path, file_path: str) -> FileResponse:
 
 def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
     """Project a ``StudyRunSummary`` JSON down to a row for the list view."""
+    from fmriflow.core import paths
     from fmriflow.core.run_summary import derive_group_status
     groups = data.get("group_summaries", []) or []
     labels = data.get("group_labels", []) or []
@@ -241,10 +248,15 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
         overall_status = "warning"
     else:
         overall_status = "ok"
+    root_id = paths.root_id_for_path(run_dir)
     return {
         "study_name": data.get("study_name", run_dir.parent.name),
         "run_id": run_id,
         "run_dir": str(run_dir),
+        # Location-aware identity: which result root this run lives in.
+        "root_id": root_id,
+        "root_path": str(paths.root_for_id(root_id) or ""),
+        "is_primary_root": root_id == paths.primary_root_id(),
         "group_labels": labels,
         "n_groups": n_groups_total,
         "status_counts": status_counts,

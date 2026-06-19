@@ -83,7 +83,8 @@ def _resolve_group_run_dir(
         raise HTTPException(status_code=400, detail="invalid run_id")
     from fmriflow.server.services.run_manager import resolve_group_run_dir
     registry = request.app.state.run_manager.registry
-    run_dir = resolve_group_run_dir(registry, group_name, run_id)
+    root = request.query_params.get('root')
+    run_dir = resolve_group_run_dir(registry, group_name, run_id, root_id=root)
     if run_dir is None:
         raise HTTPException(
             status_code=404,
@@ -105,7 +106,8 @@ def _resolve_study_run_dir(
         raise HTTPException(status_code=400, detail="invalid run_id")
     from fmriflow.server.services.run_manager import resolve_study_run_dir
     registry = request.app.state.run_manager.registry
-    run_dir = resolve_study_run_dir(registry, study_name, run_id)
+    root = request.query_params.get('root')
+    run_dir = resolve_study_run_dir(registry, study_name, run_id, root_id=root)
     if run_dir is None:
         raise HTTPException(
             status_code=404,

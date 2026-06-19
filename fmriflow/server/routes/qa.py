@@ -194,7 +194,8 @@ def _resolve_group_subject_dir(
     # 404'd for those.
     from fmriflow.server.services.run_manager import resolve_group_run_dir
     registry = request.app.state.run_manager.registry
-    run_dir = resolve_group_run_dir(registry, name, run_id)
+    run_dir = resolve_group_run_dir(
+        registry, name, run_id, root_id=request.query_params.get('root'))
     if run_dir is None:
         raise HTTPException(
             status_code=404,
