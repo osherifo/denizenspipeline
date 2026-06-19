@@ -407,6 +407,29 @@ function Inner({ target, title, onClose }: Props) {
     resizeCleanup.current = onUp
   }
 
+  // Keyboard equivalent for the separator handle between pane i and i+1:
+  // Arrow Left/Right shift weight (Shift = larger step), so the resize is
+  // operable without a mouse (honours role="separator").
+  const nudgeResize = (i: number) => (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const rowWidth = rowRef.current?.getBoundingClientRect().width ?? 0
+    if (rowWidth <= 0) return
+    setWeights((prev) => {
+      const total = prev.reduce((a, b) => a + b, 0)
+      const minWeight = (MIN_PANE_PX / rowWidth) * total
+      const stepPx = e.shiftKey ? 64 : 16
+      let d = (stepPx / rowWidth) * total
+      if (e.key === 'ArrowLeft') d = -d
+      const next = prev.slice()
+      if (next[i] + d < minWeight) d = minWeight - next[i]
+      if (next[i + 1] - d < minWeight) d = next[i + 1] - minWeight
+      next[i] = next[i] + d
+      next[i + 1] = next[i + 1] - d
+      return next
+    })
+  }
+
   const paneStyle = (i: number): CSSProperties => ({
     flexGrow: weights[i] ?? 1,
     flexShrink: 1,
@@ -439,9 +462,12 @@ function Inner({ target, title, onClose }: Props) {
             <div
               style={paneResizer}
               onMouseDown={startResize(i)}
+              onKeyDown={nudgeResize(i)}
               role="separator"
               aria-orientation="vertical"
-              title="Drag to resize"
+              tabIndex={0}
+              aria-label="Resize panes (arrow keys)"
+              title="Drag or use arrow keys to resize"
             />
             <div style={paneStyle(i + 1)}>
               <div style={paneHeader}>
@@ -524,6 +550,23 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     resizeCleanup.current = onUp
+  }
+
+  // Keyboard equivalent for the drawer separator: the drawer is on the right,
+  // so Arrow Left widens / Arrow Right narrows (Shift = larger step).
+  const nudgePanelResize = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const rowWidth = paneRowRef.current?.getBoundingClientRect().width ?? 0
+    const min = 280
+    const max = Math.max(min, rowWidth - 200)
+    const step = e.shiftKey ? 64 : 16
+    setPanelWidth((w) => {
+      let next = e.key === 'ArrowLeft' ? w + step : w - step
+      if (next < min) next = min
+      if (next > max) next = max
+      return next
+    })
   }
 
   useEffect(() => {
@@ -686,9 +729,12 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
           <div
             style={paneResizer}
             onMouseDown={startPanelResize}
+            onKeyDown={nudgePanelResize}
             role="separator"
             aria-orientation="vertical"
-            title="Drag to resize"
+            tabIndex={0}
+            aria-label="Resize panel (arrow keys)"
+            title="Drag or use arrow keys to resize"
           />
           <AnalysisNodePanel
             target={target}
