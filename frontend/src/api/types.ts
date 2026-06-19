@@ -1094,6 +1094,9 @@ export interface GroupRunListing {
   group_name: string
   run_id: string                  // empty string for legacy (pre-run-id) layout
   run_dir: string
+  root_id?: string                // which result root this run lives in
+  root_path?: string
+  is_primary_root?: boolean
   subjects: string[]
   n_subjects: number
   status_counts: GroupStatusCounts
@@ -1154,6 +1157,9 @@ export interface StudyRunListing {
   study_name: string
   run_id: string
   run_dir: string
+  root_id?: string                // which result root this run lives in
+  root_path?: string
+  is_primary_root?: boolean
   group_labels: string[]
   n_groups: number
   status_counts: StudyStatusCounts
