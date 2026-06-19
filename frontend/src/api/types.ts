@@ -923,6 +923,21 @@ export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
   create_missing?: boolean
 }
 
+// ── Result roots (read-only extra scan locations) ──
+
+export interface ResultRoot {
+  root_id: string
+  path: string
+  is_primary: boolean
+  read_only: boolean
+  reachable: boolean
+}
+
+export interface ResultRootsSnapshot {
+  roots: ResultRoot[]
+  configured: string[]
+}
+
 // ── Preproc stack ────────────────────────────────────────────────────
 
 export type BootstrapKind = 'fmriprep' | 'nipype' | 'custom' | 'bids_app' | 'passthrough'

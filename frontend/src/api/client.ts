@@ -892,6 +892,28 @@ export async function saveSettings(
   })
 }
 
+// ── Result roots (read-only extra scan locations) ──
+
+export async function fetchResultRoots(): Promise<import('./types').ResultRootsSnapshot> {
+  return json(`${BASE}/settings/result-roots`)
+}
+
+export async function addResultRoot(path: string): Promise<import('./types').ResultRootsSnapshot> {
+  return json(`${BASE}/settings/result-roots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+}
+
+export async function removeResultRoot(path: string): Promise<import('./types').ResultRootsSnapshot> {
+  return json(`${BASE}/settings/result-roots`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+}
+
 // ── Preproc stack ────────────────────────────────────────────────────
 
 export async function fetchStackWorkflows(): Promise<{ workflows: import('./types').WorkflowInfo[] }> {
