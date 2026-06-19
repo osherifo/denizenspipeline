@@ -74,26 +74,40 @@ class RunRegistry:
     """Directory-backed registry for preprocessing runs."""
 
     def __init__(self, root: Path | None = None):
-        # Explicit root disables the legacy fallback (so tests are
-        # isolated from the developer's real ~/.fmriflow/runs/).
+        # Explicit root disables the multi-root + legacy fallback (so
+        # tests are isolated from the developer's real ~/.fmriflow/runs/
+        # and any configured extra roots).
+        self._explicit = root is not None
         if root is not None:
             self.root = Path(root)
-            self._legacy_root = None
         else:
             self.root = paths.runs_dir()
-            self._legacy_root = paths.legacy_runs_root()
         self.root.mkdir(parents=True, exist_ok=True)
 
+    def _read_roots(self) -> list[Path]:
+        """Roots to *read* from: primary + read-only extras + legacy.
+
+        Writes always go to ``self.root`` (the primary); only discovery
+        and resolution span the extra roots.
+        """
+        if self._explicit:
+            return [self.root]
+        return paths.runs_roots()
+
     def _resolve(self, run_id: str) -> Path:
-        """Return the run directory, falling back to the legacy
-        location for runs created before $FMRIFLOW_HOME existed."""
-        new = self.root / run_id
-        if new.is_dir() or self._legacy_root is None:
-            return new
-        legacy = self._legacy_root / run_id
-        if legacy.is_dir():
-            return legacy
-        return new
+        """Return a run's directory, searching every read root in order.
+
+        New/primary first; an extra (read-only) or legacy root is used
+        only if the run isn't under the primary. Falls back to the
+        primary path (for new runs about to be created)."""
+        for root in self._read_roots():
+            cand = root / run_id
+            try:
+                if cand.is_dir():
+                    return cand
+            except OSError:
+                continue
+        return self.root / run_id
 
     # ── Paths ────────────────────────────────────────────────────────
 
@@ -146,13 +160,15 @@ class RunRegistry:
         """
         out: list[RunStateFile] = []
         seen: set[str] = set()
-        roots = [self.root]
-        if self._legacy_root is not None:
-            roots.append(self._legacy_root)
-        for root in roots:
-            if not root.is_dir():
+        for root in self._read_roots():
+            try:
+                if not root.is_dir():
+                    continue
+                children = list(root.iterdir())
+            except OSError:
+                logger.warning("Skipping unreadable runs root: %s", root)
                 continue
-            for child in root.iterdir():
+            for child in children:
                 if not child.is_dir() or child.name in seen:
                     continue
                 state = self.load(child.name)

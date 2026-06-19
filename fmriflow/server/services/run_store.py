@@ -49,20 +49,31 @@ class RunStore:
                 discover_subject_run_summaries,
             )
             summary_paths = discover_subject_run_summaries(self.registry)
-        elif self.results_dir.is_dir():
-            summary_paths = list(self.results_dir.rglob('run_summary.json'))
         else:
+            # No registry (rare): scan every results root directly.
+            from fmriflow.core import paths as _p
+            roots = [self.results_dir] if self.results_dir else _p.result_roots()
             summary_paths = []
+            for root in roots:
+                try:
+                    if root.is_dir():
+                        summary_paths.extend(root.rglob('run_summary.json'))
+                except OSError:
+                    continue
 
+        from fmriflow.core import paths as _paths
         for summary_path in summary_paths:
             try:
                 summary = RunSummary.from_json(summary_path)
                 run_id = hashlib.md5(
                     str(summary_path.parent).encode()
                 ).hexdigest()[:12]
+                rid = _paths.root_id_for_path(summary_path.parent)
                 self._index.append({
                     'run_id': run_id,
                     'output_dir': str(summary_path.parent),
+                    'root_id': rid,
+                    'root_path': str(_paths.root_for_id(rid) or ''),
                     'summary': summary,
                 })
             except Exception as e:

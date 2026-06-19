@@ -472,6 +472,24 @@ def root_for_id(rid: str) -> Path | None:
     return None
 
 
+def root_id_for_path(p: Path | str) -> str:
+    """``root_id`` of the search root that contains *p*.
+
+    Uses the longest matching root prefix (so a nested root wins over a
+    parent). Falls back to the primary root id when *p* is under none of
+    the known roots (e.g. a run whose output_dir is fully custom).
+    """
+    pk = _realkey(Path(p))
+    best: Path | None = None
+    best_len = -1
+    for r in result_search_roots():
+        rk = _realkey(r)
+        if (pk == rk or pk.startswith(rk + os.sep)) and len(rk) > best_len:
+            best = r
+            best_len = len(rk)
+    return root_id(best) if best is not None else primary_root_id()
+
+
 # ── Extra-root config mutators (used by the Settings API / CLI) ───────
 
 def result_roots_config() -> list[str]:
