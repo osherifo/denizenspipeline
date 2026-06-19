@@ -421,21 +421,17 @@ failure — `ok` only when every stage ok and every group ok;
 |---|---|
 | `group_delta` | Voxelwise A − B on a group-level array |
 | `cohen_d_across_groups` | Per-subject Cohen's d between two groups |
-| `semantic_pc_correlation` | Per-subject per-PC Pearson r between two modalities' PC projections, restricted to top-K best-predicted voxels |
-| `weight_correlation_voxelwise` | Per-voxel correlation of one feature's weights between two groups, averaged on fsaverage |
-| `cross_modal_prediction` | `y_pred = X_test_B @ W_A` over a feature slice; per-voxel r vs `Y_test_B`; mean on fsaverage |
-| `cross_within_summary` | Pairs `max(within)` vs `mean(cross)` per fsaverage vertex |
-| `cross_group_score_pairs` | Per-subject paired (a, b) per-voxel score arrays in native space, ready for 2-D density plotting |
 
 ### Built-in study reporters
 
 | Plugin | Renders |
 |---|---|
 | `study_summary_html` | Index page over every group + study artifact |
-| `study_delta_flatmap` | Single-array flatmap from a study artifact (deltas, Cohen's d, cross-modal maps, …) |
-| `study_pc_correlation_bar` | Per-PC scatter + bar with optional sign-flip null line |
-| `study_cross_within_flatmap` | RGB flatmap (red=within, green/blue=cross) |
-| `study_score_pair_density` | Per-subject 2-D log-density scatter of paired (a, b) voxel scores, with optional significance threshold lines |
-| `study_semantic_rgb_flatmap` | Per-subject semantic-PC RGB flatmaps (PC1/2/3 → R/G/B), per modality, with per-modality significance masking — reads saved per-subject prepare+model intermediates from disk |
-| `study_cross_modal_flatmap` | Per-subject cross-modal prediction-accuracy flatmaps (one direction per entry) with optional significance masking — applies one group's primal weights to the other group's held-out test design, scores per voxel, renders native-space |
-| `study_amodal_flatmap` | Per-subject 2-channel within-vs-cross amodal flatmap: pairs max(within-modality) with mean(cross-modal) per voxel, maps to a 4-corner RGB scheme (orange=within only, white=both, blue=cross only, grey=neither) |
+| `study_delta_flatmap` | Single-array flatmap from a study artifact (deltas, Cohen's d, …) |
+
+> **Replication-specific study modules** (cross-modal prediction, semantic-PC
+> correlation, weight correlation, within-vs-cross / amodal flatmaps,
+> score-pair density, …) are **not built in**. They ship as **user addon
+> modules** under `$FMRIFLOW_HOME/addons/modules/`, loaded at server startup —
+> drop a decorated `.py` there (`@study_analyzer("name")` /
+> `@study_reporter("name")`) to register one.

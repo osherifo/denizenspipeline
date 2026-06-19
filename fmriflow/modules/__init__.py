@@ -92,24 +92,16 @@ def register_builtins(registry):
     import fmriflow.modules.group_reporters.group_npy_dump  # noqa: F401
     import fmriflow.modules.group_reporters.group_fsaverage_flatmap  # noqa: F401
 
-    # Study-scope analyzers
+    # Study-scope analyzers (generic). Replication-specific study analyzers
+    # (cross-modal / semantic-PC / amodal) ship as user addon modules under
+    # $FMRIFLOW_HOME/addons/modules/, not as built-ins.
     import fmriflow.modules.study_analyzers.group_delta  # noqa: F401
     import fmriflow.modules.study_analyzers.cohen_d_across_groups  # noqa: F401
-    import fmriflow.modules.study_analyzers.weight_correlation_voxelwise  # noqa: F401
-    import fmriflow.modules.study_analyzers.semantic_pc_correlation  # noqa: F401
-    import fmriflow.modules.study_analyzers.cross_modal_prediction  # noqa: F401
-    import fmriflow.modules.study_analyzers.cross_within_summary  # noqa: F401
-    import fmriflow.modules.study_analyzers.cross_group_score_pairs  # noqa: F401
 
-    # Study-scope reporters
+    # Study-scope reporters (generic). Replication-specific reporters live in
+    # user addon modules (see above).
     import fmriflow.modules.study_reporters.study_summary_html  # noqa: F401
     import fmriflow.modules.study_reporters.study_delta_flatmap  # noqa: F401
-    import fmriflow.modules.study_reporters.study_pc_correlation_bar  # noqa: F401
-    import fmriflow.modules.study_reporters.study_cross_within_flatmap  # noqa: F401
-    import fmriflow.modules.study_reporters.study_score_pair_density  # noqa: F401
-    import fmriflow.modules.study_reporters.study_semantic_rgb_flatmap  # noqa: F401
-    import fmriflow.modules.study_reporters.study_cross_modal_flatmap  # noqa: F401
-    import fmriflow.modules.study_reporters.study_amodal_flatmap  # noqa: F401
 
     # QA reporters (per-stage diagnostic viz)
     import fmriflow.modules.qa_reporters.model_qa  # noqa: F401
