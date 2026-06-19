@@ -149,7 +149,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 def _kb_max_mtime() -> float:
     """Max mtime across all KB YAMLs, for 'is the KB newer than this
     triage.json' comparisons."""
-    kb_dir = Path(__file__).resolve().parents[2] / "devdocs" / "errors"
+    kb_dir = paths.errors_dir()
     if not kb_dir.is_dir():
         return 0.0
     max_m = 0.0

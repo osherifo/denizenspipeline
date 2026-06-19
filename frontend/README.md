@@ -80,9 +80,7 @@ Layout:
 - `e2e/flows/` — Playwright flows; `e2e/fixtures/api.ts` is the canned-API fixture
 
 The harness never touches real subject data — every test runs against
-synthetic factories or canned MSW responses. See
-`devdocs/proposals/infrastructure/frontend-testing-plan.md` and
-`devdocs/proposals/infrastructure/test-data-strategy.md`.
+synthetic factories or canned MSW responses.
 
 ## CLI Commands
 

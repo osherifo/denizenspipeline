@@ -132,10 +132,13 @@ interface Props {
   target: GraphTarget
   node: RunGraphNode
   onClose: () => void
+  /** Merged onto the drawer's root style — used by the parent to drive a
+   *  drag-resizable width that overrides the default percentage. */
+  style?: CSSProperties
 }
 
 
-export function AnalysisNodePanel({ target, node, onClose }: Props) {
+export function AnalysisNodePanel({ target, node, onClose, style }: Props) {
   // For a config preview, outputs don't exist; fall back to params
   // instead when no source is registered.
   const previewOnly = isConfigPreview(target)
@@ -252,7 +255,7 @@ export function AnalysisNodePanel({ target, node, onClose }: Props) {
   )
 
   return (
-    <div style={drawer}>
+    <div style={{ ...drawer, ...style }}>
       <div style={headerStyle}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 700 }}>{node.label}</div>

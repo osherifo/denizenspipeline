@@ -1,10 +1,11 @@
 """Triage endpoints — serve triage.json for failed runs and let the
 UI save a new error entry pre-filled from a capture.
 
-Draft entries go to ``devdocs/errors/_proposed/`` — gitignored for now
-(devdocs/ as a whole is gitignored per CLAUDE.md). Once the user
-reviews a draft, they move it into ``devdocs/errors/`` proper by
-renaming, at which point the errors-route scan picks it up.
+Draft entries go to the local error KB's ``_proposed/`` subdir
+(``$FMRIFLOW_ERRORS/_proposed/``, default ``$FMRIFLOW_HOME/errors/_proposed/``)
+— a per-user, never-committed location. Once the user reviews a draft,
+they move it into the parent ``errors/`` dir by renaming, at which point
+the errors-route scan picks it up.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from fmriflow.core import paths
 from fmriflow.server.services.run_registry import RunRegistry
 from fmriflow.triage.capture import ErrorCapture, TriageFileName
 from fmriflow.triage.service import triage as triage_sync
@@ -25,10 +27,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["triage"])
 
 
-# Draft error YAMLs land here. Mirrors ``devdocs/errors/`` structure so
-# promoting a draft to a real KB entry is just a mv.
-_ERRORS_DIR = Path(__file__).resolve().parents[3] / "devdocs" / "errors"
-_PROPOSED_DIR = _ERRORS_DIR / "_proposed"
+def _proposed_dir() -> Path:
+    """``$FMRIFLOW_ERRORS/_proposed/`` — drafts mirror the KB layout so
+    promoting one to a real entry is just a ``mv`` to the parent dir."""
+    return paths.errors_dir() / "_proposed"
 
 
 # ── Request models ──────────────────────────────────────────────────────
@@ -98,13 +100,14 @@ async def rescan_triage(run_id: str):
 
 @router.post("/errors/from-capture")
 async def new_error_from_capture(body: FromCaptureBody):
-    """Write a pre-filled error draft YAML under ``devdocs/errors/_proposed/``.
+    """Write a pre-filled error draft YAML under the local error KB's
+    ``_proposed/`` dir (``$FMRIFLOW_ERRORS/_proposed/``).
 
     The draft inherits everything the auto-extractor captured —
     symptom, traceback tail, fingerprints — and layers user-supplied
     title / root_cause / fix on top. Once the user is happy with the
-    draft, they move it into the parent ``devdocs/errors/`` dir (plain
-    ``mv``) and it becomes a real KB entry.
+    draft, they move it into the parent ``errors/`` dir (plain ``mv``)
+    and it becomes a real KB entry.
     """
     registry = RunRegistry()
     triage_path = registry.run_dir(body.run_id) / TriageFileName
@@ -133,8 +136,9 @@ async def new_error_from_capture(body: FromCaptureBody):
         capture=capture,
     )
 
-    _PROPOSED_DIR.mkdir(parents=True, exist_ok=True)
-    out = _PROPOSED_DIR / filename
+    proposed_dir = _proposed_dir()
+    proposed_dir.mkdir(parents=True, exist_ok=True)
+    out = proposed_dir / filename
     if out.exists():
         raise HTTPException(
             status_code=409,
@@ -150,7 +154,7 @@ async def new_error_from_capture(body: FromCaptureBody):
         "id": next_id,
         "filename": filename,
         "path": str(out.resolve()),
-        "proposed_dir": str(_PROPOSED_DIR.resolve()),
+        "proposed_dir": str(proposed_dir.resolve()),
     }
 
 
@@ -160,7 +164,7 @@ def _next_available_id() -> int:
     """Find the next unused error id across both the KB and the
     proposed-drafts dir."""
     max_id = 0
-    for d in (_ERRORS_DIR, _PROPOSED_DIR):
+    for d in (paths.errors_dir(), _proposed_dir()):
         if not d.is_dir():
             continue
         for p in d.glob("*.yaml"):
@@ -215,7 +219,7 @@ def _render_draft_yaml(
 
     return (
         f"# DRAFT — generated from triage for run {capture.run_id}\n"
-        f"# Move to devdocs/errors/ once reviewed.\n"
+        f"# Move to the parent errors/ dir ($FMRIFLOW_ERRORS) once reviewed.\n"
         f"\n"
         f"id: {id_}\n"
         f"title: {_quote_yaml_string(title)}\n"

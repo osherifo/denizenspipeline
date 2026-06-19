@@ -130,9 +130,7 @@ Behind the scenes:
 This is **log-tailing only** — no fmriprep monkey-patching, no nipype
 plugin shim. If the log format ever drifts, unmatched lines are
 dropped and the rest of the strip keeps working. A richer
-status-callback shim is sketched in
-`devdocs/proposals/frontend/live-fmriprep-node-monitoring.md` as a
-future v2.
+status-callback shim is a possible future v2.
 
 ##### Status reconciliation: `completed_assumed`
 

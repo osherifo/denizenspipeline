@@ -163,9 +163,9 @@ export function TriageMatches({ runId, poll = false }: Props) {
         tags: record.tags,
       })
       await dlg.alert(
-        `Saved draft #${r.id} → devdocs/errors/_proposed/${r.filename}\n\n` +
-        `Edit it to fill in root_cause / fix, then move it up to ` +
-        `devdocs/errors/ to promote to a real KB entry.`,
+        `Saved draft #${r.id} (${r.filename}) to your local error KB's _proposed/ folder.\n\n` +
+        `Edit it to fill in root_cause / fix, then move it up one level into ` +
+        `the errors/ dir ($FMRIFLOW_ERRORS) to promote it to a real KB entry.`,
       )
     } catch (e) {
       await dlg.alert(`Save failed: ${e}`)

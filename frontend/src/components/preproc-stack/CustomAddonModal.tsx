@@ -112,8 +112,6 @@ Lives under \`$FMRIFLOW_HOME/addons/workflows/${name}.py\`. The
 WorkflowRegistry auto-discovers it on rescan.
 
 The minimal contract: implement validate / build / to_manifest.
-See devdocs/proposals/data-processing/preprocessing-stack.md for
-the full Protocol.
 """
 
 from __future__ import annotations

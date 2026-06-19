@@ -130,12 +130,13 @@ from disk).
 **Group reporters:** `group_summary_html`, `group_npy_dump`,
 `group_fsaverage_flatmap`.
 
-**Study analyzers:** `group_delta`, `cohen_d_across_groups`,
-`semantic_pc_correlation`, `weight_correlation_voxelwise`,
-`cross_modal_prediction`, `cross_within_summary`.
+**Study analyzers:** `group_delta`, `cohen_d_across_groups`.
 
-**Study reporters:** `study_summary_html`, `study_delta_flatmap`,
-`study_pc_correlation_bar`, `study_cross_within_flatmap`.
+**Study reporters:** `study_summary_html`, `study_delta_flatmap`.
+
+Replication-specific study modules (cross-modal / semantic-PC / amodal, etc.)
+are not built in — they load as user addon modules from
+`$FMRIFLOW_HOME/addons/modules/`.
 
 ## PARAM_SCHEMA
 

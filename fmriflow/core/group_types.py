@@ -5,8 +5,6 @@ above it: a `GroupOrchestrator` fans out N subject-scope pipelines, then
 runs `GroupAnalyzer` plugins that reduce the per-subject results into
 group-level artifacts (cross-subject averages, shared subspaces,
 consistency maps, summary statistics).
-
-See ``devdocs/proposals/data-processing/group-analysis.md``.
 """
 
 from __future__ import annotations

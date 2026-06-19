@@ -18,9 +18,6 @@ StackRunner recognises that sentinel in ``_execute_workflow`` and
 calls ``sentinel.backend.run(sentinel.preproc_config)``. The resulting
 ``PreprocManifest`` is handed back to ``to_manifest`` via the
 ``outputs["manifest"]`` slot.
-
-See ``devdocs/proposals/data-processing/preprocessing-stack.md`` and
-``devdocs/devnotes/preprocessing-stack-phase4b.md``.
 """
 
 from __future__ import annotations

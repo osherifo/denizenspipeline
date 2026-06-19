@@ -13,9 +13,6 @@ so a single class can satisfy both — useful when a node is useful
 both inside the post-preproc DAG builder and as a transform in
 the stack. The two registries are kept deliberately separate so
 the surfaces don't collide.
-
-See ``devdocs/proposals/data-processing/preprocessing-stack.md``
-for the full design.
 """
 
 from __future__ import annotations

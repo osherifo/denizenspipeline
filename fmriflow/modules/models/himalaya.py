@@ -30,6 +30,24 @@ def _set_backend(backend):
     set_backend(backend)
 
 
+def _to_numpy(x):
+    """Backend-agnostic conversion to a numpy array.
+
+    Handles every himalaya backend: cupy arrays (``.get()``), torch tensors
+    incl. ``torch_cuda`` (``.detach().cpu().numpy()``), and numpy passthrough.
+    A prior ``hasattr(x, 'get')`` check only covered cupy, so torch_cuda
+    tensors leaked into numpy ops and raised
+    "can't convert cuda:0 device type tensor to numpy".
+    """
+    if x is None:
+        return x
+    if hasattr(x, 'get'):          # cupy ndarray
+        return x.get()
+    if hasattr(x, 'detach'):       # torch tensor (cpu or cuda)
+        return x.detach().cpu().numpy()
+    return np.asarray(x)
+
+
 def _resolve_alphas(spec):
     """Resolve alpha specification.
 
@@ -193,13 +211,13 @@ class HimalayaRidgeModel:
         ridge = RidgeCV(alphas=alphas, cv=cv)
         ridge.fit(data.X_train, data.Y_train)
 
-        Y_pred = ridge.predict(data.X_test)
+        Y_pred = _to_numpy(ridge.predict(data.X_test))
         scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
 
         return ModelResult(
-            weights=ridge.coef_,
+            weights=_to_numpy(ridge.coef_),
             scores=scores,
-            alphas=ridge.best_alphas_,
+            alphas=_to_numpy(ridge.best_alphas_),
             feature_names=data.feature_names,
             feature_dims=data.feature_dims,
             delays=data.delays,
@@ -289,18 +307,18 @@ class BandedRidgeModel:
         )
         ridge.fit(data.X_train, data.Y_train)
 
-        Y_pred = ridge.predict(data.X_test)
+        Y_pred = _to_numpy(ridge.predict(data.X_test))
         scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
 
         metadata = {
-            'deltas': ridge.deltas_,
+            'deltas': _to_numpy(ridge.deltas_),
             'groups': groups,
         }
 
         return ModelResult(
-            weights=ridge.coef_,
+            weights=_to_numpy(ridge.coef_),
             scores=scores,
-            alphas=ridge.best_alphas_,
+            alphas=_to_numpy(ridge.best_alphas_),
             feature_names=data.feature_names,
             feature_dims=data.feature_dims,
             delays=data.delays,
@@ -394,9 +412,10 @@ class MultipleKernelRidgeModel:
         mkr.fit(K_train, data.Y_train)
 
         K_test = column_kernelizer.transform(data.X_test)
-        Y_pred = mkr.predict(K_test)
-        if hasattr(Y_pred, 'get'):  # cupy array → numpy
-            Y_pred = Y_pred.get()
+        # Backend-agnostic: works for numpy/cupy/torch/torch_cuda. The old
+        # cupy-only `.get()` left torch_cuda tensors on the GPU and crashed
+        # _score_predictions with "can't convert cuda:0 tensor to numpy".
+        Y_pred = _to_numpy(mkr.predict(K_test))
         scores = _score_predictions(Y_pred, data.Y_test, metric=score_metric)
 
         # Also compute the *other* metric so reporters can render both
@@ -408,16 +427,16 @@ class MultipleKernelRidgeModel:
         scores_r2 = _score_predictions(Y_pred, data.Y_test, metric='r2')
 
         metadata = {
-            'deltas': mkr.deltas_,
+            'deltas': _to_numpy(mkr.deltas_),
             'is_dual': True,
             'scores_pearson_r': scores_pearson_r,
             'scores_r2': scores_r2,
         }
 
         return ModelResult(
-            weights=mkr.dual_coef_,
+            weights=_to_numpy(mkr.dual_coef_),
             scores=scores,
-            alphas=mkr.best_alphas_,
+            alphas=_to_numpy(mkr.best_alphas_),
             feature_names=data.feature_names,
             feature_dims=data.feature_dims,
             delays=data.delays,

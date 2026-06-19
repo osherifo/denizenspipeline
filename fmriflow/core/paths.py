@@ -34,6 +34,7 @@ from typing import Literal
 
 ENV_HOME = "FMRIFLOW_HOME"
 ENV_DATA = "FMRIFLOW_DATA"
+ENV_ERRORS = "FMRIFLOW_ERRORS"
 ENV_FS_LICENSE = "FS_LICENSE"
 ENV_SINGULARITY_BIN = "FMRIFLOW_SINGULARITY_BIN"
 
@@ -43,7 +44,10 @@ DEFAULT_HOME = Path.home() / "projects" / "fmriflow"
 # vars in precedence so an explicit shell export always wins.
 RUNTIME_CONFIG_PATH = Path.home() / ".config" / "fmriflow" / "settings.json"
 
-_RUNTIME_KEYS = {"FMRIFLOW_HOME", "FMRIFLOW_DATA", "FS_LICENSE", "FMRIFLOW_SINGULARITY_BIN"}
+_RUNTIME_KEYS = {
+    "FMRIFLOW_HOME", "FMRIFLOW_DATA", "FMRIFLOW_ERRORS",
+    "FS_LICENSE", "FMRIFLOW_SINGULARITY_BIN",
+}
 
 
 def _load_runtime_config() -> dict[str, str]:
@@ -155,6 +159,19 @@ def runs_dir() -> Path:
 def config_dir(stage: str) -> Path:
     """``$FMRIFLOW_HOME/configs/<stage>/`` — convert / preproc / etc."""
     p = home() / "configs" / stage
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def errors_dir() -> Path:
+    """``$FMRIFLOW_ERRORS`` (defaults to ``$FMRIFLOW_HOME/errors/``).
+
+    Local, per-user error knowledge base (YAML entries) served by the
+    web UI. Lives under the user home — never committed — and is
+    configurable via the ``$FMRIFLOW_ERRORS`` env var or the Settings tab.
+    """
+    raw = _resolve_env(ENV_ERRORS)
+    p = Path(raw).expanduser() if raw else home() / "errors"
     p.mkdir(parents=True, exist_ok=True)
     return p
 

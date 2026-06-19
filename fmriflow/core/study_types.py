@@ -9,8 +9,6 @@ The pipeline now has three scopes:
 ``GroupOrchestrator`` fans out N subject pipelines and reduces. The new
 ``StudyOrchestrator`` fans out M groups and reduces across them — same
 shape, one level up.
-
-See ``devdocs/proposals/data-processing/study-analysis.md``.
 """
 
 from __future__ import annotations
