@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from fmriflow.core import paths
@@ -77,3 +77,57 @@ def post_settings(update: SettingsUpdate) -> dict:
     snap["restart_required"] = True
     snap["created"] = created
     return snap
+
+
+# ── Result roots (read-only extra scan locations) ────────────────────
+#
+# Unlike the scalar path overrides above, these apply **live** — the run
+# scanners re-resolve the root list on each rescan, so no restart needed.
+
+class ResultRootBody(BaseModel):
+    path: str
+
+
+def _result_roots_snapshot() -> dict:
+    primary_id = paths.primary_root_id()
+    roots = []
+    for r in paths.result_search_roots():
+        rid = paths.root_id(r)
+        try:
+            reachable = r.is_dir()
+        except OSError:
+            reachable = False
+        roots.append({
+            "root_id": rid,
+            "path": str(r),
+            "is_primary": rid == primary_id,
+            "read_only": rid != primary_id,
+            "reachable": reachable,
+        })
+    return {"roots": roots, "configured": paths.result_roots_config()}
+
+
+@router.get("/result-roots")
+def get_result_roots() -> dict:
+    """List every result root the scanners see (primary + read-only extras),
+    each with its stable ``root_id`` and reachability."""
+    return _result_roots_snapshot()
+
+
+@router.post("/result-roots")
+def add_result_root(body: ResultRootBody) -> dict:
+    """Register a read-only extra root. Applies on the next rescan."""
+    try:
+        paths.add_result_root(body.path)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _result_roots_snapshot()
+
+
+@router.delete("/result-roots")
+def remove_result_root(body: ResultRootBody) -> dict:
+    """Unregister an extra root (matched by realpath). Applies on next rescan."""
+    paths.remove_result_root(body.path)
+    return _result_roots_snapshot()
