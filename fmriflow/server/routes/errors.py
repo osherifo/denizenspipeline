@@ -14,25 +14,34 @@ from fmriflow.core import paths
 router = APIRouter(tags=["errors"])
 logger = logging.getLogger(__name__)
 
-# Simple cache
+# Simple cache. Keyed on the resolved errors dir so a runtime change to
+# $FMRIFLOW_ERRORS (env / Settings tab) is picked up immediately rather
+# than served stale until the TTL expires.
 _cache: list[dict] | None = None
 _cache_time: float = 0
+_cache_dir: str | None = None
 _CACHE_TTL = 30.0
 
 
 def _scan_errors() -> list[dict]:
     """Read all YAML error entries and normalise into a consistent shape."""
-    global _cache, _cache_time
+    global _cache, _cache_time, _cache_dir
     now = time.time()
-    if _cache is not None and (now - _cache_time) < _CACHE_TTL:
+    errors_dir = paths.errors_dir()
+    dir_key = str(errors_dir)
+    if (
+        _cache is not None
+        and _cache_dir == dir_key
+        and (now - _cache_time) < _CACHE_TTL
+    ):
         return _cache
 
-    errors_dir = paths.errors_dir()
     entries: list[dict] = []
     if not errors_dir.is_dir():
         logger.warning("Errors directory not found: %s", errors_dir)
         _cache = []
         _cache_time = now
+        _cache_dir = dir_key
         return []
 
     for path in sorted(errors_dir.glob("*.yaml")):
@@ -47,6 +56,7 @@ def _scan_errors() -> list[dict]:
 
     _cache = entries
     _cache_time = now
+    _cache_dir = dir_key
     return entries
 
 

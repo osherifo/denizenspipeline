@@ -361,6 +361,10 @@ function Inner({ target, title, onClose }: Props) {
   }, [extras.length])
 
   const rowRef = useRef<HTMLDivElement | null>(null)
+  // Teardown for an in-flight drag, so listeners + body-style mutations are
+  // cleaned up even if the component unmounts mid-drag (close / route change).
+  const resizeCleanup = useRef<(() => void) | null>(null)
+  useEffect(() => () => resizeCleanup.current?.(), [])
 
   // Mousedown on the handle between pane `i` and pane `i+1`. Shifts flex
   // weight between the two as the cursor moves, clamped so neither side
@@ -394,11 +398,13 @@ function Inner({ target, title, onClose }: Props) {
       window.removeEventListener('mouseup', onUp)
       document.body.style.userSelect = ''
       document.body.style.cursor = ''
+      resizeCleanup.current = null
     }
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    resizeCleanup.current = onUp
   }
 
   const paneStyle = (i: number): CSSProperties => ({
@@ -481,6 +487,9 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
   // graph half of the pane simply takes whatever's left.
   const [panelWidth, setPanelWidth] = useState(480)
   const paneRowRef = useRef<HTMLDivElement | null>(null)
+  // Teardown for an in-flight drawer drag, cleaned up on unmount too.
+  const resizeCleanup = useRef<(() => void) | null>(null)
+  useEffect(() => () => resizeCleanup.current?.(), [])
 
   const startPanelResize = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -508,11 +517,13 @@ function GraphPane({ target, onDrilldown }: GraphPaneProps) {
       window.removeEventListener('mouseup', onUp)
       document.body.style.userSelect = ''
       document.body.style.cursor = ''
+      resizeCleanup.current = null
     }
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    resizeCleanup.current = onUp
   }
 
   useEffect(() => {

@@ -138,10 +138,15 @@ def _resolve_array(sr, key: str, label: str, sub: str) -> np.ndarray | None:
             "cross_group_score_pairs: subject %s in '%s' has no '%s' "
             "in context — skipping", sub, label, key)
         return None
-    arr = np.asarray(val).ravel()
-    if arr.ndim != 1 or arr.size == 0:
+    arr = np.asarray(val)
+    # Validate the real dimensionality *before* flattening — ravel() would
+    # make ndim==1 unconditionally and silently accept 2-D/3-D inputs.
+    # squeeze() tolerates trivial axes like (1, V)/(V, 1) but rejects a
+    # genuine multi-dim array (e.g. a (V, n_dims) tuning matrix).
+    squeezed = np.squeeze(arr)
+    if squeezed.ndim != 1 or squeezed.size == 0:
         logger.warning(
-            "cross_group_score_pairs: subject %s '%s' yielded shape %s "
-            "after ravel — skipping", sub, key, arr.shape)
+            "cross_group_score_pairs: subject %s '%s' has shape %s — not a "
+            "1-D per-voxel array, skipping", sub, key, arr.shape)
         return None
-    return arr
+    return squeezed
