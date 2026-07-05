@@ -56,6 +56,7 @@ def register_builtins(registry):
     import fmriflow.modules.analyzers.variance_partition  # noqa: F401
     import fmriflow.modules.analyzers.project_to_subspace  # noqa: F401
     import fmriflow.modules.analyzers.project_to_fsaverage  # noqa: F401
+    import fmriflow.modules.analyzers.block_permutation_significance  # noqa: F401
 
     import fmriflow.modules.models.ridge  # noqa: F401
     import fmriflow.modules.models.himalaya  # noqa: F401
