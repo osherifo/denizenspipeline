@@ -326,6 +326,33 @@ Browser UI for the working-directory env vars: `FMRIFLOW_HOME`, `FMRIFLOW_DATA`,
 - **Create directories if they don't exist** checkbox (default on) — `mkdir -p`s `FMRIFLOW_HOME` / `FMRIFLOW_DATA` if they don't exist yet, so you don't have to drop into a terminal.
 - The **Resolved layout** table at the bottom mirrors `fmriflow paths` plus FreeSurfer-license and `subjects.json` presence.
 
+### Result locations (multiple result roots)
+
+By default the dashboard scans one location for results and runs — your primary
+`$FMRIFLOW_HOME`. The **Result locations** section of the Settings tab lets you
+register additional, **read-only** roots so the scanners also surface results
+and runs stored elsewhere (another disk, an archive, a shared lab tree).
+
+- Each extra root should be a `$FMRIFLOW_HOME`-shaped tree — i.e. it has
+  `data/results/`, `study_runs/`, `group_runs/`, and/or `runs/` beneath it.
+  Adding **one path** makes all of those visible.
+- Extra roots are **read-only**: new runs are always written to the primary
+  root, and runs discovered in an extra root cannot be deleted from the UI.
+- Changes apply on the **next refresh** — no restart needed (unlike the path
+  settings above). Each root shows a `primary` / `read-only` / `unreachable`
+  badge; an offline mount is skipped gracefully rather than breaking the scan.
+- Runs from a non-primary root carry a small `↪ <root>` badge in the run lists
+  so you can see where each one lives.
+- Headless/CI: set `$FMRIFLOW_RESULT_ROOTS` to an `os.pathsep`-separated list of
+  paths; it overrides the persisted list. API: `GET/POST/DELETE
+  /api/settings/result-roots`.
+
+> Identity note: runs are identified by **location + run id**. Each root has a
+> stable `root_id` (a hash of its path), and a run's full identity is
+> `<root_id>:<run_id>`. Bare run ids resolve against the primary root first, so
+> existing links keep working; the `?root=<root_id>` query param disambiguates
+> the rare case where the same name/run id exists in more than one root.
+
 ---
 
 ## Long-running analysis runs — detach & reattach

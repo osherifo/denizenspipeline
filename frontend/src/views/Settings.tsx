@@ -11,8 +11,13 @@
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { fetchSettings, saveSettings } from '../api/client'
-import type { SettingsKey, SettingsSnapshot, SettingsUpdate } from '../api/types'
+import {
+  fetchSettings, saveSettings,
+  fetchResultRoots, addResultRoot, removeResultRoot,
+} from '../api/client'
+import type {
+  SettingsKey, SettingsSnapshot, SettingsUpdate, ResultRoot,
+} from '../api/types'
 
 const SETTINGS_FIELDS: Array<{
   key: SettingsKey
@@ -398,6 +403,112 @@ export function Settings() {
           </tr>
         </tbody>
       </table>
+
+      <ResultRootsSection />
     </div>
+  )
+}
+
+
+function ResultRootsSection() {
+  const [roots, setRoots] = useState<ResultRoot[]>([])
+  const [path, setPath] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [envOverride, setEnvOverride] = useState(false)
+
+  const load = () => {
+    fetchResultRoots()
+      .then((s) => { setRoots(s.roots); setEnvOverride(!!s.env_override) })
+      .catch((e) => setErr(String(e)))
+  }
+  useEffect(load, [])
+
+  const add = () => {
+    if (!path.trim()) return
+    setBusy(true); setErr(null)
+    addResultRoot(path.trim())
+      .then((s) => { setRoots(s.roots); setPath('') })
+      .catch((e) => setErr(String(e)))
+      .finally(() => setBusy(false))
+  }
+  const remove = (p: string) => {
+    setBusy(true); setErr(null)
+    removeResultRoot(p)
+      .then((s) => setRoots(s.roots))
+      .catch((e) => setErr(String(e)))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <>
+      <div style={sectionHeader}>Result locations</div>
+      <div style={descStyle}>
+        Extra <strong>read-only</strong> directories the dashboard also scans for
+        results and runs. Each should be an <code>$FMRIFLOW_HOME</code>-shaped tree
+        (with <code>data/results/</code>, <code>study_runs/</code>,{' '}
+        <code>group_runs/</code>, <code>runs/</code>). New runs are never written
+        here. Applies on the next refresh — no restart needed.
+      </div>
+
+      {err && <div style={bannerStyle('warning')}>{err}</div>}
+
+      {envOverride && (
+        <div style={bannerStyle('info')}>
+          <code>$FMRIFLOW_RESULT_ROOTS</code> is set in the environment and
+          overrides this list — unset it in your shell to manage roots here.
+        </div>
+      )}
+
+      <table style={resolvedTable}>
+        <tbody>
+          {roots.map((r) => (
+            <tr key={r.root_id}>
+              <td style={resolvedTd}>
+                <code>{r.path}</code>{' '}
+                {r.is_primary
+                  ? <span style={sourceBadge('env')}>primary</span>
+                  : <span style={sourceBadge('default')}>read-only</span>}
+                {!r.reachable && (
+                  <span style={{ ...sourceBadge('default'), color: 'var(--accent-red, #cc6677)' }}>
+                    unreachable
+                  </span>
+                )}
+              </td>
+              <td style={{ ...resolvedTd, textAlign: 'right', width: 90 }}>
+                {!r.is_primary && (
+                  <button
+                    style={{ fontSize: 11, padding: '2px 8px', cursor: 'pointer' }}
+                    disabled={busy || envOverride}
+                    onClick={() => remove(r.path)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <input
+          type="text"
+          style={{ ...inputStyle, flex: 1 }}
+          placeholder="/path/to/another/fmriflow"
+          value={path}
+          disabled={envOverride}
+          onChange={(e) => setPath(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') add() }}
+        />
+        <button
+          style={{ padding: '6px 14px', cursor: 'pointer' }}
+          disabled={busy || envOverride || !path.trim()}
+          onClick={add}
+        >
+          Add location
+        </button>
+      </div>
+    </>
   )
 }

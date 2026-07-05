@@ -63,11 +63,16 @@ async def list_group_runs(request: Request, name: str | None = None):
 
 
 @router.get("/group-runs/{name}/{run_id}")
-async def get_group_run_by_run_id(request: Request, name: str, run_id: str):
-    """Return the full ``GroupRunSummary`` for one timestamped run."""
+async def get_group_run_by_run_id(request: Request, name: str, run_id: str, root: str | None = None):
+    """Return the full ``GroupRunSummary`` for one timestamped run.
+
+    Optional ``?root=<root_id>`` disambiguates the same name/run_id across
+    result roots.
+    """
     _check_path_segment(name, "group name")
     _check_path_segment(run_id, "run_id")
-    run_dir = resolve_group_run_dir(request.app.state.run_manager.registry, name, run_id)
+    run_dir = resolve_group_run_dir(
+        request.app.state.run_manager.registry, name, run_id, root_id=root)
     if run_dir is None:
         raise HTTPException(
             status_code=404,
@@ -78,18 +83,20 @@ async def get_group_run_by_run_id(request: Request, name: str, run_id: str):
 
 @router.get("/group-runs/{name}/{run_id}/file/{file_path:path}")
 async def get_group_run_file(
-    request: Request, name: str, run_id: str, file_path: str,
+    request: Request, name: str, run_id: str, file_path: str, root: str | None = None,
 ):
     """Serve a single file from inside a timestamped group run directory.
 
     The frontend uses this to pull flatmaps, logs, and the HTML report
     over HTTP (browsers refuse ``file://`` from an http origin). The
     handler resolves the requested path under the run dir and rejects
-    anything that resolves outside it.
+    anything that resolves outside it. ``?root=<root_id>`` disambiguates
+    across result roots.
     """
     _check_path_segment(name, "group name")
     _check_path_segment(run_id, "run_id")
-    run_dir = resolve_group_run_dir(request.app.state.run_manager.registry, name, run_id)
+    run_dir = resolve_group_run_dir(
+        request.app.state.run_manager.registry, name, run_id, root_id=root)
     if run_dir is None:
         raise HTTPException(
             status_code=404,
@@ -249,10 +256,15 @@ def _summarize(run_dir: Path, *, run_id: str, data: dict) -> dict:
         "group_stages": data.get("group_stages") or [],
         "subject_summaries": data.get("subject_summaries") or [],
     })
+    from fmriflow.core import paths
+    root_id = paths.root_id_for_path(run_dir)
     return {
         "group_name": data.get("group_name", run_dir.name),
         "run_id": run_id,
         "run_dir": str(run_dir),
+        "root_id": root_id,
+        "root_path": str(paths.root_for_id(root_id) or ""),
+        "is_primary_root": root_id == paths.primary_root_id(),
         "subjects": data.get("subjects", []),
         "n_subjects": len(data.get("subjects", [])),
         "status_counts": status_counts,

@@ -24,6 +24,7 @@ to ease migration.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -300,6 +301,234 @@ def work_dir(run_id: str) -> Path:
     p = work_root() / run_id
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+# ── Multi-root search (results + runs) ───────────────────────────────
+#
+# The primary root is ``$FMRIFLOW_HOME`` — the only place new runs are
+# *written*. Additional, **read-only** roots can be registered so the
+# dashboard's scanners also surface results/runs stored elsewhere
+# (other disks, archived runs, a shared lab tree). Each extra root is a
+# ``$FMRIFLOW_HOME``-shaped tree: its ``data/results/``, ``study_runs/``,
+# ``group_runs/`` and ``runs/`` subtrees are discovered.
+#
+# Resolution of the extra-root list: ``$FMRIFLOW_RESULT_ROOTS`` (an
+# ``os.pathsep``-separated env var) overrides the persisted list in
+# settings.json (key ``FMRIFLOW_RESULT_ROOTS``, a JSON array). The
+# primary root is always implicit and never duplicated into the list.
+
+ENV_RESULT_ROOTS = "FMRIFLOW_RESULT_ROOTS"
+SETTINGS_KEY_RESULT_ROOTS = "FMRIFLOW_RESULT_ROOTS"
+
+
+def _realkey(p: Path) -> str:
+    """Canonical string key for dedupe (best-effort realpath)."""
+    try:
+        return str(Path(p).resolve(strict=False))
+    except OSError:
+        return str(p)
+
+
+def _dedupe_existing(candidates: list[Path]) -> list[Path]:
+    """Keep order; drop non-existent / unreachable dirs and realpath dups.
+
+    Robust to an offline mount: a candidate whose ``is_dir()`` raises
+    (e.g. a stale NFS handle) is skipped rather than crashing the scan.
+    """
+    out: list[Path] = []
+    seen: set[str] = set()
+    for p in candidates:
+        try:
+            if not p.is_dir():
+                continue
+        except OSError:
+            continue
+        key = _realkey(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+def _load_result_roots_setting() -> list[str]:
+    """Read the persisted extra-root list from settings.json (or [])."""
+    p = RUNTIME_CONFIG_PATH
+    if not p.is_file():
+        return []
+    try:
+        data = json.loads(p.read_text())
+    except Exception:
+        return []
+    if not isinstance(data, dict):
+        return []
+    val = data.get(SETTINGS_KEY_RESULT_ROOTS, [])
+    if isinstance(val, str):
+        val = [val]
+    if not isinstance(val, list):
+        return []
+    return [str(x) for x in val if str(x).strip()]
+
+
+def _save_result_roots_setting(roots: list[str]) -> None:
+    p = RUNTIME_CONFIG_PATH
+    data: dict = {}
+    if p.is_file():
+        try:
+            loaded = json.loads(p.read_text())
+            if isinstance(loaded, dict):
+                data = loaded
+        except Exception:
+            data = {}
+    if roots:
+        data[SETTINGS_KEY_RESULT_ROOTS] = roots
+    else:
+        data.pop(SETTINGS_KEY_RESULT_ROOTS, None)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def extra_result_roots() -> list[Path]:
+    """Configured **read-only** extra roots (env > settings.json).
+
+    Never includes the primary ``home()``. Not existence-filtered here —
+    callers that scan use the store accessors below (which are).
+    """
+    env = os.environ.get(ENV_RESULT_ROOTS)
+    if env:
+        raw = [s for s in env.split(os.pathsep) if s.strip()]
+    else:
+        raw = _load_result_roots_setting()
+    primary = _realkey(home())
+    out: list[Path] = []
+    seen: set[str] = set()
+    for r in raw:
+        p = Path(r).expanduser()
+        key = _realkey(p)
+        if key == primary or key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+def result_search_roots() -> list[Path]:
+    """All home-shaped roots, primary first: ``[home(), *extra]``.
+
+    Used for reverse lookup (``root_for_id``) and status listing; not
+    existence-filtered (the primary always exists; extras may be offline
+    and we still want to report them).
+    """
+    return [home(), *extra_result_roots()]
+
+
+def result_roots() -> list[Path]:
+    """Every ``…/data/results`` dir to scan (primary + extras)."""
+    return _dedupe_existing(
+        [results_root(), *[r / "data" / "results" for r in extra_result_roots()]]
+    )
+
+
+def study_run_roots() -> list[Path]:
+    """Every ``…/study_runs`` dir to scan (primary + extras)."""
+    return _dedupe_existing(
+        [study_runs_root(), *[r / "study_runs" for r in extra_result_roots()]]
+    )
+
+
+def group_run_roots() -> list[Path]:
+    """Every ``…/group_runs`` dir to scan (primary + extras)."""
+    return _dedupe_existing(
+        [group_runs_root(), *[r / "group_runs" for r in extra_result_roots()]]
+    )
+
+
+def runs_roots() -> list[Path]:
+    """Every preproc-``runs/`` dir to scan (primary + extras + legacy)."""
+    return _dedupe_existing(
+        [runs_dir(), *[r / "runs" for r in extra_result_roots()], legacy_runs_root()]
+    )
+
+
+def root_id(path: Path | str) -> str:
+    """Stable, reorder-safe id for a root: first 8 hex of sha1(realpath).
+
+    Used to make run identity location-aware (``<root_id>:<run_id>``)
+    without leaking absolute paths into URLs. Stable across restarts and
+    list reordering.
+    """
+    return hashlib.sha1(_realkey(Path(path)).encode()).hexdigest()[:8]
+
+
+def primary_root_id() -> str:
+    return root_id(home())
+
+
+def root_for_id(rid: str) -> Path | None:
+    """Reverse ``root_id`` → the home-shaped root path (or None)."""
+    for r in result_search_roots():
+        if root_id(r) == rid:
+            return r
+    return None
+
+
+def root_id_for_path(p: Path | str) -> str:
+    """``root_id`` of the search root that contains *p*.
+
+    Uses the longest matching root prefix (so a nested root wins over a
+    parent). Falls back to the primary root id when *p* is under none of
+    the known roots (e.g. a run whose output_dir is fully custom).
+    """
+    pk = _realkey(Path(p))
+    best: Path | None = None
+    best_len = -1
+    for r in result_search_roots():
+        rk = _realkey(r)
+        if (pk == rk or pk.startswith(rk + os.sep)) and len(rk) > best_len:
+            best = r
+            best_len = len(rk)
+    return root_id(best) if best is not None else primary_root_id()
+
+
+# ── Extra-root config mutators (used by the Settings API / CLI) ───────
+
+def result_roots_config() -> list[str]:
+    """The persisted extra-root list, as stored (absolute strings)."""
+    return _load_result_roots_setting()
+
+
+def add_result_root(path: str) -> list[str]:
+    """Register a read-only extra root. Validates + dedupes; persists.
+
+    Raises FileNotFoundError if the path doesn't exist, ValueError if it
+    is the primary root.
+    """
+    p = Path(path).expanduser()
+    try:
+        reachable = p.is_dir()
+    except OSError as e:
+        # Stale/offline mount (e.g. NFS "stale file handle").
+        raise FileNotFoundError(f"{p} is not reachable: {e}") from e
+    if not reachable:
+        raise FileNotFoundError(f"{p} does not exist or is not a directory")
+    abspath = _realkey(p)
+    if abspath == _realkey(home()):
+        raise ValueError("that path is already the primary $FMRIFLOW_HOME root")
+    cur = _load_result_roots_setting()
+    if abspath not in [_realkey(Path(x).expanduser()) for x in cur]:
+        cur.append(abspath)
+        _save_result_roots_setting(cur)
+    return cur
+
+
+def remove_result_root(path: str) -> list[str]:
+    """Unregister an extra root (matched by realpath). Persists."""
+    target = _realkey(Path(path).expanduser())
+    cur = _load_result_roots_setting()
+    new = [x for x in cur if _realkey(Path(x).expanduser()) != target]
+    if new != cur:
+        _save_result_roots_setting(new)
+    return new
 
 
 # ── Two-tier resolution ──────────────────────────────────────────────

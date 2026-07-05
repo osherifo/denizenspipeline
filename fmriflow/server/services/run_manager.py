@@ -117,11 +117,14 @@ def discover_subject_run_summaries(
         seen.add(real)
         out.append(summary_path)
 
-    # Source 1 — filesystem default tree.
-    root = paths.results_root()
-    if root.is_dir():
-        for summary_path in root.rglob('run_summary.json'):
-            add(summary_path)
+    # Source 1 — filesystem default tree(s): primary + read-only extras.
+    for root in paths.result_roots():
+        try:
+            for summary_path in root.rglob('run_summary.json'):
+                add(summary_path)
+        except OSError:
+            # An extra root on an offline mount shouldn't break discovery.
+            logger.warning("Skipping unreadable results root: %s", root)
 
     # Source 2 — registry entries whose output_dir we know.
     for state in registry.list_all():
@@ -164,7 +167,7 @@ def discover_group_run_dirs(
     """
     return _discover_run_dirs(
         registry,
-        default_root=paths.group_runs_root(),
+        default_roots=paths.group_run_roots(),
         summary_name='group_summary.json',
         kind='group',
         name=name,
@@ -177,7 +180,7 @@ def discover_study_run_dirs(
     """Study analogue of :func:`discover_group_run_dirs`."""
     return _discover_run_dirs(
         registry,
-        default_root=paths.study_runs_root(),
+        default_roots=paths.study_run_roots(),
         summary_name='study_summary.json',
         kind='study',
         name=name,
@@ -187,7 +190,7 @@ def discover_study_run_dirs(
 def _discover_run_dirs(
     registry: "RunRegistry",
     *,
-    default_root: Path,
+    default_roots: list[Path],
     summary_name: str,
     kind: str,
     name: str | None,
@@ -205,9 +208,18 @@ def _discover_run_dirs(
         seen.add(real)
         out.append((group_or_study, run_id, run_dir))
 
-    # Source 1 — default root (legacy + symlinked layouts).
-    if default_root.exists():
-        for top in sorted(default_root.iterdir()):
+    # Source 1 — default root(s): primary + read-only extras. Earlier
+    # roots win on collisions (dedupe-by-realpath), so the primary's copy
+    # of a same-named run takes precedence.
+    for default_root in default_roots:
+        try:
+            if not default_root.is_dir():
+                continue
+            tops = sorted(default_root.iterdir())
+        except OSError:
+            logger.warning("Skipping unreadable run root: %s", default_root)
+            continue
+        for top in tops:
             if not top.is_dir():
                 continue
             if name is not None and top.name != name:
@@ -256,20 +268,31 @@ def _discover_run_dirs(
 
 def resolve_group_run_dir(
     registry: "RunRegistry", name: str, run_id: str,
+    root_id: str | None = None,
 ) -> Path | None:
-    """Return the on-disk dir for a ``(name, run_id)`` pair or ``None``."""
+    """Return the on-disk dir for a ``(name, run_id)`` pair or ``None``.
+
+    Discovery is in precedence order (primary root first), so without a
+    ``root_id`` the primary's copy wins on a cross-root collision. Pass
+    ``root_id`` to disambiguate to a specific root.
+    """
     for gname, rid, run_dir in discover_group_run_dirs(registry, name=name):
         if gname == name and rid == run_id:
+            if root_id is not None and paths.root_id_for_path(run_dir) != root_id:
+                continue
             return run_dir
     return None
 
 
 def resolve_study_run_dir(
     registry: "RunRegistry", name: str, run_id: str,
+    root_id: str | None = None,
 ) -> Path | None:
     """Study analogue of :func:`resolve_group_run_dir`."""
     for sname, rid, run_dir in discover_study_run_dirs(registry, name=name):
         if sname == name and rid == run_id:
+            if root_id is not None and paths.root_id_for_path(run_dir) != root_id:
+                continue
             return run_dir
     return None
 

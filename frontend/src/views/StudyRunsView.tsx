@@ -197,7 +197,22 @@ function RunListItem({
   return (
     <tr style={rowStyle(selected)} onClick={onClick}>
       <td style={tdStyle}>
-        <div style={{ fontWeight: 600 }}>{run.study_name}</div>
+        <div style={{ fontWeight: 600 }}>
+          {run.study_name}
+          {run.is_primary_root === false && run.root_path && (
+            <span
+              title={`Read-only result location: ${run.root_path}`}
+              style={{
+                marginLeft: 6, fontSize: 10, fontWeight: 500,
+                padding: '1px 6px', borderRadius: 4,
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              ↪ {run.root_path.split('/').filter(Boolean).pop()}
+            </span>
+          )}
+        </div>
         <div style={monoSmall}>
           <code>{run.run_id}</code> · {formatTimestamp(run.started_at)}
         </div>

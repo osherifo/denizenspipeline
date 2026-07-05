@@ -923,6 +923,24 @@ export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
   create_missing?: boolean
 }
 
+// ── Result roots (read-only extra scan locations) ──
+
+export interface ResultRoot {
+  root_id: string
+  path: string
+  is_primary: boolean
+  read_only: boolean
+  reachable: boolean
+}
+
+export interface ResultRootsSnapshot {
+  roots: ResultRoot[]
+  configured: string[]
+  // True when $FMRIFLOW_RESULT_ROOTS is set in the environment, which
+  // overrides the persisted list — the UI locks add/remove in that case.
+  env_override?: boolean
+}
+
 // ── Preproc stack ────────────────────────────────────────────────────
 
 export type BootstrapKind = 'fmriprep' | 'nipype' | 'custom' | 'bids_app' | 'passthrough'
@@ -1079,6 +1097,9 @@ export interface GroupRunListing {
   group_name: string
   run_id: string                  // empty string for legacy (pre-run-id) layout
   run_dir: string
+  root_id?: string                // which result root this run lives in
+  root_path?: string
+  is_primary_root?: boolean
   subjects: string[]
   n_subjects: number
   status_counts: GroupStatusCounts
@@ -1139,6 +1160,9 @@ export interface StudyRunListing {
   study_name: string
   run_id: string
   run_dir: string
+  root_id?: string                // which result root this run lives in
+  root_path?: string
+  is_primary_root?: boolean
   group_labels: string[]
   n_groups: number
   status_counts: StudyStatusCounts
