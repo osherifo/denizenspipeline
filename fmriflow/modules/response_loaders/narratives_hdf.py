@@ -1,9 +1,10 @@
-"""Reader for bling-style HDF response files.
+"""Reader for narratives-style HDF response files.
 
 File layout (per subject directory):
     {resp_dir}/{story}Audio_{lang}.hf5
 
-Exception: COL english files use ``{story}.hf5`` (no "Audio_en" suffix).
+Exception: some collections use ``{story}.hf5`` (no ``Audio_{lang}``
+suffix) for one language; toggle with ``no_language_suffix``.
 
 Each HDF file contains a single dataset ``'s'`` with shape
 ``(n_reps, n_trs, n_voxels)``.  Single-repetition stories have shape
@@ -13,16 +14,17 @@ Each HDF file contains a single dataset ``'s'`` with shape
 YAML config example:
     response:
       loader: local
-      reader: bling_hdf
-      path: /data/bling_reading/preprocessed/YYYYMMDDZEK
+      reader: narratives_hdf
+      path: /data/narratives/preprocessed/sub01
       language: en
-      subject: ZEK
+      subject: sub01
       multirep: mean
 
 Required config keys:  language (en | zh)
-Optional config keys:  subject  (needed for COL english exception),
-                       multirep (default: mean),
-                       hdf_key  (default: 's')
+Optional config keys:  subject                (used for file discovery),
+                       no_language_suffix     (bool; drops "Audio_{lang}"),
+                       multirep               (default: mean),
+                       hdf_key                (default: 's')
 """
 from __future__ import annotations
 
@@ -36,15 +38,16 @@ from fmriflow.modules._decorators import response_reader
 logger = logging.getLogger(__name__)
 
 
-@response_reader("bling_hdf")
-class BlingHdfReader:
-    """Reads bling-style one-file-per-story HDF response data."""
+@response_reader("narratives_hdf")
+class NarrativesHdfReader:
+    """Reads narratives-style one-file-per-story HDF response data."""
 
-    name = "bling_hdf"
+    name = "narratives_hdf"
 
     PARAM_SCHEMA = {
         "language": {"type": "string", "required": True, "enum": ["en", "zh"], "description": "Stimulus language"},
         "subject": {"type": "string", "description": "Subject identifier"},
+        "no_language_suffix": {"type": "bool", "default": False, "description": "Use '{story}.hf5' instead of '{story}Audio_{lang}.hf5'"},
         "multirep": {"type": "string", "default": "mean", "enum": ["mean", "first"], "description": "How to collapse repetitions"},
         "hdf_key": {"type": "string", "default": "s", "description": "HDF dataset key"},
     }
@@ -56,6 +59,7 @@ class BlingHdfReader:
 
         language = config["language"]
         subject = config.get("subject", "")
+        no_language_suffix = bool(config.get("no_language_suffix", False))
         multirep = config.get("multirep", "mean")
         hdf_key = config.get("hdf_key", "s")
 
@@ -63,10 +67,11 @@ class BlingHdfReader:
 
         # Discover stories from files on disk if run_names not given
         if run_names is None:
-            run_names = self._discover_stories(resp_dir, language, subject)
+            run_names = self._discover_stories(
+                resp_dir, language, no_language_suffix)
 
         for story in run_names:
-            fname = self._filename(story, language, subject)
+            fname = self._filename(story, language, no_language_suffix)
             fpath = resp_dir / fname
             if not fpath.exists():
                 logger.warning("Response file not found: %s", fpath)
@@ -97,7 +102,7 @@ class BlingHdfReader:
                 pct = 100.0 * n_nan / n_total
                 msg = (f"{story}: {n_nan:,} NaN values "
                        f"({pct:.3f}% of {arr.shape}) replaced with 0")
-                logger.warning("bling_hdf: %s", msg)
+                logger.warning("narratives_hdf: %s", msg)
                 ui.data_warning(msg)
                 np.nan_to_num(arr, copy=False, nan=0.0)
 
@@ -111,34 +116,33 @@ class BlingHdfReader:
     def validate_config(self, config: dict) -> list[str]:
         errors = []
         if "language" not in config:
-            errors.append("bling_hdf reader requires 'language' in config")
+            errors.append("narratives_hdf reader requires 'language' in config")
         lang = config.get("language", "")
         if lang not in ("en", "zh"):
             errors.append(
-                f"bling_hdf reader: language must be 'en' or 'zh', got '{lang}'")
+                f"narratives_hdf reader: language must be 'en' or 'zh', got '{lang}'")
         return errors
 
     # -- helpers --------------------------------------------------------------
 
     @staticmethod
-    def _filename(story: str, language: str, subject: str) -> str:
-        """Build the HDF filename for a given story/language/subject."""
-        # COL english files have no Audio_en suffix
-        if subject.upper() == "COL" and language == "en":
+    def _filename(story: str, language: str, no_language_suffix: bool) -> str:
+        """Build the HDF filename for a given story/language."""
+        if no_language_suffix:
             return f"{story}.hf5"
         return f"{story}Audio_{language}.hf5"
 
     @classmethod
     def _discover_stories(
-        cls, resp_dir: Path, language: str, subject: str,
+        cls, resp_dir: Path, language: str, no_language_suffix: bool,
     ) -> list[str]:
         """Return sorted list of story names found in *resp_dir*."""
         stories = []
         for f in sorted(resp_dir.glob("*.hf5")):
             name = f.stem
-            if subject.upper() == "COL" and language == "en":
-                # COL english: files are just {story}.hf5
-                # Exclude chinese files (Audio_zh suffix)
+            if no_language_suffix:
+                # Files are just {story}.hf5 — exclude any files that do
+                # carry the ``Audio_<lang>`` suffix.
                 if "Audio_" not in name:
                     stories.append(name)
             else:
