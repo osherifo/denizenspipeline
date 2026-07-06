@@ -233,6 +233,170 @@ class FastTextExtractor:
         return errors
 
 
+# Punctuation stripped from words before vocabulary lookup. Includes ASCII
+# punctuation plus the CJK punctuation that often appears glued onto Chinese
+# word tokens in our textgrids (e.g. "安全带。" -> "安全带").
+_PUNCT_STRIP = "".join((
+    ".,!?;:'\"()[]{}<>—–-…/\\&*",
+    "，。！？；：、「」『』《》〈〉【】〔〕（）",
+))
+
+
+@feature_extractor("fasttext_aligned")
+class FastTextAlignedExtractor:
+    """Cross-lingual aligned fastText embeddings (Joulin et al. 2018 RCSLS).
+
+    Reads pretrained aligned vectors in word2vec text format
+    (header line ``N D`` followed by ``word v1 v2 ... vD`` lines). On first
+    load, parses the ``.vec`` file and caches the result as a sibling
+    ``.npz`` so subsequent loads are fast. Supports an optional
+    ``vocab_keep`` subset that restricts the in-memory dict to the words
+    actually present in the stimulus run (massively reduces memory).
+
+    Aligned vectors live in a shared embedding space across languages, so
+    estimated encoding model weights are comparable across en/zh/es.
+    Download from https://fasttext.cc/docs/en/aligned-vectors.html
+    """
+
+    name = "fasttext_aligned"
+    n_dims = 300
+    PARAM_SCHEMA = {
+        "vectors_path": {"type": "path", "required": True, "description": "Path to wiki.<lang>.align.vec (or its cached .npz)"},
+        "language": {"type": "string", "default": "en", "enum": ["en", "zh", "es"], "description": "Tag for logging / future tokenizer hooks"},
+        "lowercase": {"type": "bool", "default": True, "description": "Lowercase words before lookup (en)"},
+        "strip_punct": {"type": "bool", "default": True, "description": "Strip leading/trailing punctuation (helps with zh)"},
+    }
+
+    def __init__(self):
+        self._cache = {}  # vectors_path -> (word2idx dict, vectors ndarray)
+
+    def extract(self, stimuli: StimulusData, run_names: list[str],
+                config: dict) -> FeatureSet:
+        vectors_path = str(Path(config["vectors_path"]).expanduser())
+        lowercase = bool(config.get("lowercase", True))
+        strip_punct = bool(config.get("strip_punct", True))
+        language = config.get("language", "en")
+
+        # Collect every word we actually need across all runs so the loader
+        # can drop the rest and keep memory bounded.
+        needed = set()
+        per_run_words = {}
+        for run_name in run_names:
+            stim_run = stimuli.runs[run_name]
+            wordseq = make_word_ds(stim_run.textgrid, stim_run.trfile)
+            cleaned = [self._normalize(w, lowercase, strip_punct) for w in wordseq.data]
+            per_run_words[run_name] = (wordseq, cleaned)
+            needed.update(w for w in cleaned if w)
+
+        word2idx, vectors = self._load_vectors(vectors_path, vocab_keep=needed)
+
+        n_hit = 0
+        n_total = 0
+        data = {}
+        for run_name in run_names:
+            wordseq, cleaned = per_run_words[run_name]
+            embeddings = np.zeros((len(cleaned), self.n_dims), dtype=np.float32)
+            for i, w in enumerate(cleaned):
+                n_total += 1
+                idx = word2idx.get(w, -1)
+                if idx >= 0:
+                    embeddings[i] = vectors[idx]
+                    n_hit += 1
+
+            ds = DataSequence(embeddings, wordseq.split_inds,
+                              wordseq.data_times, wordseq.tr_times)
+            data[run_name] = ds.chunksums(interp="lanczos", window=3)
+
+        if n_total:
+            pct = 100.0 * n_hit / n_total
+            logger_name = __name__
+            import logging
+            logging.getLogger(logger_name).info(
+                "fasttext_aligned[%s]: %d/%d word lookups hit (%.1f%%)",
+                language, n_hit, n_total, pct,
+            )
+
+        return FeatureSet(name=self.name, data=data, n_dims=self.n_dims)
+
+    def validate_config(self, config: dict) -> list[str]:
+        errors = []
+        vp = config.get("vectors_path")
+        if not vp:
+            errors.append("fasttext_aligned requires 'vectors_path'")
+        elif not Path(vp).expanduser().exists():
+            errors.append(f"vectors_path not found: {vp}")
+        return errors
+
+    # -- helpers --------------------------------------------------------------
+
+    @staticmethod
+    def _normalize(word: str, lowercase: bool, strip_punct: bool) -> str:
+        w = str(word)
+        if strip_punct:
+            w = w.strip(_PUNCT_STRIP)
+        w = w.strip()
+        if lowercase:
+            w = w.lower()
+        return w
+
+    def _load_vectors(self, vectors_path: str, vocab_keep: set | None = None):
+        if vectors_path in self._cache:
+            return self._cache[vectors_path]
+
+        p = Path(vectors_path)
+        npz_path = p.with_suffix(p.suffix + ".npz") if p.suffix == ".vec" else p.with_suffix(".npz")
+
+        # Try the cached NPZ first when we want the full vocab. When a
+        # vocab_keep subset is given we re-parse the .vec to keep only
+        # those rows in memory.
+        if vocab_keep is None and npz_path.exists():
+            arr = np.load(npz_path, allow_pickle=True)
+            words = arr["words"]
+            vectors = arr["vectors"]
+            word2idx = {str(w): i for i, w in enumerate(words)}
+            self._cache[vectors_path] = (word2idx, vectors)
+            return word2idx, vectors
+
+        if not p.exists():
+            raise FileNotFoundError(f"Aligned vectors file not found: {p}")
+
+        word2idx, vectors = self._parse_vec(p, vocab_keep=vocab_keep)
+
+        # Only cache the *full* parse to disk; subset parses are per-run.
+        if vocab_keep is None and not npz_path.exists():
+            np.savez(npz_path,
+                     words=np.array([w for w, _ in sorted(word2idx.items(), key=lambda kv: kv[1])]),
+                     vectors=vectors)
+
+        self._cache[vectors_path] = (word2idx, vectors)
+        return word2idx, vectors
+
+    @staticmethod
+    def _parse_vec(p: Path, vocab_keep: set | None) -> tuple[dict, np.ndarray]:
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            header = f.readline().strip().split()
+            n_total, dim = int(header[0]), int(header[1])
+            estimate = len(vocab_keep) if vocab_keep is not None else n_total
+            vectors = np.empty((estimate, dim), dtype=np.float32)
+            word2idx: dict[str, int] = {}
+            cursor = 0
+            for line in f:
+                parts = line.rstrip().split(" ")
+                if len(parts) < dim + 1:
+                    continue
+                word = parts[0]
+                if vocab_keep is not None and word not in vocab_keep:
+                    continue
+                if cursor >= vectors.shape[0]:
+                    vectors = np.vstack(
+                        [vectors, np.empty((max(1024, vectors.shape[0]), dim), dtype=np.float32)]
+                    )
+                vectors[cursor] = np.asarray(parts[1:dim + 1], dtype=np.float32)
+                word2idx[word] = cursor
+                cursor += 1
+        return word2idx, vectors[:cursor]
+
+
 @feature_extractor("gpt2")
 class GPT2Extractor:
     """GPT-2 contextual embeddings.
