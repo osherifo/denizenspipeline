@@ -21,6 +21,7 @@ def register_builtins(registry):
     import fmriflow.modules.response_loaders.local  # noqa: F401
     import fmriflow.modules.response_loaders.readers  # noqa: F401
     import fmriflow.modules.response_loaders.multiphase_hdf  # noqa: F401
+    import fmriflow.modules.response_loaders.narratives_hdf  # noqa: F401
     try:
         import fmriflow.modules.response_loaders.study_hdf  # noqa: F401
     except ImportError:
@@ -46,6 +47,7 @@ def register_builtins(registry):
     # Preparation steps (for pipeline preparer)
     import fmriflow.modules.preparation_steps.split  # noqa: F401
     import fmriflow.modules.preparation_steps.trim  # noqa: F401
+    import fmriflow.modules.preparation_steps.match_response_to_features  # noqa: F401
     import fmriflow.modules.preparation_steps.zscore  # noqa: F401
     import fmriflow.modules.preparation_steps.concatenate  # noqa: F401
     import fmriflow.modules.preparation_steps.delay  # noqa: F401
