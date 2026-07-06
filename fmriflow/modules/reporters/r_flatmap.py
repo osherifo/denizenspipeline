@@ -9,6 +9,12 @@ Sensible defaults for an in-bounds (-1, 1) metric:
 - ``cmap`` = ``magma`` (sequential, since we typically thresh ≥ 0)
 - ``vmin / vmax`` = 0 / 0.3
 - ``threshold`` = 0.05 (mask noise to NaN; pycortex paints those grey)
+
+When ``significance_key`` is set, a second PNG is emitted alongside
+the unmasked one with non-significant voxels rendered as NaN. The
+significance dict is expected to carry a boolean ``sig_mask`` of
+length n_voxels (e.g. what the ``block_permutation_significance``
+analyzer publishes under ``analysis.significance``).
 """
 
 from __future__ import annotations
@@ -35,6 +41,26 @@ class PearsonRFlatmapReporter:
         "vmin": {"type": "float", "default": 0.0},
         "vmax": {"type": "float", "default": 0.3},
         "threshold": {"type": "float", "default": None},
+        "significance_key": {
+            "type": "str",
+            "default": None,
+            "description": (
+                "Optional context key holding a significance dict with a "
+                "boolean ``sig_mask`` (length = n_voxels). When set, the "
+                "reporter emits a second PNG with non-significant voxels "
+                "masked to NaN (grey cortex), alongside the unmasked one. "
+                "Wire this to the output_key of e.g. "
+                "block_permutation_significance."
+            ),
+        },
+        "fdr_filename": {
+            "type": "str",
+            "default": None,
+            "description": (
+                "Filename for the FDR-masked render. Defaults to "
+                "``<stem>_fdr<ext>`` derived from ``filename``."
+            ),
+        },
         "with_curvature": {"type": "bool", "default": True},
         "dpi": {"type": "int", "default": 100, "min": 50},
         "filename": {"type": "str", "default": "r_flatmap.png"},
@@ -47,22 +73,67 @@ class PearsonRFlatmapReporter:
             logger.info("r_flatmap: scores_pearson_r not in metadata; "
                         "falling back to result.scores")
             scores = result.scores
-        return _render(
-            scores=np.asarray(scores),
-            ctx=context,
-            output_dir=Path(config.get("reporting", {}).get("output_dir", "./results")),
+        scores = np.asarray(scores).astype(np.float32).copy()
+
+        output_dir = Path(config.get("reporting", {}).get("output_dir", "./results"))
+        render_kwargs = dict(
+            ctx=context, output_dir=output_dir,
             cmap=opts.get("cmap", "magma"),
             vmin=opts.get("vmin", 0.0),
             vmax=opts.get("vmax", 0.3),
             threshold=opts.get("threshold"),
             with_curvature=opts.get("with_curvature", True),
             dpi=opts.get("dpi", 100),
-            filename=opts.get("filename", "r_flatmap.png"),
-            return_key="r_flatmap",
         )
+        base_filename = opts.get("filename", "r_flatmap.png")
+        outputs: dict[str, str] = {}
+        outputs.update(_render(
+            scores=scores, filename=base_filename,
+            return_key="r_flatmap", **render_kwargs))
+
+        sig_key = opts.get("significance_key")
+        if sig_key:
+            sig = _resolve_significance(context, sig_key)
+            if sig is None:
+                logger.warning(
+                    "r_flatmap: significance_key=%r not in context — "
+                    "skipping fdr-masked render", sig_key)
+            elif sig.shape != scores.shape:
+                logger.warning(
+                    "r_flatmap: sig_mask shape %s != scores shape %s — "
+                    "skipping fdr-masked render", sig.shape, scores.shape)
+            else:
+                masked = scores.copy()
+                masked[~sig] = np.nan
+                fdr_filename = opts.get(
+                    "fdr_filename", _insert_suffix(base_filename, "_fdr"))
+                outputs.update(_render(
+                    scores=masked, filename=fdr_filename,
+                    return_key="r_flatmap_fdr", **render_kwargs))
+        return outputs
 
     def validate_config(self, config: dict) -> list[str]:
         return []
+
+
+def _insert_suffix(filename: str, suffix: str) -> str:
+    """Insert ``suffix`` before the extension, preserving any parent dirs."""
+    p = Path(filename)
+    return str(p.with_name(f"{p.stem}{suffix}{p.suffix}"))
+
+
+def _resolve_significance(ctx, key: str):
+    """Pull the sig_mask out of a context-key holding a significance dict."""
+    if not ctx.has(key):
+        return None
+    obj = ctx.get(key)
+    if isinstance(obj, dict):
+        mask = obj.get("sig_mask")
+    else:
+        mask = getattr(obj, "sig_mask", None)
+    if mask is None:
+        return None
+    return np.asarray(mask).astype(bool)
 
 
 def _render(*, scores: np.ndarray, ctx, output_dir: Path,
