@@ -139,11 +139,30 @@ class BlockPermutationSignificanceAnalyzer:
         cfg = _my_cfg(config, self.name)
         for k in ("n_permutations", "block_size"):
             v = cfg.get(k)
-            if v is not None and int(v) < 1:
-                errors.append(f"block_permutation_significance.{k} must be >= 1")
+            if v is None:
+                continue
+            try:
+                iv = int(v)
+            except (TypeError, ValueError):
+                errors.append(
+                    f"block_permutation_significance.{k} must be an integer, "
+                    f"got {v!r}")
+                continue
+            if iv < 1:
+                errors.append(
+                    f"block_permutation_significance.{k} must be >= 1")
         a = cfg.get("alpha")
-        if a is not None and not (0.0 < float(a) <= 1.0):
-            errors.append("block_permutation_significance.alpha must be in (0, 1]")
+        if a is not None:
+            try:
+                av = float(a)
+            except (TypeError, ValueError):
+                errors.append(
+                    f"block_permutation_significance.alpha must be a number, "
+                    f"got {a!r}")
+            else:
+                if not (0.0 <= av <= 1.0):
+                    errors.append(
+                        "block_permutation_significance.alpha must be in [0, 1]")
         method = cfg.get("fdr_method")
         if method is not None and method not in ("indep", "negcorr"):
             errors.append(
@@ -207,6 +226,10 @@ def _block_permutation_pvalues(
     denominator of Pearson r is invariant to reordering rows — both
     per-voxel norms are constant — so we only recompute the numerator
     inside the loop.
+
+    Uses the ``(count + 1) / (n_perms + 1)`` correction so p-values are
+    never exactly 0 (Phipson & Smyth 2010) — otherwise BH-FDR would
+    treat unresolved voxels as perfect evidence.
     """
     true_r = _pearson_r_per_col(Y_test, predictions)
 
@@ -218,8 +241,11 @@ def _block_permutation_pvalues(
     denom_safe = np.where(denom > 1e-12, denom, 1.0).astype(np.float32)
 
     n_TRs = predictions.shape[0]
-    n_blocks = max(1, n_TRs // block_size)
-    blocks = np.array_split(np.arange(n_TRs), n_blocks)
+    # Explicit contiguous blocks of exactly ``block_size`` (last block may
+    # be shorter). ``np.array_split`` doesn't guarantee this — with T=291
+    # and block_size=10 it hands back a mix of 10- and 11-TR blocks.
+    blocks = [np.arange(i, min(i + block_size, n_TRs))
+              for i in range(0, n_TRs, block_size)]
     n_ge = np.zeros(true_r.shape, dtype=np.int64)
 
     for _ in range(n_perms):
@@ -229,7 +255,7 @@ def _block_permutation_pvalues(
         r = num / denom_safe
         n_ge += (r >= true_r)
 
-    pvalues = n_ge.astype(np.float64) / n_perms
+    pvalues = (n_ge + 1).astype(np.float64) / (n_perms + 1)
     return pvalues, true_r
 
 

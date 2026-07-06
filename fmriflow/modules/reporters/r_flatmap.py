@@ -117,8 +117,9 @@ class PearsonRFlatmapReporter:
 
 
 def _insert_suffix(filename: str, suffix: str) -> str:
+    """Insert ``suffix`` before the extension, preserving any parent dirs."""
     p = Path(filename)
-    return f"{p.stem}{suffix}{p.suffix}"
+    return str(p.with_name(f"{p.stem}{suffix}{p.suffix}"))
 
 
 def _resolve_significance(ctx, key: str):
