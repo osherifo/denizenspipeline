@@ -20,6 +20,8 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | `luminance` | 1 | Mean frame luminance per TR (video) |
 | `motion_energy` | 1 | Frame-differencing motion energy per TR (video) |
 | `clip` | 512+ | CLIP image embeddings, one row per shown image (open_clip; consumes an image sequence) |
+| `alexnet` | layer-dependent | AlexNet layer activations, one row per image (torchvision; optional PCA reduction). Reads an image directory or HDF5 store |
+| `timm` | model-dependent | Pooled embedding from any `timm` vision backbone (ViT, DINOv2, EVA, ConvNeXt, …), one row per image; per-model preprocessing. Reads an image directory or HDF5 store |
 
 ## Feature Sources
 
@@ -38,6 +40,7 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | `audio` | Load audio (.wav) stimulus files |
 | `video` | Load video stimulus files (metadata only) |
 | `nsd` | Per-trial image references for an event-related image-viewing dataset (emits one image sequence per session) |
+| `algonauts2023` | Training images for the Algonauts 2023 challenge (emits one image sequence over the subject's training-image directory) |
 | `skip` | Skip stimulus loading (for pre-prepared data) |
 
 ## Response Loaders
@@ -49,6 +52,7 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | `bids` | Load from BIDS-formatted dataset |
 | `preproc` | Load from a PreprocManifest (fmriprep outputs) |
 | `nsd` | Single-trial GLM betas (one pseudo-run per session), masked to an ROI and scaled; carries the 3-D ROI mask for surface reporters |
+| `algonauts2023` | Algonauts 2023 fsaverage-surface fMRI (LH+RH `.npy` concatenated to a 2-D matrix); carries a seeded validation split (`split.test_trials: val`) and fsaverage vertex masks for surface reporters |
 
 ## Preparers
 
@@ -90,6 +94,7 @@ For use with `type: pipeline`:
 | `metrics` | Prediction accuracy metrics (JSON) |
 | `flatmap` | Pycortex surface flatmaps |
 | `nsd_fsaverage_flatmap` | Flatmap of func-volume scores resampled onto fsaverage (no per-subject surface registration) |
+| `algonauts_fsaverage_flatmap` | Flatmap of Algonauts 2023 challenge-space vertex scores expanded onto the full fsaverage surface |
 | `weights` | Model weight matrices |
 | `histogram` | Accuracy distribution plots |
 | `webgl` | Interactive 3D brain viewer |
