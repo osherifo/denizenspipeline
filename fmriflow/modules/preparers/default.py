@@ -146,6 +146,9 @@ class DefaultPreparer:
         split_cfg = config.get('split', {})
         if 'test_runs' not in split_cfg and 'test_trials' not in split_cfg:
             errors.append("split requires either test_runs or test_trials")
+        elif 'test_runs' in split_cfg and 'test_trials' in split_cfg:
+            errors.append("split accepts either test_runs or test_trials, not both "
+                          "(trial-level splitting would silently take precedence)")
         return errors
 
     @staticmethod

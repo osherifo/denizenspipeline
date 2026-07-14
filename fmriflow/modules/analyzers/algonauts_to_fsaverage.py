@@ -61,7 +61,21 @@ class AlgonautsToFsaverageAnalyzer:
                            "hemi_dims (need the algonauts2023 loader) — skipping")
             return
 
+        # The loader only carries masks for hemispheres whose mask file exists;
+        # skip clearly on any missing hemisphere or score-length mismatch rather
+        # than KeyError-ing or producing an incorrectly offset expansion.
+        missing = [h for h in hemis if h not in masks or h not in hemi_dims]
+        if missing:
+            logger.warning("algonauts_to_fsaverage: missing fsaverage_masks/hemi_dims "
+                           "for %s — skipping", missing)
+            return
+
         scores = np.asarray(scores, dtype=np.float32)
+        total = sum(hemi_dims[h] for h in hemis)
+        if scores.shape[0] != total:
+            logger.warning("algonauts_to_fsaverage: scores length %d != sum(hemi_dims) "
+                           "%d — skipping", scores.shape[0], total)
+            return
         parts, offset = [], 0
         for h in hemis:
             d = hemi_dims[h]

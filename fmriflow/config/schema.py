@@ -98,6 +98,9 @@ def validate_config(config: dict) -> list[str]:
     split = config.get("split", {})
     if "test_runs" not in split and "test_trials" not in split:
         errors.append("'split' requires either 'test_runs' or 'test_trials'")
+    elif "test_runs" in split and "test_trials" in split:
+        errors.append("'split' accepts either 'test_runs' or 'test_trials', not both "
+                      "(the preparer would silently ignore 'test_runs')")
 
     # Preparation validation
     prep = config.get("preparation", {})

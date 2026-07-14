@@ -63,6 +63,20 @@ class AlgonautsFsaverageFlatmapReporter:
         scores = np.asarray(result.scores, dtype=float)
         threshold = opts.get('threshold', None)
 
+        # The loader only carries masks for hemispheres whose mask file exists;
+        # bail clearly if any hemisphere or the score length is inconsistent
+        # rather than KeyError-ing or misrendering a truncated slice.
+        missing = [h for h in hemis if h not in masks or h not in hemi_dims]
+        if missing:
+            logger.warning("algonauts_fsaverage_flatmap: missing fsaverage_masks/"
+                           "hemi_dims for %s; skipping.", missing)
+            return {}
+        total = sum(hemi_dims[h] for h in hemis)
+        if scores.shape[0] != total:
+            logger.warning("algonauts_fsaverage_flatmap: scores length %d != "
+                           "sum(hemi_dims) %d; skipping.", scores.shape[0], total)
+            return {}
+
         # Split concatenated scores by hemisphere, expand each to full fsaverage.
         verts, offset = [], 0
         for h in hemis:

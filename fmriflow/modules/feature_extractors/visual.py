@@ -129,6 +129,12 @@ class CLIPExtractor:
 
         # Resolve the (single) image store and collect every image needed.
         stims = {r: _require_image_seq(stimuli.runs[r], self.name) for r in run_names}
+        kinds = {s.source_kind for s in stims.values()}
+        if kinds != {"hdf5"}:
+            raise ValueError("clip extractor requires an HDF5 image store "
+                             f"(source_kind='hdf5'); got {kinds}. For an image "
+                             "directory (e.g. Algonauts PNGs) use the alexnet or "
+                             "timm extractor instead.")
         sources = {s.source for s in stims.values()}
         datasets = {s.dataset for s in stims.values()}
         if len(sources) != 1 or len(datasets) != 1:
@@ -281,7 +287,12 @@ class AlexNetExtractor:
             files = sorted(Path(source).glob("*.png")) or sorted(Path(source).glob("*.jpg"))
             if not files:
                 raise FileNotFoundError(f"no .png/.jpg images under {source}")
-            return _batches(lambda i: Image.open(files[i]).convert("RGB"))
+
+            def _load(i):
+                # context-manage the handle so large image dirs don't leak fds
+                with Image.open(files[i]) as im:
+                    return im.convert("RGB")
+            return _batches(_load)
 
         if kind == "hdf5":
             import h5py
@@ -395,7 +406,12 @@ class TimmBackboneExtractor:
             files = sorted(Path(source).glob("*.png")) or sorted(Path(source).glob("*.jpg"))
             if not files:
                 raise FileNotFoundError(f"no .png/.jpg images under {source}")
-            return _batches(lambda i: Image.open(files[i]).convert("RGB"))
+
+            def _load(i):
+                # context-manage the handle so large image dirs don't leak fds
+                with Image.open(files[i]) as im:
+                    return im.convert("RGB")
+            return _batches(_load)
 
         if kind == "hdf5":
             import h5py

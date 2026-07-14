@@ -71,12 +71,17 @@ class Algonauts2023ResponseLoader:
             arrays.append(arr)
             hemi_dims[h] = int(arr.shape[1])
             logger.info("  %s: %s vertices %d", subject, h, arr.shape[1])
-        resp = np.concatenate(arrays, axis=1)   # (n_images, sum n_vertices)
-        n_img = resp.shape[0]
+        # Check row (image) agreement *before* concatenating — np.concatenate on
+        # axis=1 would otherwise raise a less clear error first.
+        n_img = arrays[0].shape[0]
         if any(a.shape[0] != n_img for a in arrays):
-            raise ValueError("hemisphere fMRI arrays disagree on image count")
+            raise ValueError("hemisphere fMRI arrays disagree on image count: "
+                             f"{[a.shape[0] for a in arrays]}")
+        resp = np.concatenate(arrays, axis=1)   # (n_images, sum n_vertices)
 
         # Seeded validation holdout, carried for split.test_trials: val.
+        if not 0.0 <= val_fraction <= 1.0:
+            raise ValueError(f"val_fraction must be in [0, 1], got {val_fraction}")
         n_val = int(round(n_img * val_fraction))
         val_mask = np.zeros(n_img, dtype=bool)
         val_idx = np.random.default_rng(val_seed).permutation(n_img)[:n_val]
