@@ -79,8 +79,13 @@ def sync_source(request: Request, sid: str) -> dict:
         return hub.sync(sid)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except (RuntimeError, Exception) as e:  # noqa: BLE001
+    except RuntimeError as e:
+        # Expected user-facing failures (missing git, unreachable remote,
+        # backend errors — BackendError subclasses RuntimeError) → 400.
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001 - unexpected: log + surface as 500
+        logger.exception("Unexpected error syncing hub source %s", sid)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Catalog ──

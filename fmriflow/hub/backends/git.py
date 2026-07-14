@@ -13,7 +13,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from fmriflow.hub.backends.base import BackendError
 
@@ -49,7 +49,9 @@ class GitBackend:
         if parts.scheme != "https":
             return url
         netloc = parts.netloc.rsplit("@", 1)[-1]  # drop any existing creds
-        return urlunsplit((parts.scheme, f"oauth2:{token}@{netloc}",
+        # URL-encode the token so reserved chars (@ : / #) can't corrupt the URL.
+        safe_token = quote(token, safe="")
+        return urlunsplit((parts.scheme, f"oauth2:{safe_token}@{netloc}",
                            parts.path, parts.query, parts.fragment))
 
     def _has_lfs(self) -> bool:
@@ -64,8 +66,10 @@ class GitBackend:
         if (dest / ".git").is_dir():
             self._run(["git", "remote", "set-url", "origin", auth], cwd=dest)
             self._run(["git", "fetch", "--depth", "1", "origin", branch], cwd=dest)
-            self._run(["git", "checkout", "-f", branch], cwd=dest, check=False)
-            self._run(["git", "reset", "--hard", f"origin/{branch}"], cwd=dest)
+            # `checkout -B` atomically points local <branch> at origin/<branch>
+            # and checks it out — fatal on failure, so a failed checkout can
+            # never fall through to a hard-reset of some *other* current branch.
+            self._run(["git", "checkout", "-B", branch, f"origin/{branch}"], cwd=dest)
         else:
             if dest.exists():
                 shutil.rmtree(dest)

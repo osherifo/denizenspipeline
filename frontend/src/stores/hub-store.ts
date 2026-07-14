@@ -107,7 +107,7 @@ export const useHubStore = create<HubState>((set, get) => ({
     set({ loading: true })
     try {
       const r = await fetchHubCatalog(kind ?? undefined)
-      set({ catalog: r.items, loading: false })
+      set({ catalog: r.items, loading: false, error: null })
     } catch (e) {
       set({ error: String(e), loading: false })
     }

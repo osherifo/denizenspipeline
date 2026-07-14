@@ -79,7 +79,9 @@ export function HubView() {
       )}
       {error && <div style={banner('warning')}>{error}</div>}
       {notice && (
-        <div style={banner('info')} onClick={clearNotice} title="dismiss">{notice}</div>
+        <button type="button" style={noticeBtn} onClick={clearNotice} title="Dismiss">
+          {notice}
+        </button>
       )}
 
       {/* ── Sources ── */}
@@ -238,5 +240,10 @@ const banner = (kind: 'info' | 'warning'): CSSProperties => {
   const c = kind === 'warning'
     ? { color: '#ffb86c', bg: 'rgba(255,184,108,0.10)' }
     : { color: 'var(--accent-cyan)', bg: 'rgba(0,229,255,0.08)' }
-  return { padding: '10px 14px', borderRadius: 6, fontSize: 12, color: c.color, background: c.bg, border: `1px solid ${c.color}`, marginBottom: 14, cursor: kind === 'info' ? 'pointer' : 'default' }
+  return { padding: '10px 14px', borderRadius: 6, fontSize: 12, color: c.color, background: c.bg, border: `1px solid ${c.color}`, marginBottom: 14 }
+}
+// Dismissible notice as an accessible <button> (keyboard-focusable, announced).
+const noticeBtn: CSSProperties = {
+  ...banner('info'), display: 'block', width: '100%', textAlign: 'left',
+  font: 'inherit', fontSize: 12, cursor: 'pointer',
 }
