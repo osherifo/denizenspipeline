@@ -941,6 +941,79 @@ export interface ResultRootsSnapshot {
   env_override?: boolean
 }
 
+// ── Artifact Hub ─────────────────────────────────────────────────────
+
+export type HubTier = 'lab' | 'community'
+
+export interface HubSource {
+  id: string
+  name: string
+  tier: HubTier
+  url: string
+  backend: string
+  branch: string
+  enabled: boolean
+  has_token: boolean
+  synced: boolean
+}
+
+export interface HubSourcesSnapshot {
+  sources: HubSource[]
+  env_override: boolean
+  preflight: string[]        // missing-prerequisite messages ([] if ready)
+}
+
+export interface HubCatalogItem {
+  source_id: string
+  source_name: string
+  tier: HubTier
+  kind: string
+  name: string
+  version: string
+  description: string
+  author: string
+  tags: string[]
+  size: number
+  lfs: boolean
+  sha256: string
+  files: string[]
+  metadata: Record<string, unknown>
+  installed: boolean
+  preview?: string | null    // present only on the detail endpoint
+  verified?: boolean
+}
+
+export interface HubInstallResult {
+  installed: boolean
+  kind: string
+  name: string
+  path?: string
+  paths?: string[]
+  category?: string
+  note?: string
+}
+
+export interface HubPublishResult {
+  branch: string
+  pushed: boolean
+  pr_url?: string | null
+  kind: string
+  name: string
+  detail?: string
+}
+
+/** Origin of an installed artifact, keyed `<kind>:<key>` in the ledger. */
+export interface HubProvenance {
+  source_id: string
+  source_name: string
+  tier: HubTier
+  artifact_name: string
+  sha256: string
+  installed_at: string
+}
+
+export type HubProvenanceMap = Record<string, HubProvenance>
+
 // ── Preproc stack ────────────────────────────────────────────────────
 
 export type BootstrapKind = 'fmriprep' | 'nipype' | 'custom' | 'bids_app' | 'passthrough'

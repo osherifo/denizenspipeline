@@ -17,12 +17,13 @@ import { QCReviews } from './views/QCReviews'
 import { Settings } from './views/Settings'
 import { GroupRunsView } from './views/GroupRunsView'
 import { StudyRunsView } from './views/StudyRunsView'
+import { HubView } from './views/HubView'
 import { useModuleStore } from './stores/module-store'
 
 type Route =
   | 'modules' | 'analysis' | 'runs' | 'editor' | 'dashboard'
   | 'preproc' | 'preproc-stack' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
-  | 'post-preproc' | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs'
+  | 'post-preproc' | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs' | 'hub'
 
 function getRoute(): Route {
   const hash = window.location.hash.replace('#', '').replace('/', '')
@@ -44,6 +45,7 @@ function getRoute(): Route {
   if (hash === 'settings') return 'settings'
   if (hash === 'group-runs') return 'group-runs'
   if (hash === 'study-runs') return 'study-runs'
+  if (hash === 'hub') return 'hub'
   return 'dashboard'
 }
 
@@ -149,6 +151,7 @@ export function App() {
         {route === 'settings' && <Settings />}
         {route === 'group-runs' && <GroupRunsView />}
         {route === 'study-runs' && <StudyRunsView />}
+        {route === 'hub' && <HubView />}
       </div>
     </div>
   )

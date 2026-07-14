@@ -4,6 +4,7 @@ import type { CSSProperties, FormEvent } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 import { CodeEditor } from '../editor/CodeEditor'
 import type { HeuristicInfo } from '../../api/types'
+import { HubBadge } from '../hub/HubBadge'
 import { useDialog } from '../common/Dialog'
 
 /* ── Styles ──────────────────────────────────────────────────────────── */
@@ -214,7 +215,7 @@ export function HeuristicBrowser() {
             >
               <div>
                 <div style={{ fontWeight: 600, color: editorName === h.name ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
-                  {h.name}
+                  {h.name}{' '}<HubBadge kind="heuristic" name={h.name} />
                 </div>
                 {h.description && (
                   <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

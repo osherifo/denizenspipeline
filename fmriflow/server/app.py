@@ -155,6 +155,11 @@ def create_app(
     app.state.stack_manager = stack_manager
     app.state.stack_preset_store = stack_preset_store
 
+    # Artifact Hub (decoupled, optional). The service holds no heavy state
+    # and imports no transport deps at construction; safe to attach always.
+    from fmriflow.hub import HubService
+    app.state.hub = HubService()
+
     # API routes
     from fmriflow.server.routes.modules import router as module_router
     from fmriflow.server.routes.config import router as config_router
@@ -173,6 +178,7 @@ def create_app(
     from fmriflow.server.routes.node_outputs import router as node_outputs_router
     from fmriflow.server.routes.stack import router as stack_router
     from fmriflow.server.routes.settings import router as settings_router
+    from fmriflow.server.routes.hub import router as hub_router
     from fmriflow.server.routes.group import router as group_router
     from fmriflow.server.routes.study import router as study_router
     from fmriflow.server.routes.run_graph import router as run_graph_router
@@ -205,6 +211,7 @@ def create_app(
     # patterns. Include order does not affect matching here.
     app.include_router(node_outputs_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(hub_router, prefix="/api")
     app.include_router(group_router, prefix="/api")
     app.include_router(study_router, prefix="/api")
     app.include_router(run_graph_router, prefix="/api")

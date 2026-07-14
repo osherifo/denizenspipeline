@@ -203,6 +203,51 @@ def secrets_dir() -> Path:
     return p
 
 
+def hub_cache_dir() -> Path:
+    """``$FMRIFLOW_HOME/stores/hub/`` — local clones of artifact-hub sources."""
+    return store_dir("hub")
+
+
+# ── Generic settings.json value accessors ────────────────────────────
+#
+# The scalar path overrides go through _load_runtime_config / _RUNTIME_KEYS
+# (string-only, whitelist-gated). These two helpers store arbitrary JSON
+# values (lists, dicts) under a named key in the same file — used by the
+# result-roots list and the artifact-hub source list.
+
+def load_settings_value(key: str, default: object = None) -> object:
+    """Read an arbitrary JSON value from settings.json (or *default*)."""
+    p = RUNTIME_CONFIG_PATH
+    if not p.is_file():
+        return default
+    try:
+        data = json.loads(p.read_text())
+    except Exception:
+        return default
+    if not isinstance(data, dict):
+        return default
+    return data.get(key, default)
+
+
+def save_settings_value(key: str, value: object) -> None:
+    """Persist a JSON value under *key* in settings.json (empty → remove)."""
+    p = RUNTIME_CONFIG_PATH
+    data: dict = {}
+    if p.is_file():
+        try:
+            loaded = json.loads(p.read_text())
+            if isinstance(loaded, dict):
+                data = loaded
+        except Exception:
+            data = {}
+    if value in (None, [], {}, ""):
+        data.pop(key, None)
+    else:
+        data[key] = value
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, indent=2) + "\n")
+
+
 def license_file() -> Path:
     """Path to the FreeSurfer license file (may not exist).
 

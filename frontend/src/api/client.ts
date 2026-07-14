@@ -38,6 +38,11 @@ import type {
   WorkflowConfigSummary,
   WorkflowConfigDetail,
   WorkflowRunSummary,
+  HubSourcesSnapshot,
+  HubCatalogItem,
+  HubInstallResult,
+  HubPublishResult,
+  HubProvenanceMap,
 } from './types'
 
 const BASE = '/api'
@@ -1062,4 +1067,69 @@ export async function fetchStudyRun(
   return json(
     `${BASE}/study-runs/${encodeURIComponent(name)}/${encodeURIComponent(runId)}`,
   )
+}
+
+// ── Artifact Hub ──
+
+export async function fetchHubSources(): Promise<HubSourcesSnapshot> {
+  return json(`${BASE}/hub/sources`)
+}
+
+export async function addHubSource(body: {
+  name: string; url: string; tier: string; branch?: string; token?: string
+}): Promise<HubSourcesSnapshot> {
+  return json(`${BASE}/hub/sources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function removeHubSource(sid: string): Promise<HubSourcesSnapshot> {
+  return json(`${BASE}/hub/sources/${encodeURIComponent(sid)}`, { method: 'DELETE' })
+}
+
+export async function setHubToken(sid: string, token: string | null): Promise<HubSourcesSnapshot> {
+  return json(`${BASE}/hub/sources/${encodeURIComponent(sid)}/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  })
+}
+
+export async function syncHubSource(sid: string): Promise<{ synced: boolean; artifacts: number }> {
+  return json(`${BASE}/hub/sources/${encodeURIComponent(sid)}/sync`, { method: 'POST' })
+}
+
+export async function fetchHubCatalog(kind?: string): Promise<{ items: HubCatalogItem[]; total: number }> {
+  const qs = kind ? `?kind=${encodeURIComponent(kind)}` : ''
+  return json(`${BASE}/hub/catalog${qs}`)
+}
+
+export async function fetchHubProvenance(): Promise<HubProvenanceMap> {
+  return json(`${BASE}/hub/provenance`)
+}
+
+export async function fetchHubArtifact(sid: string, kind: string, name: string): Promise<HubCatalogItem> {
+  return json(`${BASE}/hub/catalog/${encodeURIComponent(sid)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`)
+}
+
+export async function installHubArtifact(body: {
+  source_id: string; kind: string; name: string
+}): Promise<HubInstallResult> {
+  return json(`${BASE}/hub/install`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function publishHubArtifact(body: {
+  source_id: string; kind: string; name: string; description?: string
+}): Promise<HubPublishResult> {
+  return json(`${BASE}/hub/publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }

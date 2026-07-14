@@ -1,0 +1,249 @@
+/**
+ * Artifact Hub — browse local + remote artifacts across tiers and install
+ * or publish them. Advisory install layer: installing copies an artifact into
+ * your local user tier (the pipeline resolves it exactly like your own files).
+ *
+ * Self-contained: delete this file + stores/hub-store.ts and remove the nav
+ * entry to fully remove the feature.
+ */
+
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useHubStore } from '../stores/hub-store'
+import type { HubCatalogItem, HubTier } from '../api/types'
+
+const KIND_LABELS: Record<string, string> = {
+  error: 'Error KB',
+  module: 'Module',
+  analysis_config: 'Analysis config',
+  workflow_config: 'Workflow config',
+  stack_preset: 'Preproc preset',
+  heuristic: 'Heuristic',
+  transform: 'Transform',
+  workflow: 'Workflow',
+  feature_array: 'Feature array',
+}
+
+function tierBadge(tier: HubTier): CSSProperties {
+  const c = tier === 'community'
+    ? { color: 'var(--accent-green)', bg: 'rgba(0,230,118,0.10)' }
+    : { color: 'var(--accent-cyan)', bg: 'rgba(0,229,255,0.10)' }
+  return {
+    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+    color: c.color, backgroundColor: c.bg, border: `1px solid ${c.color}`,
+    textTransform: 'uppercase', letterSpacing: 0.5,
+  }
+}
+
+function fmtSize(n: number): string {
+  if (!n) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(0)} KB`
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`
+  return `${(n / 1024 ** 3).toFixed(1)} GB`
+}
+
+export function HubView() {
+  const {
+    sources, envOverride, preflight, catalog, kindFilter, loading, error, busy, notice,
+    loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
+    setKindFilter, clearNotice,
+  } = useHubStore()
+
+  const [form, setForm] = useState({ name: '', url: '', tier: 'lab', token: '' })
+  const [showAdd, setShowAdd] = useState(false)
+
+  useEffect(() => { loadSources(); loadCatalog() }, [loadSources, loadCatalog])
+
+  const kinds = useMemo(
+    () => Array.from(new Set(catalog.map((i) => i.kind))).sort(),
+    [catalog],
+  )
+
+  const submitAdd = async () => {
+    if (!form.name.trim() || !form.url.trim()) return
+    await addSource({ name: form.name.trim(), url: form.url.trim(), tier: form.tier, token: form.token || undefined })
+    setForm({ name: '', url: '', tier: 'lab', token: '' })
+    setShowAdd(false)
+  }
+
+  return (
+    <div style={container}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Artifact Hub</div>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+        Browse and install artifacts shared by your lab and the community. Installing copies an
+        item into your local tier — the pipeline then uses it like your own files.
+      </div>
+
+      {preflight.length > 0 && (
+        <div style={banner('warning')}>{preflight.join(' ')} Install it to use git sources.</div>
+      )}
+      {error && <div style={banner('warning')}>{error}</div>}
+      {notice && (
+        <button type="button" style={noticeBtn} onClick={clearNotice} title="Dismiss">
+          {notice}
+        </button>
+      )}
+
+      {/* ── Sources ── */}
+      <div style={sectionHeader}>
+        <span>Sources</span>
+        <span style={{ flex: 1 }} />
+        <button style={btnSm} disabled={!!busy} onClick={syncAll}>Sync all</button>
+        {!envOverride && (
+          <button style={btnSm} onClick={() => setShowAdd((v) => !v)}>{showAdd ? 'Cancel' : '+ Add source'}</button>
+        )}
+      </div>
+
+      {envOverride && (
+        <div style={banner('info')}>
+          <code>$FMRIFLOW_HUB_SOURCES</code> is set in the environment and overrides this list.
+        </div>
+      )}
+
+      {showAdd && (
+        <div style={addCard}>
+          <input style={input} placeholder="Name (e.g. My Lab)" value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input style={input} placeholder="Git URL (https://… or a file:// path)" value={form.url}
+            onChange={(e) => setForm({ ...form, url: e.target.value })} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select style={{ ...input, flex: '0 0 140px' }} value={form.tier}
+              onChange={(e) => setForm({ ...form, tier: e.target.value })}>
+              <option value="lab">Within-lab</option>
+              <option value="community">Community</option>
+            </select>
+            <input style={{ ...input, flex: 1 }} type="password" placeholder="Access token (optional, for private/push)"
+              value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} />
+          </div>
+          <button style={btn} disabled={busy === 'add'} onClick={submitAdd}>Add source</button>
+        </div>
+      )}
+
+      {sources.length === 0 && <div style={emptyHint}>No sources yet. Add a lab or community git repo to get started.</div>}
+      {sources.map((s) => (
+        <div key={s.id} style={sourceRow}>
+          <span style={tierBadge(s.tier)}>{s.tier === 'community' ? 'community' : 'lab'}</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
+          <code style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.url}</code>
+          {s.synced && <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ synced</span>}
+          {s.has_token && <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>🔑</span>}
+          <span style={{ flex: 1 }} />
+          <button style={btnSm} disabled={busy === s.id} onClick={() => sync(s.id)}>
+            {busy === s.id ? '…' : 'Sync'}
+          </button>
+          {!envOverride && <button style={btnSm} disabled={busy === s.id} onClick={() => removeSource(s.id)}>Remove</button>}
+        </div>
+      ))}
+
+      {/* ── Catalog ── */}
+      <div style={sectionHeader}><span>Catalog</span></div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        <button style={chip(kindFilter === null)} onClick={() => setKindFilter(null)}>All</button>
+        {kinds.map((k) => (
+          <button key={k} style={chip(kindFilter === k)} onClick={() => setKindFilter(k)}>
+            {KIND_LABELS[k] ?? k}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div style={emptyHint}>Loading…</div>}
+      {!loading && catalog.length === 0 && (
+        <div style={emptyHint}>Nothing in the catalog yet — add a source and hit Sync.</div>
+      )}
+      {catalog.map((item) => (
+        <ArtifactRow key={`${item.source_id}:${item.kind}:${item.name}`} item={item}
+          busy={busy === `${item.source_id}:${item.kind}:${item.name}`}
+          onInstall={() => install(item)} onPublish={() => publish(item)} />
+      ))}
+    </div>
+  )
+}
+
+function ArtifactRow({ item, busy, onInstall, onPublish }: {
+  item: HubCatalogItem; busy: boolean; onInstall: () => void; onPublish: () => void
+}) {
+  return (
+    <div style={artifactRow}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+        <span style={kindPill}>{KIND_LABELS[item.kind] ?? item.kind}</span>
+        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.name}</span>
+        <span style={tierBadge(item.tier)}>{item.source_name}</span>
+        {item.installed && <span style={installedBadge}>installed</span>}
+        {item.lfs && <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>LFS {fmtSize(item.size)}</span>}
+      </div>
+      {item.description && (
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{item.description}</div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {item.tags.map((t) => <span key={t} style={tag}>{t}</span>)}
+        <span style={{ flex: 1 }} />
+        <button style={btnSm} disabled={busy || item.installed} onClick={onInstall}>
+          {item.installed ? 'Installed' : busy ? '…' : 'Install'}
+        </button>
+        <button style={btnSm} disabled={busy} onClick={onPublish} title="Publish your local version to this source">
+          Publish local
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── styles ──
+const container: CSSProperties = { maxWidth: 960, padding: '24px 32px' }
+const sectionHeader: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700,
+  color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: 0.5,
+  marginTop: 28, marginBottom: 12,
+}
+const sourceRow: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+  border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8, backgroundColor: 'var(--bg-card)',
+}
+const artifactRow: CSSProperties = {
+  padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 8,
+  marginBottom: 8, backgroundColor: 'var(--bg-card)',
+}
+const addCard: CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: 8, padding: 12,
+  border: '1px solid var(--border)', borderRadius: 8, marginBottom: 12, backgroundColor: 'var(--bg-secondary)',
+}
+const input: CSSProperties = {
+  padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', backgroundColor: 'var(--bg-input)',
+  border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', outline: 'none',
+}
+const btn: CSSProperties = {
+  padding: '7px 16px', fontSize: 13, fontWeight: 600, border: '1px solid var(--accent-cyan)',
+  borderRadius: 6, background: 'rgba(0,229,255,0.1)', color: 'var(--accent-cyan)', cursor: 'pointer',
+  alignSelf: 'flex-start',
+}
+const btnSm: CSSProperties = {
+  padding: '4px 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6,
+  background: 'var(--bg-input)', color: 'var(--text-primary)', cursor: 'pointer',
+}
+const chip = (active: boolean): CSSProperties => ({
+  padding: '4px 12px', fontSize: 12, borderRadius: 14, cursor: 'pointer',
+  border: `1px solid ${active ? 'var(--accent-cyan)' : 'var(--border)'}`,
+  color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+  background: active ? 'rgba(0,229,255,0.1)' : 'transparent',
+})
+const kindPill: CSSProperties = {
+  fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+  color: 'var(--text-secondary)', border: '1px solid var(--border)', textTransform: 'uppercase',
+}
+const installedBadge: CSSProperties = {
+  fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+  color: 'var(--accent-green)', background: 'rgba(0,230,118,0.10)', border: '1px solid var(--accent-green)',
+}
+const tag: CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 8px' }
+const emptyHint: CSSProperties = { fontSize: 13, color: 'var(--text-secondary)', padding: '12px 0' }
+const banner = (kind: 'info' | 'warning'): CSSProperties => {
+  const c = kind === 'warning'
+    ? { color: '#ffb86c', bg: 'rgba(255,184,108,0.10)' }
+    : { color: 'var(--accent-cyan)', bg: 'rgba(0,229,255,0.08)' }
+  return { padding: '10px 14px', borderRadius: 6, fontSize: 12, color: c.color, background: c.bg, border: `1px solid ${c.color}`, marginBottom: 14 }
+}
+// Dismissible notice as an accessible <button> (keyboard-focusable, announced).
+const noticeBtn: CSSProperties = {
+  ...banner('info'), display: 'block', width: '100%', textAlign: 'left',
+  font: 'inherit', fontSize: 12, cursor: 'pointer',
+}

@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConfigSummary } from '../../api/types'
+import { HubBadge } from '../hub/HubBadge'
 
 interface ConfigBrowserProps {
   configs: ConfigSummary[]
@@ -194,7 +195,10 @@ export function ConfigBrowser({ configs, selectedFilename, loading, onSelect, on
               style={configItem(selectedFilename === c.filename)}
               onClick={() => onSelect(c.filename)}
             >
-              <div style={configName}>{c.filename.replace('.yaml', '')}</div>
+              <div style={configName}>
+                {c.filename.replace('.yaml', '')}
+                {' '}<HubBadge kind="analysis_config" name={c.filename} />
+              </div>
               <div style={configMeta}>
                 <span>{leftLabel}</span>
                 <span style={runBadge(c.n_runs)}>

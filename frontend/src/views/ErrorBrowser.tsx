@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { fetchErrors } from '../api/client'
 import type { ErrorEntry } from '../api/types'
+import { HubBadge } from '../components/hub/HubBadge'
 
 // ── Styles ──
 
@@ -266,6 +267,7 @@ export function ErrorBrowser() {
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>
                   {entry.title}
                 </span>
+                <HubBadge kind="error" name={String(entry.id)} />
               </div>
 
               {/* Tags */}
