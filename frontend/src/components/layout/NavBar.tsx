@@ -110,6 +110,7 @@ const groups = [
   {
     label: 'Reference',
     items: [
+      { key: 'hub', label: 'Hub', hash: '#hub' },
       { key: 'errors', label: 'Errors', hash: '#errors' },
       { key: 'settings', label: 'Settings', hash: '#settings' },
     ],
