@@ -92,6 +92,12 @@ def get_catalog(request: Request, kind: str | None = None) -> dict:
     return {"items": items, "total": len(items)}
 
 
+@router.get("/provenance")
+def get_provenance(request: Request) -> dict:
+    """Map of ``<kind>:<key>`` → origin, for badging installed artifacts."""
+    return _hub(request).provenance()
+
+
 @router.get("/catalog/{sid}/{kind}/{name}")
 def get_artifact(request: Request, sid: str, kind: str, name: str) -> dict:
     hub = _hub(request)

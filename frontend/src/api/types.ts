@@ -1002,6 +1002,18 @@ export interface HubPublishResult {
   detail?: string
 }
 
+/** Origin of an installed artifact, keyed `<kind>:<key>` in the ledger. */
+export interface HubProvenance {
+  source_id: string
+  source_name: string
+  tier: HubTier
+  artifact_name: string
+  sha256: string
+  installed_at: string
+}
+
+export type HubProvenanceMap = Record<string, HubProvenance>
+
 // ── Preproc stack ────────────────────────────────────────────────────
 
 export type BootstrapKind = 'fmriprep' | 'nipype' | 'custom' | 'bids_app' | 'passthrough'

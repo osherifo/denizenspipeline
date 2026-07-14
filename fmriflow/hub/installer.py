@@ -30,7 +30,7 @@ def _copy(src: Path, dest_dir: Path) -> Path:
     return dest
 
 
-def install(entry: ArtifactEntry, repo_dir: Path, state) -> dict:
+def install(entry: ArtifactEntry, repo_dir: Path, state, source=None) -> dict:
     """Verify + install one artifact. Returns a small result dict."""
     if not entry.files:
         raise InstallError("artifact has no files")
@@ -48,7 +48,36 @@ def install(entry: ArtifactEntry, repo_dir: Path, state) -> dict:
     if handler is None:
         raise InstallError(f"don't know how to install kind '{entry.kind}'")
     installed = handler(entry, files, state)
+    # Record where it came from so the existing browsers can badge origin.
+    if source is not None:
+        try:
+            from fmriflow.hub import provenance
+            provenance.record(entry.kind, _prov_key(entry, installed),
+                              source=source, artifact_name=entry.name,
+                              sha256=entry.sha256)
+        except Exception as e:  # noqa: BLE001 - provenance is best-effort
+            logger.warning("Could not record provenance for %s/%s: %s",
+                           entry.kind, entry.name, e)
     return {"installed": True, "kind": entry.kind, "name": entry.name, **installed}
+
+
+def _prov_key(entry: ArtifactEntry, installed: dict) -> str:
+    """The identifier the relevant browser uses to match this artifact.
+
+    Mostly the manifest name; errors are keyed by the YAML ``id`` field
+    (which the Error browser shows) rather than the file stem.
+    """
+    if entry.kind == "error":
+        path = installed.get("path")
+        if path:
+            try:
+                import yaml
+                raw = yaml.safe_load(Path(path).read_text()) or {}
+                if raw.get("id") is not None:
+                    return str(raw["id"])
+            except Exception:  # noqa: BLE001
+                pass
+    return entry.name
 
 
 # ── per-kind handlers ──

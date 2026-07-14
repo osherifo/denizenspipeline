@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ModuleInfo, ParamField } from '../../api/types'
 import { fetchModuleCode, type ModuleCode } from '../../api/client'
+import { HubBadge } from '../hub/HubBadge'
 
 interface ModuleCardProps {
   module: ModuleInfo
@@ -253,11 +254,12 @@ export function ModuleCard({ module, onEdit }: ModuleCardProps) {
       onMouseLeave={() => setHovered(false)}
     >
       <div style={nameStyle}>{module.name}</div>
-      <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <span style={categoryBadgeStyle}>{module.category}</span>
         {module.n_dims != null && (
           <span style={dimsBadgeStyle}>{module.n_dims} dims</span>
         )}
+        <HubBadge kind="module" name={module.name} />
       </div>
       <div style={docStyle}>{module.docstring}</div>
       <div style={paramCountStyle}>

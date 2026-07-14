@@ -42,6 +42,7 @@ import type {
   HubCatalogItem,
   HubInstallResult,
   HubPublishResult,
+  HubProvenanceMap,
 } from './types'
 
 const BASE = '/api'
@@ -1103,6 +1104,10 @@ export async function syncHubSource(sid: string): Promise<{ synced: boolean; art
 export async function fetchHubCatalog(kind?: string): Promise<{ items: HubCatalogItem[]; total: number }> {
   const qs = kind ? `?kind=${encodeURIComponent(kind)}` : ''
   return json(`${BASE}/hub/catalog${qs}`)
+}
+
+export async function fetchHubProvenance(): Promise<HubProvenanceMap> {
+  return json(`${BASE}/hub/provenance`)
 }
 
 export async function fetchHubArtifact(sid: string, kind: string, name: string): Promise<HubCatalogItem> {

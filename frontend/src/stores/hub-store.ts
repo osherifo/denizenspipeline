@@ -6,9 +6,9 @@
 import { create } from 'zustand'
 import {
   fetchHubSources, addHubSource, removeHubSource, syncHubSource,
-  fetchHubCatalog, installHubArtifact, publishHubArtifact,
+  fetchHubCatalog, installHubArtifact, publishHubArtifact, fetchHubProvenance,
 } from '../api/client'
-import type { HubSource, HubCatalogItem } from '../api/types'
+import type { HubSource, HubCatalogItem, HubProvenanceMap } from '../api/types'
 
 interface HubState {
   sources: HubSource[]
@@ -20,8 +20,11 @@ interface HubState {
   error: string | null
   busy: string | null           // key of the item/source currently mutating
   notice: string | null
+  provenance: HubProvenanceMap
+  provenanceLoaded: boolean
 
   loadSources: () => Promise<void>
+  loadProvenance: (force?: boolean) => Promise<void>
   addSource: (b: { name: string; url: string; tier: string; branch?: string; token?: string }) => Promise<void>
   removeSource: (sid: string) => Promise<void>
   sync: (sid: string) => Promise<void>
@@ -43,6 +46,18 @@ export const useHubStore = create<HubState>((set, get) => ({
   error: null,
   busy: null,
   notice: null,
+  provenance: {},
+  provenanceLoaded: false,
+
+  loadProvenance: async (force = false) => {
+    if (get().provenanceLoaded && !force) return
+    try {
+      const p = await fetchHubProvenance()
+      set({ provenance: p, provenanceLoaded: true })
+    } catch {
+      set({ provenanceLoaded: true })   // don't retry-storm on failure
+    }
+  },
 
   loadSources: async () => {
     try {
@@ -105,6 +120,7 @@ export const useHubStore = create<HubState>((set, get) => ({
       await installHubArtifact({ source_id: item.source_id, kind: item.kind, name: item.name })
       set({ notice: `Installed ${item.kind}/${item.name} to your local tier.` })
       await get().loadCatalog(get().kindFilter)
+      await get().loadProvenance(true)
     } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }
   },
 

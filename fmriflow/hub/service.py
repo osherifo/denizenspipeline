@@ -103,7 +103,11 @@ class HubService:
 
     def install(self, sid: str, kind: str, name: str, state) -> dict:
         source, entry, dest = self._find(sid, kind, name)
-        return installer.install(entry, dest, state)
+        return installer.install(entry, dest, state, source=source)
+
+    def provenance(self) -> dict:
+        from fmriflow.hub import provenance as _p
+        return _p.all_records()
 
     # ── publish ──
 
