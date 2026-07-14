@@ -15,10 +15,14 @@ def register_builtins(registry):
     import fmriflow.modules.stimulus_loaders.skip  # noqa: F401
     import fmriflow.modules.stimulus_loaders.audio  # noqa: F401
     import fmriflow.modules.stimulus_loaders.video  # noqa: F401
+    import fmriflow.modules.stimulus_loaders.nsd  # noqa: F401
+    import fmriflow.modules.stimulus_loaders.algonauts2023  # noqa: F401
 
     import fmriflow.modules.response_loaders.bids  # noqa: F401
     import fmriflow.modules.response_loaders.cloud  # noqa: F401
     import fmriflow.modules.response_loaders.local  # noqa: F401
+    import fmriflow.modules.response_loaders.nsd  # noqa: F401
+    import fmriflow.modules.response_loaders.algonauts2023  # noqa: F401
     import fmriflow.modules.response_loaders.readers  # noqa: F401
     import fmriflow.modules.response_loaders.multiphase_hdf  # noqa: F401
     try:
@@ -57,6 +61,7 @@ def register_builtins(registry):
     import fmriflow.modules.analyzers.project_to_subspace  # noqa: F401
     import fmriflow.modules.analyzers.project_to_fsaverage  # noqa: F401
     import fmriflow.modules.analyzers.block_permutation_significance  # noqa: F401
+    import fmriflow.modules.analyzers.algonauts_to_fsaverage  # noqa: F401
 
     import fmriflow.modules.models.ridge  # noqa: F401
     import fmriflow.modules.models.himalaya  # noqa: F401
@@ -74,6 +79,8 @@ def register_builtins(registry):
     import fmriflow.modules.reporters.r_flatmap  # noqa: F401
     import fmriflow.modules.reporters.r2_flatmap  # noqa: F401
     import fmriflow.modules.reporters.native_flatmap  # noqa: F401
+    import fmriflow.modules.reporters.nsd_fsaverage_flatmap  # noqa: F401
+    import fmriflow.modules.reporters.algonauts_fsaverage_flatmap  # noqa: F401
 
     # Post-fmriprep nipype-style nodes
     import fmriflow.modules.nipype_nodes.source  # noqa: F401

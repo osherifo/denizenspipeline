@@ -78,15 +78,21 @@ class GroupFsaverageFlatmapReporter:
                 "group_fsaverage_flatmap: cortex.Vertex failed: %s", exc)
             return {}
 
+        kwargs = dict(with_curvature=cfg.get("with_curvature", True), dpi=cfg.get("dpi", 100))
         try:
-            cortex.quickflat.make_png(
-                str(path), vert,
-                with_curvature=cfg.get("with_curvature", True),
-                dpi=cfg.get("dpi", 100),
-            )
+            cortex.quickflat.make_png(str(path), vert, **kwargs)
+        except RuntimeError as exc:
+            if 'inkscape' not in str(exc).lower():
+                logger.warning("group_fsaverage_flatmap: quickflat.make_png failed: %s", exc)
+                return {}
+            logger.warning("inkscape not available — rendering group flatmap without ROI overlays")
+            try:
+                cortex.quickflat.make_png(str(path), vert, with_rois=False, with_labels=False, **kwargs)
+            except Exception as exc2:
+                logger.warning("group_fsaverage_flatmap: fallback render failed: %s", exc2)
+                return {}
         except Exception as exc:
-            logger.warning(
-                "group_fsaverage_flatmap: quickflat.make_png failed: %s", exc)
+            logger.warning("group_fsaverage_flatmap: quickflat.make_png failed: %s", exc)
             return {}
         return {"group_fsaverage_flatmap": str(path)}
 

@@ -135,3 +135,41 @@ class TestDefaultPreparer:
         prep = DefaultPreparer()
         with pytest.raises(ValueError, match="Row mismatch in run 'story1'"):
             prep.prepare(responses, features, prep_config)
+
+    def test_trial_level_split(self, prep_features):
+        """split.test_trials holds out rows *within* every run via a per-run mask."""
+        n_held = 4
+        rng = np.random.RandomState(0)
+        masks = {name: np.zeros(N_TRS, dtype=bool) for name in RUN_NAMES}
+        for m in masks.values():
+            m[:n_held] = True  # first n_held TRs of each run are the test set
+        responses = ResponseData(
+            responses={
+                name: rng.randn(N_TRS, N_VOXELS).astype(np.float32)
+                for name in RUN_NAMES
+            },
+            mask=np.ones(N_VOXELS, dtype=bool),
+            surface="s",
+            transform="t",
+            metadata={"trial_split": {"heldout": masks}},
+        )
+        cfg = {
+            "split": {"test_trials": "heldout"},
+            "preparation": {"trim_start": 0, "trim_end": 0, "delays": [1], "zscore": False},
+        }
+        result = DefaultPreparer().prepare(responses, prep_features, cfg)
+        n_runs = len(RUN_NAMES)
+        # every run contributes its masked rows to test, the rest to train
+        assert result.Y_test.shape[0] == n_runs * n_held
+        assert result.Y_train.shape[0] == n_runs * (N_TRS - n_held)
+        assert result.Y_test.shape[1] == N_VOXELS
+        # trial-level: all runs appear in both train and test run lists
+        assert set(result.train_runs) == set(RUN_NAMES)
+        assert set(result.test_runs) == set(RUN_NAMES)
+
+    def test_validate_config_rejects_both_split_modes(self):
+        """test_runs and test_trials are mutually exclusive."""
+        prep = DefaultPreparer()
+        errors = prep.validate_config(
+            {"split": {"test_runs": ["story3"], "test_trials": "heldout"}})
+        assert any("not both" in e for e in errors)

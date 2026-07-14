@@ -77,6 +77,7 @@ Use the top-level key `preparation:`. Older configs that use
 | Field | Type | Description |
 |-------|------|-------------|
 | `test_runs` | list[str] | Run names to hold out for testing |
+| `test_trials` | str | Name of a per-run boolean test mask carried on the response data (e.g. `shared1000` from the `nsd` loader). Splits rows *within* every run rather than holding out whole runs — use for held-out **image sets** scattered across runs. Mutually exclusive with `test_runs`. |
 
 ## `model`
 
