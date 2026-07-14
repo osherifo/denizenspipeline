@@ -14,9 +14,10 @@ import type { CSSProperties } from 'react'
 import {
   fetchSettings, saveSettings,
   fetchResultRoots, addResultRoot, removeResultRoot,
+  fetchAgentSettings, saveAgentSettings,
 } from '../api/client'
 import type {
-  SettingsKey, SettingsSnapshot, SettingsUpdate, ResultRoot,
+  SettingsKey, SettingsSnapshot, SettingsUpdate, ResultRoot, AgentSettings,
 } from '../api/types'
 
 const SETTINGS_FIELDS: Array<{
@@ -405,7 +406,116 @@ export function Settings() {
       </table>
 
       <ResultRootsSection />
+      <AgentSettingsSection />
     </div>
+  )
+}
+
+
+function AgentSettingsSection() {
+  const [snap, setSnap] = useState<AgentSettings | null>(null)
+  const [enabled, setEnabled] = useState(false)
+  const [keyInput, setKeyInput] = useState('')
+  const [model, setModel] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  const apply = (s: AgentSettings) => {
+    setSnap(s); setEnabled(s.enabled); setModel(s.model); setKeyInput('')
+  }
+  useEffect(() => {
+    fetchAgentSettings().then(apply).catch((e) => setErr(String(e)))
+  }, [])
+
+  const save = (opts?: { clearKey?: boolean }) => {
+    setBusy(true); setErr(null); setSaved(false)
+    const body: { enabled: boolean; api_key?: string; model?: string } = { enabled, model }
+    if (opts?.clearKey) body.api_key = ''
+    else if (keyInput.trim()) body.api_key = keyInput.trim()
+    saveAgentSettings(body)
+      .then((s) => { apply(s); setSaved(true) })
+      .catch((e) => setErr(String(e)))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <>
+      <div style={sectionHeader}>AI assistant (experimental)</div>
+      <div style={descStyle}>
+        An in-app <strong>advisory</strong> Claude helper. It reads your configs, modules, runs,
+        and error knowledge base to answer questions, but never edits files or runs anything.
+        Off by default. The API key is read from <code>$ANTHROPIC_API_KEY</code> first, else the
+        key stored here (in <code>~/.config/fmriflow/settings.json</code>, plaintext — single-user
+        box). Applies live; no restart needed.
+      </div>
+
+      {err && <div style={bannerStyle('warning')}>{err}</div>}
+      {snap && !snap.available && (
+        <div style={bannerStyle('info')}>
+          The <code>anthropic</code> package isn't installed — run{' '}
+          <code>pip install -e '.[agent]'</code> to enable the assistant.
+        </div>
+      )}
+      {saved && <div style={bannerStyle('info')}>Saved.</div>}
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        <span>Enable the assistant</span>
+      </label>
+
+      <div style={{ margin: '8px 0' }}>
+        <div style={{ fontSize: 13, marginBottom: 4 }}>
+          Claude API key{' '}
+          {snap && (
+            <span style={sourceBadge(
+              snap.key_source === 'env' ? 'env'
+              : snap.key_source === 'persisted' ? 'persisted' : 'default')}>
+              {snap.key_source === 'env' ? 'from environment'
+                : snap.key_source === 'persisted' ? 'stored' : 'not set'}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="password"
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder={snap?.has_key ? '•••••••• (leave blank to keep)' : 'sk-ant-…'}
+            value={keyInput}
+            disabled={snap?.key_source === 'env'}
+            onChange={(e) => setKeyInput(e.target.value)}
+          />
+          {snap?.has_key && snap.key_source === 'persisted' && (
+            <button
+              style={{ padding: '6px 12px', cursor: 'pointer' }}
+              disabled={busy}
+              onClick={() => save({ clearKey: true })}
+            >
+              Clear key
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div style={{ margin: '8px 0' }}>
+        <div style={{ fontSize: 13, marginBottom: 4 }}>Model</div>
+        <input
+          type="text"
+          style={{ ...inputStyle, width: 260 }}
+          placeholder="claude-opus-4-8"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+        />
+      </div>
+
+      <button
+        style={{ padding: '6px 16px', cursor: 'pointer', marginTop: 4 }}
+        disabled={busy}
+        onClick={() => save()}
+      >
+        Save assistant settings
+      </button>
+    </>
   )
 }
 

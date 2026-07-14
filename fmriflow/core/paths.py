@@ -48,6 +48,8 @@ RUNTIME_CONFIG_PATH = Path.home() / ".config" / "fmriflow" / "settings.json"
 _RUNTIME_KEYS = {
     "FMRIFLOW_HOME", "FMRIFLOW_DATA", "FMRIFLOW_ERRORS",
     "FS_LICENSE", "FMRIFLOW_SINGULARITY_BIN",
+    # Experimental AI assistant (decoupled, off by default).
+    "AGENT_ENABLED", "ANTHROPIC_API_KEY", "AGENT_MODEL",
 }
 
 
@@ -218,6 +220,54 @@ def license_file() -> Path:
 def singularity_bin() -> str | None:
     """Return the apptainer/singularity binary path if configured."""
     return _resolve_env(ENV_SINGULARITY_BIN)
+
+
+# ── Experimental AI assistant settings ───────────────────────────────
+#
+# All three resolve env var > settings.json, matching the other keys.
+# The assistant is off by default and fully optional; nothing here
+# imports the Anthropic SDK.
+
+ENV_AGENT_ENABLED = "AGENT_ENABLED"
+ENV_ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
+ENV_AGENT_MODEL = "AGENT_MODEL"
+
+DEFAULT_AGENT_MODEL = "claude-opus-4-8"
+
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def agent_enabled() -> bool:
+    """Whether the experimental AI assistant is switched on."""
+    raw = _resolve_env(ENV_AGENT_ENABLED)
+    return bool(raw) and str(raw).strip().lower() in _TRUTHY
+
+
+def anthropic_api_key() -> str | None:
+    """Claude API key: ``$ANTHROPIC_API_KEY`` env var > settings.json."""
+    return _resolve_env(ENV_ANTHROPIC_API_KEY)
+
+
+def agent_model() -> str:
+    """Model id for the assistant (default ``claude-opus-4-8``)."""
+    return _resolve_env(ENV_AGENT_MODEL) or DEFAULT_AGENT_MODEL
+
+
+def agent_snapshot() -> dict[str, object]:
+    """Structured view for the Settings UI — never exposes the key value."""
+    key = anthropic_api_key()
+    if os.environ.get(ENV_ANTHROPIC_API_KEY):
+        key_source = "env"
+    elif key:
+        key_source = "persisted"
+    else:
+        key_source = "none"
+    return {
+        "enabled": agent_enabled(),
+        "has_key": bool(key),
+        "key_source": key_source,
+        "model": agent_model(),
+    }
 
 
 def subjects_db() -> Path:

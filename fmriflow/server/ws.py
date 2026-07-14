@@ -9,9 +9,47 @@ from pathlib import Path
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from fmriflow.core import paths
+
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+
+@router.websocket("/ws/agent/{session_id}")
+async def agent_websocket(websocket: WebSocket, session_id: str):
+    """Bidirectional chat with the experimental AI assistant.
+
+    The client sends ``{mode, message, context}`` JSON frames; for each,
+    the server streams back ``{type: 'delta'|'tool'|'done'|'error', ...}``
+    events for that turn, then waits for the next message. The socket
+    stays open for the whole conversation (multi-turn).
+    """
+    manager = getattr(websocket.app.state, "agent_manager", None)
+    if manager is None or not paths.agent_enabled():
+        await websocket.close(code=4003, reason="AI assistant is disabled")
+        return
+
+    await websocket.accept()
+    try:
+        while True:
+            payload = await websocket.receive_json()
+            mode = payload.get("mode", "generic")
+            message = payload.get("message", "")
+            context = payload.get("context")
+            if not message:
+                continue
+            async for event in manager.stream(
+                session_id, mode, message, context, websocket.app.state
+            ):
+                await websocket.send_json(event)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @router.websocket("/ws/runs/{run_id}")

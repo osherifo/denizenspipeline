@@ -941,6 +941,47 @@ export interface ResultRootsSnapshot {
   env_override?: boolean
 }
 
+// ── Experimental AI assistant ────────────────────────────────────────
+
+export type AgentModeId = 'pipeline' | 'coding' | 'errors' | 'generic'
+
+export interface AgentMode {
+  id: AgentModeId
+  label: string
+}
+
+export interface AgentStatus {
+  enabled: boolean
+  has_key: boolean
+  key_source: 'env' | 'persisted' | 'none'
+  model: string
+  available: boolean          // the `anthropic` package is installed
+  modes: AgentMode[]
+  ready: boolean              // enabled && has_key && available
+}
+
+export interface AgentSettings {
+  enabled: boolean
+  has_key: boolean
+  key_source: 'env' | 'persisted' | 'none'
+  model: string
+  available: boolean
+}
+
+// api_key/model omitted → left unchanged; empty string clears.
+export interface AgentSettingsUpdate {
+  enabled: boolean
+  api_key?: string
+  model?: string
+}
+
+export interface AgentMessage {
+  role: 'user' | 'assistant'
+  content: string
+  tools?: string[]            // read-only tools called during this turn
+  streaming?: boolean
+}
+
 // ── Preproc stack ────────────────────────────────────────────────────
 
 export type BootstrapKind = 'fmriprep' | 'nipype' | 'custom' | 'bids_app' | 'passthrough'

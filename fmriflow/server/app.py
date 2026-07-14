@@ -155,6 +155,13 @@ def create_app(
     app.state.stack_manager = stack_manager
     app.state.stack_preset_store = stack_preset_store
 
+    # Experimental AI assistant (decoupled, off by default). The manager
+    # never imports the optional `anthropic` SDK at construction — that is
+    # deferred until a session actually runs — so this is safe to attach
+    # unconditionally on a base install.
+    from fmriflow.agent import AgentSessionManager
+    app.state.agent_manager = AgentSessionManager()
+
     # API routes
     from fmriflow.server.routes.modules import router as module_router
     from fmriflow.server.routes.config import router as config_router
@@ -173,6 +180,7 @@ def create_app(
     from fmriflow.server.routes.node_outputs import router as node_outputs_router
     from fmriflow.server.routes.stack import router as stack_router
     from fmriflow.server.routes.settings import router as settings_router
+    from fmriflow.server.routes.agent import router as agent_router
     from fmriflow.server.routes.group import router as group_router
     from fmriflow.server.routes.study import router as study_router
     from fmriflow.server.routes.run_graph import router as run_graph_router
@@ -205,6 +213,7 @@ def create_app(
     # patterns. Include order does not affect matching here.
     app.include_router(node_outputs_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(agent_router, prefix="/api")
     app.include_router(group_router, prefix="/api")
     app.include_router(study_router, prefix="/api")
     app.include_router(run_graph_router, prefix="/api")

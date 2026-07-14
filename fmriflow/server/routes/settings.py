@@ -12,6 +12,7 @@ successful POST.
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
 from pathlib import Path
@@ -139,3 +140,49 @@ def remove_result_root(body: ResultRootBody) -> dict:
     """Unregister an extra root (matched by realpath). Applies on next rescan."""
     paths.remove_result_root(body.path)
     return _result_roots_snapshot()
+
+
+# ── Experimental AI assistant settings ───────────────────────────────
+#
+# Self-contained, like result-roots: these apply **live** (the assistant
+# re-reads the key/model/enabled flag on each request, so no restart).
+# The API key value is never returned — only whether one is set.
+
+def _agent_snapshot() -> dict:
+    snap = paths.agent_snapshot()
+    # Whether the optional `anthropic` dependency is importable.
+    snap["available"] = importlib.util.find_spec("anthropic") is not None
+    return snap
+
+
+class AgentSettingsBody(BaseModel):
+    """Assistant settings. ``api_key``/``model`` omitted → left unchanged;
+    empty string clears. ``enabled`` is always applied."""
+
+    enabled: bool = False
+    api_key: str | None = None
+    model: str | None = None
+
+
+@router.get("/agent")
+def get_agent_settings() -> dict:
+    """Return the assistant's enabled flag, key presence, model, availability."""
+    return _agent_snapshot()
+
+
+@router.post("/agent")
+def post_agent_settings(body: AgentSettingsBody) -> dict:
+    """Persist assistant settings to ``~/.config/fmriflow/settings.json``.
+
+    Only the keys present in the request are touched — omitting
+    ``api_key`` leaves a previously stored key intact.
+    """
+    updates: dict[str, str | None] = {
+        "AGENT_ENABLED": "1" if body.enabled else "",
+    }
+    if body.api_key is not None:
+        updates["ANTHROPIC_API_KEY"] = body.api_key.strip()
+    if body.model is not None:
+        updates["AGENT_MODEL"] = body.model.strip()
+    paths.save_runtime_config(updates)
+    return _agent_snapshot()

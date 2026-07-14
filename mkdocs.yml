@@ -61,6 +61,7 @@ nav:
     - Workflows: guide/workflows.md
     - Group Analysis: guide/group-analysis.md
     - Web UI: guide/web-ui.md
+    - AI Assistant: guide/ai-assistant.md
   - Reference:
     - Built-in Modules: reference/modules.md
     - Config Reference: reference/config.md

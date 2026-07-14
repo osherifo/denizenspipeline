@@ -38,6 +38,9 @@ import type {
   WorkflowConfigSummary,
   WorkflowConfigDetail,
   WorkflowRunSummary,
+  AgentStatus,
+  AgentSettings,
+  AgentSettingsUpdate,
 } from './types'
 
 const BASE = '/api'
@@ -489,6 +492,29 @@ export async function fetchErrors(opts?: {
 export function connectRunWs(runId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return new WebSocket(`${proto}//${window.location.host}/ws/runs/${runId}`)
+}
+
+// ── Experimental AI assistant ──
+
+export function connectAgentWs(sessionId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return new WebSocket(`${proto}//${window.location.host}/ws/agent/${sessionId}`)
+}
+
+export async function fetchAgentStatus(): Promise<AgentStatus> {
+  return json(`${BASE}/agent/status`)
+}
+
+export async function fetchAgentSettings(): Promise<AgentSettings> {
+  return json(`${BASE}/settings/agent`)
+}
+
+export async function saveAgentSettings(body: AgentSettingsUpdate): Promise<AgentSettings> {
+  return json(`${BASE}/settings/agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }
 
 export function connectPreprocWs(runId: string): WebSocket {
