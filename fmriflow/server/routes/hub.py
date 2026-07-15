@@ -72,6 +72,18 @@ def set_token(request: Request, sid: str, body: TokenBody) -> dict:
     return hub.sources_snapshot()
 
 
+@router.get("/sources/{sid}/branches")
+def list_branches(request: Request, sid: str) -> dict:
+    """Remote branch names (via ``git ls-remote``) for the branch picker."""
+    hub = _hub(request)
+    try:
+        return {"branches": hub.list_branches(sid)}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/sources/{sid}/sync")
 def sync_source(request: Request, sid: str) -> dict:
     hub = _hub(request)

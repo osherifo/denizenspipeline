@@ -37,18 +37,28 @@ class HubService:
     # ── status / sources ──
 
     def sources_snapshot(self) -> dict:
+        from fmriflow.hub.source import keyring_available
         srcs = []
         for s in self.registry.list_sources():
             srcs.append({
                 **s.to_public(),
                 "has_token": self.registry.has_token(s.id),
+                "token_storage": self.registry.token_storage(s.id),
                 "synced": self.is_synced(s),
             })
         return {
             "sources": srcs,
             "env_override": self.registry.env_override(),
             "preflight": self.preflight(),
+            "keyring_available": keyring_available(),
         }
+
+    def list_branches(self, sid: str) -> list[str]:
+        source = self.registry.get(sid)
+        if source is None:
+            raise KeyError(f"no source '{sid}'")
+        backend = get_backend(source.backend)
+        return backend.list_branches(source.url, self.registry.token_for(sid))
 
     # ── sync ──
 

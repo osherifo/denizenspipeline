@@ -61,6 +61,36 @@ class GitBackend:
         return shutil.which("git-lfs") is not None or (
             self._run(["git", "lfs", "version"], check=False).returncode == 0)
 
+    def _is_empty(self, dest: Path) -> bool:
+        """True if the checkout has no commits yet (brand-new/empty remote)."""
+        return self._run(["git", "rev-parse", "--verify", "HEAD"],
+                         cwd=dest, check=False).returncode != 0
+
+    def _ref_exists(self, dest: Path, ref: str) -> bool:
+        return self._run(["git", "rev-parse", "--verify", "--quiet", ref],
+                         cwd=dest, check=False).returncode == 0
+
+    def _remote_branches(self, dest: Path) -> list[str]:
+        out = self._run(["git", "branch", "-r", "--format=%(refname:short)"],
+                        cwd=dest, check=False).stdout
+        names = []
+        for line in out.splitlines():
+            b = line.strip()
+            if b.startswith("origin/") and "->" not in b:
+                names.append(b[len("origin/"):])
+        return names
+
+    def list_branches(self, url: str, token: str | None) -> list[str]:
+        """Remote branch names via ``git ls-remote`` (no clone needed)."""
+        auth = self._auth_url(url, token)
+        out = self._run(["git", "ls-remote", "--heads", auth]).stdout
+        branches = []
+        for line in out.splitlines():
+            parts = line.split("refs/heads/", 1)
+            if len(parts) == 2:
+                branches.append(parts[1].strip())
+        return branches
+
     # ── Protocol ──
 
     def sync(self, url: str, branch: str, dest: Path, token: str | None) -> None:
@@ -68,44 +98,67 @@ class GitBackend:
         dest.parent.mkdir(parents=True, exist_ok=True)
         if (dest / ".git").is_dir():
             self._run(["git", "remote", "set-url", "origin", auth], cwd=dest)
-            self._run(["git", "fetch", "--depth", "1", "origin", branch], cwd=dest)
-            # `checkout -B` atomically points local <branch> at origin/<branch>
-            # and checks it out — fatal on failure, so a failed checkout can
-            # never fall through to a hard-reset of some *other* current branch.
-            self._run(["git", "checkout", "-B", branch, f"origin/{branch}"], cwd=dest)
+            # Fetch all heads shallowly so any branch is selectable; tolerate
+            # an empty remote (nothing to fetch).
+            self._run(["git", "fetch", "--depth", "1", "--no-tags",
+                       "origin", "+refs/heads/*:refs/remotes/origin/*"],
+                      cwd=dest, check=False)
         else:
             if dest.exists():
                 shutil.rmtree(dest)
-            self._run(["git", "clone", "--depth", "1", "--branch", branch,
+            # No --branch pin: an *empty* repo or a different default branch
+            # would otherwise hard-fail ("Remote branch main not found").
+            # --no-single-branch fetches every branch tip so branch selection
+            # works after clone.
+            self._run(["git", "clone", "--depth", "1", "--no-single-branch",
                        auth, str(dest)])
-        # Best-effort LFS pull; a missing git-lfs is non-fatal (blobs stay
-        # as pointer files and install will surface a clear error).
+
+        if not self._is_empty(dest):
+            if self._ref_exists(dest, f"origin/{branch}"):
+                # Atomically point local <branch> at origin/<branch>.
+                self._run(["git", "checkout", "-B", branch, f"origin/{branch}"], cwd=dest)
+            else:
+                avail = self._remote_branches(dest)
+                raise BackendError(
+                    f"branch '{branch}' not found in the repository. "
+                    f"Available: {', '.join(avail) if avail else '(none)'}"
+                )
+        # else: empty remote — nothing checked out; the catalog is empty until
+        # the first artifact is published (which initialises the branch).
+
         if self._has_lfs():
             self._run(["git", "lfs", "pull"], cwd=dest, check=False)
-        # Never leave a token in the on-disk remote config.
         self._run(["git", "remote", "set-url", "origin", url], cwd=dest, check=False)
 
     def publish(self, url: str, base_branch: str, dest: Path, token: str | None,
                 push_branch: str, message: str) -> dict:
         auth = self._auth_url(url, token)
-        # Configure a committer identity if the repo/user has none.
         self._run(["git", "config", "user.email", "hub@fmriflow.local"], cwd=dest, check=False)
         self._run(["git", "config", "user.name", "fMRIflow Hub"], cwd=dest, check=False)
-        self._run(["git", "checkout", "-B", push_branch], cwd=dest)
+
+        # First publish to an empty repo initialises it directly on the base
+        # branch (no PR needed / possible). Otherwise push to a feature branch
+        # so the change can be reviewed via PR.
+        initialised = self._is_empty(dest)
+        target = base_branch if initialised else push_branch
+
+        self._run(["git", "checkout", "-B", target], cwd=dest)
         self._run(["git", "add", "-A"], cwd=dest)
         status = self._run(["git", "status", "--porcelain"], cwd=dest)
         if not status.stdout.strip():
-            return {"branch": push_branch, "pushed": False, "pr_url": None,
+            return {"branch": target, "pushed": False, "pr_url": None,
                     "detail": "nothing to publish (no changes)"}
         self._run(["git", "commit", "-m", message], cwd=dest)
         self._run(["git", "remote", "set-url", "origin", auth], cwd=dest)
         try:
-            self._run(["git", "push", "-u", "origin", push_branch], cwd=dest)
+            self._run(["git", "push", "-u", "origin", target], cwd=dest)
             pushed = True
         finally:
             self._run(["git", "remote", "set-url", "origin", url], cwd=dest, check=False)
-        return {"branch": push_branch, "pushed": pushed,
-                "pr_url": _pr_url(url, base_branch, push_branch)}
+        return {
+            "branch": target, "pushed": pushed, "initialized": initialised,
+            "pr_url": None if initialised else _pr_url(url, base_branch, push_branch),
+        }
 
 
 def _redact(text: str) -> str:

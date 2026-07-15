@@ -14,6 +14,7 @@ interface HubState {
   sources: HubSource[]
   envOverride: boolean
   preflight: string[]
+  keyringAvailable: boolean
   catalog: HubCatalogItem[]
   kindFilter: string | null
   loading: boolean
@@ -40,6 +41,7 @@ export const useHubStore = create<HubState>((set, get) => ({
   sources: [],
   envOverride: false,
   preflight: [],
+  keyringAvailable: false,
   catalog: [],
   kindFilter: null,
   loading: false,
@@ -62,7 +64,7 @@ export const useHubStore = create<HubState>((set, get) => ({
   loadSources: async () => {
     try {
       const s = await fetchHubSources()
-      set({ sources: s.sources, envOverride: s.env_override, preflight: s.preflight, error: null })
+      set({ sources: s.sources, envOverride: s.env_override, preflight: s.preflight, keyringAvailable: s.keyring_available, error: null })
     } catch (e) {
       set({ error: String(e) })
     }
@@ -72,7 +74,7 @@ export const useHubStore = create<HubState>((set, get) => ({
     set({ busy: 'add', error: null })
     try {
       const s = await addHubSource(b)
-      set({ sources: s.sources, envOverride: s.env_override, preflight: s.preflight })
+      set({ sources: s.sources, envOverride: s.env_override, preflight: s.preflight, keyringAvailable: s.keyring_available })
     } catch (e) {
       set({ error: String(e) })
     } finally { set({ busy: null }) }
@@ -129,9 +131,11 @@ export const useHubStore = create<HubState>((set, get) => ({
     set({ busy: key, error: null, notice: null })
     try {
       const r = await publishHubArtifact({ source_id: item.source_id, kind: item.kind, name: item.name })
-      set({ notice: r.pushed
-        ? `Published to branch ${r.branch}${r.pr_url ? ` — open a PR: ${r.pr_url}` : ''}`
-        : (r.detail || 'Nothing to publish.') })
+      set({ notice: !r.pushed
+        ? (r.detail || 'Nothing to publish.')
+        : r.initialized
+          ? `Initialized the empty repo on ${r.branch} with ${r.kind}/${r.name}.`
+          : `Published to branch ${r.branch}${r.pr_url ? ` — open a PR: ${r.pr_url}` : ''}` })
     } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }
   },
 

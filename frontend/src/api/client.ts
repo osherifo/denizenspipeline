@@ -1101,6 +1101,10 @@ export async function syncHubSource(sid: string): Promise<{ synced: boolean; art
   return json(`${BASE}/hub/sources/${encodeURIComponent(sid)}/sync`, { method: 'POST' })
 }
 
+export async function fetchHubBranches(sid: string): Promise<{ branches: string[] }> {
+  return json(`${BASE}/hub/sources/${encodeURIComponent(sid)}/branches`)
+}
+
 export async function fetchHubCatalog(kind?: string): Promise<{ items: HubCatalogItem[]; total: number }> {
   const qs = kind ? `?kind=${encodeURIComponent(kind)}` : ''
   return json(`${BASE}/hub/catalog${qs}`)

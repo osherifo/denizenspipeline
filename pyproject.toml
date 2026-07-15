@@ -27,6 +27,9 @@ video = ["opencv-python>=4.7"]
 bids = ["nibabel>=5.0"]
 flatten = ["autoflatten>=0.1.0"]
 frontend = ["fastapi>=0.109", "uvicorn>=0.27", "websockets>=12.0", "python-multipart>=0.0.7"]
+# Artifact hub: OS-keyring token storage (optional — falls back to
+# settings.json / env var when absent). git/git-lfs are external tools.
+hub = ["keyring>=24"]
 all = ["fmriflow[cloud,viz,ml,nlp,himalaya,audio,video,bids,frontend,flatten]"]
 dev = ["fmriflow[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
 
