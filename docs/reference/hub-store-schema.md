@@ -107,9 +107,12 @@ So **`hub.json` is the single source of truth** for what a store contains.
 
 fMRIflow validates a synced store against this schema. `sync` returns any
 problems as `warnings`, and `GET /api/hub/sources/{id}/validate` returns the full
-list. Checks: supported `schema`, known `kind`, unique `kind/name`, non-empty
-`files` that exist on disk, a present `sha256`, and `metadata.category` on
-`module` entries.
+list. Checks: supported `schema`, known `kind`, unique `kind/name`, a non-empty
+`files` list whose entries are **repo-relative and exist on disk** (absolute
+paths and `..` traversal are rejected — a hub install never reads or writes
+outside the clone), a present `sha256`, and `metadata.category` on `module`
+entries. A non-empty repo missing `hub.json` is flagged too (only a
+commit-less/empty repo is exempt).
 
 ## Self-documenting stores
 

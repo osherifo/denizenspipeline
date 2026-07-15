@@ -98,11 +98,13 @@ class GitBackend:
         dest.parent.mkdir(parents=True, exist_ok=True)
         if (dest / ".git").is_dir():
             self._run(["git", "remote", "set-url", "origin", auth], cwd=dest)
-            # Fetch all heads shallowly so any branch is selectable; tolerate
-            # an empty remote (nothing to fetch).
+            # Fetch all heads shallowly so any branch is selectable. An empty
+            # remote still exits 0 (nothing to fetch), so keep check=True to
+            # fail fast on real auth/network errors rather than proceed on
+            # stale refs.
             self._run(["git", "fetch", "--depth", "1", "--no-tags",
                        "origin", "+refs/heads/*:refs/remotes/origin/*"],
-                      cwd=dest, check=False)
+                      cwd=dest)
         else:
             if dest.exists():
                 shutil.rmtree(dest)

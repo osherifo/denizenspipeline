@@ -44,6 +44,22 @@ class ArtifactEntry:
         return asdict(self)
 
 
+def is_within(repo_dir: Path, rel: str) -> bool:
+    """True iff *rel* is a repo-relative path that stays inside *repo_dir*.
+
+    Rejects absolute paths and ``..`` traversal so a malicious manifest can't
+    point install/verify at files outside the clone.
+    """
+    if not rel or Path(rel).is_absolute():
+        return False
+    try:
+        base = repo_dir.resolve()
+        target = (base / rel).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return target == base or target.is_relative_to(base)
+
+
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -159,7 +175,10 @@ def validate_manifest(repo_dir: Path) -> list[str]:
             problems.append(f"{where} ({kind}/{name}): 'files' must be a non-empty array")
         else:
             for rel in files:
-                if not (repo_dir / rel).is_file():
+                if not is_within(repo_dir, rel):
+                    problems.append(f"{where} ({kind}/{name}): unsafe path '{rel}' "
+                                    "(must be repo-relative, no absolute paths or '..')")
+                elif not (repo_dir / rel).is_file():
                     problems.append(f"{where} ({kind}/{name}): missing file '{rel}'")
         if not a.get("sha256"):
             problems.append(f"{where} ({kind}/{name}): missing 'sha256' (install verifies it)")
@@ -176,7 +195,7 @@ def verify(repo_dir: Path, entry: ArtifactEntry) -> bool:
     if not entry.sha256:
         return False
     for rel in entry.files:
-        if not (repo_dir / rel).is_file():
+        if not is_within(repo_dir, rel) or not (repo_dir / rel).is_file():
             return False
     digest, _ = combined_sha256(repo_dir, entry.files)
     return digest == entry.sha256

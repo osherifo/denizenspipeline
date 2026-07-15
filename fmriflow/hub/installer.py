@@ -34,6 +34,12 @@ def install(entry: ArtifactEntry, repo_dir: Path, state, source=None) -> dict:
     """Verify + install one artifact. Returns a small result dict."""
     if not entry.files:
         raise InstallError("artifact has no files")
+    # Reject a manifest that points outside the clone (path traversal) before
+    # touching the filesystem — clearer than the downstream checksum failure.
+    for rel in entry.files:
+        if not manifest.is_within(repo_dir, rel):
+            raise InstallError(f"refusing unsafe path '{rel}' in {entry.kind}/{entry.name} "
+                               "(must be repo-relative, no '..' or absolute paths)")
     if not manifest.verify(repo_dir, entry):
         raise InstallError(
             f"checksum verification failed for {entry.kind}/{entry.name} "

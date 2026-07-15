@@ -18,6 +18,14 @@ from fmriflow.hub.source import HubSource, SourceRegistry
 logger = logging.getLogger(__name__)
 
 
+def _is_empty_clone(dest) -> bool:
+    """A freshly-cloned empty (commit-less) repo has only .git in its tree."""
+    try:
+        return not any(p.name != ".git" for p in dest.iterdir())
+    except OSError:
+        return True
+
+
 class HubService:
     def __init__(self) -> None:
         self.registry = SourceRegistry()
@@ -74,10 +82,11 @@ class HubService:
         backend.sync(source.url, source.branch, dest,
                      self.registry.token_for(sid))
         entries = manifest.read_manifest(dest)
-        # A present-but-malformed manifest is surfaced as warnings; a
-        # commit-less/empty repo (no manifest yet) is expected, not a warning.
-        warnings = (manifest.validate_manifest(dest)
-                    if (dest / manifest.MANIFEST_NAME).is_file() else [])
+        # Validate a repo that has content. A truly empty (commit-less) repo
+        # legitimately has no manifest yet — don't warn on that; but a
+        # non-empty repo missing/breaking hub.json IS a schema problem and must
+        # be surfaced.
+        warnings = [] if _is_empty_clone(dest) else manifest.validate_manifest(dest)
         return {"synced": True, "source_id": sid,
                 "artifacts": len(entries), "warnings": warnings}
 
