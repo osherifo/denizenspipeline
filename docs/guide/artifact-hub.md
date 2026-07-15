@@ -38,10 +38,14 @@ On the Hub page, **+ Add source**:
 - **Git URL** — `https://…` for a hosted repo, or a `file://` path / local path
   for a repo on a mounted share.
 - **Tier** — *Within-lab* or *Community*.
-- **Access token** *(optional)* — a personal access token for a private repo or
-  for publishing. Stored locally in `~/.config/fmriflow/settings.json` (or set
-  `FMRIFLOW_HUB_TOKEN_<ID>` in the environment). Never sent anywhere but the git
-  remote.
+- **Access token** *(optional)* — needed only for a **private** repo or to
+  **publish**. Use a **Personal Access Token**: a classic PAT with the `repo`
+  scope, or a fine-grained PAT scoped to the repo with **Contents: Read** (add
+  **Read and write** to publish). **Do not** paste a GitHub-CLI token
+  (`gho_…` from `gh auth token`) — those are short-lived session tokens that get
+  rotated and will fail to authenticate. Stored locally in
+  `~/.config/fmriflow/settings.json` (or set `FMRIFLOW_HUB_TOKEN_<ID>` in the
+  environment); never sent anywhere but the git remote.
 
 Then **Sync** to clone/pull and populate the catalog. Filter by artifact kind,
 and **Install** what you want.
