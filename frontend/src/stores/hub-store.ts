@@ -93,7 +93,10 @@ export const useHubStore = create<HubState>((set, get) => ({
     set({ busy: sid, error: null })
     try {
       const r = await syncHubSource(sid)
-      set({ notice: `Synced — ${r.artifacts} artifact(s).` })
+      const warn = r.warnings && r.warnings.length
+        ? `  ⚠️ store schema issues: ${r.warnings.slice(0, 3).join('; ')}${r.warnings.length > 3 ? ` (+${r.warnings.length - 3} more)` : ''}`
+        : ''
+      set({ notice: `Synced — ${r.artifacts} artifact(s).${warn}` })
       await get().loadSources()
       await get().loadCatalog(get().kindFilter)
     } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }

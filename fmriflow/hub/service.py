@@ -74,7 +74,21 @@ class HubService:
         backend.sync(source.url, source.branch, dest,
                      self.registry.token_for(sid))
         entries = manifest.read_manifest(dest)
-        return {"synced": True, "source_id": sid, "artifacts": len(entries)}
+        # A present-but-malformed manifest is surfaced as warnings; a
+        # commit-less/empty repo (no manifest yet) is expected, not a warning.
+        warnings = (manifest.validate_manifest(dest)
+                    if (dest / manifest.MANIFEST_NAME).is_file() else [])
+        return {"synced": True, "source_id": sid,
+                "artifacts": len(entries), "warnings": warnings}
+
+    def validate(self, sid: str) -> dict:
+        source = self.registry.get(sid)
+        if source is None:
+            raise KeyError(f"no source '{sid}'")
+        dest = self.clone_dir(source)
+        if not dest.is_dir():
+            return {"synced": False, "problems": ["source not synced yet — sync first"]}
+        return {"synced": True, "problems": manifest.validate_manifest(dest)}
 
     def _synced_entries(self) -> list[tuple[HubSource, list[manifest.ArtifactEntry]]]:
         out = []

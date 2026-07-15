@@ -72,6 +72,16 @@ def set_token(request: Request, sid: str, body: TokenBody) -> dict:
     return hub.sources_snapshot()
 
 
+@router.get("/sources/{sid}/validate")
+def validate_source(request: Request, sid: str) -> dict:
+    """Check a synced store against the hub schema (problems: [] = valid)."""
+    hub = _hub(request)
+    try:
+        return hub.validate(sid)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/sources/{sid}/branches")
 def list_branches(request: Request, sid: str) -> dict:
     """Remote branch names (via ``git ls-remote``) for the branch picker."""

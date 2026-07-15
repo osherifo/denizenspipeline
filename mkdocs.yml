@@ -66,3 +66,4 @@ nav:
     - Built-in Modules: reference/modules.md
     - Config Reference: reference/config.md
     - Defaults: reference/defaults.md
+    - Hub Store Schema: reference/hub-store-schema.md

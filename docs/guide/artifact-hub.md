@@ -76,7 +76,8 @@ a maintainer can review — that review *is* the curation.
 
 ## Source-repo layout
 
-A source repo looks like:
+A store repo follows a fixed contract — see the
+[Hub store schema](../reference/hub-store-schema.md) for the full spec. In short:
 
 ```
 hub.json                 # the manifest (catalog + integrity hashes)

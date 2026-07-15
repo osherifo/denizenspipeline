@@ -1097,7 +1097,7 @@ export async function setHubToken(sid: string, token: string | null): Promise<Hu
   })
 }
 
-export async function syncHubSource(sid: string): Promise<{ synced: boolean; artifacts: number }> {
+export async function syncHubSource(sid: string): Promise<{ synced: boolean; artifacts: number; warnings?: string[] }> {
   return json(`${BASE}/hub/sources/${encodeURIComponent(sid)}/sync`, { method: 'POST' })
 }
 
