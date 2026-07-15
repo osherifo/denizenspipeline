@@ -150,10 +150,10 @@ export function HubView() {
           {s.synced && <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ synced</span>}
           {s.has_token && <TokenChip storage={s.token_storage} />}
           <span style={{ flex: 1 }} />
-          <button style={btnSm} disabled={busy === s.id} onClick={() => sync(s.id)}>
+          <button style={btnSm} disabled={!!busy} onClick={() => sync(s.id)}>
             {busy === s.id ? <><Spinner /> Syncing…</> : 'Sync'}
           </button>
-          {!envOverride && <button style={btnSm} disabled={busy === s.id} onClick={() => removeSource(s.id)}>Remove</button>}
+          {!envOverride && <button style={btnSm} disabled={!!busy} onClick={() => removeSource(s.id)}>Remove</button>}
         </div>
       ))}
 
@@ -212,6 +212,7 @@ export function HubView() {
       {catalog.map((item) => (
         <ArtifactRow key={`${item.source_id}:${item.kind}:${item.name}`} item={item}
           busy={busy === `${item.source_id}:${item.kind}:${item.name}`}
+          anyBusy={!!busy}
           onInstall={() => install(item)} onPublish={() => publish(item)} />
       ))}
     </div>
@@ -219,7 +220,9 @@ export function HubView() {
 }
 
 function Spinner() {
-  return <span style={{ display: 'inline-block', animation: 'hubspin 0.7s linear infinite' }}>⟳</span>
+  // Decorative — the button keeps its "Syncing…/Publishing…" text label, so
+  // hide the glyph from assistive tech to keep the accessible name clean.
+  return <span aria-hidden style={{ display: 'inline-block', animation: 'hubspin 0.7s linear infinite' }}>⟳</span>
 }
 
 function TokenChip({ storage }: { storage: HubTokenStorage }) {
@@ -234,8 +237,8 @@ function TokenChip({ storage }: { storage: HubTokenStorage }) {
   return <span style={{ fontSize: 10, color: m.color }} title={m.title}>{m.label}</span>
 }
 
-function ArtifactRow({ item, busy, onInstall, onPublish }: {
-  item: HubCatalogItem; busy: boolean; onInstall: () => void; onPublish: () => void
+function ArtifactRow({ item, busy, anyBusy, onInstall, onPublish }: {
+  item: HubCatalogItem; busy: boolean; anyBusy: boolean; onInstall: () => void; onPublish: () => void
 }) {
   return (
     <div style={artifactRow}>
@@ -252,10 +255,10 @@ function ArtifactRow({ item, busy, onInstall, onPublish }: {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {item.tags.map((t) => <span key={t} style={tag}>{t}</span>)}
         <span style={{ flex: 1 }} />
-        <button style={btnSm} disabled={busy || item.installed} onClick={onInstall}>
+        <button style={btnSm} disabled={anyBusy || item.installed} onClick={onInstall}>
           {item.installed ? 'Installed' : busy ? <><Spinner /> Installing…</> : 'Install'}
         </button>
-        <button style={btnSm} disabled={busy} onClick={onPublish} title="Publish your local version to this source">
+        <button style={btnSm} disabled={anyBusy} onClick={onPublish} title="Publish your local version to this source">
           {busy ? <><Spinner /> Publishing…</> : 'Publish local'}
         </button>
       </div>

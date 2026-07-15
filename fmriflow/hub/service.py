@@ -79,8 +79,15 @@ class HubService:
         for kind in self.PUBLISHABLE_KINDS:
             if kind == "module":
                 from fmriflow.server.services.module_loader import get_modules_dir
+                # Only user-tier files that are actually *registered* — an
+                # unregistered/invalid .py has no known category, and publishing
+                # it would produce a manifest entry missing metadata.category
+                # (which the store schema requires) and fail validation.
+                registered: set[str] = set()
+                for lst in state.registry.list_modules().values():
+                    registered.update(lst)
                 names = sorted(p.stem for p in get_modules_dir().glob("*.py")
-                               if p.stem != "__init__")
+                               if p.stem != "__init__" and p.stem in registered)
             elif kind == "heuristic":
                 from fmriflow.convert.heuristics import _heuristics_dir
                 names = sorted(p.stem for p in _heuristics_dir().glob("*.py"))

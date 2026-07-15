@@ -56,6 +56,15 @@ def test_local_artifacts_lists_user_tier_only(client):
     # offered as publishable (they have no user-tier file to push).
     assert "module" not in arts
 
+    # A stray, unregistered .py in the user modules dir must NOT be offered:
+    # it has no known category, so publishing it would break the store schema.
+    from fmriflow.server.services.module_loader import get_modules_dir
+    mdir = get_modules_dir()
+    mdir.mkdir(parents=True, exist_ok=True)
+    (mdir / "not_a_real_module.py").write_text("x = 1\n")
+    arts2 = client.get("/api/hub/local").json()["artifacts"]
+    assert "not_a_real_module" not in arts2.get("module", [])
+
 
 def test_add_and_remove_source_roundtrip(client):
     r = client.post("/api/hub/sources", json={
