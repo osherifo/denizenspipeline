@@ -112,8 +112,14 @@ export function HubView() {
               <option value="lab">Within-lab</option>
               <option value="community">Community</option>
             </select>
-            <input style={{ ...input, flex: 1 }} type="password" placeholder="Access token (optional, for private/push)"
+            <input style={{ ...input, flex: 1 }} type="password" placeholder="Personal Access Token (optional, for private/push)"
               value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} />
+          </div>
+          <div style={tokenHelp}>
+            Use a <strong>Personal Access Token</strong> — classic (scope <code>repo</code>) or
+            fine-grained (Contents: Read; Read&nbsp;and&nbsp;write to publish). <strong>Not</strong> a
+            GitHub-CLI token (<code>gho_…</code> from <code>gh</code>) — those are session tokens that
+            expire and will fail to authenticate. Leave blank for public or <code>file://</code> sources.
           </div>
           <button style={btn} disabled={busy === 'add'} onClick={submitAdd}>Add source</button>
         </div>
@@ -236,6 +242,7 @@ const installedBadge: CSSProperties = {
 }
 const tag: CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 8px' }
 const emptyHint: CSSProperties = { fontSize: 13, color: 'var(--text-secondary)', padding: '12px 0' }
+const tokenHelp: CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: -2 }
 const banner = (kind: 'info' | 'warning'): CSSProperties => {
   const c = kind === 'warning'
     ? { color: '#ffb86c', bg: 'rgba(255,184,108,0.10)' }
