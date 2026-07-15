@@ -94,6 +94,10 @@ def publish(source, repo_dir: Path, kind: str, name: str, state, *,
     """Stage kind+name into *repo_dir*, update the manifest, commit + push."""
     files, meta = locate_local(kind, name, state)
 
+    # Make the store self-documenting + LFS-ready (no-op if already present).
+    from fmriflow.hub.template import ensure_scaffold
+    ensure_scaffold(repo_dir)
+
     kind_dir = repo_dir / KINDS_DIR / kind
     kind_dir.mkdir(parents=True, exist_ok=True)
     rel_files: list[str] = []

@@ -134,12 +134,27 @@ class SourceRegistry:
             paths.save_settings_value(TOKENS_KEY, toks)
 
     # ── Tokens (secret) ──
+    #
+    # Resolution order for reads: env var > OS keyring > settings.json.
+    # Writes prefer the OS keyring (the same secure store `gh` uses — GNOME
+    # Keyring/libsecret, macOS Keychain, Windows Credential Manager) and, when
+    # keyring is available, actively migrate any plaintext token out of
+    # settings.json. Only if no keyring backend exists do we fall back to
+    # settings.json, which is plaintext — hence the env-var option for the
+    # security-conscious.
 
     def _load_tokens(self) -> dict:
         val = paths.load_settings_value(TOKENS_KEY, {})
         return val if isinstance(val, dict) else {}
 
     def set_token(self, sid: str, token: str | None) -> None:
+        if _keyring_set(sid, token):
+            # Keyring holds it now; make sure no plaintext copy lingers.
+            toks = self._load_tokens()
+            if toks.pop(sid, None) is not None:
+                paths.save_settings_value(TOKENS_KEY, toks)
+            return
+        # Fallback: settings.json (plaintext).
         toks = self._load_tokens()
         if token:
             toks[sid] = token
@@ -148,11 +163,63 @@ class SourceRegistry:
         paths.save_settings_value(TOKENS_KEY, toks)
 
     def token_for(self, sid: str) -> str | None:
-        # Env var wins (e.g. CI): FMRIFLOW_HUB_TOKEN_<ID>
         env = os.environ.get(f"FMRIFLOW_HUB_TOKEN_{sid.upper()}")
         if env:
             return env
+        kr = _keyring_get(sid)
+        if kr:
+            return kr
         return self._load_tokens().get(sid)
 
     def has_token(self, sid: str) -> bool:
         return bool(self.token_for(sid))
+
+    def token_storage(self, sid: str) -> str:
+        """Where the token for *sid* is held: env | keyring | settings | none."""
+        if os.environ.get(f"FMRIFLOW_HUB_TOKEN_{sid.upper()}"):
+            return "env"
+        if _keyring_get(sid):
+            return "keyring"
+        if self._load_tokens().get(sid):
+            return "settings"
+        return "none"
+
+
+# ── OS keyring (optional) ────────────────────────────────────────────
+
+_KEYRING_SERVICE = "fmriflow-hub"
+
+
+def keyring_available() -> bool:
+    try:
+        import keyring
+        from keyring.backends import fail
+        return not isinstance(keyring.get_keyring(), fail.Keyring)
+    except Exception:
+        return False
+
+
+def _keyring_get(sid: str) -> str | None:
+    try:
+        import keyring
+        return keyring.get_password(_KEYRING_SERVICE, sid)
+    except Exception:
+        return None
+
+
+def _keyring_set(sid: str, token: str | None) -> bool:
+    """Store/delete in the OS keyring. Returns True if keyring handled it."""
+    if not keyring_available():
+        return False
+    try:
+        import keyring
+        if token:
+            keyring.set_password(_KEYRING_SERVICE, sid, token)
+        else:
+            try:
+                keyring.delete_password(_KEYRING_SERVICE, sid)
+            except Exception:
+                pass
+        return True
+    except Exception:
+        return False

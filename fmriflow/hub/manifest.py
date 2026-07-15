@@ -44,6 +44,22 @@ class ArtifactEntry:
         return asdict(self)
 
 
+def is_within(repo_dir: Path, rel: str) -> bool:
+    """True iff *rel* is a repo-relative path that stays inside *repo_dir*.
+
+    Rejects absolute paths and ``..`` traversal so a malicious manifest can't
+    point install/verify at files outside the clone.
+    """
+    if not rel or Path(rel).is_absolute():
+        return False
+    try:
+        base = repo_dir.resolve()
+        target = (base / rel).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return target == base or target.is_relative_to(base)
+
+
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -117,6 +133,60 @@ def build_entry(repo_dir: Path, kind: str, name: str, rel_files: list[str],
     )
 
 
+def validate_manifest(repo_dir: Path) -> list[str]:
+    """Check a store repo against the schema. Returns a list of problems
+    ([] = valid). Used by the ``/validate`` endpoint and surfaced on sync so a
+    malformed store is flagged rather than silently half-working.
+    """
+    problems: list[str] = []
+    mp = manifest_path(repo_dir)
+    if not mp.is_file():
+        return [f"no {MANIFEST_NAME} at the repo root — this is not a hub store "
+                "(an empty repo is fine; publish to initialise it)."]
+    try:
+        data = json.loads(mp.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        return [f"{MANIFEST_NAME} is not valid JSON: {e}"]
+    if not isinstance(data, dict):
+        return [f"{MANIFEST_NAME} must be a JSON object"]
+    schema = data.get("schema")
+    if schema != SCHEMA:
+        problems.append(f"unsupported manifest schema {schema!r} (this build expects {SCHEMA})")
+    arts = data.get("artifacts")
+    if not isinstance(arts, list):
+        return problems + [f"{MANIFEST_NAME} must have an 'artifacts' array"]
+    seen: set[tuple[str, str]] = set()
+    for i, a in enumerate(arts):
+        where = f"artifacts[{i}]"
+        if not isinstance(a, dict):
+            problems.append(f"{where}: not an object"); continue
+        kind, name = a.get("kind"), a.get("name")
+        if kind not in KINDS:
+            problems.append(f"{where}: unknown kind {kind!r} (allowed: {', '.join(KINDS)})")
+        if not name:
+            problems.append(f"{where}: missing 'name'")
+        if kind and name:
+            key = (kind, name)
+            if key in seen:
+                problems.append(f"{where}: duplicate {kind}/{name}")
+            seen.add(key)
+        files = a.get("files")
+        if not isinstance(files, list) or not files:
+            problems.append(f"{where} ({kind}/{name}): 'files' must be a non-empty array")
+        else:
+            for rel in files:
+                if not is_within(repo_dir, rel):
+                    problems.append(f"{where} ({kind}/{name}): unsafe path '{rel}' "
+                                    "(must be repo-relative, no absolute paths or '..')")
+                elif not (repo_dir / rel).is_file():
+                    problems.append(f"{where} ({kind}/{name}): missing file '{rel}'")
+        if not a.get("sha256"):
+            problems.append(f"{where} ({kind}/{name}): missing 'sha256' (install verifies it)")
+        if kind == "module" and not (a.get("metadata") or {}).get("category"):
+            problems.append(f"{where} ({name}): module entries need metadata.category")
+    return problems
+
+
 def verify(repo_dir: Path, entry: ArtifactEntry) -> bool:
     """Recompute the hash and compare to the manifest (integrity check).
 
@@ -125,7 +195,7 @@ def verify(repo_dir: Path, entry: ArtifactEntry) -> bool:
     if not entry.sha256:
         return False
     for rel in entry.files:
-        if not (repo_dir / rel).is_file():
+        if not is_within(repo_dir, rel) or not (repo_dir / rel).is_file():
             return False
     digest, _ = combined_sha256(repo_dir, entry.files)
     return digest == entry.sha256

@@ -945,6 +945,8 @@ export interface ResultRootsSnapshot {
 
 export type HubTier = 'lab' | 'community'
 
+export type HubTokenStorage = 'env' | 'keyring' | 'settings' | 'none'
+
 export interface HubSource {
   id: string
   name: string
@@ -954,6 +956,7 @@ export interface HubSource {
   branch: string
   enabled: boolean
   has_token: boolean
+  token_storage: HubTokenStorage
   synced: boolean
 }
 
@@ -961,6 +964,7 @@ export interface HubSourcesSnapshot {
   sources: HubSource[]
   env_override: boolean
   preflight: string[]        // missing-prerequisite messages ([] if ready)
+  keyring_available: boolean // OS keyring present → tokens stored securely
 }
 
 export interface HubCatalogItem {
@@ -997,6 +1001,7 @@ export interface HubPublishResult {
   branch: string
   pushed: boolean
   pr_url?: string | null
+  initialized?: boolean       // first publish to an empty repo → created the branch
   kind: string
   name: string
   detail?: string

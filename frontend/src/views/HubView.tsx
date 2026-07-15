@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useHubStore } from '../stores/hub-store'
-import type { HubCatalogItem, HubTier } from '../api/types'
+import type { HubCatalogItem, HubTier, HubTokenStorage } from '../api/types'
 
 const KIND_LABELS: Record<string, string> = {
   error: 'Error KB',
@@ -44,12 +44,12 @@ function fmtSize(n: number): string {
 
 export function HubView() {
   const {
-    sources, envOverride, preflight, catalog, kindFilter, loading, error, busy, notice,
+    sources, envOverride, preflight, keyringAvailable, catalog, kindFilter, loading, error, busy, notice,
     loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
     setKindFilter, clearNotice,
   } = useHubStore()
 
-  const [form, setForm] = useState({ name: '', url: '', tier: 'lab', token: '' })
+  const [form, setForm] = useState({ name: '', url: '', tier: 'lab', branch: 'main', token: '' })
   const [showAdd, setShowAdd] = useState(false)
 
   useEffect(() => { loadSources(); loadCatalog() }, [loadSources, loadCatalog])
@@ -61,8 +61,11 @@ export function HubView() {
 
   const submitAdd = async () => {
     if (!form.name.trim() || !form.url.trim()) return
-    await addSource({ name: form.name.trim(), url: form.url.trim(), tier: form.tier, token: form.token || undefined })
-    setForm({ name: '', url: '', tier: 'lab', token: '' })
+    await addSource({
+      name: form.name.trim(), url: form.url.trim(), tier: form.tier,
+      branch: form.branch.trim() || 'main', token: form.token || undefined,
+    })
+    setForm({ name: '', url: '', tier: 'lab', branch: 'main', token: '' })
     setShowAdd(false)
   }
 
@@ -107,19 +110,26 @@ export function HubView() {
           <input style={input} placeholder="Git URL (https://… or a file:// path)" value={form.url}
             onChange={(e) => setForm({ ...form, url: e.target.value })} />
           <div style={{ display: 'flex', gap: 8 }}>
-            <select style={{ ...input, flex: '0 0 140px' }} value={form.tier}
+            <select style={{ ...input, flex: '0 0 130px' }} value={form.tier}
               onChange={(e) => setForm({ ...form, tier: e.target.value })}>
               <option value="lab">Within-lab</option>
               <option value="community">Community</option>
             </select>
+            <input style={{ ...input, flex: '0 0 130px' }} placeholder="Branch (main)" value={form.branch}
+              onChange={(e) => setForm({ ...form, branch: e.target.value })} />
             <input style={{ ...input, flex: 1 }} type="password" placeholder="Personal Access Token (optional, for private/push)"
               value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} />
           </div>
           <div style={tokenHelp}>
-            Use a <strong>Personal Access Token</strong> — classic (scope <code>repo</code>) or
+            <strong>Branch</strong>: an empty repo has none yet — leave it <code>main</code> and your
+            first publish creates it. <br />
+            <strong>Token</strong>: use a <strong>Personal Access Token</strong> — classic (scope <code>repo</code>) or
             fine-grained (Contents: Read; Read&nbsp;and&nbsp;write to publish). <strong>Not</strong> a
-            GitHub-CLI token (<code>gho_…</code> from <code>gh</code>) — those are session tokens that
-            expire and will fail to authenticate. Leave blank for public or <code>file://</code> sources.
+            GitHub-CLI token (<code>gho_…</code> from <code>gh</code>), which expires and fails to authenticate.
+            {keyringAvailable
+              ? ' It will be stored in your OS keyring (secure), not in a plaintext file.'
+              : ' No OS keyring detected — it will be stored in ~/.config/fmriflow/settings.json (plaintext); prefer setting FMRIFLOW_HUB_TOKEN_<ID> in the environment instead.'}
+            {' '}Leave blank for public or <code>file://</code> sources. Sources you add are saved — you only enter this once.
           </div>
           <button style={btn} disabled={busy === 'add'} onClick={submitAdd}>Add source</button>
         </div>
@@ -131,8 +141,9 @@ export function HubView() {
           <span style={tierBadge(s.tier)}>{s.tier === 'community' ? 'community' : 'lab'}</span>
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
           <code style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.url}</code>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>@{s.branch}</span>
           {s.synced && <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ synced</span>}
-          {s.has_token && <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>🔑</span>}
+          {s.has_token && <TokenChip storage={s.token_storage} />}
           <span style={{ flex: 1 }} />
           <button style={btnSm} disabled={busy === s.id} onClick={() => sync(s.id)}>
             {busy === s.id ? '…' : 'Sync'}
@@ -163,6 +174,18 @@ export function HubView() {
       ))}
     </div>
   )
+}
+
+function TokenChip({ storage }: { storage: HubTokenStorage }) {
+  const map: Record<HubTokenStorage, { label: string; color: string; title: string }> = {
+    keyring: { label: '🔒 keyring', color: 'var(--accent-green)', title: 'Token stored securely in the OS keyring' },
+    env: { label: '🔑 env', color: 'var(--accent-cyan)', title: 'Token from a FMRIFLOW_HUB_TOKEN_<ID> environment variable' },
+    settings: { label: '⚠️ plaintext', color: 'var(--accent-yellow)', title: 'Token stored in ~/.config/fmriflow/settings.json (plaintext) — no OS keyring available' },
+    none: { label: '', color: '', title: '' },
+  }
+  const m = map[storage]
+  if (!m.label) return null
+  return <span style={{ fontSize: 10, color: m.color }} title={m.title}>{m.label}</span>
 }
 
 function ArtifactRow({ item, busy, onInstall, onPublish }: {

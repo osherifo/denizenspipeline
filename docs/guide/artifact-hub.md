@@ -38,17 +38,34 @@ On the Hub page, **+ Add source**:
 - **Git URL** — `https://…` for a hosted repo, or a `file://` path / local path
   for a repo on a mounted share.
 - **Tier** — *Within-lab* or *Community*.
+- **Branch** — defaults to `main`. A brand-new **empty** repo has no branches
+  yet — leave it `main`; syncing an empty repo simply shows an empty catalog,
+  and your **first publish creates the branch**. For an existing repo, use the
+  branch that holds the artifacts (the picker lists what's available).
 - **Access token** *(optional)* — needed only for a **private** repo or to
   **publish**. Use a **Personal Access Token**: a classic PAT with the `repo`
   scope, or a fine-grained PAT scoped to the repo with **Contents: Read** (add
   **Read and write** to publish). **Do not** paste a GitHub-CLI token
   (`gho_…` from `gh auth token`) — those are short-lived session tokens that get
-  rotated and will fail to authenticate. Stored locally in
-  `~/.config/fmriflow/settings.json` (or set `FMRIFLOW_HUB_TOKEN_<ID>` in the
-  environment); never sent anywhere but the git remote.
+  rotated and will fail to authenticate.
 
-Then **Sync** to clone/pull and populate the catalog. Filter by artifact kind,
-and **Install** what you want.
+Sources you add are **saved** (in `~/.config/fmriflow/settings.json`) — you
+enter them once. Then **Sync** to clone/pull and populate the catalog, filter by
+artifact kind, and **Install** what you want.
+
+### Where the token is stored
+
+- If your OS has a **keyring** (GNOME Keyring/libsecret, macOS Keychain, Windows
+  Credential Manager — the same store `gh` uses), the token is saved there
+  **securely**; the source row shows a `🔒 keyring` chip. Install the optional
+  dependency with `pip install -e '.[hub]'` to enable it.
+- Otherwise it falls back to `~/.config/fmriflow/settings.json` in **plaintext**
+  (shown as `⚠️ plaintext`). On a shared or headless host, prefer setting
+  `FMRIFLOW_HUB_TOKEN_<SOURCE_ID>` in the environment instead (shown as `🔑 env`)
+  so no secret is written to disk.
+
+The token is never sent anywhere but the git remote, and is redacted from any
+error output.
 
 ## Publishing (contributing)
 
@@ -59,7 +76,8 @@ a maintainer can review — that review *is* the curation.
 
 ## Source-repo layout
 
-A source repo looks like:
+A store repo follows a fixed contract — see the
+[Hub store schema](../reference/hub-store-schema.md) for the full spec. In short:
 
 ```
 hub.json                 # the manifest (catalog + integrity hashes)

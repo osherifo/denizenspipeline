@@ -18,6 +18,14 @@ from fmriflow.hub.source import HubSource, SourceRegistry
 logger = logging.getLogger(__name__)
 
 
+def _is_empty_clone(dest) -> bool:
+    """A freshly-cloned empty (commit-less) repo has only .git in its tree."""
+    try:
+        return not any(p.name != ".git" for p in dest.iterdir())
+    except OSError:
+        return True
+
+
 class HubService:
     def __init__(self) -> None:
         self.registry = SourceRegistry()
@@ -37,18 +45,28 @@ class HubService:
     # ── status / sources ──
 
     def sources_snapshot(self) -> dict:
+        from fmriflow.hub.source import keyring_available
         srcs = []
         for s in self.registry.list_sources():
             srcs.append({
                 **s.to_public(),
                 "has_token": self.registry.has_token(s.id),
+                "token_storage": self.registry.token_storage(s.id),
                 "synced": self.is_synced(s),
             })
         return {
             "sources": srcs,
             "env_override": self.registry.env_override(),
             "preflight": self.preflight(),
+            "keyring_available": keyring_available(),
         }
+
+    def list_branches(self, sid: str) -> list[str]:
+        source = self.registry.get(sid)
+        if source is None:
+            raise KeyError(f"no source '{sid}'")
+        backend = get_backend(source.backend)
+        return backend.list_branches(source.url, self.registry.token_for(sid))
 
     # ── sync ──
 
@@ -64,7 +82,22 @@ class HubService:
         backend.sync(source.url, source.branch, dest,
                      self.registry.token_for(sid))
         entries = manifest.read_manifest(dest)
-        return {"synced": True, "source_id": sid, "artifacts": len(entries)}
+        # Validate a repo that has content. A truly empty (commit-less) repo
+        # legitimately has no manifest yet — don't warn on that; but a
+        # non-empty repo missing/breaking hub.json IS a schema problem and must
+        # be surfaced.
+        warnings = [] if _is_empty_clone(dest) else manifest.validate_manifest(dest)
+        return {"synced": True, "source_id": sid,
+                "artifacts": len(entries), "warnings": warnings}
+
+    def validate(self, sid: str) -> dict:
+        source = self.registry.get(sid)
+        if source is None:
+            raise KeyError(f"no source '{sid}'")
+        dest = self.clone_dir(source)
+        if not dest.is_dir():
+            return {"synced": False, "problems": ["source not synced yet — sync first"]}
+        return {"synced": True, "problems": manifest.validate_manifest(dest)}
 
     def _synced_entries(self) -> list[tuple[HubSource, list[manifest.ArtifactEntry]]]:
         out = []

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fmriflow.dev/hub.schema.json",
+  "title": "fMRIflow Artifact Hub store manifest (hub.json)",
+  "description": "Root-level index of a hub store git repository. fMRIflow reads this to know what artifacts exist and which files back them.",
+  "type": "object",
+  "required": ["schema", "artifacts"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": {
+      "const": 1,
+      "description": "Manifest schema version. Current supported version is 1."
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["kind", "name", "files", "sha256"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "error", "module", "analysis_config", "workflow_config",
+            "stack_preset", "heuristic", "transform", "workflow", "feature_array"
+          ],
+          "description": "Artifact kind. Determines the local install destination."
+        },
+        "name": {
+          "type": "string",
+          "description": "Identifier fMRIflow shows for this kind (config filename, module name, error id, heuristic name, ...). Unique within a kind."
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Repo-relative paths (under kinds/<kind>/) backing this artifact, incl. sidecars."
+        },
+        "sha256": {
+          "type": "string",
+          "description": "Combined content hash of files (verified on install; install is rejected on mismatch)."
+        },
+        "size": { "type": "integer", "minimum": 0 },
+        "version": { "type": "string", "default": "1" },
+        "description": { "type": "string" },
+        "author": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "lfs": {
+          "type": "boolean",
+          "description": "True when the file(s) are git-LFS tracked (feature_array blobs)."
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Kind-specific extras. module entries MUST include 'category'.",
+          "additionalProperties": true
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "module" } } },
+          "then": {
+            "properties": {
+              "metadata": { "required": ["category"] }
+            },
+            "required": ["metadata"]
+          }
+        }
+      ]
+    }
+  }
+}
