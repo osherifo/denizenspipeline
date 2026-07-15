@@ -45,14 +45,15 @@ function fmtSize(n: number): string {
 export function HubView() {
   const {
     sources, envOverride, preflight, keyringAvailable, catalog, kindFilter, loading, error, busy, notice,
-    loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
-    setKindFilter, clearNotice,
+    localArtifacts, loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
+    loadLocalArtifacts, publishLocal, setKindFilter, clearNotice,
   } = useHubStore()
 
   const [form, setForm] = useState({ name: '', url: '', tier: 'lab', branch: 'main', token: '' })
   const [showAdd, setShowAdd] = useState(false)
+  const [pub, setPub] = useState({ sourceId: '', kind: '', name: '' })
 
-  useEffect(() => { loadSources(); loadCatalog() }, [loadSources, loadCatalog])
+  useEffect(() => { loadSources(); loadCatalog(); loadLocalArtifacts() }, [loadSources, loadCatalog, loadLocalArtifacts])
 
   const kinds = useMemo(
     () => Array.from(new Set(catalog.map((i) => i.kind))).sort(),
@@ -151,6 +152,43 @@ export function HubView() {
           {!envOverride && <button style={btnSm} disabled={busy === s.id} onClick={() => removeSource(s.id)}>Remove</button>}
         </div>
       ))}
+
+      {/* ── Publish a local artifact ── */}
+      {sources.length > 0 && Object.keys(localArtifacts).length > 0 && (
+        <>
+          <div style={sectionHeader}><span>Publish an artifact</span></div>
+          <div style={{ ...addCard, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select style={{ ...input, flex: '0 0 180px' }} value={pub.sourceId}
+              onChange={(e) => setPub({ ...pub, sourceId: e.target.value })}>
+              <option value="">To source…</option>
+              {sources.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.tier})</option>)}
+            </select>
+            <select style={{ ...input, flex: '0 0 160px' }} value={pub.kind}
+              onChange={(e) => setPub({ ...pub, kind: e.target.value, name: '' })}>
+              <option value="">Kind…</option>
+              {Object.keys(localArtifacts).map((k) => (
+                <option key={k} value={k}>{KIND_LABELS[k] ?? k}</option>
+              ))}
+            </select>
+            <select style={{ ...input, flex: 1, minWidth: 160 }} value={pub.name}
+              disabled={!pub.kind}
+              onChange={(e) => setPub({ ...pub, name: e.target.value })}>
+              <option value="">Artifact…</option>
+              {(localArtifacts[pub.kind] ?? []).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button style={btn}
+              disabled={!pub.sourceId || !pub.kind || !pub.name || !!busy}
+              onClick={() => publishLocal(pub.sourceId, pub.kind, pub.name)}>
+              Publish
+            </button>
+          </div>
+          <div style={tokenHelp}>
+            Pushes your local artifact into the store, updates <code>hub.json</code>, and pushes a
+            branch (the first publish to an empty store initialises it on <code>{'main'}</code>).
+            Needs a token with write access on that source.
+          </div>
+        </>
+      )}
 
       {/* ── Catalog ── */}
       <div style={sectionHeader}><span>Catalog</span></div>

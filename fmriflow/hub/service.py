@@ -61,6 +61,35 @@ class HubService:
             "keyring_available": keyring_available(),
         }
 
+    # Kinds that can be published from the local tier (feature_array blobs are
+    # excluded — they're pushed by path, not from a named local artifact).
+    PUBLISHABLE_KINDS = (
+        "analysis_config", "workflow_config", "module", "heuristic",
+        "stack_preset", "transform", "workflow", "error",
+    )
+
+    def local_artifacts(self, state) -> dict:
+        """Local artifacts available to publish, grouped by kind.
+
+        Only **user-tier** items are publishable — a builtin module/heuristic
+        has no user-tier file to push — so those two kinds are narrowed to the
+        user addon dirs rather than the full registry.
+        """
+        out: dict[str, list[str]] = {}
+        for kind in self.PUBLISHABLE_KINDS:
+            if kind == "module":
+                from fmriflow.server.services.module_loader import get_modules_dir
+                names = sorted(p.stem for p in get_modules_dir().glob("*.py")
+                               if p.stem != "__init__")
+            elif kind == "heuristic":
+                from fmriflow.convert.heuristics import _heuristics_dir
+                names = sorted(p.stem for p in _heuristics_dir().glob("*.py"))
+            else:
+                names = sorted(installer.local_names(kind, state))
+            if names:
+                out[kind] = names
+        return out
+
     def list_branches(self, sid: str) -> list[str]:
         source = self.registry.get(sid)
         if source is None:

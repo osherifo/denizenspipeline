@@ -7,6 +7,7 @@ import { create } from 'zustand'
 import {
   fetchHubSources, addHubSource, removeHubSource, syncHubSource,
   fetchHubCatalog, installHubArtifact, publishHubArtifact, fetchHubProvenance,
+  fetchHubLocalArtifacts,
 } from '../api/client'
 import type { HubSource, HubCatalogItem, HubProvenanceMap } from '../api/types'
 
@@ -23,9 +24,12 @@ interface HubState {
   notice: string | null
   provenance: HubProvenanceMap
   provenanceLoaded: boolean
+  localArtifacts: Record<string, string[]>
 
   loadSources: () => Promise<void>
   loadProvenance: (force?: boolean) => Promise<void>
+  loadLocalArtifacts: () => Promise<void>
+  publishLocal: (sourceId: string, kind: string, name: string) => Promise<void>
   addSource: (b: { name: string; url: string; tier: string; branch?: string; token?: string }) => Promise<void>
   removeSource: (sid: string) => Promise<void>
   sync: (sid: string) => Promise<void>
@@ -50,6 +54,28 @@ export const useHubStore = create<HubState>((set, get) => ({
   notice: null,
   provenance: {},
   provenanceLoaded: false,
+  localArtifacts: {},
+
+  loadLocalArtifacts: async () => {
+    try {
+      const r = await fetchHubLocalArtifacts()
+      set({ localArtifacts: r.artifacts })
+    } catch { /* non-fatal */ }
+  },
+
+  publishLocal: async (sourceId, kind, name) => {
+    const key = `pub:${sourceId}:${kind}:${name}`
+    set({ busy: key, error: null, notice: null })
+    try {
+      const r = await publishHubArtifact({ source_id: sourceId, kind, name })
+      set({ notice: !r.pushed
+        ? (r.detail || 'Nothing to publish.')
+        : r.initialized
+          ? `Initialized the store on ${r.branch} with ${kind}/${name}.`
+          : `Published ${kind}/${name} to branch ${r.branch}${r.pr_url ? ` — open a PR: ${r.pr_url}` : ''}` })
+      await get().sync(sourceId)
+    } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }
+  },
 
   loadProvenance: async (force = false) => {
     if (get().provenanceLoaded && !force) return
