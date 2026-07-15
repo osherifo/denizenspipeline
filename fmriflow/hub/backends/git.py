@@ -36,9 +36,12 @@ class GitBackend:
             capture_output=True, text=True,
         )
         if check and proc.returncode != 0:
-            raise BackendError(
-                f"git {' '.join(args[1:])} failed: {proc.stderr.strip() or proc.stdout.strip()}"
-            )
+            detail = proc.stderr.strip() or proc.stdout.strip()
+            # Redact any credential embedded in a URL (git echoes the
+            # authed remote URL — and the failing command — verbatim), so
+            # the token never leaks into the API error / logs.
+            msg = _redact(f"git {' '.join(args[1:])} failed: {detail}")
+            raise BackendError(msg)
         return proc
 
     def _auth_url(self, url: str, token: str | None) -> str:
@@ -103,6 +106,11 @@ class GitBackend:
             self._run(["git", "remote", "set-url", "origin", url], cwd=dest, check=False)
         return {"branch": push_branch, "pushed": pushed,
                 "pr_url": _pr_url(url, base_branch, push_branch)}
+
+
+def _redact(text: str) -> str:
+    """Hide credentials embedded in URLs: ``https://user:tok@host`` → ``https://***@host``."""
+    return re.sub(r"(https?://)[^/@\s]+@", r"\1***@", text)
 
 
 def _pr_url(url: str, base: str, head: str) -> str | None:
