@@ -70,8 +70,12 @@ export function HubView() {
     setShowAdd(false)
   }
 
+  const pubBranch = sources.find((s) => s.id === pub.sourceId)?.branch
+  const pubBusy = busy === `pub:${pub.sourceId}:${pub.kind}:${pub.name}`
+
   return (
     <div style={container}>
+      <style>{'@keyframes hubspin { to { transform: rotate(360deg); } }'}</style>
       <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Artifact Hub</div>
       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
         Browse and install artifacts shared by your lab and the community. Installing copies an
@@ -92,7 +96,7 @@ export function HubView() {
       <div style={sectionHeader}>
         <span>Sources</span>
         <span style={{ flex: 1 }} />
-        <button style={btnSm} disabled={!!busy} onClick={syncAll}>Sync all</button>
+        <button style={btnSm} disabled={!!busy} onClick={syncAll}>{busy ? <><Spinner /> Working…</> : 'Sync all'}</button>
         {!envOverride && (
           <button style={btnSm} onClick={() => setShowAdd((v) => !v)}>{showAdd ? 'Cancel' : '+ Add source'}</button>
         )}
@@ -147,7 +151,7 @@ export function HubView() {
           {s.has_token && <TokenChip storage={s.token_storage} />}
           <span style={{ flex: 1 }} />
           <button style={btnSm} disabled={busy === s.id} onClick={() => sync(s.id)}>
-            {busy === s.id ? '…' : 'Sync'}
+            {busy === s.id ? <><Spinner /> Syncing…</> : 'Sync'}
           </button>
           {!envOverride && <button style={btnSm} disabled={busy === s.id} onClick={() => removeSource(s.id)}>Remove</button>}
         </div>
@@ -179,13 +183,13 @@ export function HubView() {
             <button style={btn}
               disabled={!pub.sourceId || !pub.kind || !pub.name || !!busy}
               onClick={() => publishLocal(pub.sourceId, pub.kind, pub.name)}>
-              Publish
+              {pubBusy ? <><Spinner /> Publishing…</> : 'Publish'}
             </button>
           </div>
           <div style={tokenHelp}>
             Pushes your local artifact into the store, updates <code>hub.json</code>, and pushes a
-            branch (the first publish to an empty store initialises it on <code>{'main'}</code>).
-            Needs a token with write access on that source.
+            branch (the first publish to an empty store initialises it on{' '}
+            <code>{pubBranch || 'its base branch'}</code>). Needs a token with write access on that source.
           </div>
         </>
       )}
@@ -212,6 +216,10 @@ export function HubView() {
       ))}
     </div>
   )
+}
+
+function Spinner() {
+  return <span style={{ display: 'inline-block', animation: 'hubspin 0.7s linear infinite' }}>⟳</span>
 }
 
 function TokenChip({ storage }: { storage: HubTokenStorage }) {
@@ -245,10 +253,10 @@ function ArtifactRow({ item, busy, onInstall, onPublish }: {
         {item.tags.map((t) => <span key={t} style={tag}>{t}</span>)}
         <span style={{ flex: 1 }} />
         <button style={btnSm} disabled={busy || item.installed} onClick={onInstall}>
-          {item.installed ? 'Installed' : busy ? '…' : 'Install'}
+          {item.installed ? 'Installed' : busy ? <><Spinner /> Installing…</> : 'Install'}
         </button>
         <button style={btnSm} disabled={busy} onClick={onPublish} title="Publish your local version to this source">
-          Publish local
+          {busy ? <><Spinner /> Publishing…</> : 'Publish local'}
         </button>
       </div>
     </div>

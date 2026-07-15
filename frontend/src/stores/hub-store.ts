@@ -65,15 +65,18 @@ export const useHubStore = create<HubState>((set, get) => ({
 
   publishLocal: async (sourceId, kind, name) => {
     const key = `pub:${sourceId}:${kind}:${name}`
-    set({ busy: key, error: null, notice: null })
+    set({ busy: key, error: null, notice: `Publishing ${kind}/${name}…` })
     try {
       const r = await publishHubArtifact({ source_id: sourceId, kind, name })
+      // Refresh the catalog from the (already-updated) local clone — NOT a
+      // full sync, which would overwrite this notice with "Synced — …" and
+      // lose the PR link.
+      await get().loadCatalog(get().kindFilter)
       set({ notice: !r.pushed
         ? (r.detail || 'Nothing to publish.')
         : r.initialized
           ? `Initialized the store on ${r.branch} with ${kind}/${name}.`
           : `Published ${kind}/${name} to branch ${r.branch}${r.pr_url ? ` — open a PR: ${r.pr_url}` : ''}` })
-      await get().sync(sourceId)
     } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }
   },
 
@@ -116,7 +119,8 @@ export const useHubStore = create<HubState>((set, get) => ({
   },
 
   sync: async (sid) => {
-    set({ busy: sid, error: null })
+    const name = get().sources.find((s) => s.id === sid)?.name ?? 'source'
+    set({ busy: sid, error: null, notice: `Syncing ${name}… (cloning/pulling the repo)` })
     try {
       const r = await syncHubSource(sid)
       const warn = r.warnings && r.warnings.length
@@ -157,7 +161,7 @@ export const useHubStore = create<HubState>((set, get) => ({
 
   publish: async (item) => {
     const key = `${item.source_id}:${item.kind}:${item.name}`
-    set({ busy: key, error: null, notice: null })
+    set({ busy: key, error: null, notice: `Publishing ${item.kind}/${item.name}…` })
     try {
       const r = await publishHubArtifact({ source_id: item.source_id, kind: item.kind, name: item.name })
       set({ notice: !r.pushed
