@@ -204,7 +204,10 @@ class HubService:
             raise RuntimeError(f"kind '{kind}' is not publishable")
         names = self.local_artifacts(state).get(kind, [])
         if not names:
-            raise RuntimeError(f"no local {kind} artifacts to publish")
+            # No-op, not an error — mirrors the "nothing to publish" shape so a
+            # stale UI selection surfaces as a notice, not a 400.
+            return {"pushed": False, "kind": kind, "count": 0,
+                    "detail": f"no local {kind} artifacts to publish"}
         dest = self.clone_dir(source)
         if not dest.is_dir():
             self.sync(sid)

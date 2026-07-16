@@ -11,6 +11,11 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useHubStore } from '../stores/hub-store'
 import type { HubCatalogItem, HubTier, HubTokenStorage } from '../api/types'
 
+// Bulk-publish sentinel for the artifact dropdown. Contains "/", which can
+// never be a real artifact name (names are filename stems), so it can't
+// collide with an actual artifact called "__all__".
+const ALL_SENTINEL = '__all__/'
+
 const KIND_LABELS: Record<string, string> = {
   error: 'Error KB',
   module: 'Module',
@@ -71,7 +76,7 @@ export function HubView() {
   }
 
   const pubBranch = sources.find((s) => s.id === pub.sourceId)?.branch
-  const pubAll = pub.name === '__all__'
+  const pubAll = pub.name === ALL_SENTINEL
   const pubBusy = busy === `pub:${pub.sourceId}:${pub.kind}:${pub.name}`
     || busy === `pubkind:${pub.sourceId}:${pub.kind}`
   const submitPublish = () => {
@@ -186,7 +191,7 @@ export function HubView() {
               onChange={(e) => setPub({ ...pub, name: e.target.value })}>
               <option value="">Artifact…</option>
               {pub.kind && (localArtifacts[pub.kind] ?? []).length > 0 && (
-                <option value="__all__">
+                <option value={ALL_SENTINEL}>
                   ▸ All {KIND_LABELS[pub.kind] ?? pub.kind} ({(localArtifacts[pub.kind] ?? []).length})
                 </option>
               )}

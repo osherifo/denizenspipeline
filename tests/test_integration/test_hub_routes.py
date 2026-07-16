@@ -88,6 +88,18 @@ def test_install_unknown_source_404(client):
     assert r.status_code == 404
 
 
+def test_publish_kind_no_local_is_noop(client):
+    """Bulk-publishing a kind with no local artifacts is a 200 no-op, not a 400
+    (so a stale UI selection shows a notice, not an error)."""
+    r = client.post("/api/hub/sources", json={
+        "name": "S", "url": "file:///nowhere.git", "tier": "lab", "branch": "main"})
+    sid = r.json()["sources"][0]["id"]
+    r = client.post("/api/hub/publish-kind", json={"source_id": sid, "kind": "transform"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["pushed"] is False and body["count"] == 0
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 def test_resync_empty_repo_is_idempotent(client, tmp_path):
     """Re-syncing a still-empty repo must not fail (git fetch on an empty
