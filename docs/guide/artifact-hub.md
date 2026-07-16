@@ -75,7 +75,9 @@ Two ways, both need a token with **write** access on the source:
   target source, a kind, and one of your local artifacts, then **Publish**. Use
   this to push something the store doesn't have yet (including the **first**
   artifact into an empty store, which initialises it on the source's configured
-  base branch — `main` by default).
+  base branch — `main` by default). To push everything of a kind at once, pick
+  **▸ All &lt;kind&gt; (N)** and **Publish all** — every local artifact of that kind
+  goes up in a single commit.
 - **Publish local** on a catalog row — pushes *your* version of an artifact the
   store already lists (i.e. an update).
 

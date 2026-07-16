@@ -11,6 +11,11 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useHubStore } from '../stores/hub-store'
 import type { HubCatalogItem, HubTier, HubTokenStorage } from '../api/types'
 
+// Bulk-publish sentinel for the artifact dropdown. Contains "/", which can
+// never be a real artifact name (names are filename stems), so it can't
+// collide with an actual artifact called "__all__".
+const ALL_SENTINEL = '__all__/'
+
 const KIND_LABELS: Record<string, string> = {
   error: 'Error KB',
   module: 'Module',
@@ -46,7 +51,7 @@ export function HubView() {
   const {
     sources, envOverride, preflight, keyringAvailable, catalog, kindFilter, loading, error, busy, notice,
     localArtifacts, loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
-    loadLocalArtifacts, publishLocal, setKindFilter, clearNotice,
+    loadLocalArtifacts, publishLocal, publishKind, setKindFilter, clearNotice,
   } = useHubStore()
 
   const [form, setForm] = useState({ name: '', url: '', tier: 'lab', branch: 'main', token: '' })
@@ -71,7 +76,14 @@ export function HubView() {
   }
 
   const pubBranch = sources.find((s) => s.id === pub.sourceId)?.branch
+  const pubAll = pub.name === ALL_SENTINEL
   const pubBusy = busy === `pub:${pub.sourceId}:${pub.kind}:${pub.name}`
+    || busy === `pubkind:${pub.sourceId}:${pub.kind}`
+  const submitPublish = () => {
+    if (!pub.sourceId || !pub.kind || !pub.name) return
+    if (pubAll) publishKind(pub.sourceId, pub.kind)
+    else publishLocal(pub.sourceId, pub.kind, pub.name)
+  }
 
   return (
     <div style={container}>
@@ -178,12 +190,17 @@ export function HubView() {
               disabled={!pub.kind}
               onChange={(e) => setPub({ ...pub, name: e.target.value })}>
               <option value="">Artifact…</option>
+              {pub.kind && (localArtifacts[pub.kind] ?? []).length > 0 && (
+                <option value={ALL_SENTINEL}>
+                  ▸ All {KIND_LABELS[pub.kind] ?? pub.kind} ({(localArtifacts[pub.kind] ?? []).length})
+                </option>
+              )}
               {(localArtifacts[pub.kind] ?? []).map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
             <button style={btn}
               disabled={!pub.sourceId || !pub.kind || !pub.name || !!busy}
-              onClick={() => publishLocal(pub.sourceId, pub.kind, pub.name)}>
-              {pubBusy ? <><Spinner /> Publishing…</> : 'Publish'}
+              onClick={submitPublish}>
+              {pubBusy ? <><Spinner /> Publishing…</> : (pubAll ? 'Publish all' : 'Publish')}
             </button>
           </div>
           <div style={tokenHelp}>

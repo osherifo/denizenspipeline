@@ -1003,7 +1003,9 @@ export interface HubPublishResult {
   pr_url?: string | null
   initialized?: boolean       // first publish to an empty repo → created the branch
   kind: string
-  name: string
+  name?: string
+  count?: number              // number published (bulk publish-kind)
+  names?: string[]
   detail?: string
 }
 

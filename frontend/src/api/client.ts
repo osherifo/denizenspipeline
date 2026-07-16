@@ -1141,3 +1141,13 @@ export async function publishHubArtifact(body: {
     body: JSON.stringify(body),
   })
 }
+
+export async function publishHubKind(body: {
+  source_id: string; kind: string
+}): Promise<HubPublishResult> {
+  return json(`${BASE}/hub/publish-kind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

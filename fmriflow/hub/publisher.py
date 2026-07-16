@@ -88,16 +88,11 @@ def locate_local(kind: str, name: str, state) -> tuple[list[Path], dict]:
     raise PublishError(f"cannot publish kind '{kind}'")
 
 
-def publish(source, repo_dir: Path, kind: str, name: str, state, *,
-            backend, token: str | None, author: str = "",
-            description: str = "") -> dict:
-    """Stage kind+name into *repo_dir*, update the manifest, commit + push."""
+def _stage(repo_dir: Path, kind: str, name: str, state, *,
+           author: str = "", description: str = ""):
+    """Copy a local artifact's file(s) into ``kinds/<kind>/`` and build its
+    manifest entry (no commit)."""
     files, meta = locate_local(kind, name, state)
-
-    # Make the store self-documenting + LFS-ready (no-op if already present).
-    from fmriflow.hub.template import ensure_scaffold
-    ensure_scaffold(repo_dir)
-
     kind_dir = repo_dir / KINDS_DIR / kind
     kind_dir.mkdir(parents=True, exist_ok=True)
     rel_files: list[str] = []
@@ -105,19 +100,41 @@ def publish(source, repo_dir: Path, kind: str, name: str, state, *,
         dest = kind_dir / f.name
         shutil.copy2(f, dest)
         rel_files.append(str(dest.relative_to(repo_dir)))
+    return manifest.build_entry(repo_dir, kind, name, rel_files,
+                                description=description, author=author, metadata=meta)
 
-    entries = [e for e in manifest.read_manifest(repo_dir)
-               if not (e.kind == kind and e.name == name)]
-    entry = manifest.build_entry(
-        repo_dir, kind, name, rel_files,
-        description=description, author=author, metadata=meta,
-    )
-    entries.append(entry)
-    manifest.write_manifest(repo_dir, entries)
 
-    branch = f"hub/{kind}-{name}"
+def _merge_manifest(repo_dir: Path, new_entries: list) -> None:
+    """Replace matching entries and write the manifest once."""
+    keys = {(e.kind, e.name) for e in new_entries}
+    kept = [e for e in manifest.read_manifest(repo_dir) if (e.kind, e.name) not in keys]
+    manifest.write_manifest(repo_dir, kept + new_entries)
+
+
+def publish(source, repo_dir: Path, kind: str, name: str, state, *,
+            backend, token: str | None, author: str = "",
+            description: str = "") -> dict:
+    """Stage kind+name into *repo_dir*, update the manifest, commit + push."""
+    from fmriflow.hub.template import ensure_scaffold
+    ensure_scaffold(repo_dir)
+    entry = _stage(repo_dir, kind, name, state, author=author, description=description)
+    _merge_manifest(repo_dir, [entry])
     result = backend.publish(source.url, source.branch, repo_dir, token,
-                             push_branch=branch,
+                             push_branch=f"hub/{kind}-{name}",
                              message=f"hub: add {kind}/{name}")
-    result.update({"kind": kind, "name": name})
+    result.update({"kind": kind, "name": name, "count": 1})
+    return result
+
+
+def publish_many(source, repo_dir: Path, kind: str, names: list[str], state, *,
+                 backend, token: str | None, author: str = "") -> dict:
+    """Publish every named artifact of one *kind* in a single commit/push."""
+    from fmriflow.hub.template import ensure_scaffold
+    ensure_scaffold(repo_dir)
+    entries = [_stage(repo_dir, kind, n, state, author=author) for n in names]
+    _merge_manifest(repo_dir, entries)
+    result = backend.publish(source.url, source.branch, repo_dir, token,
+                             push_branch=f"hub/{kind}-all",
+                             message=f"hub: add {len(entries)} {kind} artifact(s)")
+    result.update({"kind": kind, "count": len(entries), "names": names})
     return result
