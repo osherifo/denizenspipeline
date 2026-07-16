@@ -89,6 +89,23 @@ def test_install_unknown_source_404(client):
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+def test_resync_empty_repo_is_idempotent(client, tmp_path):
+    """Re-syncing a still-empty repo must not fail (git fetch on an empty
+    remote exits non-zero with no stderr on git >= 2.51)."""
+    bare = tmp_path / "empty.git"
+    bare.mkdir()
+    subprocess.run(["git", "init", "--bare", "-b", "main", str(bare)], check=True,
+                   capture_output=True)
+    r = client.post("/api/hub/sources", json={
+        "name": "Empty", "url": str(bare), "tier": "lab", "branch": "main"})
+    sid = r.json()["sources"][0]["id"]
+    for _ in range(2):                       # fresh clone, then existing-clone fetch
+        r = client.post(f"/api/hub/sources/{sid}/sync")
+        assert r.status_code == 200, r.text
+        assert r.json()["artifacts"] == 0
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 def test_sync_publish_catalog_offline(client, tmp_path):
     app = client.app
 
