@@ -139,3 +139,29 @@ def test_sync_publish_catalog_offline(client, tmp_path):
     items = client.get("/api/hub/catalog").json()["items"]
     assert any(i["name"] == "pub_cfg.yaml" for i in items)
     assert client.get(f"/api/hub/sources/{sid}/validate").json()["problems"] == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+def test_publish_kind_bulk(client, tmp_path):
+    app = client.app
+    bare = tmp_path / "bulk.git"
+    bare.mkdir()
+    subprocess.run(["git", "init", "--bare", "-b", "main", str(bare)], check=True,
+                   capture_output=True)
+    for n in ("x", "y", "z"):
+        app.state.config_store.save_config(f"bulk_{n}.yaml", f"experiment: {n}\nsubject: s\n")
+    r = client.post("/api/hub/sources", json={
+        "name": "Bulk", "url": str(bare), "tier": "lab", "branch": "main"})
+    sid = r.json()["sources"][0]["id"]
+    client.post(f"/api/hub/sources/{sid}/sync")
+
+    r = client.post("/api/hub/publish-kind", json={
+        "source_id": sid, "kind": "analysis_config"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["pushed"] is True and body["count"] >= 3
+
+    client.post(f"/api/hub/sources/{sid}/sync")
+    names = [i["name"] for i in client.get("/api/hub/catalog").json()["items"]]
+    for n in ("x", "y", "z"):
+        assert f"bulk_{n}.yaml" in names

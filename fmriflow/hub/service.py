@@ -195,6 +195,25 @@ class HubService:
             author=author, description=description,
         )
 
+    def publish_kind(self, sid: str, kind: str, state, *, author: str = "") -> dict:
+        """Publish every local artifact of *kind* to the source in one commit."""
+        source = self.registry.get(sid)
+        if source is None:
+            raise KeyError(f"no source '{sid}'")
+        if kind not in self.PUBLISHABLE_KINDS:
+            raise RuntimeError(f"kind '{kind}' is not publishable")
+        names = self.local_artifacts(state).get(kind, [])
+        if not names:
+            raise RuntimeError(f"no local {kind} artifacts to publish")
+        dest = self.clone_dir(source)
+        if not dest.is_dir():
+            self.sync(sid)
+        backend = get_backend(source.backend)
+        return publisher.publish_many(
+            source, dest, kind, names, state,
+            backend=backend, token=self.registry.token_for(sid), author=author,
+        )
+
     # ── helper ──
 
     def _find(self, sid: str, kind: str, name: str):

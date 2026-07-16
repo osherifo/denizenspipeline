@@ -168,6 +168,11 @@ def install(request: Request, body: InstallBody) -> dict:
         raise HTTPException(status_code=400, detail=str(e))
 
 
+class PublishKindBody(BaseModel):
+    source_id: str
+    kind: str
+
+
 @router.post("/publish")
 def publish(request: Request, body: PublishBody) -> dict:
     hub = _hub(request)
@@ -177,4 +182,16 @@ def publish(request: Request, body: PublishBody) -> dict:
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:  # noqa: BLE001 - PublishError / BackendError
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/publish-kind")
+def publish_kind(request: Request, body: PublishKindBody) -> dict:
+    """Publish every local artifact of one kind to a source in a single commit."""
+    hub = _hub(request)
+    try:
+        return hub.publish_kind(body.source_id, body.kind, request.app.state)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(e))
