@@ -112,6 +112,13 @@ def sync_source(request: Request, sid: str) -> dict:
 
 # ── Catalog ──
 
+@router.get("/local")
+def get_local_artifacts(request: Request) -> dict:
+    """Local artifacts available to publish, grouped by kind."""
+    hub = _hub(request)
+    return {"artifacts": hub.local_artifacts(request.app.state)}
+
+
 @router.get("/catalog")
 def get_catalog(request: Request, kind: str | None = None) -> dict:
     hub = _hub(request)

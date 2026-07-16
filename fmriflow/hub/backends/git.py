@@ -98,13 +98,31 @@ class GitBackend:
         dest.parent.mkdir(parents=True, exist_ok=True)
         if (dest / ".git").is_dir():
             self._run(["git", "remote", "set-url", "origin", auth], cwd=dest)
-            # Fetch all heads shallowly so any branch is selectable. An empty
-            # remote still exits 0 (nothing to fetch), so keep check=True to
-            # fail fast on real auth/network errors rather than proceed on
-            # stale refs.
-            self._run(["git", "fetch", "--depth", "1", "--no-tags",
-                       "origin", "+refs/heads/*:refs/remotes/origin/*"],
-                      cwd=dest)
+            # Fetch all heads shallowly so any branch is selectable.
+            #
+            # NB: `git fetch` against an *empty* remote exits non-zero with no
+            # stderr (git ≥2.51), so we can't blanket check=True. But we also
+            # must not silently swallow auth/network errors (stale refs). So:
+            # try the fetch; on failure, probe with `ls-remote` — if the remote
+            # is reachable and simply empty, that's fine; anything else is a
+            # real error we surface (redacted).
+            fetch = self._run(["git", "fetch", "--depth", "1", "--no-tags",
+                               "origin", "+refs/heads/*:refs/remotes/origin/*"],
+                              cwd=dest, check=False)
+            if fetch.returncode != 0:
+                probe = self._run(["git", "ls-remote", "--heads", "origin"],
+                                  cwd=dest, check=False)
+                if probe.returncode != 0:
+                    raise BackendError(_redact(
+                        "git fetch failed: "
+                        + (probe.stderr.strip() or fetch.stderr.strip()
+                           or "cannot reach the remote (authentication or network error).")))
+                if probe.stdout.strip():
+                    # Remote reachable and has branches, yet fetch failed —
+                    # a real error, not the empty-repo case.
+                    raise BackendError(_redact(
+                        "git fetch failed: " + (fetch.stderr.strip() or "unknown error")))
+                # else: reachable but empty — nothing to fetch, proceed.
         else:
             if dest.exists():
                 shutil.rmtree(dest)
@@ -115,18 +133,21 @@ class GitBackend:
             self._run(["git", "clone", "--depth", "1", "--no-single-branch",
                        auth, str(dest)])
 
-        if not self._is_empty(dest):
-            if self._ref_exists(dest, f"origin/{branch}"):
-                # Atomically point local <branch> at origin/<branch>.
-                self._run(["git", "checkout", "-B", branch, f"origin/{branch}"], cwd=dest)
-            else:
-                avail = self._remote_branches(dest)
+        # Decide checkout from the REMOTE ref, not local HEAD: a clone of a
+        # then-empty repo has no local commits, but once the remote gains the
+        # branch we must still check it out.
+        if self._ref_exists(dest, f"origin/{branch}"):
+            # Atomically point local <branch> at origin/<branch>.
+            self._run(["git", "checkout", "-B", branch, f"origin/{branch}"], cwd=dest)
+        else:
+            avail = self._remote_branches(dest)
+            if avail:
                 raise BackendError(
                     f"branch '{branch}' not found in the repository. "
-                    f"Available: {', '.join(avail) if avail else '(none)'}"
+                    f"Available: {', '.join(avail)}"
                 )
-        # else: empty remote — nothing checked out; the catalog is empty until
-        # the first artifact is published (which initialises the branch).
+            # else: remote has no branches (empty) — leave the empty clone as-is;
+            # the catalog stays empty until the first publish initialises it.
 
         if self._has_lfs():
             self._run(["git", "lfs", "pull"], cwd=dest, check=False)

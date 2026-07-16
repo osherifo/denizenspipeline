@@ -1105,6 +1105,10 @@ export async function fetchHubBranches(sid: string): Promise<{ branches: string[
   return json(`${BASE}/hub/sources/${encodeURIComponent(sid)}/branches`)
 }
 
+export async function fetchHubLocalArtifacts(): Promise<{ artifacts: Record<string, string[]> }> {
+  return json(`${BASE}/hub/local`)
+}
+
 export async function fetchHubCatalog(kind?: string): Promise<{ items: HubCatalogItem[]; total: number }> {
   const qs = kind ? `?kind=${encodeURIComponent(kind)}` : ''
   return json(`${BASE}/hub/catalog${qs}`)

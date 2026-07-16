@@ -69,10 +69,21 @@ error output.
 
 ## Publishing (contributing)
 
-**Publish local** on an artifact stages your local version into the source's
-clone, updates the manifest, commits, and pushes to a branch. For the community
-tier you then open a **pull request** (the button surfaces a compare/PR link) so
-a maintainer can review — that review *is* the curation.
+Two ways, both need a token with **write** access on the source:
+
+- **Publish an artifact** (the picker at the top of the Hub page) — choose a
+  target source, a kind, and one of your local artifacts, then **Publish**. Use
+  this to push something the store doesn't have yet (including the **first**
+  artifact into an empty store, which initialises it on the source's configured
+  base branch — `main` by default).
+- **Publish local** on a catalog row — pushes *your* version of an artifact the
+  store already lists (i.e. an update).
+
+Either way, fMRIflow stages the file under `kinds/<kind>/`, regenerates the
+`hub.json` entry (hash + size), commits, and pushes. For an existing store it
+pushes a **branch** and surfaces a compare/**PR** link so a maintainer can
+review — that review *is* the curation. Only genuinely local (user-tier)
+artifacts are publishable — a shipped builtin has no user-tier file to push.
 
 ## Source-repo layout
 

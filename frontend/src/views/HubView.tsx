@@ -45,14 +45,15 @@ function fmtSize(n: number): string {
 export function HubView() {
   const {
     sources, envOverride, preflight, keyringAvailable, catalog, kindFilter, loading, error, busy, notice,
-    loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
-    setKindFilter, clearNotice,
+    localArtifacts, loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
+    loadLocalArtifacts, publishLocal, setKindFilter, clearNotice,
   } = useHubStore()
 
   const [form, setForm] = useState({ name: '', url: '', tier: 'lab', branch: 'main', token: '' })
   const [showAdd, setShowAdd] = useState(false)
+  const [pub, setPub] = useState({ sourceId: '', kind: '', name: '' })
 
-  useEffect(() => { loadSources(); loadCatalog() }, [loadSources, loadCatalog])
+  useEffect(() => { loadSources(); loadCatalog(); loadLocalArtifacts() }, [loadSources, loadCatalog, loadLocalArtifacts])
 
   const kinds = useMemo(
     () => Array.from(new Set(catalog.map((i) => i.kind))).sort(),
@@ -69,8 +70,12 @@ export function HubView() {
     setShowAdd(false)
   }
 
+  const pubBranch = sources.find((s) => s.id === pub.sourceId)?.branch
+  const pubBusy = busy === `pub:${pub.sourceId}:${pub.kind}:${pub.name}`
+
   return (
     <div style={container}>
+      <style>{'@keyframes hubspin { to { transform: rotate(360deg); } }'}</style>
       <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Artifact Hub</div>
       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
         Browse and install artifacts shared by your lab and the community. Installing copies an
@@ -91,7 +96,7 @@ export function HubView() {
       <div style={sectionHeader}>
         <span>Sources</span>
         <span style={{ flex: 1 }} />
-        <button style={btnSm} disabled={!!busy} onClick={syncAll}>Sync all</button>
+        <button style={btnSm} disabled={!!busy} onClick={syncAll}>{busy ? <><Spinner /> Working…</> : 'Sync all'}</button>
         {!envOverride && (
           <button style={btnSm} onClick={() => setShowAdd((v) => !v)}>{showAdd ? 'Cancel' : '+ Add source'}</button>
         )}
@@ -145,12 +150,49 @@ export function HubView() {
           {s.synced && <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ synced</span>}
           {s.has_token && <TokenChip storage={s.token_storage} />}
           <span style={{ flex: 1 }} />
-          <button style={btnSm} disabled={busy === s.id} onClick={() => sync(s.id)}>
-            {busy === s.id ? '…' : 'Sync'}
+          <button style={btnSm} disabled={!!busy} onClick={() => sync(s.id)}>
+            {busy === s.id ? <><Spinner /> Syncing…</> : 'Sync'}
           </button>
-          {!envOverride && <button style={btnSm} disabled={busy === s.id} onClick={() => removeSource(s.id)}>Remove</button>}
+          {!envOverride && <button style={btnSm} disabled={!!busy} onClick={() => removeSource(s.id)}>Remove</button>}
         </div>
       ))}
+
+      {/* ── Publish a local artifact ── */}
+      {sources.length > 0 && Object.keys(localArtifacts).length > 0 && (
+        <>
+          <div style={sectionHeader}><span>Publish an artifact</span></div>
+          <div style={{ ...addCard, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select style={{ ...input, flex: '0 0 180px' }} value={pub.sourceId}
+              onChange={(e) => setPub({ ...pub, sourceId: e.target.value })}>
+              <option value="">To source…</option>
+              {sources.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.tier})</option>)}
+            </select>
+            <select style={{ ...input, flex: '0 0 160px' }} value={pub.kind}
+              onChange={(e) => setPub({ ...pub, kind: e.target.value, name: '' })}>
+              <option value="">Kind…</option>
+              {Object.keys(localArtifacts).map((k) => (
+                <option key={k} value={k}>{KIND_LABELS[k] ?? k}</option>
+              ))}
+            </select>
+            <select style={{ ...input, flex: 1, minWidth: 160 }} value={pub.name}
+              disabled={!pub.kind}
+              onChange={(e) => setPub({ ...pub, name: e.target.value })}>
+              <option value="">Artifact…</option>
+              {(localArtifacts[pub.kind] ?? []).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button style={btn}
+              disabled={!pub.sourceId || !pub.kind || !pub.name || !!busy}
+              onClick={() => publishLocal(pub.sourceId, pub.kind, pub.name)}>
+              {pubBusy ? <><Spinner /> Publishing…</> : 'Publish'}
+            </button>
+          </div>
+          <div style={tokenHelp}>
+            Pushes your local artifact into the store, updates <code>hub.json</code>, and pushes a
+            branch (the first publish to an empty store initialises it on{' '}
+            <code>{pubBranch || 'its base branch'}</code>). Needs a token with write access on that source.
+          </div>
+        </>
+      )}
 
       {/* ── Catalog ── */}
       <div style={sectionHeader}><span>Catalog</span></div>
@@ -170,10 +212,17 @@ export function HubView() {
       {catalog.map((item) => (
         <ArtifactRow key={`${item.source_id}:${item.kind}:${item.name}`} item={item}
           busy={busy === `${item.source_id}:${item.kind}:${item.name}`}
+          anyBusy={!!busy}
           onInstall={() => install(item)} onPublish={() => publish(item)} />
       ))}
     </div>
   )
+}
+
+function Spinner() {
+  // Decorative — the button keeps its "Syncing…/Publishing…" text label, so
+  // hide the glyph from assistive tech to keep the accessible name clean.
+  return <span aria-hidden style={{ display: 'inline-block', animation: 'hubspin 0.7s linear infinite' }}>⟳</span>
 }
 
 function TokenChip({ storage }: { storage: HubTokenStorage }) {
@@ -188,8 +237,8 @@ function TokenChip({ storage }: { storage: HubTokenStorage }) {
   return <span style={{ fontSize: 10, color: m.color }} title={m.title}>{m.label}</span>
 }
 
-function ArtifactRow({ item, busy, onInstall, onPublish }: {
-  item: HubCatalogItem; busy: boolean; onInstall: () => void; onPublish: () => void
+function ArtifactRow({ item, busy, anyBusy, onInstall, onPublish }: {
+  item: HubCatalogItem; busy: boolean; anyBusy: boolean; onInstall: () => void; onPublish: () => void
 }) {
   return (
     <div style={artifactRow}>
@@ -206,11 +255,11 @@ function ArtifactRow({ item, busy, onInstall, onPublish }: {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {item.tags.map((t) => <span key={t} style={tag}>{t}</span>)}
         <span style={{ flex: 1 }} />
-        <button style={btnSm} disabled={busy || item.installed} onClick={onInstall}>
-          {item.installed ? 'Installed' : busy ? '…' : 'Install'}
+        <button style={btnSm} disabled={anyBusy || item.installed} onClick={onInstall}>
+          {item.installed ? 'Installed' : busy ? <><Spinner /> Installing…</> : 'Install'}
         </button>
-        <button style={btnSm} disabled={busy} onClick={onPublish} title="Publish your local version to this source">
-          Publish local
+        <button style={btnSm} disabled={anyBusy} onClick={onPublish} title="Publish your local version to this source">
+          {busy ? <><Spinner /> Publishing…</> : 'Publish local'}
         </button>
       </div>
     </div>
