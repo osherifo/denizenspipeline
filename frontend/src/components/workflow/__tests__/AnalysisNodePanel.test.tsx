@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../../test/mocks/server'
-import { renderWithProviders, screen, fireEvent, waitFor } from '../../../test/render'
+import { renderWithProviders, screen, fireEvent } from '../../../test/render'
 import { AnalysisNodePanel } from '../AnalysisNodePanel'
 import type { GraphTarget, RunGraphNode } from '../../../api/run-graph'
 

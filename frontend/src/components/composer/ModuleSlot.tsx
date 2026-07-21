@@ -170,7 +170,8 @@ export function ModuleSlot({
       {missing && (
         <div style={missingNoticeStyle}>
           <strong>⚠ “{selectedName}” isn’t installed on this system.</strong>
-          {' '}Its parameters can’t be shown or edited here. Install it from the{' '}
+          {' '}Without it there’s no parameter schema, so these settings can’t be
+          edited here (any configured values are shown read-only below). Install it from the{' '}
           <a href="#hub" style={{ color: 'inherit', textDecoration: 'underline' }}>Hub</a>,
           add it in the module editor, or pick an available module above.
           {configuredParams.length > 0 && (
