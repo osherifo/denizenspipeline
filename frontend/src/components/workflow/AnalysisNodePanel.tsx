@@ -98,6 +98,26 @@ function tabBtn(active: boolean): CSSProperties {
   }
 }
 
+// Source tab when the node has no source file on this system — still
+// clickable (so the reason is reachable) but visibly "unavailable".
+const unavailableTabBtn: CSSProperties = {
+  color: 'var(--accent-yellow, #ffb86c)',
+  opacity: 0.85,
+}
+
+const noSourceNotice: CSSProperties = {
+  margin: 10,
+  padding: '10px 12px',
+  fontSize: 11,
+  lineHeight: 1.5,
+  color: 'var(--accent-yellow, #ffb86c)',
+  background: 'rgba(255, 184, 108, 0.10)',
+  border: '1px solid var(--accent-yellow, #ffb86c)',
+  borderRadius: 6,
+}
+
+const linkStyle: CSSProperties = { color: 'inherit', textDecoration: 'underline' }
+
 const body: CSSProperties = {
   flex: 1,
   overflow: 'auto',
@@ -267,13 +287,18 @@ export function AnalysisNodePanel({ target, node, onClose, style }: Props) {
       </div>
 
       <div style={tabBar}>
+        {/* Not disabled when there's no source: a disabled tab makes the click
+            do nothing with no explanation. Keep it selectable so the panel can
+            say *why* there's nothing to show. */}
         <button
-          style={tabBtn(tab === 'source')}
+          style={{
+            ...tabBtn(tab === 'source'),
+            ...(node.source_path ? {} : unavailableTabBtn),
+          }}
           onClick={() => setTab('source')}
-          disabled={!node.source_path}
-          title={node.source_path ?? 'no source registered'}
+          title={node.source_path ?? 'No source available — open for details'}
         >
-          Source
+          Source{node.source_path ? '' : ' ⚠'}
         </button>
         {!isConfigPreview(target) && (
           <button style={tabBtn(tab === 'outputs')} onClick={() => setTab('outputs')}>
@@ -305,8 +330,28 @@ export function AnalysisNodePanel({ target, node, onClose, style }: Props) {
         {tab === 'source' && (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {!node.source_path && (
-              <div style={{ padding: 12, color: 'var(--text-secondary)', fontSize: 11 }}>
-                No source file registered for this node.
+              <div style={noSourceNotice}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  ⚠ No source available for “{node.label ?? node.id}”.
+                </div>
+                <div style={{ marginBottom: 6 }}>
+                  This node has no source file registered on <em>this</em> system, so
+                  there's nothing to display. Usually one of:
+                </div>
+                <ul style={{ margin: '0 0 8px 16px', padding: 0, lineHeight: 1.6 }}>
+                  <li>
+                    the plugin it names <strong>isn't installed here</strong> — install it
+                    from the <a href="#hub" style={linkStyle}>Hub</a>, or author it in the{' '}
+                    <a href="#editor" style={linkStyle}>module editor</a>;
+                  </li>
+                  <li>
+                    it's a structural node (a stage/group container) that has no
+                    implementation file of its own.
+                  </li>
+                </ul>
+                <div style={{ color: 'var(--text-secondary)' }}>
+                  The <strong>Params</strong> tab still shows how this node is configured.
+                </div>
               </div>
             )}
             {node.source_path && !source && !error && (
