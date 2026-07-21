@@ -106,12 +106,24 @@ function _PluginInner({ data }: NodeProps & { data: PluginNodeData }) {
         cursor: 'pointer',
         position: 'relative',
       }}
-      title={data._hasSource ? `${data.label} — click for source + outputs` : data.label}
+      title={data._hasSource
+        ? `${data.label} — click for source + outputs`
+        : `${data.label} — no source on this system (click for details)`}
     >
       {/* Top handle is fed from the parent stage. */}
       <Handle type="target" position={Position.Top} id="from-stage"
               style={{ background: color, opacity: 0.6 }} />
-      <div>{data.label}</div>
+      <div>
+        {data.label}
+        {/* At-a-glance marker: this node has no source file here, so its
+            Source tab will explain rather than show code. */}
+        {!data._hasSource && (
+          <span
+            aria-label="no source on this system"
+            style={{ marginLeft: 4, color: 'var(--accent-yellow, #ffb86c)' }}
+          >⚠</span>
+        )}
+      </div>
       <div style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 500 }}>
         {data.kind.replace('_', ' ')}
       </div>
