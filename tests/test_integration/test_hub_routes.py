@@ -154,6 +154,40 @@ def test_sync_publish_catalog_offline(client, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+def test_install_many_bulk(client, tmp_path):
+    """Bulk install: one kind, then 'everything', and it's idempotent."""
+    app = client.app
+    bare = tmp_path / "inst.git"
+    bare.mkdir()
+    subprocess.run(["git", "init", "--bare", "-b", "main", str(bare)], check=True,
+                   capture_output=True)
+    # Seed the store with two errors (first publish initialises main).
+    from fmriflow.core import paths as _p
+    for i in (1, 2):
+        (_p.errors_dir() / f"93{i}0_e{i}.yaml").write_text(
+            f"id: 93{i}0\ntitle: E{i}\nstage: model\ntags: []\nfix: x\n")
+    r = client.post("/api/hub/sources", json={
+        "name": "Inst", "url": str(bare), "tier": "lab", "branch": "main"})
+    sid = r.json()["sources"][0]["id"]
+    client.post(f"/api/hub/sources/{sid}/sync")
+    client.post("/api/hub/publish-kind", json={"source_id": sid, "kind": "error"})
+
+    # Wipe the local EKB copies so they read as not-installed, then re-sync.
+    for f in _p.errors_dir().glob("93*.yaml"):
+        f.unlink()
+    client.post(f"/api/hub/sources/{sid}/sync")
+
+    r = client.post("/api/hub/install-many", json={"kind": "error"})
+    assert r.status_code == 200, r.text
+    assert r.json()["installed"] == 2 and r.json()["failed"] == []
+    assert len(client.get("/api/errors").json()["errors"]) == 2
+
+    # Re-running installs nothing and skips what's present.
+    r = client.post("/api/hub/install-many", json={})
+    assert r.json()["installed"] == 0 and r.json()["skipped"] == 2
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 def test_publish_kind_bulk(client, tmp_path):
     app = client.app
     bare = tmp_path / "bulk.git"

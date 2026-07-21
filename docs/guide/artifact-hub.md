@@ -50,8 +50,20 @@ On the Hub page, **+ Add source**:
   rotated and will fail to authenticate.
 
 Sources you add are **saved** (in `~/.config/fmriflow/settings.json`) — you
-enter them once. Then **Sync** to clone/pull and populate the catalog, filter by
-artifact kind, and **Install** what you want.
+enter them once. Then **Sync** to clone/pull and populate the catalog.
+
+### Which direction is which
+
+The two catalog actions move artifacts in opposite directions:
+
+| Button | Direction | What it does |
+|---|---|---|
+| **↓ Install** | store → this system | Copies the artifact into your local tier (e.g. an error lands in your Error Knowledge Base). |
+| **↑ Publish mine** | this system → store | Pushes *your* local version up. On a store that already has content this opens a **branch/PR** — it won't show in the catalog until that's merged. |
+
+To install in bulk, use **↓ Install all &lt;kind&gt;** (with a kind filter active) or
+**↓ Install everything** in the Catalog header. Both skip anything already
+present and report what failed without aborting the rest.
 
 ### Where the token is stored
 

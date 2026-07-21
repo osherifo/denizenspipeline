@@ -157,6 +157,25 @@ class PublishBody(BaseModel):
     description: str = ""
 
 
+class InstallManyBody(BaseModel):
+    """Bulk install. Omit ``kind`` for every kind; omit ``source_id`` for
+    every synced source."""
+
+    source_id: str | None = None
+    kind: str | None = None
+
+
+@router.post("/install-many")
+def install_many(request: Request, body: InstallManyBody) -> dict:
+    hub = _hub(request)
+    try:
+        return hub.install_many(request.app.state, sid=body.source_id, kind=body.kind)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/install")
 def install(request: Request, body: InstallBody) -> dict:
     hub = _hub(request)

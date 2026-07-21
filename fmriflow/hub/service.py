@@ -174,6 +174,39 @@ class HubService:
         source, entry, dest = self._find(sid, kind, name)
         return installer.install(entry, dest, state, source=source)
 
+    def install_many(self, state, sid: str | None = None,
+                     kind: str | None = None) -> dict:
+        """Install every not-yet-installed catalog artifact.
+
+        Scope: one *kind* (or all kinds when omitted), from one source (or all
+        synced sources when *sid* is omitted). Already-installed items and
+        duplicates across sources are skipped; a failure on one artifact never
+        aborts the rest — it's collected and reported.
+        """
+        items = self.catalog(state, kind=kind)
+        if sid:
+            items = [i for i in items if i["source_id"] == sid]
+
+        installed: list[str] = []
+        skipped = 0
+        failed: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for it in items:
+            key = (it["kind"], it["name"])
+            if it["installed"] or key in seen:
+                skipped += 1
+                continue
+            seen.add(key)
+            try:
+                self.install(it["source_id"], it["kind"], it["name"], state)
+                installed.append(f"{it['kind']}/{it['name']}")
+            except Exception as e:  # noqa: BLE001 - report, keep going
+                logger.warning("Hub bulk install failed for %s/%s: %s",
+                               it["kind"], it["name"], e)
+                failed.append({"kind": it["kind"], "name": it["name"], "error": str(e)})
+        return {"installed": len(installed), "skipped": skipped,
+                "failed": failed, "names": installed, "kind": kind}
+
     def provenance(self) -> dict:
         from fmriflow.hub import provenance as _p
         return _p.all_records()

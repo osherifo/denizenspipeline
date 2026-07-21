@@ -7,7 +7,7 @@ import { create } from 'zustand'
 import {
   fetchHubSources, addHubSource, removeHubSource, syncHubSource,
   fetchHubCatalog, installHubArtifact, publishHubArtifact, fetchHubProvenance,
-  fetchHubLocalArtifacts, publishHubKind,
+  fetchHubLocalArtifacts, publishHubKind, installHubMany,
 } from '../api/client'
 import type { HubSource, HubCatalogItem, HubProvenanceMap } from '../api/types'
 
@@ -37,6 +37,7 @@ interface HubState {
   syncAll: () => Promise<void>
   loadCatalog: (kind?: string | null) => Promise<void>
   install: (item: HubCatalogItem) => Promise<void>
+  installMany: (kind?: string | null) => Promise<void>
   publish: (item: HubCatalogItem) => Promise<void>
   setKindFilter: (kind: string | null) => void
   clearNotice: () => void
@@ -171,6 +172,20 @@ export const useHubStore = create<HubState>((set, get) => ({
       set({ notice: `Installed ${item.kind}/${item.name} to your local tier.` })
       await get().loadCatalog(get().kindFilter)
       await get().loadProvenance(true)
+    } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }
+  },
+
+  installMany: async (kind) => {
+    const key = `installmany:${kind ?? 'all'}`
+    set({ busy: key, error: null, notice: `Installing all ${kind ?? 'artifacts'}…` })
+    try {
+      const r = await installHubMany(kind ? { kind } : {})
+      await get().loadCatalog(get().kindFilter)
+      await get().loadProvenance(true)
+      const bits = [`Installed ${r.installed}`]
+      if (r.skipped) bits.push(`${r.skipped} already present`)
+      if (r.failed.length) bits.push(`${r.failed.length} failed (${r.failed.slice(0, 2).map((f) => f.name).join(', ')})`)
+      set({ notice: bits.join(' · ') + '.' })
     } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }
   },
 
