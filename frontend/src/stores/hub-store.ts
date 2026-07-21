@@ -182,9 +182,17 @@ export const useHubStore = create<HubState>((set, get) => ({
       const r = await installHubMany(kind ? { kind } : {})
       await get().loadCatalog(get().kindFilter)
       await get().loadProvenance(true)
+      // `skipped` covers both already-installed items *and* duplicates of the
+      // same kind/name offered by another source — don't claim it's only the
+      // former. Failures are qualified with the kind, since a bare name is
+      // ambiguous when installing across kinds.
       const bits = [`Installed ${r.installed}`]
-      if (r.skipped) bits.push(`${r.skipped} already present`)
-      if (r.failed.length) bits.push(`${r.failed.length} failed (${r.failed.slice(0, 2).map((f) => f.name).join(', ')})`)
+      if (r.skipped) bits.push(`${r.skipped} skipped (already installed or duplicated across sources)`)
+      if (r.failed.length) {
+        const shown = r.failed.slice(0, 2).map((f) => `${f.kind}/${f.name}`).join(', ')
+        const more = r.failed.length > 2 ? `, +${r.failed.length - 2} more` : ''
+        bits.push(`${r.failed.length} failed (${shown}${more})`)
+      }
       set({ notice: bits.join(' · ') + '.' })
     } catch (e) { set({ error: String(e) }) } finally { set({ busy: null }) }
   },
