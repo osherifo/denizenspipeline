@@ -51,7 +51,7 @@ export function HubView() {
   const {
     sources, envOverride, preflight, keyringAvailable, catalog, kindFilter, loading, error, busy, notice,
     localArtifacts, loadSources, addSource, removeSource, sync, syncAll, loadCatalog, install, publish,
-    loadLocalArtifacts, publishLocal, publishKind, setKindFilter, clearNotice,
+    installMany, loadLocalArtifacts, publishLocal, publishKind, setKindFilter, clearNotice,
   } = useHubStore()
 
   const [form, setForm] = useState({ name: '', url: '', tier: 'lab', branch: 'main', token: '' })
@@ -172,7 +172,7 @@ export function HubView() {
       {/* ── Publish a local artifact ── */}
       {sources.length > 0 && Object.keys(localArtifacts).length > 0 && (
         <>
-          <div style={sectionHeader}><span>Publish an artifact</span></div>
+          <div style={sectionHeader}><span>↑ Publish to a store (send your local artifacts)</span></div>
           <div style={{ ...addCard, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
             <select style={{ ...input, flex: '0 0 180px' }} value={pub.sourceId}
               onChange={(e) => setPub({ ...pub, sourceId: e.target.value })}>
@@ -212,7 +212,33 @@ export function HubView() {
       )}
 
       {/* ── Catalog ── */}
-      <div style={sectionHeader}><span>Catalog</span></div>
+      <div style={sectionHeader}>
+        <span>Catalog</span>
+        <span style={{ flex: 1 }} />
+        {catalog.some((i) => !i.installed) && (
+          <>
+            {kindFilter && (
+              <button style={btnSm} disabled={!!busy}
+                title={`Install every ${KIND_LABELS[kindFilter] ?? kindFilter} from the store onto this system`}
+                onClick={() => installMany(kindFilter)}>
+                {busy === `installmany:${kindFilter}`
+                  ? <><Spinner /> Installing…</>
+                  : `↓ Install all ${KIND_LABELS[kindFilter] ?? kindFilter}`}
+              </button>
+            )}
+            <button style={btnSm} disabled={!!busy}
+              title="Install every artifact in the catalog onto this system"
+              onClick={() => installMany(null)}>
+              {busy === 'installmany:all' ? <><Spinner /> Installing…</> : '↓ Install everything'}
+            </button>
+          </>
+        )}
+      </div>
+      <div style={legendStyle}>
+        <strong>↓ Install</strong> copies an artifact <em>from the store onto this system</em>.{' '}
+        <strong>↑ Publish mine</strong> pushes <em>your local version up to the store</em> (on an
+        existing store that opens a branch/PR — it won't appear in the catalog until that's merged).
+      </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
         <button style={chip(kindFilter === null)} onClick={() => setKindFilter(null)}>All</button>
         {kinds.map((k) => (
@@ -272,11 +298,13 @@ function ArtifactRow({ item, busy, anyBusy, onInstall, onPublish }: {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {item.tags.map((t) => <span key={t} style={tag}>{t}</span>)}
         <span style={{ flex: 1 }} />
-        <button style={btnSm} disabled={anyBusy || item.installed} onClick={onInstall}>
-          {item.installed ? 'Installed' : busy ? <><Spinner /> Installing…</> : 'Install'}
+        <button style={btnSm} disabled={anyBusy || item.installed} onClick={onInstall}
+          title="Copy this artifact from the store onto this system">
+          {item.installed ? '✓ Installed' : busy ? <><Spinner /> Installing…</> : '↓ Install'}
         </button>
-        <button style={btnSm} disabled={anyBusy} onClick={onPublish} title="Publish your local version to this source">
-          {busy ? <><Spinner /> Publishing…</> : 'Publish local'}
+        <button style={btnSm} disabled={anyBusy} onClick={onPublish}
+          title="Push YOUR local version of this artifact up to the store (opens a branch/PR)">
+          {busy ? <><Spinner /> Publishing…</> : '↑ Publish mine'}
         </button>
       </div>
     </div>
@@ -331,6 +359,9 @@ const installedBadge: CSSProperties = {
 }
 const tag: CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 8px' }
 const emptyHint: CSSProperties = { fontSize: 13, color: 'var(--text-secondary)', padding: '12px 0' }
+const legendStyle: CSSProperties = {
+  fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12,
+}
 const tokenHelp: CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: -2 }
 const banner = (kind: 'info' | 'warning'): CSSProperties => {
   const c = kind === 'warning'

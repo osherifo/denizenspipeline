@@ -1122,6 +1122,25 @@ export async function fetchHubArtifact(sid: string, kind: string, name: string):
   return json(`${BASE}/hub/catalog/${encodeURIComponent(sid)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`)
 }
 
+export interface HubInstallManyResult {
+  installed: number
+  skipped: number
+  failed: { kind: string; name: string; error: string }[]
+  names: string[]
+  kind: string | null
+}
+
+/** Bulk install: omit `kind` for every kind, omit `source_id` for every source. */
+export async function installHubMany(body: {
+  source_id?: string; kind?: string
+}): Promise<HubInstallManyResult> {
+  return json(`${BASE}/hub/install-many`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 export async function installHubArtifact(body: {
   source_id: string; kind: string; name: string
 }): Promise<HubInstallResult> {
