@@ -78,6 +78,9 @@ const cssVars = `
   /* Contrast colour for text/icons sitting ON an accent-filled surface.
      In dark mode accents are bright, so near-black reads best. */
   --on-accent: #0a0a1a;
+  /* Raised chrome sitting ON a --bg-secondary surface (e.g. an expanded
+     sidebar group header) — must read as distinct from --bg-secondary. */
+  --bg-elevated: #1e1e3a;
 }
 
 :root[data-theme="light"] {
@@ -92,7 +95,7 @@ const cssVars = `
   --text-secondary: #545d70;
   /* Accents are darkened from the dark-mode set so they keep >=4.5:1
      contrast against the light surfaces (the neon originals fail badly). */
-  --accent-cyan: #0277a8;
+  --accent-cyan: #026d99;
   --accent-green: #0b7a40;
   --accent-yellow: #8f5a00;
   --accent-red: #c62233;
@@ -100,6 +103,7 @@ const cssVars = `
      reads as having an edge (a lighter border disappears on white). */
   --border: #74829d;
   --on-accent: #ffffff;
+  --bg-elevated: #dfe4ee;
 }
 
 * {

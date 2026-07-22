@@ -6,19 +6,16 @@
 
 import { memo } from 'react'
 import type { CSSProperties } from 'react'
+import { useThemeStore } from '../../stores/theme-store'
+import { statusPalette } from '../../utils/status-colors'
 import type {
   NipypeStatusCounts,
   NipypeStatusBlock,
 } from '../../api/types'
 
-const STATUS_COLOR: Record<string, string> = {
-  running: '#00e5ff',
-  ok: '#00e676',
-  failed: '#ff1744',
-  // Softer green for inferred-as-finished (no Finished log line seen).
-  completed_assumed: '#52c98f',
-  // Anything else falls back to neutral
-}
+// Status colours come from the shared theme-aware palette so light mode
+// gets legible equivalents; called per paint to track theme switches.
+const STATUS = () => statusPalette()
 
 const containerStyle: CSSProperties = {
   marginTop: 6,
@@ -63,12 +60,12 @@ const countPill = (color: string): CSSProperties => ({
 
 function _summarize(counts: NipypeStatusCounts): React.ReactNode {
   const items: { color: string; label: string }[] = []
-  if (counts.running) items.push({ color: STATUS_COLOR.running, label: `${counts.running} running` })
-  if (counts.ok) items.push({ color: STATUS_COLOR.ok, label: `${counts.ok} done` })
-  if (counts.failed) items.push({ color: STATUS_COLOR.failed, label: `${counts.failed} failed` })
+  if (counts.running) items.push({ color: STATUS().running, label: `${counts.running} running` })
+  if (counts.ok) items.push({ color: STATUS().ok, label: `${counts.ok} done` })
+  if (counts.failed) items.push({ color: STATUS().failed, label: `${counts.failed} failed` })
   if (counts.completed_assumed)
     items.push({
-      color: STATUS_COLOR.completed_assumed,
+      color: STATUS().completed_assumed,
       label: `${counts.completed_assumed} assumed`,
     })
   if (items.length === 0) {
@@ -90,12 +87,15 @@ interface Props {
 }
 
 function InnerNodesStripInner({ block, onOpenDag }: Props) {
+  // Subscribe to the theme so a toggle repaints the status colours read
+  // via STATUS() below (this component is memoised).
+  useThemeStore((s) => s.mode)
   const total = block.counts.total_seen
   // Pick the dominant status color for the View DAG button.
   const btnColor =
-    block.counts.failed > 0 ? STATUS_COLOR.failed
-    : block.counts.running > 0 ? STATUS_COLOR.running
-    : STATUS_COLOR.ok
+    block.counts.failed > 0 ? STATUS().failed
+    : block.counts.running > 0 ? STATUS().running
+    : STATUS().ok
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>

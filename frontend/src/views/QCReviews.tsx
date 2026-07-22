@@ -52,7 +52,7 @@ const filterBtn = (active: boolean): CSSProperties => ({
   borderRadius: 4,
   border: '1px solid var(--border)',
   background: active ? 'var(--accent-cyan)' : 'var(--bg-secondary)',
-  color: active ? '#000' : 'var(--text-primary)',
+  color: active ? 'var(--on-accent)' : 'var(--text-primary)',
   cursor: 'pointer',
 })
 

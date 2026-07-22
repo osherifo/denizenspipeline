@@ -29,16 +29,12 @@ import { NodeListPanel } from './NodeListPanel'
 import { fmriprepDocUrl } from './fmriprep_docs'
 import { inferredName, setRuntimeMap } from './fmriprep_labels'
 import { useLabelMode, type LabelMode } from './use_label_mode'
-import { nodeColors } from '../../utils/status-colors'
+import { nodeColors, statusPalette } from '../../utils/status-colors'
 import { useThemeStore } from '../../stores/theme-store'
 
-const STATUS_COLOR: Record<string, string> = {
-  running: '#00e5ff',
-  ok: '#00e676',
-  failed: '#ff1744',
-  completed_assumed: '#52c98f',
-  cached: '#888',
-}
+// Status colours come from the shared theme-aware palette so light mode
+// gets legible equivalents; called per paint to track theme switches.
+const STATUS = () => statusPalette()
 const NEUTRAL = 'var(--text-secondary)'
 
 
@@ -104,11 +100,14 @@ const DocsLinkIcon = memo(_DocsLinkIcon)
 
 
 function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
+  // Subscribe to the theme so a toggle repaints the status colours read
+  // via STATUS() below (this component is memoised).
+  useThemeStore((s) => s.mode)
   const mode = useThemeStore((s) => s.mode)
   // `completed_assumed`/`cached` aren't in the shared table; fall back to the
   // local neon map in dark, and to the shared neutral in light.
   const themed = nodeColors(mode, data.status ?? '')
-  const color = mode === 'light' ? themed.color : (STATUS_COLOR[data.status ?? ''] ?? NEUTRAL)
+  const color = mode === 'light' ? themed.color : (STATUS()[data.status ?? ''] ?? NEUTRAL)
   const elapsed = data.elapsed && data.elapsed > 0
     ? ` · ${formatDuration(data.elapsed)}`
     : ''
@@ -149,11 +148,11 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
   const c = data.counts ?? { running: 0, ok: 0, failed: 0, completed_assumed: 0, cached: 0, total: 0 }
   // Dominant color: failed > running > ok > completed_assumed > cached > neutral.
   const color =
-    c.failed > 0 ? STATUS_COLOR.failed
-    : c.running > 0 ? STATUS_COLOR.running
-    : c.ok > 0 ? STATUS_COLOR.ok
-    : c.completed_assumed > 0 ? STATUS_COLOR.completed_assumed
-    : c.cached > 0 ? STATUS_COLOR.cached
+    c.failed > 0 ? STATUS().failed
+    : c.running > 0 ? STATUS().running
+    : c.ok > 0 ? STATUS().ok
+    : c.completed_assumed > 0 ? STATUS().completed_assumed
+    : c.cached > 0 ? STATUS().cached
     : NEUTRAL
   const friendly = inferredName(data.label)
   const mode: LabelMode = data.labelMode ?? 'friendly'
@@ -240,13 +239,13 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
         }}
       >
         {c.running > 0 && <span>{c.running}▶</span>}
-        {c.ok > 0 && <span style={{ color: STATUS_COLOR.ok }}>{c.ok}✓</span>}
-        {c.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{c.failed}✗</span>}
+        {c.ok > 0 && <span style={{ color: STATUS().ok }}>{c.ok}✓</span>}
+        {c.failed > 0 && <span style={{ color: STATUS().failed }}>{c.failed}✗</span>}
         {c.completed_assumed > 0 && (
-          <span style={{ color: STATUS_COLOR.completed_assumed }}>{c.completed_assumed}?</span>
+          <span style={{ color: STATUS().completed_assumed }}>{c.completed_assumed}?</span>
         )}
         {c.cached > 0 && (
-          <span style={{ color: STATUS_COLOR.cached }}>{c.cached}◌</span>
+          <span style={{ color: STATUS().cached }}>{c.cached}◌</span>
         )}
         {c.total === 0 && <span>—</span>}
       </div>
@@ -891,10 +890,10 @@ function Inner({ runId, isRunning, onClose }: Props) {
         )}
         {isRunning && (
           <span style={{
-            fontSize: 10, color: STATUS_COLOR.running, fontWeight: 700,
+            fontSize: 10, color: STATUS().running, fontWeight: 700,
             padding: '2px 6px', borderRadius: 8,
-            background: `${STATUS_COLOR.running}22`,
-            border: `1px solid ${STATUS_COLOR.running}55`,
+            background: `${STATUS().running}22`,
+            border: `1px solid ${STATUS().running}55`,
           }}>
             LIVE
           </span>

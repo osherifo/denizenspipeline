@@ -365,7 +365,7 @@ const legendStyle: CSSProperties = {
 const tokenHelp: CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: -2 }
 const banner = (kind: 'info' | 'warning'): CSSProperties => {
   const c = kind === 'warning'
-    ? { color: '#ffb86c', bg: 'rgba(255,184,108,0.10)' }
+    ? { color: 'var(--accent-yellow)', bg: 'rgba(255,184,108,0.10)' }
     : { color: 'var(--accent-cyan)', bg: 'rgba(0,229,255,0.08)' }
   return { padding: '10px 14px', borderRadius: 6, fontSize: 12, color: c.color, background: c.bg, border: `1px solid ${c.color}`, marginBottom: 14 }
 }

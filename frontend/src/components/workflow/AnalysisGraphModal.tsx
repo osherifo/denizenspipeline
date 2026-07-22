@@ -40,14 +40,6 @@ import { formatDuration } from '../../utils/format'
 // ── status colours (kept in sync with NipypeGraphModal) ────────────────
 
 
-const STATUS_COLOR: Record<string, string> = {
-  ok: '#00e676',
-  running: '#00e5ff',
-  warning: '#ffd600',
-  failed: '#ff1744',
-  skipped: '#888',
-  unknown: '#888',
-}
 const NEUTRAL = 'var(--text-secondary)'
 
 

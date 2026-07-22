@@ -47,8 +47,8 @@ function groupHeaderStyle(expanded: boolean, hasActive: boolean): CSSProperties 
     cursor: 'pointer',
     userSelect: 'none',
     borderRadius: 6,
-    color: hasActive ? 'var(--accent-cyan)' : '#9898bb',
-    backgroundColor: expanded ? '#1e1e3a' : 'transparent',
+    color: hasActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+    backgroundColor: expanded ? 'var(--bg-elevated)' : 'transparent',
     transition: 'all 0.15s ease',
   }
 }
@@ -68,7 +68,7 @@ function linkStyle(active: boolean): CSSProperties {
     fontSize: 12,
     fontWeight: active ? 600 : 500,
     textDecoration: 'none',
-    color: active ? 'var(--accent-cyan)' : '#7878a0',
+    color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
     backgroundColor: active ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
     borderLeft: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
     cursor: 'pointer',

@@ -57,5 +57,17 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   toggle: () => get().setMode(get().mode === 'dark' ? 'light' : 'dark'),
 }))
 
+/**
+ * Read the mode outside React.
+ *
+ * Some colour lookups live in module-level helpers (graph node painters, status
+ * tables) that aren't components and so can't use the hook. They call this at
+ * paint time; the component that renders them still subscribes via
+ * `useThemeStore` so a toggle re-renders and the helper is re-run.
+ */
+export function getThemeMode(): ThemeMode {
+  return useThemeStore.getState().mode
+}
+
 // Apply the resolved mode before first paint so there's no dark flash.
 applyToDocument(useThemeStore.getState().mode)

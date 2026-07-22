@@ -45,7 +45,7 @@ const checkLabel: CSSProperties = { fontSize: 12, color: 'var(--text-primary)' }
 const btnPrimary: CSSProperties = {
   padding: '8px 24px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
   borderRadius: 6, cursor: 'pointer', border: 'none',
-  backgroundColor: 'var(--accent-cyan)', color: '#000',
+  backgroundColor: 'var(--accent-cyan)', color: 'var(--on-accent)',
 }
 const btnSecondary: CSSProperties = {
   padding: '8px 24px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',

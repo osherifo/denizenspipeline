@@ -170,7 +170,7 @@ const saveBtn: CSSProperties = {
 const bannerStyle = (kind: 'info' | 'warning' | 'success'): CSSProperties => {
   const palette = {
     info: { color: 'var(--accent-cyan)', bg: 'rgba(0, 229, 255, 0.08)' },
-    warning: { color: '#ffb86c', bg: 'rgba(255, 184, 108, 0.10)' },
+    warning: { color: 'var(--accent-yellow)', bg: 'rgba(255, 184, 108, 0.10)' },
     success: { color: 'var(--accent-green, #4caf50)', bg: 'rgba(76, 175, 80, 0.10)' },
   }[kind]
   return {

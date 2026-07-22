@@ -85,7 +85,7 @@ const btnStyle: CSSProperties = {
 const primaryBtn: CSSProperties = {
   ...btnStyle,
   backgroundColor: 'var(--accent-cyan)',
-  color: '#000',
+  color: 'var(--on-accent)',
   border: 'none',
 }
 
