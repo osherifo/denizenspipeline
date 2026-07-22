@@ -81,19 +81,24 @@ const cssVars = `
 }
 
 :root[data-theme="light"] {
-  --bg-primary: #f7f8fb;
-  --bg-secondary: #ffffff;
+  /* Tonal separation matters more in light mode: the page is a soft grey so
+     white cards/panels actually lift off it, and the border is dark enough to
+     read as a real edge (a near-white border is invisible on white). */
+  --bg-primary: #e8ebf2;
+  --bg-secondary: #f4f6fa;
   --bg-card: #ffffff;
-  --bg-input: #eef1f7;
+  --bg-input: #ffffff;
   --text-primary: #1c2030;
-  --text-secondary: #5b6478;
+  --text-secondary: #545d70;
   /* Accents are darkened from the dark-mode set so they keep >=4.5:1
      contrast against the light surfaces (the neon originals fail badly). */
   --accent-cyan: #0277a8;
   --accent-green: #0b7a40;
   --accent-yellow: #8f5a00;
   --accent-red: #c62233;
-  --border: #d4d9e4;
+  /* >=3:1 against BOTH the page and card surfaces, so every box actually
+     reads as having an edge (a lighter border disappears on white). */
+  --border: #74829d;
   --on-accent: #ffffff;
 }
 

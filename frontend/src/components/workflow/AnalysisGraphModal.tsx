@@ -33,6 +33,7 @@ import {
   type RunGraphNode,
 } from '../../api/run-graph'
 import { AnalysisNodePanel } from './AnalysisNodePanel'
+import { useNodeColors, useStatusColor } from '../../utils/status-colors'
 import { formatDuration } from '../../utils/format'
 
 
@@ -58,11 +59,11 @@ type PluginNodeData = RunGraphNode & { _kind: 'plugin'; _hasSource: boolean }
 
 
 function _StageInner({ data }: NodeProps & { data: StageNodeData }) {
-  const color = STATUS_COLOR[data.status] ?? NEUTRAL
+  const { color, bg, border } = useNodeColors(data.status)
   return (
     <div style={{
-      background: `${color}11`,
-      border: `1px solid ${color}66`,
+      background: bg,
+      border: `1px solid ${border}`,
       color: 'var(--text-primary)',
       borderRadius: 6,
       padding: '8px 14px',
@@ -90,12 +91,12 @@ const StageNode = memo(_StageInner)
 
 
 function _PluginInner({ data }: NodeProps & { data: PluginNodeData }) {
-  const color = STATUS_COLOR[data.status] ?? NEUTRAL
+  const { color, bg, border } = useNodeColors(data.status)
   return (
     <div
       style={{
-        background: `${color}22`,
-        border: `1px solid ${color}aa`,
+        background: bg,
+        border: `1px solid ${border}`,
         color: 'var(--text-primary)',
         borderRadius: 5,
         padding: '5px 10px',

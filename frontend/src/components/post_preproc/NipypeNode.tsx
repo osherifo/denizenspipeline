@@ -7,6 +7,7 @@
 import { memo } from 'react'
 import type { CSSProperties } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { useThemeStore } from '../../stores/theme-store'
 
 const COLOR = '#10b981' // matches preproc stage color in WorkflowGraph
 
@@ -37,6 +38,7 @@ const handleLabel = (side: 'left' | 'right'): CSSProperties => ({
 })
 
 function NipypeNodeInner({ data, selected }: NodeProps & { data: NipypeNodeData }) {
+  const light = useThemeStore((s) => s.mode) === 'light'
   const inputs = data.inputs ?? []
   const outputs = data.outputs ?? []
   const rows = Math.max(inputs.length, outputs.length, 1)
@@ -45,8 +47,9 @@ function NipypeNodeInner({ data, selected }: NodeProps & { data: NipypeNodeData 
   const height = headerHeight + rows * rowHeight + 6
 
   const containerStyle: CSSProperties = {
-    background: `${COLOR}22`,
-    border: selected ? `2px solid ${COLOR}` : `1px solid ${COLOR}aa`,
+    background: light ? `${COLOR}1f` : `${COLOR}22`,
+    // A 67%-alpha border vanishes on white; use the solid colour in light mode.
+    border: selected ? `2px solid ${COLOR}` : `1px solid ${light ? COLOR : `${COLOR}aa`}`,
     borderRadius: 6,
     minWidth: 170,
     color: 'var(--text-primary)',

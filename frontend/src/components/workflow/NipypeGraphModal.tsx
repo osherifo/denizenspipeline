@@ -29,6 +29,8 @@ import { NodeListPanel } from './NodeListPanel'
 import { fmriprepDocUrl } from './fmriprep_docs'
 import { inferredName, setRuntimeMap } from './fmriprep_labels'
 import { useLabelMode, type LabelMode } from './use_label_mode'
+import { nodeColors } from '../../utils/status-colors'
+import { useThemeStore } from '../../stores/theme-store'
 
 const STATUS_COLOR: Record<string, string> = {
   running: '#00e5ff',
@@ -102,7 +104,11 @@ const DocsLinkIcon = memo(_DocsLinkIcon)
 
 
 function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
-  const color = STATUS_COLOR[data.status ?? ''] ?? NEUTRAL
+  const mode = useThemeStore((s) => s.mode)
+  // `completed_assumed`/`cached` aren't in the shared table; fall back to the
+  // local neon map in dark, and to the shared neutral in light.
+  const themed = nodeColors(mode, data.status ?? '')
+  const color = mode === 'light' ? themed.color : (STATUS_COLOR[data.status ?? ''] ?? NEUTRAL)
   const elapsed = data.elapsed && data.elapsed > 0
     ? ` · ${formatDuration(data.elapsed)}`
     : ''
@@ -110,8 +116,8 @@ function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
   return (
     <div
       style={{
-        background: `${color}22`,
-        border: `1px solid ${color}aa`,
+        background: themed.bg,
+        border: `1px solid ${themed.border}`,
         color: 'var(--text-primary)',
         borderRadius: 5,
         padding: '4px 8px',
