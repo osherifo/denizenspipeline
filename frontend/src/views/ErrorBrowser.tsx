@@ -98,7 +98,7 @@ const stageBadge = (stage: string): CSSProperties => {
     report: '#ffffff',
     preproc: '#00e676',
   }
-  const c = colors[stage] || '#8888aa'
+  const c = colors[stage] || 'var(--text-secondary)'
   return {
     fontSize: 10,
     fontWeight: 600,

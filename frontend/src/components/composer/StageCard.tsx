@@ -62,7 +62,7 @@ const numStyle = (color: string, status: StageStatus): CSSProperties => ({
     status === 'error' ? 'var(--accent-red, #ef5350)' :
     status === 'filled' ? color :
     'var(--bg-input)',
-  color: status === 'empty' ? 'var(--text-secondary)' : '#0a0a1a',
+  color: status === 'empty' ? 'var(--text-secondary)' : 'var(--on-accent)',
   fontSize: 13,
   fontWeight: 800,
   flexShrink: 0,

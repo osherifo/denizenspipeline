@@ -113,7 +113,7 @@ const handleStyle = (color: string): CSSProperties => ({
   width: 8,
   height: 8,
   backgroundColor: color,
-  border: '2px solid #0a0a1a',
+  border: '2px solid var(--bg-primary)',
   borderRadius: '50%',
 })
 
@@ -127,7 +127,7 @@ function fmtElapsed(s: WorkflowStageStatus): string {
 }
 
 function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
-  const meta = STAGE_META[data.stage] ?? { color: '#8888aa', icon: '\u{25CF}', label: data.stage }
+  const meta = STAGE_META[data.stage] ?? { color: 'var(--text-secondary)', icon: '\u{25CF}', label: data.stage }
   const statusColor = STATUS_COLORS[data.status] ?? STATUS_COLORS.pending
   const isRunning = data.status === 'running'
 
@@ -360,7 +360,7 @@ function buildGraph(
     const toActive = to.status === 'running'
     const fromFailed = ['failed', 'cancelled', 'lost'].includes(from.status)
 
-    let stroke = '#2a2a4a'
+    let stroke = 'var(--border)'
     if (fromFailed) stroke = STATUS_COLORS.failed
     else if (fromDone && toActive) stroke = STATUS_COLORS.running
     else if (fromDone && to.status === 'done') stroke = STATUS_COLORS.done

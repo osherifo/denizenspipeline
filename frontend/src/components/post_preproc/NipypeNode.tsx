@@ -22,7 +22,7 @@ const handleStyle: CSSProperties = {
   width: 10,
   height: 10,
   backgroundColor: COLOR,
-  border: '2px solid #1a1a2e',
+  border: '2px solid var(--bg-card)',
 }
 
 const handleLabel = (side: 'left' | 'right'): CSSProperties => ({

@@ -60,7 +60,10 @@ const rootStyle: CSSProperties = {
 }
 
 const cssVars = `
-:root {
+/* Dark is the default theme; the light palette below overrides it when
+   <html data-theme="light"> is set (see stores/theme-store.ts). Because the
+   whole UI is styled through these variables, a theme is just this block. */
+:root, :root[data-theme="dark"] {
   --bg-primary: #0a0a1a;
   --bg-secondary: #111128;
   --bg-card: #1a1a2e;
@@ -72,6 +75,26 @@ const cssVars = `
   --accent-yellow: #ffd600;
   --accent-red: #ff1744;
   --border: #2a2a4a;
+  /* Contrast colour for text/icons sitting ON an accent-filled surface.
+     In dark mode accents are bright, so near-black reads best. */
+  --on-accent: #0a0a1a;
+}
+
+:root[data-theme="light"] {
+  --bg-primary: #f7f8fb;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #eef1f7;
+  --text-primary: #1c2030;
+  --text-secondary: #5b6478;
+  /* Accents are darkened from the dark-mode set so they keep >=4.5:1
+     contrast against the light surfaces (the neon originals fail badly). */
+  --accent-cyan: #0277a8;
+  --accent-green: #0b7a40;
+  --accent-yellow: #8f5a00;
+  --accent-red: #c62233;
+  --border: #d4d9e4;
+  --on-accent: #ffffff;
 }
 
 * {

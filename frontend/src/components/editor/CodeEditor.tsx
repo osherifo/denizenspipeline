@@ -1,5 +1,6 @@
 /** Monaco-based Python code editor. */
 import Editor from '@monaco-editor/react'
+import { useThemeStore } from '../../stores/theme-store'
 
 interface CodeEditorProps {
   code: string
@@ -7,11 +8,13 @@ interface CodeEditorProps {
 }
 
 export function CodeEditor({ code, onChange }: CodeEditorProps) {
+  // Monaco ships its own themes; follow the app theme.
+  const monacoTheme = useThemeStore((s) => s.mode) === 'light' ? 'light' : 'vs-dark'
   return (
     <Editor
       height="100%"
       language="python"
-      theme="vs-dark"
+      theme={monacoTheme}
       value={code}
       onChange={(v) => onChange(v ?? '')}
       options={{

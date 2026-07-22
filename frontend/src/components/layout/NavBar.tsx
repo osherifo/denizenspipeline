@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
+import { useThemeStore } from '../../stores/theme-store'
 
 interface NavBarProps {
   currentRoute: string
@@ -173,6 +174,45 @@ export function NavBar({ currentRoute }: NavBarProps) {
           </div>
         )
       })}
+      <ThemeToggle />
     </nav>
   )
+}
+
+/** Dark/light switch, pinned to the bottom of the sidebar. */
+function ThemeToggle() {
+  const mode = useThemeStore((s) => s.mode)
+  const toggle = useThemeStore((s) => s.toggle)
+  const next = mode === 'dark' ? 'light' : 'dark'
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      style={themeToggleStyle}
+      title={`Switch to ${next} mode`}
+      aria-label={`Switch to ${next} mode`}
+    >
+      <span aria-hidden>{mode === 'dark' ? '☀' : '☽'}</span>
+      <span>{next === 'light' ? 'Light mode' : 'Dark mode'}</span>
+    </button>
+  )
+}
+
+const themeToggleStyle: CSSProperties = {
+  marginTop: 'auto',            // push to the bottom of the flex column
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '10px 16px',
+  fontSize: 11,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  border: 'none',
+  borderTop: '1px solid var(--border)',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  textAlign: 'left',
 }

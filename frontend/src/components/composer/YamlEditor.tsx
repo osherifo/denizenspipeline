@@ -7,6 +7,7 @@
  */
 
 import Editor from '@monaco-editor/react'
+import { useThemeStore } from '../../stores/theme-store'
 
 interface YamlEditorProps {
   value: string
@@ -23,11 +24,13 @@ export function YamlEditor({
   readOnly = false,
   height = '100%',
 }: YamlEditorProps) {
+  // Monaco ships its own themes; follow the app theme.
+  const monacoTheme = useThemeStore((s) => s.mode) === 'light' ? 'light' : 'vs-dark'
   return (
     <Editor
       height={height}
       language="yaml"
-      theme="vs-dark"
+      theme={monacoTheme}
       value={value}
       onChange={(v) => onChange(v ?? '')}
       options={{
