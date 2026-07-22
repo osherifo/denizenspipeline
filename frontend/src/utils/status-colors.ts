@@ -11,6 +11,7 @@
  * where a hook isn't available.
  */
 
+import type { CSSProperties } from 'react'
 import { useThemeStore, getThemeMode, type ThemeMode } from '../stores/theme-store'
 
 /** Canonical neon set — unchanged, so dark mode looks exactly as before. */
@@ -59,7 +60,16 @@ export interface NodeColors {
   bg: string
   /** Border that is actually visible in this theme. */
   border: string
+  /** Heavier edge while running, 1px otherwise. */
+  borderWidth: number
+  /** True while the node is actively running. */
+  running: boolean
+  /** Ready-made box-shadow for a running node; '' otherwise. */
+  glow: string
 }
+
+/** Statuses that mean "this is happening right now". */
+const RUNNING = new Set(['running'])
 
 /**
  * The palette for the *current* theme, as a plain record.
@@ -172,12 +182,48 @@ export function statusColor(mode: ThemeMode, status: string): string {
 
 export function nodeColors(mode: ThemeMode, status: string): NodeColors {
   const color = statusColor(mode, status)
-  return mode === 'light'
+  const light = mode === 'light'
+
+  if (RUNNING.has(status)) {
+    // The running node is the one thing you're scanning a graph for, so it gets
+    // every emphasis at once: a stronger fill, a heavier solid edge and a glow.
+    // The pulse itself is CSS (see runningNodeStyle) — colour alone reads as
+    // just another status once a graph has a dozen finished siblings.
+    return {
+      color,
+      bg: light ? `${color}33` : `${color}40`,
+      border: color,
+      borderWidth: 2,
+      running: true,
+      glow: light
+        // On white a wide neon halo turns to mush; keep it tight and saturated.
+        ? `0 0 0 3px ${color}26, 0 0 10px ${color}59`
+        : `0 0 0 3px ${color}2e, 0 0 18px ${color}73, 0 0 5px ${color}`,
+    }
+  }
+
+  return light
     // Light: a slightly stronger tint, and a solid border so the box has a
     // real edge against white.
-    ? { color, bg: `${color}1f`, border: color }
+    ? { color, bg: `${color}1f`, border: color, borderWidth: 1, running: false, glow: '' }
     // Dark: preserve the original look exactly.
-    : { color, bg: `${color}22`, border: `${color}aa` }
+    : { color, bg: `${color}22`, border: `${color}aa`, borderWidth: 1, running: false, glow: '' }
+}
+
+/**
+ * Inline style that makes a running node pulse.
+ *
+ * The keyframes are global (App.tsx) and read a per-node `--pulse` custom
+ * property, so one animation serves every graph and both themes rather than
+ * each component minting its own `@keyframes` with a baked-in colour.
+ */
+export function runningNodeStyle(c: NodeColors): CSSProperties {
+  if (!c.running) return {}
+  return {
+    boxShadow: c.glow,
+    animation: 'fmriflow-running-pulse 1.6s ease-in-out infinite',
+    ['--pulse' as string]: c.color,
+  } as CSSProperties
 }
 
 /** Hook form — re-renders when the theme changes. */

@@ -33,7 +33,7 @@ import {
   type RunGraphNode,
 } from '../../api/run-graph'
 import { AnalysisNodePanel } from './AnalysisNodePanel'
-import { useNodeColors, useStatusColor } from '../../utils/status-colors'
+import { useNodeColors, useStatusColor, runningNodeStyle } from '../../utils/status-colors'
 import { formatDuration } from '../../utils/format'
 
 
@@ -51,11 +51,13 @@ type PluginNodeData = RunGraphNode & { _kind: 'plugin'; _hasSource: boolean }
 
 
 function _StageInner({ data }: NodeProps & { data: StageNodeData }) {
-  const { color, bg, border } = useNodeColors(data.status)
+  const themed = useNodeColors(data.status)
+  const { color, bg, border } = themed
   return (
     <div style={{
       background: bg,
-      border: `1px solid ${border}`,
+      border: `${themed.borderWidth}px solid ${border}`,
+      ...runningNodeStyle(themed),
       color: 'var(--text-primary)',
       borderRadius: 6,
       padding: '8px 14px',
@@ -83,12 +85,14 @@ const StageNode = memo(_StageInner)
 
 
 function _PluginInner({ data }: NodeProps & { data: PluginNodeData }) {
-  const { color, bg, border } = useNodeColors(data.status)
+  const themed = useNodeColors(data.status)
+  const { color, bg, border } = themed
   return (
     <div
       style={{
         background: bg,
-        border: `1px solid ${border}`,
+        border: `${themed.borderWidth}px solid ${border}`,
+        ...runningNodeStyle(themed),
         color: 'var(--text-primary)',
         borderRadius: 5,
         padding: '5px 10px',

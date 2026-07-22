@@ -5,6 +5,7 @@ import {
   forLight,
   identityColor,
   nodeColors,
+  runningNodeStyle,
   statusPalette,
 } from '../status-colors'
 
@@ -68,11 +69,46 @@ describe('dark mode is untouched', () => {
   })
 
   it('keeps the original node fill/border alpha suffixes', () => {
-    expect(nodeColors('dark', 'failed')).toEqual({
+    expect(nodeColors('dark', 'failed')).toMatchObject({
       color: '#ff1744',
       bg: '#ff174422',
       border: '#ff1744aa',
+      borderWidth: 1,
+      running: false,
+      glow: '',
     })
+  })
+})
+
+describe('running nodes are emphasised', () => {
+  for (const mode of ['dark', 'light'] as const) {
+    it(`gives a running node a heavier edge, stronger fill and a glow (${mode})`, () => {
+      const run = nodeColors(mode, 'running')
+      const done = nodeColors(mode, 'done')
+
+      expect(run.running).toBe(true)
+      expect(done.running).toBe(false)
+
+      // Heavier edge, at full opacity rather than the resting alpha.
+      expect(run.borderWidth).toBeGreaterThan(done.borderWidth)
+      expect(run.border).toBe(run.color)
+
+      // Stronger fill: compare the trailing alpha byte of the two tints.
+      const alpha = (hex: string) => parseInt(hex.slice(7, 9), 16)
+      expect(alpha(run.bg)).toBeGreaterThan(alpha(done.bg))
+
+      expect(run.glow).not.toBe('')
+      expect(done.glow).toBe('')
+    })
+  }
+
+  it('attaches the shared pulse only while running', () => {
+    const run = runningNodeStyle(nodeColors('dark', 'running'))
+    expect(run.animation).toContain('fmriflow-running-pulse')
+    // The keyframes are colour-agnostic; each node supplies its own --pulse.
+    expect((run as Record<string, string>)['--pulse']).toBe(nodeColors('dark', 'running').color)
+
+    expect(runningNodeStyle(nodeColors('dark', 'done'))).toEqual({})
   })
 
   it('returns the neon table', () => {

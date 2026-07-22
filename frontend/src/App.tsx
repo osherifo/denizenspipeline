@@ -106,6 +106,24 @@ const cssVars = `
   --bg-elevated: #dfe4ee;
 }
 
+/* Pulse for a node that is actively running. Each node sets its own --pulse to
+   its status colour, so one keyframes block serves every graph and both themes
+   (see utils/status-colors.ts runningNodeStyle). */
+@keyframes fmriflow-running-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--pulse) 18%, transparent),
+                         0 0 8px color-mix(in srgb, var(--pulse) 35%, transparent); }
+  50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--pulse) 30%, transparent),
+                         0 0 20px color-mix(in srgb, var(--pulse) 60%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the emphasis, drop the movement. */
+  @keyframes fmriflow-running-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pulse) 24%, transparent),
+                           0 0 14px color-mix(in srgb, var(--pulse) 45%, transparent); }
+  }
+}
+
 * {
   box-sizing: border-box;
 }

@@ -1,5 +1,5 @@
 /** ReactFlow graph for a single workflow run — one node per stage. */
-import { statusPalette, identityColor } from '../../utils/status-colors'
+import { statusPalette, identityColor, nodeColors, runningNodeStyle } from '../../utils/status-colors'
 import { memo, useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import {
@@ -71,14 +71,16 @@ const labelStyle: CSSProperties = {
   textTransform: 'uppercase',
 }
 
-const statusBadge = (color: string): CSSProperties => ({
+const statusBadge = (color: string, running = false): CSSProperties => ({
   fontSize: 10,
   fontWeight: 700,
   padding: '2px 8px',
   borderRadius: 4,
-  backgroundColor: `${color}22`,
-  color,
-  border: `1px solid ${color}66`,
+  // A running node's badge is filled rather than tinted, so the state is
+  // legible even at the zoom levels where the glow washes out.
+  backgroundColor: running ? color : `${color}22`,
+  color: running ? 'var(--on-accent)' : color,
+  border: `1px solid ${running ? color : `${color}66`}`,
   textTransform: 'uppercase',
   letterSpacing: 0.5,
 })
@@ -122,9 +124,8 @@ function fmtElapsed(s: WorkflowStageStatus): string {
 }
 
 function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
-  // Subscribe to the theme so a toggle repaints the status colours read
-  // via STATUS() below (this component is memoised).
-  useThemeStore((s) => s.mode)
+  // `mode` doubles as the theme subscription that repaints this memoised node.
+  const mode = useThemeStore((s) => s.mode)
   const rawMeta = STAGE_META[data.stage] ?? { color: 'var(--text-secondary)', icon: '\u{25CF}', label: data.stage }
   // Stage hues are identity, not decoration — darken (not replace) them for light.
   const meta = { ...rawMeta, color: identityColor(rawMeta.color) }
@@ -132,13 +133,16 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
   const isRunning = data.status === 'running'
 
   const clickable = !!data.run_id
+  const themed = nodeColors(mode, data.status)
   const style: CSSProperties = {
     ...nodeBase,
-    border: `1px solid ${isRunning ? statusColor : meta.color + '55'}`,
-    boxShadow: isRunning
-      ? `0 0 18px ${statusColor}66, 0 0 4px ${statusColor}`
-      : `0 1px 3px rgba(0,0,0,0.3)`,
-    animation: isRunning ? 'workflow-pulse 2s ease-in-out infinite' : undefined,
+    border: isRunning
+      ? `${themed.borderWidth}px solid ${statusColor}`
+      : `1px solid ${meta.color}55`,
+    boxShadow: isRunning ? themed.glow : `0 1px 3px rgba(0,0,0,0.3)`,
+    // Running nodes also get the shared pulse; the old bespoke keyframes baked
+    // in a dark-mode colour and washed out on a light canvas.
+    ...runningNodeStyle(themed),
     cursor: clickable ? 'pointer' : 'default',
   }
 
@@ -158,7 +162,7 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
       <div style={headerStyle}>
         <span style={{ fontSize: 14 }}>{meta.icon}</span>
         <span style={{ ...labelStyle, color: meta.color }}>{meta.label}</span>
-        <span style={statusBadge(statusColor)}>{data.status}</span>
+        <span style={statusBadge(statusColor, isRunning)}>{data.status}</span>
       </div>
 
       <div style={metaLine} title={data.config}>
@@ -411,12 +415,6 @@ export function WorkflowGraph(
 
   return (
     <div style={{ ...GRAPH_STYLE, height }}>
-      <style>{`
-        @keyframes workflow-pulse {
-          0%, 100% { box-shadow: 0 0 14px ${STATUS().running}55; }
-          50%      { box-shadow: 0 0 26px ${STATUS().running}aa, 0 0 6px ${STATUS().running}; }
-        }
-      `}</style>
       <ReactFlowProvider>
         <_WorkflowGraphInner
           initialNodes={nodes}

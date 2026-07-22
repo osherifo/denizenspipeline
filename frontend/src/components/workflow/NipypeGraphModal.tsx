@@ -29,7 +29,7 @@ import { NodeListPanel } from './NodeListPanel'
 import { fmriprepDocUrl } from './fmriprep_docs'
 import { inferredName, setRuntimeMap } from './fmriprep_labels'
 import { useLabelMode, type LabelMode } from './use_label_mode'
-import { nodeColors, statusPalette } from '../../utils/status-colors'
+import { nodeColors, statusPalette, runningNodeStyle } from '../../utils/status-colors'
 import { useThemeStore } from '../../stores/theme-store'
 
 // Status colours come from the shared theme-aware palette so light mode
@@ -100,9 +100,7 @@ const DocsLinkIcon = memo(_DocsLinkIcon)
 
 
 function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
-  // Subscribe to the theme so a toggle repaints the status colours read
-  // via STATUS() below (this component is memoised).
-  useThemeStore((s) => s.mode)
+  // `mode` doubles as the theme subscription that repaints this memoised node.
   const mode = useThemeStore((s) => s.mode)
   // `completed_assumed`/`cached` aren't in the shared table; fall back to the
   // local neon map in dark, and to the shared neutral in light.
@@ -116,7 +114,8 @@ function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
     <div
       style={{
         background: themed.bg,
-        border: `1px solid ${themed.border}`,
+        border: `${themed.borderWidth}px solid ${themed.border}`,
+        ...runningNodeStyle(themed),
         color: 'var(--text-primary)',
         borderRadius: 5,
         padding: '4px 8px',
