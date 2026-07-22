@@ -536,7 +536,8 @@ def _events_to_group_summaries(events: list[dict],
             ],
             'config_snapshot': {},
             'run_id': '',
-            'status': live_status.get(label, 'unknown'),
+            # No start event yet — this group hasn't been reached.
+            'status': live_status.get(label, 'pending'),
         })
     return out
 
@@ -567,7 +568,7 @@ def _serve_source(source_path: str) -> dict:
 async def config_graph(request: Request, filename: str):
     """Build the graph for a config that hasn't been run.
 
-    Stage status is ``unknown`` for every node since no run has
+    Stage status is ``pending`` for every node since no run has
     happened — the value here is seeing the plugin structure and
     jumping into source code from the Dashboard before launching a
     run. Works for both subject and group configs.
@@ -604,7 +605,7 @@ async def config_graph(request: Request, filename: str):
             **graph.to_dict(),
         }
     # Subject config: use the per-subject template directly. There are
-    # no recorded stages yet so every plugin gets status='unknown'.
+    # no recorded stages yet so every plugin gets status='pending'.
     graph = build_subject_graph(cfg, [], registry)
     return {
         'filename': filename,
@@ -686,7 +687,7 @@ def _resolve_config_subject(request: Request, filename: str,
 async def config_subject_graph(request: Request, filename: str, sub: str):
     """Preview the 7-stage subject graph for one subject of a group config.
 
-    No run has happened — every stage/plugin gets status='unknown'. The
+    No run has happened — every stage/plugin gets status='pending'. The
     per-subject config is derived from the group YAML using the same
     template/override/defaults logic the orchestrator uses at run time.
     """
