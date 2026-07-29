@@ -281,15 +281,15 @@ export function HeuristicBrowser() {
             {/* Status bar */}
             <div style={statusBarStyle}>
               {editorError && (
-                <span style={{ color: '#ef4444', fontSize: 11 }}>{editorError}</span>
+                <span style={{ color: 'var(--accent-red)', fontSize: 11 }}>{editorError}</span>
               )}
               {editorSaveSuccess && !editorDirty && (
-                <span style={{ color: '#22c55e', fontSize: 11 }}>Saved</span>
+                <span style={{ color: 'var(--accent-green)', fontSize: 11 }}>Saved</span>
               )}
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                 {heuristics.some((h) => h.name === editorName) && (
                   <button
-                    style={{ ...btnSmall, color: '#ef4444', borderColor: '#ef4444' }}
+                    style={{ ...btnSmall, color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}
                     onClick={async () => {
                       const ok = await dlg.confirm(
                         `Delete heuristic "${editorName}"?`,

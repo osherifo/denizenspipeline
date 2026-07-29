@@ -62,7 +62,7 @@ class GraphNode:
     label: str
     kind: str
     stage: str
-    status: str = 'unknown'        # ok / failed / warning / skipped / unknown
+    status: str = 'pending'        # pending / running / ok / failed / warning / skipped / unknown
     elapsed_s: float | None = None
     detail: str = ''
     source_path: str | None = None  # absolute path on the server (read-only)
@@ -133,7 +133,13 @@ SUBJECT_STAGES = [
 
 
 def _stage_status(stage_records: list, name: str) -> tuple[str, float | None, str]:
-    """Lookup status / elapsed / detail for a stage from RunSummary records."""
+    """Lookup status / elapsed / detail for a stage from RunSummary records.
+
+    A stage with **no record** hasn't started, which is a known state, so it
+    reports ``pending`` (the same word run_manager uses for a queued run).
+    ``unknown`` is reserved for the genuinely indeterminate case: a record
+    exists but carries no usable status.
+    """
     for s in stage_records or []:
         sname = s.get('name') if isinstance(s, dict) else getattr(s, 'name', None)
         if sname == name:
@@ -148,7 +154,7 @@ def _stage_status(stage_records: list, name: str) -> tuple[str, float | None, st
                 getattr(s, 'elapsed_s', None),
                 getattr(s, 'detail', '') or '',
             )
-    return ('unknown', None, '')
+    return ('pending', None, '')
 
 
 def _stage_recorded_nodes(stage_records: list, name: str) -> dict[str, dict]:
@@ -645,14 +651,15 @@ def _group_overall_status(gs: Any) -> str:
     if not isinstance(gs, dict):
         return 'unknown'
     explicit = gs.get('status')
-    if explicit in ('running', 'failed', 'warning'):
+    if explicit in ('running', 'failed', 'warning', 'pending'):
         return explicit
     subjects = gs.get('subject_summaries') or []
     if not subjects:
         # ``status='ok'`` on a finished group with no subject records
         # (edge case) is still useful; defer to the explicit value if
-        # set, otherwise fall through to 'unknown'.
-        return explicit if explicit == 'ok' else 'unknown'
+        # set. With nothing recorded and no verdict, the group simply
+        # hasn't started.
+        return explicit if explicit == 'ok' else ('unknown' if explicit else 'pending')
     status = 'ok'
     for sub in subjects:
         sub_st = _subject_overall_status(sub)
@@ -701,7 +708,10 @@ def _subject_overall_status(sub: Any) -> str:
         if sst == 'warning':
             status = 'warning'
     if not stages:
-        return explicit if explicit == 'ok' else 'unknown'
+        if explicit in ('ok', 'pending'):
+            return explicit
+        # Nothing recorded and no verdict — the subject hasn't started.
+        return 'unknown' if explicit else 'pending'
     return status
 
 

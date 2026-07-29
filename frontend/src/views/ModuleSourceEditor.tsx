@@ -108,7 +108,7 @@ const footerStyle: CSSProperties = {
 const saveButtonStyle = (disabled: boolean): CSSProperties => ({
   background: disabled ? 'var(--bg-card)' : 'var(--accent-cyan)',
   border: 'none',
-  color: disabled ? 'var(--text-secondary)' : '#000',
+  color: disabled ? 'var(--text-secondary)' : 'var(--on-accent)',
   padding: '8px 18px',
   borderRadius: 4,
   cursor: disabled ? 'not-allowed' : 'pointer',

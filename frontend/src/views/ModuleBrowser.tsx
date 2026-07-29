@@ -604,7 +604,7 @@ function NewModuleDialog({
               borderRadius: 6,
               backgroundColor: canSubmit
                 ? 'var(--accent-cyan)' : 'rgba(0, 229, 255, 0.1)',
-              color: canSubmit ? '#000' : 'var(--accent-cyan)',
+              color: canSubmit ? 'var(--on-accent)' : 'var(--accent-cyan)',
               cursor: canSubmit ? 'pointer' : 'not-allowed',
               letterSpacing: 0.5, textTransform: 'uppercase',
               fontFamily: 'inherit',

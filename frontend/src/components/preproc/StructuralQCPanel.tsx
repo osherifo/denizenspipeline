@@ -61,7 +61,7 @@ const btn: CSSProperties = {
 const primaryBtn: CSSProperties = {
   ...btn,
   background: 'var(--accent-cyan)',
-  color: '#000',
+  color: 'var(--on-accent)',
   border: 'none',
 }
 
@@ -988,7 +988,7 @@ export function StructuralQCPanel({ subject }: Props) {
                     padding: '2px 8px',
                     fontSize: 11,
                     background: sliceType === opt.v ? 'var(--accent-cyan)' : btn.background,
-                    color: sliceType === opt.v ? '#000' : 'var(--text-primary)',
+                    color: sliceType === opt.v ? 'var(--on-accent)' : 'var(--text-primary)',
                     borderColor: sliceType === opt.v ? 'var(--accent-cyan)' : 'var(--border)',
                   }}
                   onClick={() => setSliceType(opt.v)}
@@ -1004,7 +1004,7 @@ export function StructuralQCPanel({ subject }: Props) {
                   padding: '2px 8px',
                   fontSize: 11,
                   background: volumeVisible ? 'var(--accent-cyan)' : btn.background,
-                  color: volumeVisible ? '#000' : 'var(--text-primary)',
+                  color: volumeVisible ? 'var(--on-accent)' : 'var(--text-primary)',
                   borderColor: volumeVisible ? 'var(--accent-cyan)' : 'var(--border)',
                 }}
                 onClick={() => setVolumeVisible((v) => !v)}
@@ -1026,7 +1026,7 @@ export function StructuralQCPanel({ subject }: Props) {
                       padding: '2px 8px',
                       fontSize: 11,
                       background: on ? 'var(--accent-cyan)' : btn.background,
-                      color: on ? '#000' : 'var(--text-primary)',
+                      color: on ? 'var(--on-accent)' : 'var(--text-primary)',
                       borderColor: on ? 'var(--accent-cyan)' : 'var(--border)',
                     }}
                     onClick={() => setSurface((prev) => (prev === k ? null : k))}
@@ -1060,7 +1060,7 @@ export function StructuralQCPanel({ subject }: Props) {
                     padding: '2px 8px',
                     fontSize: 11,
                     background: inflatedOpen ? 'var(--accent-cyan)' : btn.background,
-                    color: inflatedOpen ? '#000' : 'var(--text-primary)',
+                    color: inflatedOpen ? 'var(--on-accent)' : 'var(--text-primary)',
                     borderColor: inflatedOpen ? 'var(--accent-cyan)' : 'var(--border)',
                   }}
                   onClick={() => setInflatedOpen((v) => !v)}
@@ -1077,7 +1077,7 @@ export function StructuralQCPanel({ subject }: Props) {
                   padding: '2px 8px',
                   fontSize: 11,
                   background: curvShaded ? 'var(--accent-cyan)' : btn.background,
-                  color: curvShaded ? '#000' : 'var(--text-primary)',
+                  color: curvShaded ? 'var(--on-accent)' : 'var(--text-primary)',
                   borderColor: curvShaded ? 'var(--accent-cyan)' : 'var(--border)',
                 }}
                 onClick={() => setCurvShaded((v) => !v)}
@@ -1180,7 +1180,7 @@ export function StructuralQCPanel({ subject }: Props) {
                   padding: '2px 8px',
                   fontSize: 11,
                   background: drawingEnabled ? 'var(--accent-yellow)' : btn.background,
-                  color: drawingEnabled ? '#000' : 'var(--text-primary)',
+                  color: drawingEnabled ? 'var(--on-accent)' : 'var(--text-primary)',
                   borderColor: drawingEnabled ? 'var(--accent-yellow)' : 'var(--border)',
                 }}
                 onClick={() => setDrawingEnabled((v) => !v)}
@@ -1203,7 +1203,7 @@ export function StructuralQCPanel({ subject }: Props) {
                         padding: '2px 8px',
                         fontSize: 11,
                         background: penValue === t.v && isFilledPen === t.filled ? 'var(--accent-cyan)' : btn.background,
-                        color: penValue === t.v && isFilledPen === t.filled ? '#000' : 'var(--text-primary)',
+                        color: penValue === t.v && isFilledPen === t.filled ? 'var(--on-accent)' : 'var(--text-primary)',
                         borderColor: penValue === t.v && isFilledPen === t.filled ? 'var(--accent-cyan)' : 'var(--border)',
                       }}
                       onClick={() => { setPenValue(t.v); setIsFilledPen(t.filled) }}
@@ -1284,7 +1284,7 @@ export function StructuralQCPanel({ subject }: Props) {
                   </button>
                   {/* ── Save ── */}
                   <button
-                    style={{ ...btn, padding: '2px 8px', fontSize: 11, background: 'var(--accent-green)', color: '#000', border: 'none' }}
+                    style={{ ...btn, padding: '2px 8px', fontSize: 11, background: 'var(--accent-green)', color: 'var(--on-accent)', border: 'none' }}
                     onClick={async () => {
                       const nv = nvRef.current as unknown as {
                         saveImage?: (opts: { isSaveDrawing: boolean }) => Uint8Array | boolean
@@ -1489,7 +1489,7 @@ export function StructuralQCPanel({ subject }: Props) {
                 borderColor: status === s.value ? s.color : 'var(--border)',
                 background:
                   status === s.value ? s.color : 'var(--bg-secondary)',
-                color: status === s.value ? '#000' : 'var(--text-primary)',
+                color: status === s.value ? 'var(--on-accent)' : 'var(--text-primary)',
               }}
             >
               {s.label}

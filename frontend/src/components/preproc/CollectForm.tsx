@@ -62,7 +62,7 @@ const btnStyle: CSSProperties = {
   borderRadius: 6,
   cursor: 'pointer',
   backgroundColor: 'var(--accent-cyan)',
-  color: '#000',
+  color: 'var(--on-accent)',
 }
 
 const sectionLabel: CSSProperties = {

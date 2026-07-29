@@ -1,6 +1,8 @@
 /** Error Knowledge Base browser — searchable list of known pipeline errors. */
 import { useEffect, useState, useMemo } from 'react'
 import type { CSSProperties } from 'react'
+import { identityColor } from '../utils/status-colors'
+import { useThemeStore } from '../stores/theme-store'
 import { fetchErrors } from '../api/client'
 import type { ErrorEntry } from '../api/types'
 import { HubBadge } from '../components/hub/HubBadge'
@@ -98,7 +100,7 @@ const stageBadge = (stage: string): CSSProperties => {
     report: '#ffffff',
     preproc: '#00e676',
   }
-  const c = colors[stage] || '#8888aa'
+  const c = identityColor(colors[stage] ?? '') || 'var(--text-secondary)'
   return {
     fontSize: 10,
     fontWeight: 600,
@@ -159,6 +161,8 @@ const loadingStyle: CSSProperties = {
 // ── Component ──
 
 export function ErrorBrowser() {
+  // Repaint the stage badges when the theme flips (stageBadge is module-level).
+  useThemeStore((s) => s.mode)
   const [errors, setErrors] = useState<ErrorEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)

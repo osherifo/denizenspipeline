@@ -9,6 +9,7 @@
 
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { useThemeStore } from '../../stores/theme-store'
 import type {
   NipypeNodeStatus,
   NipypeNodeStatusKind,
@@ -17,14 +18,11 @@ import { buildNipypeTree, type NipypeTreeNode } from './nipype_tree'
 import { inferredName } from './fmriprep_labels'
 import type { LabelMode } from './use_label_mode'
 import { formatDuration } from '../../utils/format'
+import { statusPalette } from '../../utils/status-colors'
 
-const STATUS_COLOR: Record<string, string> = {
-  running: '#00e5ff',
-  ok: '#00e676',
-  failed: '#ff1744',
-  completed_assumed: '#52c98f',
-  cached: '#888',
-}
+// Status colours come from the shared theme-aware palette so light mode
+// gets legible equivalents; called per paint to track theme switches.
+const STATUS = () => statusPalette()
 
 
 // ── styles ──────────────────────────────────────────────────────────────
@@ -162,11 +160,11 @@ interface Props {
 
 
 function _wfColor(c: NonNullable<NipypeTreeNode['counts']>): string {
-  if (c.failed > 0) return STATUS_COLOR.failed
-  if (c.running > 0) return STATUS_COLOR.running
-  if (c.ok > 0) return STATUS_COLOR.ok
-  if (c.completed_assumed > 0) return STATUS_COLOR.completed_assumed
-  if (c.cached > 0) return STATUS_COLOR.cached
+  if (c.failed > 0) return STATUS().failed
+  if (c.running > 0) return STATUS().running
+  if (c.ok > 0) return STATUS().ok
+  if (c.completed_assumed > 0) return STATUS().completed_assumed
+  if (c.cached > 0) return STATUS().cached
   return 'var(--text-secondary)'
 }
 
@@ -180,6 +178,9 @@ function _displayLabel(node: NipypeTreeNode, mode: LabelMode): string {
 }
 
 export function NodeListPanel({ nodes, selected, onSelect, onPanTo, labelMode = 'raw', width, onResizeStart }: Props) {
+  // Subscribe to the theme so a toggle repaints the status colours read
+  // via STATUS() below (this component is memoised).
+  useThemeStore((s) => s.mode)
   const [collapsed, setCollapsed] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterStatus>('all')
@@ -291,14 +292,14 @@ export function NodeListPanel({ nodes, selected, onSelect, onPanTo, labelMode = 
               <span style={{
                 fontSize: 9, color: 'var(--text-secondary)', fontWeight: 400,
               }}>
-                {c.running > 0 && <span style={{ color: STATUS_COLOR.running }}>{c.running}▶ </span>}
-                {c.ok > 0 && <span style={{ color: STATUS_COLOR.ok }}>{c.ok}✓ </span>}
-                {c.failed > 0 && <span style={{ color: STATUS_COLOR.failed }}>{c.failed}✗ </span>}
+                {c.running > 0 && <span style={{ color: STATUS().running }}>{c.running}▶ </span>}
+                {c.ok > 0 && <span style={{ color: STATUS().ok }}>{c.ok}✓ </span>}
+                {c.failed > 0 && <span style={{ color: STATUS().failed }}>{c.failed}✗ </span>}
                 {c.completed_assumed > 0 && (
-                  <span style={{ color: STATUS_COLOR.completed_assumed }}>{c.completed_assumed}? </span>
+                  <span style={{ color: STATUS().completed_assumed }}>{c.completed_assumed}? </span>
                 )}
                 {c.cached > 0 && (
-                  <span style={{ color: STATUS_COLOR.cached }}>{c.cached}◌ </span>
+                  <span style={{ color: STATUS().cached }}>{c.cached}◌ </span>
                 )}
                 {c.total === 0 && <span>—</span>}
               </span>
@@ -308,7 +309,7 @@ export function NodeListPanel({ nodes, selected, onSelect, onPanTo, labelMode = 
         )
       }
       // Leaf
-      const color = STATUS_COLOR[n.status ?? ''] ?? 'var(--text-secondary)'
+      const color = STATUS()[n.status ?? ''] ?? 'var(--text-secondary)'
       const active = selected === n.id
       return (
         <div
@@ -384,7 +385,7 @@ export function NodeListPanel({ nodes, selected, onSelect, onPanTo, labelMode = 
         {FILTERS.map((f) => {
           const color = f.value === 'all'
             ? 'var(--text-secondary)'
-            : STATUS_COLOR[f.value as keyof typeof STATUS_COLOR]
+            : STATUS()[f.value]
           return (
             <button
               key={f.value}

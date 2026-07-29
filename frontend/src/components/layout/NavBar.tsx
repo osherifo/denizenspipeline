@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
+import { useThemeStore } from '../../stores/theme-store'
 
 interface NavBarProps {
   currentRoute: string
@@ -46,8 +47,8 @@ function groupHeaderStyle(expanded: boolean, hasActive: boolean): CSSProperties 
     cursor: 'pointer',
     userSelect: 'none',
     borderRadius: 6,
-    color: hasActive ? 'var(--accent-cyan)' : '#9898bb',
-    backgroundColor: expanded ? '#1e1e3a' : 'transparent',
+    color: hasActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+    backgroundColor: expanded ? 'var(--bg-elevated)' : 'transparent',
     transition: 'all 0.15s ease',
   }
 }
@@ -67,7 +68,7 @@ function linkStyle(active: boolean): CSSProperties {
     fontSize: 12,
     fontWeight: active ? 600 : 500,
     textDecoration: 'none',
-    color: active ? 'var(--accent-cyan)' : '#7878a0',
+    color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
     backgroundColor: active ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
     borderLeft: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
     cursor: 'pointer',
@@ -173,6 +174,45 @@ export function NavBar({ currentRoute }: NavBarProps) {
           </div>
         )
       })}
+      <ThemeToggle />
     </nav>
   )
+}
+
+/** Dark/light switch, pinned to the bottom of the sidebar. */
+function ThemeToggle() {
+  const mode = useThemeStore((s) => s.mode)
+  const toggle = useThemeStore((s) => s.toggle)
+  const next = mode === 'dark' ? 'light' : 'dark'
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      style={themeToggleStyle}
+      title={`Switch to ${next} mode`}
+      aria-label={`Switch to ${next} mode`}
+    >
+      <span aria-hidden>{mode === 'dark' ? '☀' : '☽'}</span>
+      <span>{next === 'light' ? 'Light mode' : 'Dark mode'}</span>
+    </button>
+  )
+}
+
+const themeToggleStyle: CSSProperties = {
+  marginTop: 'auto',            // push to the bottom of the flex column
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '10px 16px',
+  fontSize: 11,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  border: 'none',
+  borderTop: '1px solid var(--border)',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  textAlign: 'left',
 }

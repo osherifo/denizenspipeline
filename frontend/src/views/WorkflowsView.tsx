@@ -28,6 +28,7 @@ import { StructuralQCModal } from '../components/workflow/StructuralQCModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
 import { useDialog } from '../components/common/Dialog'
 import { formatDurationVerbose } from '../utils/format'
+import { useThemeStore } from '../stores/theme-store'
 
 // ── Styles ──────────────────────────────────────────────────────────────
 
@@ -263,6 +264,8 @@ function RunHistoryPanel({
 // ── Main view ──────────────────────────────────────────────────────────
 
 export function WorkflowsView() {
+  // Monaco ships its own themes; follow the app theme.
+  const monacoTheme = useThemeStore((s) => s.mode) === 'light' ? 'light' : 'vs-dark'
   const [configs, setConfigs] = useState<WorkflowConfigSummary[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<WorkflowConfigDetail | null>(null)
@@ -708,7 +711,7 @@ export function WorkflowsView() {
                 <Editor
                   height="100%"
                   language="yaml"
-                  theme="vs-dark"
+                  theme={monacoTheme}
                   value={editing ? yamlDraft : selected.yaml_string}
                   onChange={editing ? (v) => setYamlDraft(v ?? '') : undefined}
                   options={{

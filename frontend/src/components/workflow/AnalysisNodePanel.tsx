@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Editor from '@monaco-editor/react'
 
+import { useThemeStore } from '../../stores/theme-store'
 import {
   fetchLogTail,
   fetchNodeOutputs,
@@ -159,6 +160,8 @@ interface Props {
 
 
 export function AnalysisNodePanel({ target, node, onClose, style }: Props) {
+  // Monaco ships its own themes; follow the app theme.
+  const monacoTheme = useThemeStore((s) => s.mode) === 'light' ? 'light' : 'vs-dark'
   // For a config preview, outputs don't exist; fall back to params
   // instead when no source is registered.
   const previewOnly = isConfigPreview(target)
@@ -372,7 +375,7 @@ export function AnalysisNodePanel({ target, node, onClose, style }: Props) {
                   <Editor
                     height="100%"
                     language={source.language === 'python' ? 'python' : 'plaintext'}
-                    theme="vs-dark"
+                    theme={monacoTheme}
                     value={source.text}
                     options={{
                       readOnly: true,
@@ -512,7 +515,7 @@ function QaTab({
             fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5,
             border: '1px solid var(--border)', borderRadius: 4,
             background: busy ? 'transparent' : 'var(--accent-cyan)',
-            color: busy ? 'var(--text-secondary)' : '#0a0a1a',
+            color: busy ? 'var(--text-secondary)' : 'var(--on-accent)',
             cursor: busy ? 'wait' : 'pointer',
             fontFamily: 'inherit',
           }}

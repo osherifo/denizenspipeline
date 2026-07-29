@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react'
 import Editor from '@monaco-editor/react'
 
 import { dumpYaml } from './yamlDiff'
+import { useThemeStore } from '../../stores/theme-store'
 
 
 const backdrop: CSSProperties = {
@@ -78,6 +79,8 @@ interface Props {
 export function ConfigSnapshotModal({
   snapshot, title, downloadName, onClose,
 }: Props) {
+  // Monaco ships its own themes; follow the app theme.
+  const monacoTheme = useThemeStore((s) => s.mode) === 'light' ? 'light' : 'vs-dark'
   const [justCopied, setJustCopied] = useState(false)
 
   // Strip internal bookkeeping keys (anything starting with '_') and
@@ -149,7 +152,7 @@ export function ConfigSnapshotModal({
           <Editor
             height="100%"
             language="yaml"
-            theme="vs-dark"
+            theme={monacoTheme}
             value={yaml}
             options={{
               readOnly: true,

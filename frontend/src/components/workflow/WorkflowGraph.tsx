@@ -1,4 +1,5 @@
 /** ReactFlow graph for a single workflow run — one node per stage. */
+import { statusPalette, identityColor, nodeColors, runningNodeStyle } from '../../utils/status-colors'
 import { memo, useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import {
@@ -12,6 +13,7 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { useThemeStore } from '../../stores/theme-store'
 import type { WorkflowStageStatus } from '../../api/types'
 import { InnerNodesStrip } from './InnerNodesStrip'
 
@@ -25,16 +27,9 @@ const STAGE_META: Record<string, { color: string; icon: string; label: string }>
   analysis:    { color: '#ef4444', icon: '\u{1F4CA}', label: 'Analysis' },
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending:   '#6b7280',
-  running:   '#00e5ff',
-  done:      '#00e676',
-  ok:        '#00e676',
-  warning:   '#ffd600',
-  failed:    '#ff1744',
-  cancelled: '#ff1744',
-  lost:      '#ff1744',
-}
+// Status colours come from the shared theme-aware palette so light mode
+// gets legible equivalents; called per paint to track theme switches.
+const STATUS = () => statusPalette()
 
 // Canonical order of analysis inner stages — used to stub out pending
 // rows when the events file doesn't list them yet.
@@ -58,7 +53,7 @@ const nodeBase: CSSProperties = {
   minWidth: 230,
   fontSize: 11,
   fontFamily: 'inherit',
-  backgroundColor: '#14181f',
+  backgroundColor: 'var(--bg-card)',
 }
 
 const headerStyle: CSSProperties = {
@@ -76,14 +71,16 @@ const labelStyle: CSSProperties = {
   textTransform: 'uppercase',
 }
 
-const statusBadge = (color: string): CSSProperties => ({
+const statusBadge = (color: string, running = false): CSSProperties => ({
   fontSize: 10,
   fontWeight: 700,
   padding: '2px 8px',
   borderRadius: 4,
-  backgroundColor: `${color}22`,
-  color,
-  border: `1px solid ${color}66`,
+  // A running node's badge is filled rather than tinted, so the state is
+  // legible even at the zoom levels where the glow washes out.
+  backgroundColor: running ? color : `${color}22`,
+  color: running ? 'var(--on-accent)' : color,
+  border: `1px solid ${running ? color : `${color}66`}`,
   textTransform: 'uppercase',
   letterSpacing: 0.5,
 })
@@ -113,7 +110,7 @@ const handleStyle = (color: string): CSSProperties => ({
   width: 8,
   height: 8,
   backgroundColor: color,
-  border: '2px solid #0a0a1a',
+  border: '2px solid var(--bg-primary)',
   borderRadius: '50%',
 })
 
@@ -127,18 +124,25 @@ function fmtElapsed(s: WorkflowStageStatus): string {
 }
 
 function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
-  const meta = STAGE_META[data.stage] ?? { color: '#8888aa', icon: '\u{25CF}', label: data.stage }
-  const statusColor = STATUS_COLORS[data.status] ?? STATUS_COLORS.pending
+  // `mode` doubles as the theme subscription that repaints this memoised node.
+  const mode = useThemeStore((s) => s.mode)
+  const rawMeta = STAGE_META[data.stage] ?? { color: 'var(--text-secondary)', icon: '\u{25CF}', label: data.stage }
+  // Stage hues are identity, not decoration — darken (not replace) them for light.
+  const meta = { ...rawMeta, color: identityColor(rawMeta.color) }
+  const statusColor = STATUS()[data.status] ?? STATUS().pending
   const isRunning = data.status === 'running'
 
   const clickable = !!data.run_id
+  const themed = nodeColors(mode, data.status)
   const style: CSSProperties = {
     ...nodeBase,
-    border: `1px solid ${isRunning ? statusColor : meta.color + '55'}`,
-    boxShadow: isRunning
-      ? `0 0 18px ${statusColor}66, 0 0 4px ${statusColor}`
-      : `0 1px 3px rgba(0,0,0,0.3)`,
-    animation: isRunning ? 'workflow-pulse 2s ease-in-out infinite' : undefined,
+    border: isRunning
+      ? `${themed.borderWidth}px solid ${statusColor}`
+      : `1px solid ${meta.color}55`,
+    boxShadow: isRunning ? themed.glow : `0 1px 3px rgba(0,0,0,0.3)`,
+    // Running nodes also get the shared pulse; the old bespoke keyframes baked
+    // in a dark-mode colour and washed out on a light canvas.
+    ...runningNodeStyle(themed),
     cursor: clickable ? 'pointer' : 'default',
   }
 
@@ -158,7 +162,7 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
       <div style={headerStyle}>
         <span style={{ fontSize: 14 }}>{meta.icon}</span>
         <span style={{ ...labelStyle, color: meta.color }}>{meta.label}</span>
-        <span style={statusBadge(statusColor)}>{data.status}</span>
+        <span style={statusBadge(statusColor, isRunning)}>{data.status}</span>
       </div>
 
       <div style={metaLine} title={data.config}>
@@ -277,6 +281,9 @@ const innerPillDot = (color: string): CSSProperties => ({
 })
 
 function InnerStagesStrip({ inner }: { inner: AnalysisInnerStage[] }) {
+  // Subscribe to the theme so a toggle repaints the status colours read
+  // via STATUS() below (this component is memoised).
+  useThemeStore((s) => s.mode)
   // Build a map from parsed events, then project onto the canonical
   // 7-stage layout so pending stages show up as ghost pills.
   const byName = new Map<string, AnalysisInnerStage>()
@@ -299,7 +306,7 @@ function InnerStagesStrip({ inner }: { inner: AnalysisInnerStage[] }) {
         const rawStatus = s?.status ?? 'pending'
         const status =
           rawStatus === 'running' && i < activeIdx ? 'ok' : rawStatus
-        const color = STATUS_COLORS[status] ?? STATUS_COLORS.pending
+        const color = STATUS()[status] ?? STATUS().pending
         return (
           <div key={name} style={innerPill(color, status === 'running')}>
             <span style={{ ...innerPillLabel, color }}>{name.slice(0, 4)}</span>
@@ -360,11 +367,11 @@ function buildGraph(
     const toActive = to.status === 'running'
     const fromFailed = ['failed', 'cancelled', 'lost'].includes(from.status)
 
-    let stroke = '#2a2a4a'
-    if (fromFailed) stroke = STATUS_COLORS.failed
-    else if (fromDone && toActive) stroke = STATUS_COLORS.running
-    else if (fromDone && to.status === 'done') stroke = STATUS_COLORS.done
-    else if (fromDone) stroke = STATUS_COLORS.done
+    let stroke = 'var(--border)'
+    if (fromFailed) stroke = STATUS().failed
+    else if (fromDone && toActive) stroke = STATUS().running
+    else if (fromDone && to.status === 'done') stroke = STATUS().done
+    else if (fromDone) stroke = STATUS().done
 
     edges.push({
       id: `edge-${i}`,
@@ -397,6 +404,9 @@ export function WorkflowGraph(
     onOpenStructuralQC,
   }: WorkflowGraphProps,
 ) {
+  // Subscribe to the theme so a toggle repaints the status colours read
+  // via STATUS() below (this component is memoised).
+  useThemeStore((s) => s.mode)
   const { nodes, edges } = useMemo(
     () => buildGraph(stages, onOpenNipypeDag, onOpenStructuralQC),
     [stages, onOpenNipypeDag, onOpenStructuralQC],
@@ -405,12 +415,6 @@ export function WorkflowGraph(
 
   return (
     <div style={{ ...GRAPH_STYLE, height }}>
-      <style>{`
-        @keyframes workflow-pulse {
-          0%, 100% { box-shadow: 0 0 14px ${STATUS_COLORS.running}55; }
-          50%      { box-shadow: 0 0 26px ${STATUS_COLORS.running}aa, 0 0 6px ${STATUS_COLORS.running}; }
-        }
-      `}</style>
       <ReactFlowProvider>
         <_WorkflowGraphInner
           initialNodes={nodes}

@@ -37,6 +37,7 @@ import {
   saveModuleCode,
   reloadModule,
 } from '../api/client'
+import { useThemeStore } from '../stores/theme-store'
 import type {
   NipypeNodeMeta,
   PostPreprocGraph,
@@ -70,7 +71,7 @@ const btn: CSSProperties = {
 const primaryBtn: CSSProperties = {
   ...btn,
   background: 'var(--accent-cyan)',
-  color: '#000',
+  color: 'var(--on-accent)',
   border: 'none',
 }
 
@@ -127,6 +128,8 @@ export function PostPreprocBuilder() {
 }
 
 function Inner() {
+  // Monaco ships its own themes; follow the app theme.
+  const monacoTheme = useThemeStore((s) => s.mode) === 'light' ? 'light' : 'vs-dark'
   const [palette, setPalette] = useState<NipypeNodeMeta[]>([])
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
@@ -755,7 +758,7 @@ function Inner() {
             <div style={{ flex: 1, minHeight: 0, border: '1px solid var(--border)', borderRadius: 4 }}>
               <Editor
                 language="python"
-                theme="vs-dark"
+                theme={monacoTheme}
                 value={codeText}
                 onChange={(v) => setCodeText(v ?? '')}
                 options={{

@@ -8,6 +8,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { useThemeStore } from '../stores/theme-store'
+import { identityColor } from '../utils/status-colors'
 import { useConfigStore } from '../stores/config-store'
 import { useModuleStore } from '../stores/module-store'
 import { StageCard } from '../components/composer/StageCard'
@@ -237,6 +239,8 @@ export function AnalysisComposer() {
 
 
 function SubjectComposerBody() {
+  // Stage hues are identity markers; light mode darkens rather than replaces them.
+  const themeMode = useThemeStore((s) => s.mode)
   const config = useConfigStore((s) => s.config)
   const yamlString = useConfigStore((s) => s.yamlString)
   const validationErrors = useConfigStore((s) => s.validationErrors)
@@ -313,13 +317,13 @@ function SubjectComposerBody() {
         key: s.key,
         label: s.name,
         num: s.num,
-        color: s.color,
+        color: identityColor(s.color, themeMode),
         status: errorMsg ? 'error' : status,
         badge,
         anchorId: `stage-${s.key}`,
       }
     })
-  }, [config, validationErrors])
+  }, [config, validationErrors, themeMode])
 
   const handleStageClick = (key: string) => {
     document.getElementById(`stage-${key}`)?.scrollIntoView({
@@ -400,7 +404,7 @@ function SubjectComposerBody() {
               key={s.key}
               num={s.num}
               name={s.name}
-              color={s.color}
+              color={identityColor(s.color, themeMode)}
               status={preview.status}
               summary={summary}
               badge={preview.badge}

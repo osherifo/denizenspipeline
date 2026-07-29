@@ -6,6 +6,7 @@ import type { ConfigDetail as ConfigDetailType } from '../../api/types'
 import { saveConfigFile, copyConfigFile } from '../../api/client'
 import { useDialog } from '../common/Dialog'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
+import { useThemeStore } from '../../stores/theme-store'
 
 interface ConfigDetailProps {
   config: ConfigDetailType
@@ -116,7 +117,7 @@ const btnStyle = (variant: 'primary' | 'secondary' | 'default'): CSSProperties =
     variant === 'primary' ? 'var(--accent-cyan)'
     : variant === 'secondary' ? 'rgba(0, 229, 255, 0.08)'
     : 'var(--bg-input)',
-  color: variant === 'primary' ? '#0a0a1a' : variant === 'secondary' ? 'var(--accent-cyan)' : 'var(--text-primary)',
+  color: variant === 'primary' ? 'var(--on-accent)' : variant === 'secondary' ? 'var(--accent-cyan)' : 'var(--text-primary)',
   letterSpacing: 0.5,
 })
 
@@ -139,6 +140,8 @@ export function ConfigDetail({
   onCopied,
   isRunning,
 }: ConfigDetailProps) {
+  // Monaco ships its own themes; follow the app theme.
+  const monacoTheme = useThemeStore((s) => s.mode) === 'light' ? 'light' : 'vs-dark'
   const [showYaml, setShowYaml] = useState(false)
   const [editing, setEditing] = useState(false)
   const [yamlDraft, setYamlDraft] = useState(config.yaml_string)
@@ -356,7 +359,7 @@ export function ConfigDetail({
             <Editor
               height="100%"
               language="yaml"
-              theme="vs-dark"
+              theme={monacoTheme}
               value={editing ? yamlDraft : config.yaml_string}
               onChange={editing ? (v) => setYamlDraft(v ?? '') : undefined}
               options={{

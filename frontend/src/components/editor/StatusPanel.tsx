@@ -41,7 +41,7 @@ const btnStyle = (variant: 'primary' | 'danger' | 'default'): CSSProperties => (
     : variant === 'danger' ? 'rgba(255, 23, 68, 0.15)'
     : 'var(--bg-input)',
   color:
-    variant === 'primary' ? '#0a0a1a'
+    variant === 'primary' ? 'var(--on-accent)'
     : variant === 'danger' ? 'var(--accent-red)'
     : 'var(--text-primary)',
 })

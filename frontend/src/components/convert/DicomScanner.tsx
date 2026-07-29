@@ -54,7 +54,7 @@ const primaryBtn: CSSProperties = {
   borderRadius: 6,
   cursor: 'pointer',
   backgroundColor: 'var(--accent-cyan)',
-  color: '#000',
+  color: 'var(--on-accent)',
 }
 
 const secondaryBtn: CSSProperties = {

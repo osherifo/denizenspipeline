@@ -412,7 +412,7 @@ export function RunManager() {
                   border: 'none',
                   cursor: compareIds.length >= 2 ? 'pointer' : 'not-allowed',
                   backgroundColor: compareIds.length >= 2 ? 'var(--accent-cyan)' : 'var(--bg-input)',
-                  color: compareIds.length >= 2 ? '#000' : 'var(--text-secondary)',
+                  color: compareIds.length >= 2 ? 'var(--on-accent)' : 'var(--text-secondary)',
                   opacity: comparing ? 0.6 : 1,
                 }}
                 disabled={compareIds.length < 2 || comparing}

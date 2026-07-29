@@ -33,20 +33,13 @@ import {
   type RunGraphNode,
 } from '../../api/run-graph'
 import { AnalysisNodePanel } from './AnalysisNodePanel'
+import { useNodeColors, useStatusColor, runningNodeStyle } from '../../utils/status-colors'
 import { formatDuration } from '../../utils/format'
 
 
 // ── status colours (kept in sync with NipypeGraphModal) ────────────────
 
 
-const STATUS_COLOR: Record<string, string> = {
-  ok: '#00e676',
-  running: '#00e5ff',
-  warning: '#ffd600',
-  failed: '#ff1744',
-  skipped: '#888',
-  unknown: '#888',
-}
 const NEUTRAL = 'var(--text-secondary)'
 
 
@@ -58,11 +51,13 @@ type PluginNodeData = RunGraphNode & { _kind: 'plugin'; _hasSource: boolean }
 
 
 function _StageInner({ data }: NodeProps & { data: StageNodeData }) {
-  const color = STATUS_COLOR[data.status] ?? NEUTRAL
+  const themed = useNodeColors(data.status)
+  const { color, bg, border } = themed
   return (
     <div style={{
-      background: `${color}11`,
-      border: `1px solid ${color}66`,
+      background: bg,
+      border: `${themed.borderWidth}px solid ${border}`,
+      ...runningNodeStyle(themed),
       color: 'var(--text-primary)',
       borderRadius: 6,
       padding: '8px 14px',
@@ -90,12 +85,14 @@ const StageNode = memo(_StageInner)
 
 
 function _PluginInner({ data }: NodeProps & { data: PluginNodeData }) {
-  const color = STATUS_COLOR[data.status] ?? NEUTRAL
+  const themed = useNodeColors(data.status)
+  const { color, bg, border } = themed
   return (
     <div
       style={{
-        background: `${color}22`,
-        border: `1px solid ${color}aa`,
+        background: bg,
+        border: `${themed.borderWidth}px solid ${border}`,
+        ...runningNodeStyle(themed),
         color: 'var(--text-primary)',
         borderRadius: 5,
         padding: '5px 10px',

@@ -30,7 +30,7 @@ const btn: CSSProperties = {
   cursor: 'pointer',
   border: 'none',
   backgroundColor: 'var(--accent-cyan)',
-  color: '#000',
+  color: 'var(--on-accent)',
 }
 
 export function WebGLViewer({ artifact, runId }: ResultViewerProps) {

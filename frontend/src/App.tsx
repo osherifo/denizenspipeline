@@ -60,7 +60,10 @@ const rootStyle: CSSProperties = {
 }
 
 const cssVars = `
-:root {
+/* Dark is the default theme; the light palette below overrides it when
+   <html data-theme="light"> is set (see stores/theme-store.ts). Because the
+   whole UI is styled through these variables, a theme is just this block. */
+:root, :root[data-theme="dark"] {
   --bg-primary: #0a0a1a;
   --bg-secondary: #111128;
   --bg-card: #1a1a2e;
@@ -72,6 +75,53 @@ const cssVars = `
   --accent-yellow: #ffd600;
   --accent-red: #ff1744;
   --border: #2a2a4a;
+  /* Contrast colour for text/icons sitting ON an accent-filled surface.
+     In dark mode accents are bright, so near-black reads best. */
+  --on-accent: #0a0a1a;
+  /* Raised chrome sitting ON a --bg-secondary surface (e.g. an expanded
+     sidebar group header) — must read as distinct from --bg-secondary. */
+  --bg-elevated: #1e1e3a;
+}
+
+:root[data-theme="light"] {
+  /* Tonal separation matters more in light mode: the page is a soft grey so
+     white cards/panels actually lift off it, and the border is dark enough to
+     read as a real edge (a near-white border is invisible on white). */
+  --bg-primary: #e8ebf2;
+  --bg-secondary: #f4f6fa;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --text-primary: #1c2030;
+  --text-secondary: #545d70;
+  /* Accents are darkened from the dark-mode set so they keep >=4.5:1
+     contrast against the light surfaces (the neon originals fail badly). */
+  --accent-cyan: #026d99;
+  --accent-green: #0b7a40;
+  --accent-yellow: #8f5a00;
+  --accent-red: #c62233;
+  /* >=3:1 against BOTH the page and card surfaces, so every box actually
+     reads as having an edge (a lighter border disappears on white). */
+  --border: #74829d;
+  --on-accent: #ffffff;
+  --bg-elevated: #dfe4ee;
+}
+
+/* Pulse for a node that is actively running. Each node sets its own --pulse to
+   its status colour, so one keyframes block serves every graph and both themes
+   (see utils/status-colors.ts runningNodeStyle). */
+@keyframes fmriflow-running-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--pulse) 18%, transparent),
+                         0 0 8px color-mix(in srgb, var(--pulse) 35%, transparent); }
+  50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--pulse) 30%, transparent),
+                         0 0 20px color-mix(in srgb, var(--pulse) 60%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the emphasis, drop the movement. */
+  @keyframes fmriflow-running-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pulse) 24%, transparent),
+                           0 0 14px color-mix(in srgb, var(--pulse) 45%, transparent); }
+  }
 }
 
 * {

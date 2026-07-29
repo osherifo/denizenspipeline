@@ -97,7 +97,7 @@ const primaryBtn: CSSProperties = {
   ...btnStyle,
   border: 'none',
   backgroundColor: 'var(--accent-cyan)',
-  color: '#000',
+  color: 'var(--on-accent)',
 }
 
 const sectionLabelBorder: CSSProperties = {

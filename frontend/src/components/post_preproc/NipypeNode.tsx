@@ -7,8 +7,12 @@
 import { memo } from 'react'
 import type { CSSProperties } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { useThemeStore } from '../../stores/theme-store'
+import { identityColor } from '../../utils/status-colors'
 
-const COLOR = '#10b981' // matches preproc stage color in WorkflowGraph
+// Matches the preproc stage colour in WorkflowGraph. Light mode darkens it
+// (see identityColor) — the neon original is ~2.5:1 on a white card.
+const BASE_COLOR = '#10b981'
 
 export interface NipypeNodeData {
   label: string
@@ -18,12 +22,12 @@ export interface NipypeNodeData {
   iterating?: boolean
 }
 
-const handleStyle: CSSProperties = {
+const handleStyle = (color: string): CSSProperties => ({
   width: 10,
   height: 10,
-  backgroundColor: COLOR,
-  border: '2px solid #1a1a2e',
-}
+  backgroundColor: color,
+  border: '2px solid var(--bg-card)',
+})
 
 const handleLabel = (side: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
@@ -37,6 +41,9 @@ const handleLabel = (side: 'left' | 'right'): CSSProperties => ({
 })
 
 function NipypeNodeInner({ data, selected }: NodeProps & { data: NipypeNodeData }) {
+  const mode = useThemeStore((s) => s.mode)
+  const light = mode === 'light'
+  const COLOR = identityColor(BASE_COLOR, mode)
   const inputs = data.inputs ?? []
   const outputs = data.outputs ?? []
   const rows = Math.max(inputs.length, outputs.length, 1)
@@ -45,8 +52,9 @@ function NipypeNodeInner({ data, selected }: NodeProps & { data: NipypeNodeData 
   const height = headerHeight + rows * rowHeight + 6
 
   const containerStyle: CSSProperties = {
-    background: `${COLOR}22`,
-    border: selected ? `2px solid ${COLOR}` : `1px solid ${COLOR}aa`,
+    background: light ? `${COLOR}1f` : `${COLOR}22`,
+    // A 67%-alpha border vanishes on white; use the solid colour in light mode.
+    border: selected ? `2px solid ${COLOR}` : `1px solid ${light ? COLOR : `${COLOR}aa`}`,
     borderRadius: 6,
     minWidth: 170,
     color: 'var(--text-primary)',
@@ -76,7 +84,7 @@ function NipypeNodeInner({ data, selected }: NodeProps & { data: NipypeNodeData 
               fontSize: 9,
               padding: '1px 5px',
               borderRadius: 8,
-              background: '#ffd60022',
+              background: light ? 'rgba(143, 90, 0, 0.14)' : '#ffd60022',
               color: 'var(--accent-yellow)',
               border: '1px solid #ffd60055',
             }}
@@ -96,7 +104,7 @@ function NipypeNodeInner({ data, selected }: NodeProps & { data: NipypeNodeData 
               type="target"
               position={Position.Left}
               id={name}
-              style={{ ...handleStyle, top }}
+              style={{ ...handleStyle(COLOR), top }}
             />
             <span style={{ ...handleLabel('left'), top }}>{name}</span>
           </div>
@@ -112,7 +120,7 @@ function NipypeNodeInner({ data, selected }: NodeProps & { data: NipypeNodeData 
               type="source"
               position={Position.Right}
               id={name}
-              style={{ ...handleStyle, top }}
+              style={{ ...handleStyle(COLOR), top }}
             />
             <span style={{ ...handleLabel('right'), top }}>{name}</span>
           </div>
