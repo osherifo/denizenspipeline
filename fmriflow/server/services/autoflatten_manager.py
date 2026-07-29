@@ -241,6 +241,15 @@ class AutoflattenManager:
             "message": f"Starting autoflatten for {config.subject}",
         })
 
+        # autoflatten shells out to FreeSurfer tools (mri_label2label and
+        # friends) that resolve --srcsubject/--trgsubject against
+        # $SUBJECTS_DIR, not against the subject path we pass on the
+        # command line. Without this they silently look under
+        # $FREESURFER_HOME/subjects and fail on every label with
+        # "could not read .../surf/lh.white".
+        env = dict(os.environ)
+        env["SUBJECTS_DIR"] = str(config.subjects_dir)
+
         log_fh = None
         try:
             if log_path is not None:
@@ -251,10 +260,12 @@ class AutoflattenManager:
                     stderr=_subprocess.STDOUT,
                     text=True,
                     start_new_session=True,
+                    env=env,
                 )
             else:
                 proc = _subprocess.Popen(
-                    cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT, text=True,
+                    cmd, stdout=_subprocess.PIPE, stderr=_subprocess.STDOUT,
+                    text=True, env=env,
                 )
         finally:
             if log_fh is not None:

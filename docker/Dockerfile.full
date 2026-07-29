@@ -87,18 +87,30 @@ RUN python -m venv "$FMRIFLOW_VENV" \
     && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir \
         '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
 
-# Expose only the two entry points on PATH. Deliberately NOT prepending
-# the venv's bin dir: that would make `python` resolve to fmriflow's
-# interpreter for FreeSurfer and AFNI helper scripts that invoke it
-# generically.
-RUN ln -sf "$FMRIFLOW_VENV/bin/fmriflow" /usr/local/bin/fmriflow \
-    && ln -sf "$FMRIFLOW_VENV/bin/heudiconv" /usr/local/bin/heudiconv
+# Expose the venv's console scripts that fmriflow shells out to by name.
+# Deliberately NOT prepending the venv's bin dir: that would make
+# `python` resolve to fmriflow's interpreter for FreeSurfer and AFNI
+# helper scripts that invoke it generically.
+#
+# This list must cover every binary the code looks up with
+# shutil.which() or passes to subprocess -- `autoflatten` was missed
+# first time round and the autoflatten stage died with
+# FileNotFoundError only after fmriprep had run for hours.
+RUN for bin in fmriflow heudiconv autoflatten; do \
+        test -x "$FMRIFLOW_VENV/bin/$bin" \
+            || { echo "expected $bin in the venv" >&2; exit 1; }; \
+        ln -sf "$FMRIFLOW_VENV/bin/$bin" "/usr/local/bin/$bin"; \
+    done
 
-# Fail the build if fmriflow's install disturbed fmriprep's environment.
+# Fail the build if fmriflow's install disturbed fmriprep's environment,
+# or if a tool the pipeline resolves by name is not reachable.
 RUN fmriprep --version \
     && python -c "import numpy, nibabel, nitransforms, nireports; print('fmriprep env intact, numpy', numpy.__version__)" \
     && fmriflow --help > /dev/null \
-    && echo "fmriflow venv ok"
+    && python -c "\
+import shutil, sys; \
+missing = [b for b in ('fmriprep', 'recon-all', 'dcm2niix', 'heudiconv', 'autoflatten', 'bids-validator') if not shutil.which(b)]; \
+sys.exit(f'not on PATH: {missing}') if missing else print('pipeline tools on PATH')"
 
 RUN mkdir -p /workspace \
     && chown -R fmriflow:fmriflow /app /workspace
