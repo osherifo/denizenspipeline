@@ -3,7 +3,7 @@
 | Variant | Dockerfile | Size | What's included |
 |---|---|---|---|
 | **slim** | `Dockerfile.slim` | ~4 GB | FastAPI backend + Vite frontend + heudiconv + bids-validator + dcm2niix + the Docker CLI. fmriprep is delegated to the host (docker socket, or apptainer-on-host). |
-| **full** | `Dockerfile.full` | ~25 GB | slim's fmriflow layer on top of `nipreps/fmriprep` (fmriprep, FreeSurfer, ANTs, AFNI). No second runtime needed; preproc YAMLs can use `container_type: bare`. |
+| **full** | `Dockerfile.full` | ~11 GB | slim's fmriflow layer on top of `nipreps/fmriprep` (fmriprep, FreeSurfer, ANTs). No second runtime needed; preproc YAMLs can use `container_type: bare`. |
 
 ```bash
 docker compose up --build                              # slim

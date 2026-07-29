@@ -26,13 +26,19 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# tini + gosu for the entrypoint. The fmriprep image already ships
-# Python, FreeSurfer, fmriprep, ANTs, AFNI, and dcm2niix.
+# tini + gosu for the entrypoint. The fmriprep image ships Python,
+# FreeSurfer, fmriprep and ANTs — but NOT dcm2niix, and not a compiler
+# (pycortex builds the OpenCTM C extension from source).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         ca-certificates \
         curl \
+        dcm2niix \
+        git \
         gosu \
+        libgl1 \
+        libglib2.0-0 \
         tini \
     && rm -rf /var/lib/apt/lists/*
 
@@ -55,19 +61,44 @@ RUN groupadd -o -g ${PGID} fmriflow \
 
 WORKDIR /app
 
-# Install fmriflow on top of the fmriprep python env. Same extras
-# as the slim image so register_builtins succeeds (himalaya needs
-# sklearn at import time). nlp omitted on purpose (torch ~2 GB);
-# derive if needed.
+# Install fmriflow into its OWN virtualenv, not fmriprep's conda env.
+#
+# fmriflow's dependencies are floor-pinned (numpy>=1.24, nibabel>=5.0,
+# …) and resolve to the newest releases, while fmriprep pins the other
+# direction: nitransforms wants numpy~=1.21, nireports numpy<2.0.0,
+# tedana nibabel<=5.2.1. Installing into the shared env silently
+# upgrades numpy to 2.x and leaves fmriprep broken — the one thing this
+# image exists to provide. An isolated venv keeps both stacks intact.
+#
+# fmriprep's console scripts carry absolute shebangs
+# (#!/opt/conda/envs/fmriprep/bin/python3.11), so they keep using their
+# own interpreter no matter what calls them.
+ENV FMRIFLOW_VENV=/opt/fmriflow-venv
+
 COPY pyproject.toml README.md ./
 COPY fmriflow/ ./fmriflow/
 # Frontend bundle from stage 1 — must land BEFORE pip install so
 # hatch packages it into the wheel; otherwise the installed package
 # has no static/ dir and GET / returns 404.
 COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir heudiconv \
-    && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
+RUN python -m venv "$FMRIFLOW_VENV" \
+    && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir --upgrade pip \
+    && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir heudiconv \
+    && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir \
+        '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
+
+# Expose only the two entry points on PATH. Deliberately NOT prepending
+# the venv's bin dir: that would make `python` resolve to fmriflow's
+# interpreter for FreeSurfer and AFNI helper scripts that invoke it
+# generically.
+RUN ln -sf "$FMRIFLOW_VENV/bin/fmriflow" /usr/local/bin/fmriflow \
+    && ln -sf "$FMRIFLOW_VENV/bin/heudiconv" /usr/local/bin/heudiconv
+
+# Fail the build if fmriflow's install disturbed fmriprep's environment.
+RUN fmriprep --version \
+    && python -c "import numpy, nibabel, nitransforms, nireports; print('fmriprep env intact, numpy', numpy.__version__)" \
+    && fmriflow --help > /dev/null \
+    && echo "fmriflow venv ok"
 
 RUN mkdir -p /workspace \
     && chown -R fmriflow:fmriflow /app /workspace
