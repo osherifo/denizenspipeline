@@ -52,12 +52,25 @@ RUN apt-get update \
 # reported itself unavailable. Take the official static client
 # instead: it is the CLI alone, with no daemon and no apt repo keys.
 ARG DOCKER_CLI_VERSION=27.3.1
-RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" \
-        -o /tmp/docker.tgz \
-    && tar -xzf /tmp/docker.tgz -C /tmp --strip-components=1 docker/docker \
-    && install -m 0755 /tmp/docker /usr/local/bin/docker \
-    && rm -f /tmp/docker.tgz /tmp/docker \
-    && docker --version
+# TARGETARCH is populated automatically by buildx. The classic builder
+# leaves it unset, so fall back to uname -m -- which already reports the
+# names download.docker.com uses (x86_64, aarch64), unlike TARGETARCH.
+# ppc64le and s390x need no mapping -- they match the upstream dir names.
+ARG TARGETARCH
+RUN set -eux; \
+    arch="${TARGETARCH:-}"; \
+    case "$arch" in \
+        amd64)  arch=x86_64 ;; \
+        arm64)  arch=aarch64 ;; \
+        arm)    arch=armhf ;; \
+        "")     arch="$(uname -m)" ;; \
+    esac; \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_CLI_VERSION}.tgz" \
+        -o /tmp/docker.tgz; \
+    tar -xzf /tmp/docker.tgz -C /tmp --strip-components=1 docker/docker; \
+    install -m 0755 /tmp/docker /usr/local/bin/docker; \
+    rm -f /tmp/docker.tgz /tmp/docker; \
+    docker --version
 
 # bids-validator (optional — fmriflow gracefully skips if missing).
 RUN npm install -g bids-validator \
