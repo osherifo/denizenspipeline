@@ -90,11 +90,14 @@ webgl = "fmriflow.modules.reporters.webgl:WebGLReporter"
 [tool.hatch.build.targets.wheel]
 packages = ["fmriflow"]
 
-# Force-include the built frontend bundle. Hatch's default file
-# selection skips it in some sandboxes (e.g. docker build context
-# without a .gitignore present), even though it lives under the
-# packaged tree. force-include is unconditional.
-[tool.hatch.build.targets.wheel.force-include]
-"fmriflow/server/static" = "fmriflow/server/static"
-"fmriflow/builtin" = "fmriflow/builtin"
-"fmriflow/hub/hub.schema.json" = "fmriflow/hub/hub.schema.json"
+# The frontend bundle, bundled built-ins, and hub schema all live
+# inside the packaged tree, so hatch's default selection picks them
+# up. They must NOT be force-included as well — force-include emits
+# a second copy at the same archive path, which hatch rejects.
+# Instead, mark them as artifacts so a VCS-ignored build context
+# (docker, where .dockerignore drops server/static) still keeps them.
+artifacts = [
+    "fmriflow/server/static/**",
+    "fmriflow/builtin/**",
+    "fmriflow/hub/hub.schema.json",
+]
