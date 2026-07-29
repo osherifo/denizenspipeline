@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "artifacts": [
+    {
+      "kind": "workflow_config",
+      "name": "sub01_anat_e2e.yaml",
+      "files": [
+        "kinds/workflow_config/sub01_anat_e2e.yaml"
+      ],
+      "sha256": "f0ea992191c61cc80cb427565932607125b56a8409278428e91b79746862235a",
+      "size": 789,
+      "version": "1",
+      "description": "",
+      "author": "",
+      "tags": [],
+      "lfs": false,
+      "metadata": {}
+    }
+  ]
+}

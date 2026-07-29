@@ -1,0 +1,20 @@
+# End-to-end anatomical pipeline for sub01, run entirely inside the
+# fmriflow full image (fmriprep + FreeSurfer baked in).
+#
+#   convert     DICOM -> BIDS (4x MP2RAGE UNI -> run-01..04 T1w)
+#   preproc     fmriprep --anat-only (averages the runs, then recon-all)
+#   autoflatten flat patches from the FreeSurfer surfaces -> pycortex
+#
+# Stages run in order and stop on the first failure. Watch it in the
+# Workflows tab.
+
+workflow:
+  name: "sub01 anat end-to-end (DICOM -> BIDS -> fmriprep -> autoflatten)"
+  subject: "01"
+  stages:
+    - stage: convert
+      config: /workspace/configs/convert/sub01_mp2rage.yaml
+    - stage: preproc
+      config: /workspace/configs/preproc/sub01_anatonly_full_image.yaml
+    - stage: autoflatten
+      config: /workspace/configs/autoflatten/sub01.yaml
