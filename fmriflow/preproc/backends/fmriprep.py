@@ -10,7 +10,10 @@ import subprocess
 from pathlib import Path
 
 from fmriflow.preproc.backends import register_backend
-from fmriflow.preproc.backends.fmriprep_params import FmriprepParams
+from fmriflow.preproc.backends.fmriprep_params import (
+    SINGULARITY_CONTAINER_TYPES,
+    FmriprepParams,
+)
 from fmriflow.preproc.errors import BackendRunError
 from fmriflow.preproc.manifest import (
     PreprocConfig,
@@ -231,7 +234,7 @@ class FmriprepBackend:
             if params.container_type == "docker":
                 # Docker image — either already pulled or will be pulled on run
                 return shutil.which("docker") is not None
-            if params.container_type == "singularity":
+            if params.container_type in SINGULARITY_CONTAINER_TYPES:
                 if self._singularity_binary() is None:
                     return False
                 # Could be a .sif path OR a docker://... URI
@@ -272,7 +275,7 @@ class FmriprepBackend:
         params: FmriprepParams,
     ) -> list[str]:
         """Build the container invocation prefix."""
-        if params.container_type == "singularity":
+        if params.container_type in SINGULARITY_CONTAINER_TYPES:
             binary = self._singularity_binary() or "singularity"
             cmd = [
                 binary, "run", "--cleanenv",

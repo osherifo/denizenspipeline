@@ -19,7 +19,13 @@ VALID_BOLD2T1W_INIT = ("register", "header")
 VALID_BOLD2T1W_DOF = (6, 9, 12)
 VALID_CIFTI_OUTPUT = ("91k", "170k")
 VALID_IGNORE = ("fieldmaps", "slicetiming", "sbref")
-VALID_CONTAINER_TYPES = ("singularity", "docker", "bare")
+# "apptainer" is an accepted spelling of "singularity" — the docs and
+# the Settings UI have long told users to write it, and the runner
+# already prefers the apptainer binary when resolving one.
+VALID_CONTAINER_TYPES = ("singularity", "apptainer", "docker", "bare")
+
+# container_type values that take the singularity/apptainer code path.
+SINGULARITY_CONTAINER_TYPES = ("singularity", "apptainer")
 
 
 @dataclass(frozen=True)

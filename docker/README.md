@@ -1,99 +1,39 @@
 # Docker images for fmriflow
 
-Two variants live here:
-
 | Variant | Dockerfile | Size | What's included |
 |---|---|---|---|
-| **slim** | `Dockerfile.slim` | ~1–2 GB | FastAPI backend + Vite frontend + heudiconv + bids-validator + dcm2niix. fmriprep is delegated to the host (docker socket, or apptainer-on-host). |
-| **full** | `Dockerfile.full` | ~25 GB | slim + everything in `nipreps/fmriprep` (fmriprep, FreeSurfer, ANTs, AFNI). No second runtime needed; preproc YAML can use `container_type: bare`. |
-
-## Quickstart (slim)
-
-From the repo root:
+| **slim** | `Dockerfile.slim` | ~4 GB | FastAPI backend + Vite frontend + heudiconv + bids-validator + dcm2niix + the Docker CLI. fmriprep is delegated to the host (docker socket, or apptainer-on-host). |
+| **full** | `Dockerfile.full` | ~25 GB | slim's fmriflow layer on top of `nipreps/fmriprep` (fmriprep, FreeSurfer, ANTs, AFNI). No second runtime needed; preproc YAMLs can use `container_type: bare`. |
 
 ```bash
-mkdir -p license experiments results derivatives bids dicoms
-cp /path/to/your/freesurfer_license.txt license/license.txt
-
-docker compose up --build
-# UI on http://localhost:8421
+docker compose up --build                              # slim
+docker compose -f docker-compose.full.yml up --build   # full
 ```
 
-Configure your preproc YAML with:
+The UI comes up on <http://localhost:8421>.
 
-```yaml
-backend: fmriprep
-container_type: docker
-container: nipreps/fmriprep:24.1.1
-```
+**Full usage documentation lives in [`docs/guide/docker.md`](../docs/guide/docker.md)** —
+working-dir layout, the `$FMRIFLOW_HOME` / `$FMRIFLOW_DATA` split, FreeSurfer licensing,
+apptainer-on-host, file ownership, and troubleshooting. That guide is the single source of
+truth; this file only describes the two build targets so the two can't drift apart again.
 
-## Standalone (full)
+## Notes for people editing these images
 
-```bash
-docker compose -f docker-compose.full.yml up --build
-```
-
-Then in your preproc YAML:
-
-```yaml
-backend: fmriprep
-container_type: bare
-```
-
-The full image first build is slow because it pulls `nipreps/fmriprep`.
-
-## Apptainer-on-host instead of docker socket
-
-If your host runs apptainer/singularity (e.g. shared HPC node), edit
-`docker-compose.yml`: comment the `/var/run/docker.sock` line, then add
-
-```yaml
-    volumes:
-      - /usr/bin/apptainer:/usr/bin/apptainer:ro
-      - /path/to/your/fmriprep.sif:/opt/fmriprep.sif:ro
-    environment:
-      FMRIFLOW_SINGULARITY_BIN: /usr/bin/apptainer
-```
-
-In your preproc YAML:
-
-```yaml
-backend: fmriprep
-container_type: apptainer
-container: /opt/fmriprep.sif
-```
-
-## What's mounted where
-
-| Host path | Container path | Purpose |
-|---|---|---|
-| `fmriflow-state` (named volume) | `/data` | `~/.fmriflow/` — run registry, modules, QC store, workflows, registered heuristics |
-| `./experiments/` | `/workspace/experiments` | YAML configs (convert, preproc, autoflatten, workflows) |
-| `./derivatives/` | `/workspace/derivatives` | fmriprep + autoflatten outputs |
-| `./results/` | `/workspace/results` | analysis run outputs |
-| `./bids/` (ro) | `/workspace/bids` | BIDS roots |
-| `./dicoms/` (ro) | `/workspace/dicoms` | DICOM roots |
-| `./license/` (ro) | `/data/license` | FreeSurfer license file |
-| `/var/run/docker.sock` (slim only) | same | Lets fmriflow spawn sibling fmriprep containers |
-
-## File ownership on bind mounts
-
-The container creates files as `fmriflow:fmriflow`, with uid/gid taken
-from `PUID`/`PGID` (default `1000:1000`). Override per-host with:
-
-```bash
-PUID=$(id -u) PGID=$(id -g) docker compose up
-```
-
-## Pinning fmriprep version (full image)
-
-```bash
-docker compose -f docker-compose.full.yml build \
-    --build-arg FMRIPREP_TAG=24.1.1
-```
-
-## Troubleshooting
-
-- **`heudiconv: command not found`** — slim image only ships heudiconv on PATH; if you derived your own image, re-run `pip install heudiconv`.
-- **fmriprep container can't see /workspace** — when running fmriprep as a sibling container via the docker socket, the *host* path is what the sibling sees. Make sure your bind mounts match between fmriflow and the spawned fmriprep container, or use the full image instead.
-- **FreeSurfer license errors** — confirm `license/license.txt` exists and is readable, or set `FS_LICENSE_TEXT` in your shell env.
+- **`entrypoint.sh` is shared by both images.** It writes the FreeSurfer license from
+  `FS_LICENSE_TEXT` when set, aligns the `fmriflow` user with `PUID`/`PGID`, joins the
+  mounted docker socket's group, runs `fmriflow init`, then drops privileges via `gosu`.
+- **The Docker CLI is installed from the official static tarball**, pinned by the
+  `DOCKER_CLI_VERSION` build arg. Debian's `docker.io` package ships only the daemon
+  (`dockerd`, `docker-proxy`, `docker-init`) and *not* `/usr/bin/docker`, which silently
+  broke docker-out-of-docker — `shutil.which("docker")` returned `None` and the fmriprep
+  backend reported itself unavailable.
+- **The socket group is resolved at run time, not build time.** The gid owning
+  `/var/run/docker.sock` differs per host, so the entrypoint reads it with `stat` and adds
+  `fmriflow` to a matching group. Baking a gid into the image does not port between machines.
+- **`chown -R` over `$FMRIFLOW_HOME` only runs when ownership is actually wrong.** That
+  directory holds the data subtree and can be hundreds of GB. Set `FMRIFLOW_FORCE_CHOWN=1`
+  to force a full recursive pass.
+- **`.dockerignore` deliberately excludes `fmriflow/server/static`** — the frontend is
+  rebuilt from source in stage 1 and copied in before `pip install`, so hatch packages it
+  into the wheel. Do not add it to `force-include` in `pyproject.toml`; it is already inside
+  the packaged tree and a second entry makes the wheel build fail outright.

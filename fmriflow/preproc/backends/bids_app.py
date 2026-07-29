@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 from fmriflow.preproc.backends import register_backend
+from fmriflow.preproc.backends.fmriprep_params import SINGULARITY_CONTAINER_TYPES
 from fmriflow.preproc.errors import BackendRunError
 from fmriflow.preproc.manifest import (
     PreprocConfig,
@@ -133,7 +134,7 @@ class BidsAppBackend:
         container = config.backend_params["container"]
         container_type = config.backend_params.get("container_type", "singularity")
 
-        if container_type == "singularity":
+        if container_type in SINGULARITY_CONTAINER_TYPES:
             cmd = [
                 "singularity", "run", "--cleanenv",
                 "-B", f"{config.bids_dir}:/data:ro",

@@ -46,8 +46,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 ARG PUID=1000
 ARG PGID=1000
-RUN groupadd -g ${PGID} fmriflow \
-    && useradd -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
+# -o (non-unique) is required: the nipreps/fmriprep base already owns
+# uid/gid 1000 as the `fmriprep` user, so a plain groupadd -g 1000
+# fails the build outright. The entrypoint re-aligns this account to
+# the host's PUID/PGID at run time anyway, also with -o.
+RUN groupadd -o -g ${PGID} fmriflow \
+    && useradd -o -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
 
 WORKDIR /app
 
