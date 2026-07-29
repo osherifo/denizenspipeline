@@ -18,6 +18,7 @@ from fmriflow.server.services.config_store import ConfigStore
 from fmriflow.server.services.preproc_manager import PreprocManager
 from fmriflow.server.services.convert_manager import ConvertManager
 from fmriflow.server.services.convert_config_store import ConvertConfigStore
+from fmriflow.server.services.preproc_config_store import PreprocConfigStore
 from fmriflow.server.services.autoflatten_manager import AutoflattenManager
 from fmriflow.server.services.autoflatten_config_store import AutoflattenConfigStore
 from fmriflow.server.services.workflow_manager import WorkflowManager
@@ -56,6 +57,7 @@ def create_app(
     # top-level (configs/*.yaml + ./experiments/*.yaml) as fallback.
     configs_dir = configs_dir or str(paths.config_dir("analysis"))
     convert_configs_dir = convert_configs_dir or str(paths.config_dir("convert"))
+    preproc_configs_dir = str(paths.config_dir("preproc"))
     autoflatten_configs_dir = autoflatten_configs_dir or str(paths.config_dir("autoflatten"))
     workflow_configs_dir = workflow_configs_dir or str(paths.config_dir("workflows"))
 
@@ -95,6 +97,7 @@ def create_app(
     preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
     convert_config_store = ConvertConfigStore(Path(convert_configs_dir))
+    preproc_config_store = PreprocConfigStore(Path(preproc_configs_dir))
     autoflatten_manager = AutoflattenManager()
     autoflatten_config_store = AutoflattenConfigStore(Path(autoflatten_configs_dir))
     workflow_config_store = WorkflowConfigStore(Path(workflow_configs_dir))
@@ -143,6 +146,7 @@ def create_app(
     app.state.preproc_manager = preproc_manager
     app.state.convert_manager = convert_manager
     app.state.convert_config_store = convert_config_store
+    app.state.preproc_config_store = preproc_config_store
     app.state.autoflatten_manager = autoflatten_manager
     app.state.autoflatten_config_store = autoflatten_config_store
     app.state.workflow_config_store = workflow_config_store

@@ -20,8 +20,15 @@ KINDS_DIR = "kinds"
 
 # Artifact kinds the hub understands. `feature_array` is the large-binary
 # (git-LFS) class; the rest are small text/code files.
+#
+# The `*_config` kinds are one per pipeline stage, each a YAML file in
+# $FMRIFLOW_HOME/configs/<stage>/ keyed by its top-level section.
+# Keep in sync with the `kind` enum in hub.schema.json — the schema is
+# packaging/documentation only and is not read at runtime, so nothing
+# else catches drift (see tests/test_hub/test_hub_kinds.py).
 KINDS = (
     "error", "module", "analysis_config", "workflow_config",
+    "convert_config", "preproc_config", "autoflatten_config",
     "stack_preset", "heuristic", "transform", "workflow", "feature_array",
 )
 

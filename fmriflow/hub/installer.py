@@ -106,6 +106,70 @@ def _install_workflow_config(entry, files, state) -> dict:
     return {"path": res.get("path", "")}
 
 
+def _install_stage_config(store_attr: str, section: str):
+    """Install a stage config YAML through its config store.
+
+    The preproc and autoflatten stores share the
+    ``save_config(filename, yaml_string)`` contract and validate that the
+    YAML carries the right top-level section. They report failure by
+    returning ``errors`` rather than raising, so an unchecked call would
+    silently "install" nothing.
+    """
+    def handler(entry, files, state) -> dict:
+        store = getattr(state, store_attr, None)
+        if store is None:
+            raise InstallError(f"server has no {store_attr}")
+        res = store.save_config(files[0].name, files[0].read_text())
+        if not res.get("saved"):
+            errors = "; ".join(res.get("errors") or ["unknown error"])
+            raise InstallError(
+                f"not a valid {section} config ({entry.name}): {errors}"
+            )
+        return {"path": res.get("path", "")}
+    return handler
+
+
+def _install_convert_config(entry, files, state) -> dict:
+    """Install a DICOM-to-BIDS config.
+
+    ConvertConfigStore.save_config takes a parsed dict rather than YAML
+    text, rewrites the filename, injects a ``_meta`` block, and raises
+    if the file already exists — none of which suits re-installing an
+    artifact by name. Validate the shape, then write the file as-is so
+    the round trip through the hub is byte-for-byte.
+    """
+    import yaml
+
+    text = files[0].read_text()
+    try:
+        parsed = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        raise InstallError(f"convert config {entry.name} is not valid YAML: {e}") from e
+    if not isinstance(parsed, dict):
+        raise InstallError(f"convert config {entry.name} must be a mapping")
+
+    is_batch = "convert_batch" in parsed or "jobs" in parsed
+    if not is_batch:
+        missing = [
+            f for f in ("source_dir", "bids_dir", "subject", "heuristic")
+            if not parsed.get(f)
+        ]
+        if missing:
+            raise InstallError(
+                f"convert config {entry.name} is missing required field(s): "
+                f"{', '.join(missing)}"
+            )
+
+    dest = _copy(files[0], paths.config_dir("convert"))
+    store = getattr(state, "convert_config_store", None)
+    if store is not None:
+        try:
+            store._invalidate()
+        except Exception:  # noqa: BLE001
+            pass
+    return {"path": str(dest)}
+
+
 def _install_stack_preset(entry, files, state) -> dict:
     # Presets are directory-scanned YAML — a plain copy is the install.
     dest = _copy(files[0], paths.addons_dir("pipelines"))
@@ -159,6 +223,11 @@ _HANDLERS = {
     "error": _install_error,
     "analysis_config": _install_analysis_config,
     "workflow_config": _install_workflow_config,
+    "convert_config": _install_convert_config,
+    "preproc_config": _install_stage_config("preproc_config_store", "preproc"),
+    "autoflatten_config": _install_stage_config(
+        "autoflatten_config_store", "autoflatten",
+    ),
     "stack_preset": _install_stack_preset,
     "module": _install_module,
     "heuristic": _install_heuristic,
@@ -187,6 +256,16 @@ def local_names(kind: str, state) -> set[str]:
             return {c.filename for c in state.config_store.list_configs()}
         if kind == "workflow_config":
             return {c.filename for c in state.workflow_config_store.list_configs()}
+        if kind == "convert_config":
+            # ConvertConfigStore yields dicts, not dataclasses.
+            return {
+                c["filename"] for c in state.convert_config_store.list_configs()
+                if c.get("filename")
+            }
+        if kind == "preproc_config":
+            return {c.filename for c in state.preproc_config_store.list_configs()}
+        if kind == "autoflatten_config":
+            return {c.filename for c in state.autoflatten_config_store.list_configs()}
         if kind == "module":
             names: set[str] = set()
             for lst in state.registry.list_modules().values():

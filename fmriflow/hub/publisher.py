@@ -49,6 +49,22 @@ def locate_local(kind: str, name: str, state) -> tuple[list[Path], dict]:
             raise PublishError(f"no local workflow config '{name}'")
         return [Path(detail["path"])], {}
 
+    # Stage configs: one store each, all exposing get_config(filename).
+    _STAGE_CONFIG_STORES = {
+        "convert_config": ("convert_config_store", "convert"),
+        "preproc_config": ("preproc_config_store", "preproc"),
+        "autoflatten_config": ("autoflatten_config_store", "autoflatten"),
+    }
+    if kind in _STAGE_CONFIG_STORES:
+        store_attr, label = _STAGE_CONFIG_STORES[kind]
+        store = getattr(state, store_attr, None)
+        if store is None:
+            raise PublishError(f"server has no {store_attr}")
+        detail = store.get_config(name)
+        if not detail:
+            raise PublishError(f"no local {label} config '{name}'")
+        return [Path(detail["path"])], {}
+
     if kind == "stack_preset":
         p = _first(paths.addons_dir("pipelines"), f"{name}.yaml", f"{name}.yml")
         if not p:

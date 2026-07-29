@@ -1,9 +1,9 @@
 # Artifact Hub
 
 The **Artifact Hub** lets you browse and share fMRIflow artifacts — error-KB
-entries, plugin modules, analysis configs, pipeline/workflow configs,
-preproc-stack presets, heudiconv heuristics, and precomputed feature arrays —
-across three tiers:
+entries, plugin modules, stage configs (analysis, DICOM-to-BIDS, preproc,
+autoflatten and workflow), preproc-stack presets, heudiconv heuristics, and
+precomputed feature arrays — across three tiers:
 
 - **local** — what's already on this machine (your `$FMRIFLOW_HOME` user tier +
   the shipped builtins).
@@ -109,6 +109,9 @@ hub.json                 # the manifest (catalog + integrity hashes)
 kinds/
   error/0026_....yaml
   analysis_config/....yaml
+  convert_config/....yaml
+  preproc_config/....yaml
+  autoflatten_config/....yaml
   module/....py
   heuristic/....py (+ .yaml sidecar)
   feature_array/....npz   # git-LFS tracked
