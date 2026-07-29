@@ -213,7 +213,7 @@ def _convert_run(args) -> int:
 
 def _convert_collect(args) -> int:
     from fmriflow.convert.manifest import ConvertConfig
-    from fmriflow.convert.runner import collect_bids, MANIFEST_FILENAME
+    from fmriflow.convert.runner import collect_bids, ensure_bidsignore, MANIFEST_FILENAME
     from pathlib import Path
 
     config = ConvertConfig(
@@ -227,6 +227,7 @@ def _convert_collect(args) -> int:
 
     try:
         manifest = collect_bids(config)
+        ensure_bidsignore(config.bids_dir)
         manifest_path = Path(config.bids_dir) / MANIFEST_FILENAME
         manifest.save(manifest_path)
 

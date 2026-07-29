@@ -15,6 +15,8 @@ import json
 import logging
 import sys
 
+from fmriflow.preproc.backends.fmriprep_params import VALID_CONTAINER_TYPES
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +55,7 @@ def add_preproc_subcommands(subparsers: argparse._SubParsersAction) -> None:
     )
     run_p.add_argument(
         "--container-type", type=str, default=None,
-        choices=["singularity", "docker", "bare"],
+        choices=list(VALID_CONTAINER_TYPES),
     )
 
     # Mode
@@ -240,6 +242,12 @@ def _preproc_run(args) -> int:
         return 0
     except Exception as e:
         print(f"\nPreprocessing failed: {e}", file=sys.stderr)
+        # Backends carry the tail of the failing tool's output; without
+        # it the user is left with nothing but an exit code.
+        tail = getattr(e, "stderr", "")
+        if tail:
+            print("\nLast output from the backend:", file=sys.stderr)
+            print(tail.rstrip(), file=sys.stderr)
         logger.error("Preprocessing failed", exc_info=True)
         return 1
 

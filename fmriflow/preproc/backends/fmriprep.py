@@ -69,6 +69,17 @@ class FmriprepBackend:
     def run(self, config: PreprocConfig) -> PreprocManifest:
         """Blocking run — spawns fmriprep and waits. Suitable for CLI use."""
         proc = self.spawn(config, log_path=None)
+
+        # Drain the pipe as fmriprep writes. Waiting without reading
+        # deadlocks as soon as the OS pipe buffer fills, which fmriprep
+        # manages within seconds, and it also threw away every line of
+        # diagnostics — a failed run reported only its exit code.
+        output_lines: list[str] = []
+        if proc.stdout is not None:
+            for line in proc.stdout:
+                output_lines.append(line)
+                logger.info("[fmriprep] %s", line.rstrip())
+
         proc.wait()
         if proc.returncode != 0:
             raise BackendRunError(
@@ -76,6 +87,7 @@ class FmriprepBackend:
                 backend="fmriprep",
                 subject=config.subject,
                 returncode=proc.returncode,
+                stderr="".join(output_lines[-50:]),
             )
         return self.collect(config)
 

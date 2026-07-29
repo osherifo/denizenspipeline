@@ -26,6 +26,29 @@ logger = logging.getLogger(__name__)
 MANIFEST_FILENAME = "convert_manifest.json"
 
 
+def ensure_bidsignore(bids_dir: Path | str) -> None:
+    """List fmriflow's own files in ``.bidsignore``.
+
+    The manifest lives at the dataset root, where the BIDS spec has no
+    place for it, so a strict validator reports NOT_INCLUDED and exits
+    non-zero. fmriprep runs that validator itself and refuses to start,
+    which made every converted dataset unusable downstream until the
+    user passed --skip-bids-validation.
+    """
+    path = Path(bids_dir) / ".bidsignore"
+    existing = (
+        [line.strip() for line in path.read_text().splitlines()]
+        if path.is_file() else []
+    )
+    missing = [e for e in (MANIFEST_FILENAME,) if e not in existing]
+    if not missing:
+        return
+
+    lines = [*existing, *missing] if existing else list(missing)
+    path.write_text("\n".join(lines) + "\n")
+    logger.debug("Added %s to %s", ", ".join(missing), path)
+
+
 def run_conversion(config: ConvertConfig) -> ConvertManifest:
     """Run a full DICOM-to-BIDS conversion.
 
@@ -89,6 +112,10 @@ def run_conversion(config: ConvertConfig) -> ConvertManifest:
 
     # Build manifest from outputs
     manifest = collect_bids(config)
+
+    # Declare the manifest before validating, so the validator sees the
+    # dataset as it will actually be left on disk.
+    ensure_bidsignore(config.bids_dir)
 
     # Optional BIDS validation
     if config.validate_bids:
