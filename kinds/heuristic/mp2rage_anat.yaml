@@ -1,0 +1,14 @@
+name: mp2rage_anat
+description: Anatomical-only MP2RAGE sessions — UNI image to T1w, one run per repetition
+scanner_pattern: null
+site: null
+author: null
+version: "1.0"
+tasks: []
+notes: >
+  MP2RAGE exports INV1, INV2 and a derived UNI image per repetition.
+  Only the UNI volume is a usable T1-weighted image and becomes _T1w;
+  the inversions are skipped by default (set EMIT_INVERSIONS in the
+  heuristic to emit them as _inv-<n>_MP2RAGE). Localizer and
+  slice-positioning series are dropped. Repeated acquisitions are
+  numbered run-01… in acquisition order. Single-session layout.

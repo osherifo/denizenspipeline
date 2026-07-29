@@ -15,6 +15,22 @@
       "tags": [],
       "lfs": false,
       "metadata": {}
+    },
+    {
+      "kind": "heuristic",
+      "name": "mp2rage_anat",
+      "files": [
+        "kinds/heuristic/mp2rage_anat.py",
+        "kinds/heuristic/mp2rage_anat.yaml"
+      ],
+      "sha256": "3e652e0e0adab91d89dc3e11738d87c4f6f43cd05ef08628eb0e36925b55f742",
+      "size": 4170,
+      "version": "1",
+      "description": "",
+      "author": "",
+      "tags": [],
+      "lfs": false,
+      "metadata": {}
     }
   ]
 }
