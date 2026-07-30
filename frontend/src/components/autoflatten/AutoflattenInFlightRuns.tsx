@@ -13,6 +13,7 @@ import { useDialog } from '../common/Dialog'
 import { TriageMatches } from '../triage/TriageMatches'
 import { FlatmapPreview } from './FlatmapPreview'
 import { formatDurationVerbose } from '../../utils/format'
+import { FlatCortexViewer } from './FlatCortexViewer'
 
 const panelStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -57,6 +58,8 @@ const rowStyle: CSSProperties = {
   padding: '6px 0',
   borderTop: '1px solid var(--border)',
   fontSize: 11,
+  // The row opens the detail modal; the action buttons stop propagation.
+  cursor: 'pointer',
 }
 
 const actionsStyle: CSSProperties = {
@@ -208,6 +211,13 @@ function ResultsSection({ detail }: { detail: AutoflattenRunSummary }) {
           ) : null
         ))}
       </div>
+      {detail.subjects_dir && detail.subject && (
+        <FlatCortexViewer
+          subjectsDir={detail.subjects_dir}
+          subject={detail.subject}
+          caption={`Flattened cortex — ${detail.subject}`}
+        />
+      )}
       <FlatmapPreview images={images} patches={patches} />
     </div>
   )
@@ -373,7 +383,12 @@ export function AutoflattenInFlightRuns() {
       {runs.map((r) => {
         const isRunning = r.status === 'running'
         return (
-          <div key={r.run_id} style={rowStyle}>
+          <div
+            key={r.run_id}
+            style={rowStyle}
+            onClick={() => openLog(r.run_id)}
+            title="Open run details — log, results, flattened cortex"
+          >
             <div>
               <div style={{ fontFamily: 'monospace', color: 'var(--text-primary)', fontWeight: 600 }}>
                 {r.subject}
@@ -396,8 +411,8 @@ export function AutoflattenInFlightRuns() {
             <div style={{ color: 'var(--text-secondary)' }}>
               {formatWhen(r.started_at)}
             </div>
-            <div style={actionsStyle}>
-              <button style={btn('muted')} onClick={() => openLog(r.run_id)}>Log</button>
+            <div style={actionsStyle} onClick={(e) => e.stopPropagation()}>
+              <button style={btn('muted')} onClick={() => openLog(r.run_id)}>Details</button>
               {isRunning ? (
                 <button style={btn('danger')} onClick={() => cancel(r.run_id, r.subject)}>Cancel</button>
               ) : (
