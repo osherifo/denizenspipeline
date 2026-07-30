@@ -330,6 +330,10 @@ const GRAPH_STYLE: CSSProperties = {
   border: '1px solid var(--border)',
 }
 
+// Both, so the modifier is whatever the platform's users reach for:
+// Control on Windows/Linux, Meta (Cmd) on macOS.
+const ZOOM_KEYS = ['Control', 'Meta']
+
 const NODE_SPACING_X = 280
 const NODE_GAP_X = 60
 const NODE_Y = 40
@@ -509,7 +513,7 @@ function _WorkflowGraphInner({
       // click. preventScrolling must stay false or ReactFlow swallows the
       // unmodified wheel event too.
       zoomOnScroll
-      zoomActivationKeyCode="Control"
+      zoomActivationKeyCode={ZOOM_KEYS}
       panOnScroll={false}
       preventScrolling={false}
       onNodeClick={(_e, node) => {
@@ -539,9 +543,13 @@ function _WorkflowGraphInner({
  */
 function _RefitOnResize() {
   const { fitView } = useReactFlow()
+  const anchor = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    const el = document.querySelector('.react-flow')
+    // Walk up from our own node rather than querying the document: this view
+    // can mount several ReactFlow instances (the nipype and analysis graph
+    // modals), and a bare selector would observe whichever mounted first.
+    const el = anchor.current?.closest('.react-flow')
     if (!el || typeof ResizeObserver === 'undefined') return
     let frame = 0
     const obs = new ResizeObserver(() => {
@@ -553,5 +561,5 @@ function _RefitOnResize() {
     return () => { cancelAnimationFrame(frame); obs.disconnect() }
   }, [fitView])
 
-  return null
+  return <div ref={anchor} style={{ display: 'none' }} />
 }
