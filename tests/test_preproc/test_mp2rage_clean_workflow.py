@@ -185,3 +185,48 @@ def test_manifest_reports_what_was_written(bids, tmp_path):
     assert manifest.runs == []
     # Dataset-level files must be carried over or the output is not valid BIDS.
     assert (tmp_path / "out" / "dataset_description.json").is_file()
+
+
+def test_output_root_stays_valid_bids(bids, tmp_path):
+    """output_dir IS a BIDS root here, so nothing unexpected may land in it.
+
+    fmriprep runs bids-validator itself and aborts on a non-zero exit, so a
+    stray manifest or nipype work tree blocks the whole downstream pipeline.
+    """
+    wf = MP2RAGEBackgroundClean()
+    config = _config(bids, tmp_path)
+    for uni, inv2, out in _pair_up(config.bids_dir, "01", config.output_dir):
+        _clean_one(uni, inv2, out, "soft", 100.0, 2)
+    wf.to_manifest(config, {})
+
+    declared = (tmp_path / "out" / ".bidsignore").read_text().split()
+    # The manager writes this AFTER to_manifest, so it must be pre-declared.
+    assert "preproc_manifest.json" in declared
+    assert ".nipype_work/" in declared
+
+
+def test_nipype_work_dir_is_outside_the_bids_root(bids, tmp_path):
+    pytest.importorskip("nipype")
+    config = _config(bids, tmp_path)
+    MP2RAGEBackgroundClean().build(config)
+
+    out = tmp_path / "out"
+    assert not (out / ".nipype_work").exists(), (
+        "nipype working tree must not live inside the BIDS output root"
+    )
+    assert (out.parent / ".nipype_work").is_dir()
+
+
+def test_bidsignore_survives_a_missing_trailing_newline(bids, tmp_path):
+    from fmriflow.preproc.backends.nipype_workflows.mp2rage_clean import (
+        _declare_in_bidsignore,
+    )
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / ".bidsignore").write_text(".duecredit.p")  # no newline
+
+    _declare_in_bidsignore(root, ("preproc_manifest.json",))
+
+    assert (root / ".bidsignore").read_text().splitlines() == [
+        ".duecredit.p", "preproc_manifest.json",
+    ]

@@ -123,6 +123,25 @@ def _pair_up(bids_dir: str, subject: str, out_dir: str) -> list[tuple[str, str, 
     return triples
 
 
+def _declare_in_bidsignore(root: Path, entries: tuple[str, ...]) -> None:
+    """Add *entries* to ``root/.bidsignore``, creating it if needed.
+
+    Tolerates the missing trailing newline heudiconv leaves behind — a
+    naive append there merges two entries into one corrupt line that
+    declares neither.
+    """
+    path = root / ".bidsignore"
+    existing = (
+        [line.strip() for line in path.read_text().splitlines() if line.strip()]
+        if path.is_file() else []
+    )
+    missing = [e for e in entries if e not in existing]
+    if not missing:
+        return
+    root.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join([*existing, *missing]) + "\n")
+
+
 @register_preproc_workflow("mp2rage_background_clean")
 class MP2RAGEBackgroundClean:
     """Attenuate MP2RAGE UNI background with INV2 so FreeSurfer can normalise it."""
@@ -231,7 +250,10 @@ class MP2RAGEBackgroundClean:
             str(config.bids_dir), config.subject, str(config.output_dir),
         )
 
-        base_dir = Path(config.output_dir) / ".nipype_work"
+        # Nipype's working tree must live OUTSIDE output_dir: output_dir is a
+        # BIDS root here, and anything unexpected inside it fails strict
+        # validation — which fmriprep runs itself and aborts on.
+        base_dir = Path(config.output_dir).parent / ".nipype_work"
         base_dir.mkdir(parents=True, exist_ok=True)
 
         wf = Workflow(name="mp2rage_background_clean", base_dir=str(base_dir))
@@ -266,6 +288,13 @@ class MP2RAGEBackgroundClean:
                 if s.is_file():
                     out_dir.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(s, out_dir / fname)
+
+        # output_dir is a BIDS root, so declare the non-BIDS files fmriflow
+        # itself drops into it — otherwise strict validation fails and
+        # fmriprep, which runs that validator, refuses to start. The preproc
+        # manager writes preproc_manifest.json *after* this method returns,
+        # so it must be declared ahead of time rather than detected.
+        _declare_in_bidsignore(out_dir, ("preproc_manifest.json", ".nipype_work/"))
 
         written = sorted((out_dir / f"sub-{config.subject}" / "anat").glob("*_T1w.nii.gz"))
 
