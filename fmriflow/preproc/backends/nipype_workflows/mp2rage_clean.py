@@ -17,7 +17,25 @@ which has good SNR and a genuinely dark background, and writes a BIDS-shaped
 tree containing only the cleaned ``_T1w`` images — which is what fmriprep
 should consume, so it never sees the raw UNI.
 
-Two methods, both standard practice:
+Two things go wrong with a raw UNI, and they need different fixes:
+
+**Background.** The mid-grey noise outside the head breaks skull-stripping and
+biases the normalisation. Fixed by attenuating with INV2 (`method` below).
+
+**Dynamic range.** Every brain voxel sits in the top ~20% of the stored range
+(measured on a real subject: in-head p1..p99 = 3218..4090 of 0..4095).
+FreeSurfer's `conform` rescales linearly over the full range into 8 bits, so
+all tissue lands in roughly 32 of the 256 levels and grey/white differ by a
+handful of quantisation steps — the contrast is gone *before* bias correction
+or normalisation run. Fixed by `rescale`, which windows to the tissue range
+and recovers ~4.6x more levels.
+
+Masking alone is not enough: it zeroes the background but leaves the brain
+where it was in the range. On a real subject, masking alone moved the
+saturation of `T1.mgz` from 83.8% to 68.7% of non-zero voxels at exactly 110
+— better, still unusable.
+
+Two masking methods, both standard practice:
 
 - ``soft`` (default) — ``UNI * INV2 / (INV2 + beta)``. Smoothly attenuates
   background toward zero. No hard edge, which matters because a sharp
@@ -51,7 +69,8 @@ from fmriflow.preproc.workflow_registry import register_preproc_workflow
 # Nipype executes Function nodes in a fresh interpreter, so every import
 # this needs must happen inside the body.
 
-def _clean_one(uni_path, inv2_path, out_path, method, beta, dilate):
+def _clean_one(uni_path, inv2_path, out_path, method, beta, dilate,
+               rescale, rescale_floor_pct=1.0):
     """Attenuate the UNI background using INV2. Returns the written path."""
     import os
 
@@ -94,6 +113,31 @@ def _clean_one(uni_path, inv2_path, out_path, method, beta, dilate):
         cleaned = np.where(mask, uni, 0)
     else:
         raise ValueError(f"unknown method {method!r} (expected 'soft' or 'mask')")
+
+    if rescale:
+        # Stretch tissue across the output range.
+        #
+        # MP2RAGE UNI parks every brain voxel in the top ~20% of its stored
+        # range (measured here: in-head p1..p99 = 3218..4090 of 0..4095).
+        # FreeSurfer's conform rescales linearly over the FULL range into
+        # 8 bits, so all tissue lands in ~32 of the 256 levels and grey/white
+        # differ by a handful of quantisation steps. Windowing to the tissue
+        # range first recovers ~4.6x more levels.
+        #
+        # Background is already at (or near) zero from the masking above, and
+        # sits below `lo`, so it clips back to zero rather than being lifted.
+        # The window is anchored on voxels inside the mask, which is a HEAD
+        # mask — it carries skull, scalp and neck as well as brain, so a very
+        # low floor lets those drag the window wide and wastes the stretch.
+        # Raising the floor sharpens the stretch but starts clipping dark
+        # anatomy (CSF, ventricles) to zero, so it is left conservative and
+        # exposed as a parameter.
+        inside = cleaned[cleaned > 0]
+        if inside.size:
+            lo = float(np.percentile(inside, rescale_floor_pct))
+            hi = float(np.percentile(inside, 99.5))
+            if hi > lo:
+                cleaned = np.clip((cleaned - lo) / (hi - lo), 0.0, 1.0) * 4095.0
 
     out = nb.Nifti1Image(cleaned.astype(np.float32), uni_img.affine, uni_img.header)
     out.set_data_dtype(np.float32)
@@ -176,6 +220,29 @@ class MP2RAGEBackgroundClean:
             "min": 0,
             "description": "Mask dilation iterations for method=mask. Ignored when method=soft.",
         },
+        "rescale": {
+            "type": "bool",
+            "default": True,
+            "description": (
+                "Stretch tissue across the output range before FreeSurfer "
+                "conforms it to 8 bits. MP2RAGE UNI stores tissue in the top "
+                "~20% of its range, so without this the whole brain quantises "
+                "into ~32 grey levels and GM/WM contrast is lost before "
+                "recon-all starts."
+            ),
+        },
+        "rescale_floor_pct": {
+            "type": "float",
+            "default": 1.0,
+            "min": 0.0,
+            "max": 50.0,
+            "description": (
+                "Lower percentile of in-mask intensity anchoring the rescale "
+                "window. Higher sharpens the stretch but clips dark anatomy "
+                "to zero — measured on one subject, p1 clipped 0.8% of the "
+                "brain core and p5 clipped 2.8%."
+            ),
+        },
         "copy_dataset_files": {
             "type": "bool",
             "default": True,
@@ -195,6 +262,8 @@ class MP2RAGEBackgroundClean:
             "method": p.get("method", "soft"),
             "beta": float(p.get("beta", 100.0)),
             "dilate": int(p.get("dilate", 2)),
+            "rescale": bool(p.get("rescale", True)),
+            "rescale_floor_pct": float(p.get("rescale_floor_pct", 1.0)),
             "copy_dataset_files": bool(p.get("copy_dataset_files", True)),
         }
 
@@ -260,7 +329,8 @@ class MP2RAGEBackgroundClean:
         clean = MapNode(
             Function(
                 input_names=["uni_path", "inv2_path", "out_path",
-                             "method", "beta", "dilate"],
+                             "method", "beta", "dilate", "rescale",
+                             "rescale_floor_pct"],
                 output_names=["out_file"],
                 function=_clean_one,
             ),
@@ -273,6 +343,8 @@ class MP2RAGEBackgroundClean:
         clean.inputs.method = params["method"]
         clean.inputs.beta = params["beta"]
         clean.inputs.dilate = params["dilate"]
+        clean.inputs.rescale = params["rescale"]
+        clean.inputs.rescale_floor_pct = params["rescale_floor_pct"]
         wf.add_nodes([clean])
         return wf
 
@@ -313,11 +385,16 @@ class MP2RAGEBackgroundClean:
                 "method": params["method"],
                 "beta": params["beta"],
                 "dilate": params["dilate"],
+                "rescale": params["rescale"],
+                "rescale_floor_pct": params["rescale_floor_pct"],
                 "n_cleaned": len(written),
                 "cleaned_files": [str(p.relative_to(out_dir)) for p in written],
             },
             space="native",
-            additional_steps=[f"mp2rage_background_clean:{params['method']}"],
+            additional_steps=[
+                f"mp2rage_background_clean:{params['method']}"
+                + (":rescaled" if params["rescale"] else ""),
+            ],
             output_dir=str(out_dir),
             created=now_iso(),
         )

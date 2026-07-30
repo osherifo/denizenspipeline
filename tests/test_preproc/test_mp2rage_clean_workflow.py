@@ -125,7 +125,7 @@ def test_cleaning_lifts_the_brain_to_background_ratio(bids, tmp_path, method):
     inv2_p = anat / "sub-01_acq-mp2rage_run-01_inv-2_MP2RAGE.nii.gz"
     out_p = tmp_path / "out.nii.gz"
 
-    _clean_one(str(uni_p), str(inv2_p), str(out_p), method, 100.0, 1)
+    _clean_one(str(uni_p), str(inv2_p), str(out_p), method, 100.0, 1, False)
 
     before = nb.load(uni_p).get_fdata()
     after = nb.load(out_p).get_fdata()
@@ -151,7 +151,7 @@ def test_unknown_method_raises(bids, tmp_path):
         _clean_one(
             str(anat / "sub-01_acq-mp2rage_run-01_T1w.nii.gz"),
             str(anat / "sub-01_acq-mp2rage_run-01_inv-2_MP2RAGE.nii.gz"),
-            str(tmp_path / "x.nii.gz"), "bogus", 100.0, 1,
+            str(tmp_path / "x.nii.gz"), "bogus", 100.0, 1, False,
         )
 
 
@@ -162,7 +162,7 @@ def test_shape_mismatch_raises(bids, tmp_path):
     with pytest.raises(ValueError, match="shape"):
         _clean_one(
             str(anat / "sub-01_acq-mp2rage_run-01_T1w.nii.gz"),
-            str(bad), str(tmp_path / "x.nii.gz"), "soft", 100.0, 1,
+            str(bad), str(tmp_path / "x.nii.gz"), "soft", 100.0, 1, False,
         )
 
 
@@ -173,14 +173,14 @@ def test_manifest_reports_what_was_written(bids, tmp_path):
     wf = MP2RAGEBackgroundClean()
     config = _config(bids, tmp_path)
     for uni, inv2, out in _pair_up(config.bids_dir, "01", config.output_dir):
-        _clean_one(uni, inv2, out, "soft", 100.0, 2)
+        _clean_one(uni, inv2, out, "soft", 100.0, 2, False)
 
     manifest = wf.to_manifest(config, {})
 
     assert manifest.backend == "nipype"
     assert manifest.parameters["n_cleaned"] == 2
     assert manifest.parameters["method"] == "soft"
-    assert manifest.additional_steps == ["mp2rage_background_clean:soft"]
+    assert manifest.additional_steps == ["mp2rage_background_clean:soft:rescaled"]
     # Anatomical stage — no BOLD runs by design.
     assert manifest.runs == []
     # Dataset-level files must be carried over or the output is not valid BIDS.
@@ -196,7 +196,7 @@ def test_output_root_stays_valid_bids(bids, tmp_path):
     wf = MP2RAGEBackgroundClean()
     config = _config(bids, tmp_path)
     for uni, inv2, out in _pair_up(config.bids_dir, "01", config.output_dir):
-        _clean_one(uni, inv2, out, "soft", 100.0, 2)
+        _clean_one(uni, inv2, out, "soft", 100.0, 2, False)
     wf.to_manifest(config, {})
 
     declared = (tmp_path / "out" / ".bidsignore").read_text().split()
@@ -230,3 +230,95 @@ def test_bidsignore_survives_a_missing_trailing_newline(bids, tmp_path):
     assert (root / ".bidsignore").read_text().splitlines() == [
         ".duecredit.p", "preproc_manifest.json",
     ]
+
+
+# ── rescaling: the quantisation fix ─────────────────────────────────
+
+
+def _tissue_band(volume, tissue, n_bits=8):
+    """8-bit levels the tissue occupies after a WHOLE-VOLUME rescale.
+
+    The range must come from the whole volume, because that is what
+    FreeSurfer's `conform` uses. Normalising the tissue subset by its own
+    min/max always fills 0..255 and measures nothing.
+    """
+    lo, hi = float(volume.min()), float(volume.max())
+    scaled = np.clip((tissue - lo) / max(hi - lo, 1e-9) * (2 ** n_bits - 1),
+                     0, 2 ** n_bits - 1).astype(np.uint8)
+    return int(scaled.max()) - int(scaled.min())
+
+
+def test_rescaling_widens_the_range_tissue_occupies(tmp_path):
+    """The point of rescale: more quantisation levels for tissue.
+
+    Uses intensities measured from a real MP2RAGE rather than the shared
+    fixture's single Gaussian blob — the effect scales with how much of the
+    stored range tissue actually spans, and a narrow synthetic brain
+    understates it. Real numbers: background ~1900, GM ~3700, WM ~3950,
+    stored range 0..4095.
+    """
+    rng = np.random.default_rng(0)
+    uni = rng.normal(1900, 120, (16, 16, 16))
+    inv2 = rng.normal(5, 2, (16, 16, 16)).clip(0)
+    # Two tissue classes, both parked near the top of the range.
+    uni[4:12, 4:12, 4:8] = rng.normal(3700, 60, (8, 8, 4))    # "GM"
+    uni[4:12, 4:12, 8:12] = rng.normal(3950, 40, (8, 8, 4))   # "WM"
+    inv2[4:12, 4:12, 4:12] = rng.normal(600, 40, (8, 8, 8))
+
+    anat = tmp_path / "in"
+    anat.mkdir()
+    uni_p, inv2_p = anat / "uni.nii.gz", anat / "inv2.nii.gz"
+    _write(uni_p, uni)
+    _write(inv2_p, inv2)
+
+    plain, scaled = tmp_path / "plain.nii.gz", tmp_path / "scaled.nii.gz"
+    _clean_one(str(uni_p), str(inv2_p), str(plain), "mask", 100.0, 1, False)
+    _clean_one(str(uni_p), str(inv2_p), str(scaled), "mask", 100.0, 1, True)
+
+    brain = (slice(5, 11), slice(5, 11), slice(5, 11))
+    plain_vol = nb.load(plain).get_fdata()
+    scaled_vol = nb.load(scaled).get_fdata()
+    spread_plain = _tissue_band(plain_vol, plain_vol[brain])
+    spread_scaled = _tissue_band(scaled_vol, scaled_vol[brain])
+
+    # A synthetic volume understates the gain: mask dilation pulls a rim of
+    # background into the percentile window, so the stretch is gentler than on
+    # a real head. Measured on real data the band goes 32 -> 148 levels
+    # (~4.6x); here ~1.7x is the honest expectation, so assert the direction
+    # with margin rather than overfitting to a number.
+    assert spread_scaled > spread_plain * 1.5, (
+        f"rescaling should markedly widen the band tissue occupies "
+        f"({spread_plain} -> {spread_scaled} 8-bit levels)"
+    )
+
+
+def test_rescaling_keeps_background_at_zero(bids, tmp_path):
+    """Background must not be lifted off zero, or skull-stripping suffers."""
+    anat = bids / "src" / "sub-01" / "anat"
+    out = tmp_path / "scaled.nii.gz"
+    _clean_one(
+        str(anat / "sub-01_acq-mp2rage_run-01_T1w.nii.gz"),
+        str(anat / "sub-01_acq-mp2rage_run-01_inv-2_MP2RAGE.nii.gz"),
+        str(out), "mask", 100.0, 1, True,
+    )
+
+    d = nb.load(out).get_fdata()
+    assert np.median(d[:2, :2, :2]) == 0
+
+
+def test_rescale_is_on_by_default(bids, tmp_path):
+    wf = MP2RAGEBackgroundClean()
+    assert wf._params(_config(bids, tmp_path))["rescale"] is True
+    assert wf._params(_config(bids, tmp_path, rescale=False))["rescale"] is False
+
+
+def test_manifest_records_whether_it_rescaled(bids, tmp_path):
+    wf = MP2RAGEBackgroundClean()
+    config = _config(bids, tmp_path)
+    for uni, inv2, out in _pair_up(config.bids_dir, "01", config.output_dir):
+        _clean_one(uni, inv2, out, "soft", 100.0, 2, True)
+
+    manifest = wf.to_manifest(config, {})
+
+    assert manifest.parameters["rescale"] is True
+    assert "rescaled" in manifest.additional_steps[0]
