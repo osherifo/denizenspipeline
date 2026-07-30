@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { useAutoflattenStore } from '../stores/autoflatten-store'
 import { AutoflattenProgress } from '../components/autoflatten/AutoflattenProgress'
 import { FlatmapPreview } from '../components/autoflatten/FlatmapPreview'
+import { FlatCortexViewer } from '../components/autoflatten/FlatCortexViewer'
 import { AutoflattenConfigBrowser } from '../components/autoflatten/AutoflattenConfigBrowser'
 import { fetchAutoflattenVisualizations } from '../api/client'
 import { formatDuration } from '../utils/format'
@@ -186,7 +187,10 @@ function StatusTab() {
         )}
 
         {subjectStatus?.has_flat_patches && (
-          <FlatmapPreview images={previewImages} patches={subjectStatus.flat_patches} />
+          <>
+            <FlatCortexViewer subjectsDir={subjectsDir} subject={subject} />
+            <FlatmapPreview images={previewImages} patches={subjectStatus.flat_patches} />
+          </>
         )}
       </div>
     </>

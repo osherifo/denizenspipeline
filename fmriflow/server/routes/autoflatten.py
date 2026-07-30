@@ -304,6 +304,102 @@ async def get_autoflatten_image(path: str):
     )
 
 
+def _subject_surf_dir(subjects_dir: str, subject: str) -> Path:
+    """Resolve <subjects_dir>/<subject>/surf, refusing to escape it.
+
+    `subject` reaches us straight from a query string, so it must be a single
+    path component. Without that check `subject=../..` walks out of the
+    subjects directory, and a containment test on the *result* cannot catch
+    it — the escaped directory is what the test would be measured against.
+    """
+    if (
+        not subject
+        or subject in (".", "..")
+        or "/" in subject
+        or "\\" in subject
+        or "\x00" in subject
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"subject must be a single path component, got {subject!r}",
+        )
+
+    root = Path(subjects_dir).expanduser().resolve()
+    surf_dir = (root / subject / "surf").resolve()
+    if not surf_dir.is_relative_to(root):
+        raise HTTPException(
+            status_code=400, detail="subject escapes the subjects directory",
+        )
+    # Existence is the caller's call: the render endpoint 404s, while the
+    # discovery endpoint reports "nothing here" rather than erroring.
+    return surf_dir
+
+
+@router.get("/autoflatten/flatrender")
+async def get_autoflatten_flatrender(
+    subjects_dir: str,
+    subject: str,
+    hemi: str,
+    scalar: str = "curv",
+):
+    """Render the flattened cortex for one hemisphere as a transparent PNG.
+
+    Drawn from the run's own ``.patch.3d``, shaded by a per-vertex scalar
+    (curv / thickness / sulc / area). This is the cortex alone — unlike the
+    ``.flat.patch.png`` the CLI writes, which is a QA figure bundling the
+    patch outline, a distortion map and a histogram.
+
+    Generated on first request and cached beside the patch; regenerated when
+    the patch is newer. Addressed by (subjects_dir, subject, hemi) and
+    validated, rather than taking a free-form path like /autoflatten/image.
+    """
+    from fmriflow.preproc import flat_mesh
+
+    if hemi not in flat_mesh.HEMIS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"hemi must be one of {flat_mesh.HEMIS}, got {hemi!r}",
+        )
+    if scalar not in flat_mesh.SCALARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"scalar must be one of {flat_mesh.SCALARS}, got {scalar!r}",
+        )
+
+    surf_dir = _subject_surf_dir(subjects_dir, subject)
+    if not surf_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"No surf/ directory: {surf_dir}")
+
+    try:
+        path = flat_mesh.render_flat_png(surf_dir, hemi, scalar)
+    except flat_mesh.FlatMeshError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    if not path.resolve().is_relative_to(surf_dir):
+        raise HTTPException(status_code=400, detail="resolved outside the subject dir")
+
+    return FileResponse(str(path), media_type="image/png")
+
+
+@router.get("/autoflatten/flatrender-info")
+async def get_autoflatten_flatrender_info(subjects_dir: str, subject: str):
+    """Which hemispheres have a flat patch, and what shadings each offers.
+
+    Lets the frontend decide what to render without probing for 404s.
+    """
+    from fmriflow.preproc import flat_mesh
+
+    surf_dir = _subject_surf_dir(subjects_dir, subject)
+    if not surf_dir.is_dir():
+        return {"hemispheres": {}}
+
+    out: dict[str, dict] = {}
+    for hemi in flat_mesh.HEMIS:
+        if flat_mesh.patch_path(surf_dir, hemi).is_file():
+            out[hemi] = {"scalars": flat_mesh.available_scalars(surf_dir, hemi)}
+    return {"hemispheres": out}
+
+
 @router.get("/autoflatten/visualizations")
 async def list_autoflatten_visualizations(
     subjects_dir: str, subject: str,

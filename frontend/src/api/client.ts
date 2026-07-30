@@ -844,6 +844,23 @@ export async function fetchAutoflattenVisualizations(
   return json(`${BASE}/autoflatten/visualizations?${qs}`)
 }
 
+/** URL for a rendered flatmap of one hemisphere — the cortex alone, shaded
+ *  by a per-vertex scalar. Not the CLI's .flat.patch.png, which is a QA
+ *  figure bundling the outline, a distortion map and a histogram. */
+export function autoflattenFlatRenderUrl(
+  subjects_dir: string, subject: string, hemi: 'lh' | 'rh', scalar = 'curv',
+): string {
+  const qs = new URLSearchParams({ subjects_dir, subject, hemi, scalar }).toString()
+  return `${BASE}/autoflatten/flatrender?${qs}`
+}
+
+export async function fetchAutoflattenFlatRenderInfo(
+  subjects_dir: string, subject: string,
+): Promise<{ hemispheres: Record<string, { scalars: string[] }> }> {
+  const qs = new URLSearchParams({ subjects_dir, subject }).toString()
+  return json(`${BASE}/autoflatten/flatrender-info?${qs}`)
+}
+
 // ── Triage (automatic error capture) ────────────────────────────────────
 
 export async function fetchTriage(
