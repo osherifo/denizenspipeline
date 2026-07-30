@@ -5,9 +5,11 @@ import type { CSSProperties } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
+  Controls,
   Handle,
   Position,
   useNodesState,
+  useReactFlow,
   type Node,
   type Edge,
   type NodeProps,
@@ -328,6 +330,10 @@ const GRAPH_STYLE: CSSProperties = {
   border: '1px solid var(--border)',
 }
 
+// Both, so the modifier is whatever the platform's users reach for:
+// Control on Windows/Linux, Meta (Cmd) on macOS.
+const ZOOM_KEYS = ['Control', 'Meta']
+
 const NODE_SPACING_X = 280
 const NODE_GAP_X = 60
 const NODE_Y = 40
@@ -491,13 +497,24 @@ function _WorkflowGraphInner({
       nodeTypes={nodeTypes}
       fitView
       fitViewOptions={{ padding: 0.2 }}
-      nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable={false}
-      panOnDrag={false}
-      zoomOnScroll={false}
-      zoomOnPinch={false}
-      zoomOnDoubleClick={false}
+      // Stages are laid out on a fixed grid by the effect below, so leave
+      // them fixed and let the canvas move instead.
+      nodesDraggable={false}
+      panOnDrag
+      zoomOnPinch
+      zoomOnDoubleClick
+      minZoom={0.2}
+      maxZoom={4}
+      // Wheel zooms only while Ctrl/Cmd is held. A bare scroll keeps
+      // scrolling the page this graph is embedded in, so the panel is not a
+      // scroll trap; the Controls buttons cover mouse users who would rather
+      // click. preventScrolling must stay false or ReactFlow swallows the
+      // unmodified wheel event too.
+      zoomOnScroll
+      zoomActivationKeyCode={ZOOM_KEYS}
+      panOnScroll={false}
       preventScrolling={false}
       onNodeClick={(_e, node) => {
         if (!onStageClick) return
@@ -510,6 +527,39 @@ function _WorkflowGraphInner({
         onStageDoubleClick(data)
       }}
       proOptions={{ hideAttribution: true }}
-    />
+    >
+      <Controls showInteractive={false} />
+      <_RefitOnResize />
+    </ReactFlow>
   )
+}
+
+
+/**
+ * Re-fit the viewport when the container changes size.
+ *
+ * `fitView` only runs once at init, so a graph laid out for one width stays
+ * at that zoom when the panel is resized — which reads as arbitrary cropping.
+ */
+function _RefitOnResize() {
+  const { fitView } = useReactFlow()
+  const anchor = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    // Walk up from our own node rather than querying the document: this view
+    // can mount several ReactFlow instances (the nipype and analysis graph
+    // modals), and a bare selector would observe whichever mounted first.
+    const el = anchor.current?.closest('.react-flow')
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let frame = 0
+    const obs = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      // Coalesce: a drag-resize fires continuously.
+      frame = requestAnimationFrame(() => fitView({ padding: 0.2, duration: 120 }))
+    })
+    obs.observe(el)
+    return () => { cancelAnimationFrame(frame); obs.disconnect() }
+  }, [fitView])
+
+  return <div ref={anchor} style={{ display: 'none' }} />
 }

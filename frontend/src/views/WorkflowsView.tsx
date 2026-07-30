@@ -563,7 +563,7 @@ export function WorkflowsView() {
           )}
           <WorkflowGraph
             stages={graphStages}
-            height={300}
+            height={380}
             onStageClick={(s) => {
               if (!s.run_id) return
               setLogStage({ stage: s.stage, runId: s.run_id })
