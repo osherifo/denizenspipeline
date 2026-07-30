@@ -16,10 +16,18 @@ from fmriflow.preproc.errors import BackendRunError
 from fmriflow.preproc.manifest import PreprocConfig
 
 
-def _config(**params):
+def _config(output_dir="/tmp/out", bids_dir="/tmp/bids", **params):
+    """Config helper.
+
+    `output_dir` and `bids_dir` are explicit: an earlier version funnelled
+    every kwarg into backend_params, so `_config(output_dir=tmp_path)` quietly
+    set a *backend param* named output_dir and left the real one pointing at
+    /tmp/out — misleading, and a test-isolation hazard the moment the helper
+    is used with .run().
+    """
     return PreprocConfig(
-        subject="01", backend="nipype", output_dir="/tmp/out",
-        bids_dir="/tmp/bids", backend_params=params,
+        subject="01", backend="nipype", output_dir=str(output_dir),
+        bids_dir=str(bids_dir), backend_params=params,
     )
 
 
@@ -75,7 +83,7 @@ def test_run_refuses_a_config_the_workflow_rejects(monkeypatch, tmp_path):
     )
 
     with pytest.raises(BackendRunError, match="nope, bad config"):
-        backend.run(_config(workflow="rejecting", output_dir=str(tmp_path)))
+        backend.run(_config(output_dir=tmp_path, workflow="rejecting"))
 
 
 def test_run_refuses_an_unrunnable_build_result(monkeypatch, tmp_path):
@@ -208,3 +216,60 @@ def test_params_reach_the_workflow_without_the_selector(monkeypatch, tmp_path):
 
     assert seen["params"] == {"method": "soft", "beta": 100}
     assert "workflow" not in seen["params"]
+
+
+# ── manifest labelling and status ───────────────────────────────────
+
+
+def test_dataset_is_not_taken_from_the_task_filter(tmp_path):
+    """`task` is a BIDS filter; `dataset` is the run-group label.
+
+    Conflating them mislabels manifest.dataset for anything that queries it —
+    identity.py carries the same warning.
+    """
+    from fmriflow.preproc.backends.nipype_bridge import _WorkflowCallConfig
+
+    config = PreprocConfig(
+        subject="01", backend="nipype", output_dir=str(tmp_path),
+        task="story", backend_params={},
+    )
+
+    assert _WorkflowCallConfig(config, {}).dataset == "unknown"
+    assert _WorkflowCallConfig(config, {}).task == "story"
+
+
+def test_dataset_comes_from_backend_params_when_given(tmp_path):
+    from fmriflow.preproc.backends.nipype_bridge import _WorkflowCallConfig
+
+    config = PreprocConfig(
+        subject="01", backend="nipype", output_dir=str(tmp_path),
+        task="story", backend_params={},
+    )
+    call = _WorkflowCallConfig(config, {"dataset": "reading_en", "method": "soft"})
+
+    assert call.dataset == "reading_en"
+    # ...and it is consumed, not passed on as a workflow param.
+    assert call.backend_params == {"method": "soft"}
+
+
+def test_the_callers_params_are_not_mutated(tmp_path):
+    from fmriflow.preproc.backends.nipype_bridge import _WorkflowCallConfig
+
+    params = {"dataset": "x", "method": "soft"}
+    _WorkflowCallConfig(_config(output_dir=tmp_path), params)
+
+    assert params == {"dataset": "x", "method": "soft"}
+
+
+def test_status_does_not_call_an_empty_output_dir_completed(tmp_path):
+    """run() creates output_dir before executing, so existence proves nothing."""
+    backend = get_backend("nipype")
+    config = _config(output_dir=tmp_path / "out", workflow="identity")
+
+    assert backend.status(config).status == "pending"
+
+    (tmp_path / "out").mkdir()
+    assert backend.status(config).status == "running"
+
+    (tmp_path / "out" / "sub-01_T1w.nii.gz").write_bytes(b"x")
+    assert backend.status(config).status == "completed"

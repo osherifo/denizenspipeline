@@ -52,8 +52,15 @@ class _WorkflowCallConfig:
         self.derivatives_dir = str(config.raw_dir) if config.raw_dir else None
         self.sessions = list(config.sessions or [])
         self.task = config.task
-        self.dataset = config.task or "unknown"
-        self.backend_params = dict(params)
+        # NOT config.task. `task` is a BIDS task filter; `dataset` is the
+        # run-group label that lands in manifest.dataset, and conflating them
+        # mislabels the manifest for anything that queries it. identity.py
+        # carries the same warning. PreprocConfig has no dataset field, so it
+        # comes from backend_params or falls back.
+        # Copy before consuming, so the caller's dict is never mutated.
+        remaining = dict(params)
+        self.dataset = str(remaining.pop("dataset", "") or "unknown")
+        self.backend_params = remaining
 
 
 def _registry():
@@ -128,10 +135,26 @@ class NipypeWorkflowBackend:
         return workflow.to_manifest(call_config, outputs)
 
     def status(self, config: PreprocConfig) -> PreprocStatus:
+        """Completion means outputs exist, not that the directory does.
+
+        ``run()`` creates ``output_dir`` before executing the workflow, so
+        treating its existence as success reports a run complete while it is
+        still going — or after it has failed early. Mirrors the `custom`
+        backend: pending, then running, then completed once something is
+        actually there.
+        """
         out = Path(config.output_dir)
         if not out.exists():
             return PreprocStatus(status="pending")
-        return PreprocStatus(status="completed")
+
+        pattern = (config.backend_params or {}).get("file_pattern", "*.nii*")
+        produced = [p for p in out.rglob(pattern) if p.is_file()]
+        if produced:
+            return PreprocStatus(
+                status="completed",
+                detail=f"{len(produced)} output file(s) found",
+            )
+        return PreprocStatus(status="running")
 
     def collect(self, config: PreprocConfig) -> PreprocManifest:
         """Rebuild the manifest from existing outputs without re-running."""
