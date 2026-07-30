@@ -10,6 +10,7 @@ import pytest
 
 from fmriflow.convert.decision_table import (
     DecisionTableError,
+    list_units,
     bids_key,
     build_coverage,
     build_decision_table,
@@ -36,8 +37,9 @@ def _row(sid, desc, n=176, dims=(256, 256, 176, 1), derived="False",
     )
 
 
-def _write(tmp_path, rows, mapping, subject="01"):
-    info = tmp_path / ".heudiconv" / subject / "info"
+def _write(tmp_path, rows, mapping, subject="01", session=None):
+    base = tmp_path / ".heudiconv" / subject
+    info = (base / session / "info") if session else (base / "info")
     info.mkdir(parents=True)
     (info / "dicominfo.tsv").write_text("\n".join([SERIES_HEADER, *rows]) + "\n")
     # heudiconv writes a repr of the info dict, keyed by (template, outtype, ann).
@@ -278,7 +280,7 @@ def test_coverage_counts_outputs_per_subject_and_key(tmp_path):
 
     cov = build_coverage(tmp_path)
 
-    assert cov["subjects"] == ["01", "02"]
+    assert cov["subjects"] == ["sub-01", "sub-02"]
     assert cov["keys"] == ["anat/T1w"]
     assert cov["matrix"][0]["cells"] == [2]
     assert cov["matrix"][1]["cells"] == [1]
@@ -307,8 +309,8 @@ def test_coverage_distinguishes_a_missing_subject_from_a_dead_rule(tmp_path):
     cells = {r["subject"]: r["cells"] for r in cov["matrix"]}
 
     # data incident: present for one subject, absent for the other
-    assert cells["01"][col["anat/T2w"]] == 1
-    assert cells["02"][col["anat/T2w"]] == 0
+    assert cells["sub-01"][col["anat/T2w"]] == 1
+    assert cells["sub-02"][col["anat/T2w"]] == 0
     assert "anat/T2w" not in cov["never_matched"]
 
     # code bug: declared everywhere, produced nowhere
@@ -335,3 +337,66 @@ def test_flow_aggregates_and_surfaces_dropped(tmp_path):
     pairs = {(l["source"], l["target"]): l["value"] for l in flow["links"]}
     assert pairs[("prot", "anat")] == 1
     assert any(t == "— dropped —" for (_, t) in pairs)
+
+
+# ── sessions ────────────────────────────────────────────────────────
+
+
+def test_finds_provenance_under_a_session(tmp_path):
+    """heudiconv writes .heudiconv/<sub>/ses-<ses>/info for sessioned runs.
+
+    Looking only at the sessionless path made every sessioned study report
+    "no provenance" — a silent miss, which is worse than an error.
+    """
+    _write(tmp_path, [_row("1-a", "A")], {"tmpl": ["1-a"]}, session="ses-02")
+
+    assert has_provenance(tmp_path, "01", "ses-02")
+    assert build_decision_table(tmp_path, "01", "ses-02").n_mapped == 1
+
+
+def test_session_is_found_without_being_named(tmp_path):
+    """A single-session study should work without the caller knowing the label."""
+    _write(tmp_path, [_row("1-a", "A")], {"tmpl": ["1-a"]}, session="ses-02")
+
+    assert build_decision_table(tmp_path, "01").n_mapped == 1
+
+
+def test_session_accepts_a_bare_label(tmp_path):
+    _write(tmp_path, [_row("1-a", "A")], {"tmpl": ["1-a"]}, session="ses-02")
+
+    assert build_decision_table(tmp_path, "01", "02").n_mapped == 1
+
+
+def test_sessionless_wins_when_both_exist(tmp_path):
+    _write(tmp_path, [_row("1-a", "A"), _row("2-b", "B")],
+           {"tmpl": ["1-a", "2-b"]})
+    _write(tmp_path, [_row("9-z", "Z")], {"tmpl": ["9-z"]}, session="ses-02")
+
+    assert len(build_decision_table(tmp_path, "01").series) == 2
+
+
+def test_units_list_every_session_separately(tmp_path):
+    """A subject missing a whole session is a gap the matrix should show."""
+    _write(tmp_path, [_row("1-a", "A")], {"tmpl": ["1-a"]}, subject="01", session="ses-01")
+    _write(tmp_path, [_row("1-a", "A")], {"tmpl": ["1-a"]}, subject="01", session="ses-02")
+    _write(tmp_path, [_row("1-a", "A")], {"tmpl": ["1-a"]}, subject="02", session="ses-01")
+
+    assert list_units(tmp_path) == [
+        ("01", "ses-01"), ("01", "ses-02"), ("02", "ses-01"),
+    ]
+
+    cov = build_coverage(tmp_path)
+    assert cov["subjects"] == ["sub-01/ses-01", "sub-01/ses-02", "sub-02/ses-01"]
+
+
+# ── subject normalisation ───────────────────────────────────────────
+
+
+def test_subject_is_returned_as_a_bare_label(tmp_path):
+    """Callers may pass '01' or 'sub-01'; echoing the raw string back makes a
+    UI rendering 'sub-{subject}' produce 'sub-sub-01'."""
+    _write(tmp_path, [_row("1-a", "A")], {"tmpl": ["1-a"]})
+
+    assert build_decision_table(tmp_path, "01").subject == "01"
+    assert build_decision_table(tmp_path, "sub-01").subject == "01"
+    assert build_decision_table(tmp_path, "sub-01").to_dict()["subject"] == "01"

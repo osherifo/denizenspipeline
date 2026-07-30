@@ -118,7 +118,9 @@ async def check_tools(request: Request):
 
 
 @router.get("/convert/decision-table")
-async def get_convert_decision_table(bids_dir: str, subject: str):
+async def get_convert_decision_table(
+    bids_dir: str, subject: str, session: str | None = None,
+):
     """What the heuristic did with every DICOM series it saw.
 
     Reconstructed from the provenance heudiconv leaves under
@@ -126,6 +128,10 @@ async def get_convert_decision_table(bids_dir: str, subject: str):
     dataset without re-running anything. Series the heuristic did not claim
     are reported as dropped, which is usually correct and occasionally the
     whole problem.
+
+    ``session`` is optional: heudiconv writes ``.heudiconv/<sub>/ses-<ses>/``
+    for sessioned conversions, and a single-session study resolves without
+    the caller naming the label.
 
     404 when the dataset carries no heudiconv provenance (converted by other
     means, or ``.heudiconv`` removed).
@@ -152,12 +158,18 @@ async def get_convert_decision_table(bids_dir: str, subject: str):
             detail=f"subject must be a single path component, got {subject!r}",
         )
 
+    if session and ("/" in session or "\\" in session or session in (".", "..")):
+        raise HTTPException(
+            status_code=400,
+            detail=f"session must be a single path component, got {session!r}",
+        )
+
     root = Path(bids_dir).expanduser().resolve()
     if not root.is_dir():
         raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
 
     try:
-        table = build_decision_table(root, subject)
+        table = build_decision_table(root, subject, session)
     except DecisionTableError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return table.to_dict()

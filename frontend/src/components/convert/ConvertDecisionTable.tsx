@@ -76,7 +76,8 @@ function AuditTable({ bidsDir, subject }: { bidsDir: string; subject: string }) 
   return (
     <>
       <div style={subHeaderStyle}>
-        sub-{data.subject} · {data.n_series} series in ·{' '}
+        sub-{data.subject}{data.session ? `/${data.session}` : ''} ·{' '}
+        {data.n_series} series in ·{' '}
         <strong style={{ color: 'var(--accent-green, #10b981)' }}>{data.n_mapped} mapped</strong> ·{' '}
         <strong style={{ color: data.n_dropped ? 'var(--accent-yellow, #e2a832)' : 'inherit' }}>
           {data.n_dropped} dropped

@@ -843,10 +843,10 @@ export function autoflattenImageUrl(path: string): string {
 /** What the heuristic did with each DICOM series — reconstructed from the
  *  provenance heudiconv leaves behind. 404 when a dataset has none. */
 export async function fetchConvertDecisionTable(
-  bids_dir: string, subject: string,
+  bids_dir: string, subject: string, session?: string,
 ): Promise<ConvertDecisionTable> {
   const qs = new URLSearchParams({ bids_dir, subject }).toString()
-  return json(`${BASE}/convert/decision-table?${qs}`)
+  return json(`${BASE}/convert/decision-table?${qs}${session ? `&session=${encodeURIComponent(session)}` : ''}`)
 }
 
 export async function fetchConvertCoverage(bids_dir: string): Promise<ConvertCoverage> {

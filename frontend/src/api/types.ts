@@ -1334,7 +1334,9 @@ export interface ConvertFlow {
 }
 
 export interface ConvertDecisionTable {
+  /** Bare label, without the `sub-` prefix. */
   subject: string
+  session: string | null
   bids_dir: string
   n_series: number
   n_mapped: number

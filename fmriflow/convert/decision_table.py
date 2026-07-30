@@ -121,6 +121,7 @@ class SeriesDecision:
 class DecisionTable:
     subject: str
     bids_dir: str
+    session: str | None = None
     series: list[SeriesDecision] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -135,6 +136,7 @@ class DecisionTable:
     def to_dict(self) -> dict:
         return {
             "subject": self.subject,
+            "session": self.session,
             "bids_dir": self.bids_dir,
             "n_series": len(self.series),
             "n_mapped": self.n_mapped,
@@ -150,20 +152,64 @@ def _label(subject: str) -> str:
     return subject[4:] if subject.startswith("sub-") else subject
 
 
-def info_dir(bids_dir: Path | str, subject: str) -> Path:
-    """``<bids_dir>/.heudiconv/<subject>/info`` — subject may carry ``sub-``."""
-    return Path(bids_dir) / HEUDICONV_DIR / _label(subject) / "info"
+def info_dir(bids_dir: Path | str, subject: str, session: str | None = None) -> Path:
+    """Locate a conversion's ``info`` directory.
+
+    heudiconv writes ``.heudiconv/<sub>/info`` for a sessionless conversion
+    and ``.heudiconv/<sub>/ses-<ses>/info`` when a session is given. Looking
+    only in the first place makes every sessioned study report "no
+    provenance" — a silent miss rather than an error, which is worse.
+
+    With no explicit session, the sessionless path wins if it exists;
+    otherwise the first session found is used, so single-session studies work
+    without the caller knowing the label.
+    """
+    root = Path(bids_dir) / HEUDICONV_DIR / _label(subject)
+    if session:
+        label = session if session.startswith("ses-") else f"ses-{session}"
+        return root / label / "info"
+
+    flat = root / "info"
+    if (flat / "dicominfo.tsv").is_file():
+        return flat
+    for child in sorted(root.glob("ses-*")):
+        if (child / "info" / "dicominfo.tsv").is_file():
+            return child / "info"
+    return flat        # nothing found; caller reports the miss
+
+
+def list_units(bids_dir: Path | str) -> list[tuple[str, str | None]]:
+    """Every (subject, session) with conversion provenance, sorted.
+
+    A sessioned study gets one unit per session rather than one per subject:
+    a subject missing an entire session is precisely the kind of gap the
+    coverage matrix exists to show.
+    """
+    root = Path(bids_dir) / HEUDICONV_DIR
+    if not root.is_dir():
+        return []
+    units: list[tuple[str, str | None]] = []
+    for sub in sorted(p for p in root.iterdir() if p.is_dir()):
+        if (sub / "info" / "dicominfo.tsv").is_file():
+            units.append((sub.name, None))
+        for ses in sorted(sub.glob("ses-*")):
+            if (ses / "info" / "dicominfo.tsv").is_file():
+                units.append((sub.name, ses.name))
+    return units
 
 
 def list_subjects(bids_dir: Path | str) -> list[str]:
     """Subjects with conversion provenance, in sorted order."""
-    root = Path(bids_dir) / HEUDICONV_DIR
-    if not root.is_dir():
-        return []
-    return sorted(
-        p.name for p in root.iterdir()
-        if p.is_dir() and (p / "info" / "dicominfo.tsv").is_file()
-    )
+    seen: list[str] = []
+    for subject, _ in list_units(bids_dir):
+        if subject not in seen:
+            seen.append(subject)
+    return seen
+
+
+def unit_label(subject: str, session: str | None) -> str:
+    """Row label for a (subject, session) pair."""
+    return f"sub-{_label(subject)}" + (f"/{session}" if session else "")
 
 
 def _read_series(info: Path) -> list[dict]:
@@ -180,12 +226,12 @@ def _read_series(info: Path) -> list[dict]:
         ]
 
 
-def _read_mapping(info: Path, subject: str) -> dict[str, list[str]]:
-    """series_id -> templates that claimed it, and the {item} index within each.
+def _read_mapping(info: Path, subject: str) -> dict[str, list[tuple[str, int]]]:
+    """``{series_id: [(template, item_index), ...]}``.
 
-    Returns ``{series_id: [(template, item_index), ...]}`` flattened to a list
-    of templates plus a parallel index, since heudiconv assigns ``{item}`` by
-    position within a template's series list.
+    The index matters because heudiconv assigns ``{item}`` by position within
+    a template's series list, so it is what turns a template back into the
+    path actually written.
     """
     label = _label(subject)
     candidates = [info / f"{label}.auto.txt", info / f"{label}.edit.txt"]
@@ -364,9 +410,11 @@ def _warnings_for(series: list[SeriesDecision]) -> list[str]:
 
 # ── view 1: per-subject audit ────────────────────────────────────────
 
-def build_decision_table(bids_dir: Path | str, subject: str) -> DecisionTable:
+def build_decision_table(
+    bids_dir: Path | str, subject: str, session: str | None = None,
+) -> DecisionTable:
     """Reconstruct what the heuristic did, from files heudiconv left behind."""
-    info = info_dir(bids_dir, subject)
+    info = info_dir(bids_dir, subject, session)
     rows = _read_series(info)
     mapping = _read_mapping(info, subject)
 
@@ -394,7 +442,13 @@ def build_decision_table(bids_dir: Path | str, subject: str) -> DecisionTable:
     # and the order anyone reading a protocol expects.
     series.sort(key=lambda s: (s.series_number, s.series_id))
 
-    table = DecisionTable(subject=subject, bids_dir=str(bids_dir), series=series)
+    # Store the bare label. Callers may pass "01" or "sub-01"; echoing the
+    # raw string back means a UI that renders "sub-{subject}" produces
+    # "sub-sub-01" for one of them.
+    table = DecisionTable(
+        subject=_label(subject), session=session,
+        bids_dir=str(bids_dir), series=series,
+    )
     table.warnings = _warnings_for(series)
     logger.info(
         "decision table for %s: %d series, %d mapped, %d dropped",
@@ -403,9 +457,11 @@ def build_decision_table(bids_dir: Path | str, subject: str) -> DecisionTable:
     return table
 
 
-def has_provenance(bids_dir: Path | str, subject: str) -> bool:
+def has_provenance(
+    bids_dir: Path | str, subject: str, session: str | None = None,
+) -> bool:
     """True when a decision table can be built — lets the UI hide the panel."""
-    info = info_dir(bids_dir, subject)
+    info = info_dir(bids_dir, subject, session)
     label = _label(subject)
     return (info / "dicominfo.tsv").is_file() and (
         (info / f"{label}.auto.txt").is_file() or (info / f"{label}.edit.txt").is_file()
@@ -427,33 +483,36 @@ def build_coverage(bids_dir: Path | str) -> dict:
       rest have, i.e. a data incident (aborted scan, renamed protocol).
     """
     bids_dir = Path(bids_dir)
-    subjects = list_subjects(bids_dir)
+    units = list_units(bids_dir)
 
     counts: dict[str, Counter] = {}
     keys: set[str] = set()
     errors: dict[str, str] = {}
+    labels: list[str] = []
 
-    for subject in subjects:
+    for subject, session in units:
+        label = unit_label(subject, session)
+        labels.append(label)
         try:
-            table = build_decision_table(bids_dir, subject)
+            table = build_decision_table(bids_dir, subject, session)
         except DecisionTableError as e:
-            errors[subject] = str(e)
-            counts[subject] = Counter()
+            errors[label] = str(e)
+            counts[label] = Counter()
             continue
         c: Counter = Counter()
         for s in table.series:
             for path in s.outputs:
                 c[bids_key(path)] += 1
-        counts[subject] = c
+        counts[label] = c
         keys.update(c)
         # Declared-but-unclaimed templates still deserve a column.
-        for template in declared_templates(info_dir(bids_dir, subject), subject):
+        for template in declared_templates(info_dir(bids_dir, subject, session), subject):
             keys.add(bids_key(resolve_template(template, subject, 1)))
 
     ordered = sorted(keys)
     matrix = [
-        {"subject": s, "cells": [counts[s].get(k, 0) for k in ordered]}
-        for s in subjects
+        {"subject": label, "cells": [counts[label].get(k, 0) for k in ordered]}
+        for label in labels
     ]
     # A column nobody filled is a rule that never fired.
     never = [k for i, k in enumerate(ordered)
@@ -461,7 +520,7 @@ def build_coverage(bids_dir: Path | str) -> dict:
 
     return {
         "bids_dir": str(bids_dir),
-        "subjects": subjects,
+        "subjects": labels,
         "keys": ordered,
         "matrix": matrix,
         "never_matched": never,
@@ -482,9 +541,9 @@ def build_flow(bids_dir: Path | str) -> dict:
     links: Counter = Counter()
     n_series = n_dropped = 0
 
-    for subject in list_subjects(bids_dir):
+    for subject, session in list_units(bids_dir):
         try:
-            table = build_decision_table(bids_dir, subject)
+            table = build_decision_table(bids_dir, subject, session)
         except DecisionTableError:
             continue
         for s in table.series:
