@@ -6,8 +6,8 @@ hand.
 
 | Variant | Size | Use when |
 |---|---|---|
-| **slim** | ~3–4 GB | You already have Docker (or apptainer) on the host and want fmriflow to delegate fmriprep to it. |
-| **full** | ~25 GB | You want a single self-contained image — fmriprep + FreeSurfer + ANTs + AFNI baked in. |
+| **slim** | ~4 GB | You already have Docker (or apptainer) on the host and want fmriflow to delegate fmriprep to it. |
+| **full** | ~11 GB | You want a single self-contained image — fmriprep + FreeSurfer + ANTs baked in. |
 
 Both images expose the web UI on port `8421` and run as a non-root
 user. Persistent state lives under `$FMRIFLOW_HOME` on the host and
@@ -64,7 +64,7 @@ container: nipreps/fmriprep:24.1.1
 ## Standalone — full image
 
 The full image is built **on top of** `nipreps/fmriprep`, so
-fmriprep, FreeSurfer, ANTs, AFNI, and dcm2niix are all on PATH.
+fmriprep, FreeSurfer and ANTs are on PATH, with dcm2niix added on top.
 Preproc YAMLs can use `container_type: bare` directly:
 
 ```bash

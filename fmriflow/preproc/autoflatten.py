@@ -193,17 +193,27 @@ def check_surfaces(subjects_dir: str, subject: str) -> dict[str, bool]:
 
 
 def check_autoflatten_available() -> tuple[bool, str]:
-    """Check if the autoflatten package is installed."""
+    """Check whether autoflatten can actually be run.
+
+    ``_build_autoflatten_command`` always shells out to the
+    ``autoflatten`` console script, so an importable package is not
+    enough — reporting it as available let the doctor pass on a machine
+    where the run then died with ``FileNotFoundError``, and only after
+    preprocessing had already spent hours.
+    """
     if shutil.which("autoflatten") is not None:
         return True, "autoflatten CLI found"
     try:
         import autoflatten  # noqa: F401
-        return True, "autoflatten package importable"
     except ImportError:
         return False, (
-            "autoflatten not found. Install with: "
-            "pip install autoflatten"
+            "autoflatten not found. Install with: pip install autoflatten"
         )
+    return False, (
+        "the autoflatten package is importable but its CLI is not on PATH, "
+        "and the runner invokes it by name. Check that the environment's "
+        "bin/ directory is on PATH."
+    )
 
 
 def check_pycortex_available() -> tuple[bool, str]:
@@ -455,13 +465,27 @@ def _do_pycortex_import(
             config.subject, cx_name,
         )
         try:
+            # Positional, because the parameter names differ across
+            # pycortex releases: 1.3.x takes
+            # (freesurfer_subject, pycortex_subject, freesurfer_subject_dir),
+            # while older code here passed fs_subject=/cx_subject=, which
+            # raised TypeError on every first-time import — swallowed by
+            # the except below, so the run reported success with no
+            # pycortex surface and no warning.
             cortex.freesurfer.import_subj(
-                fs_subject=config.subject,
-                cx_subject=cx_name,
-                freesurfer_subject_dir=config.subjects_dir,
+                config.subject,
+                cx_name,
+                str(config.subjects_dir),
             )
         except Exception as e:
-            logger.error("Failed to import FreeSurfer subject: %s", e)
+            # Non-fatal: the flat patches are already on disk and are the
+            # substantive output. Log with a traceback so the cause is
+            # recoverable — this used to be a bare one-line message, which
+            # is why a TypeError looked like "no pycortex surface".
+            logger.error(
+                "Failed to import FreeSurfer subject '%s' into pycortex as '%s': %s",
+                config.subject, cx_name, e, exc_info=True,
+            )
             return None
     else:
         logger.info(

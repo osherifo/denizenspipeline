@@ -97,6 +97,9 @@ So **`hub.json` is the single source of truth** for what a store contains.
 | `module` | `<name>.py` (+ `metadata.category`) | `$FMRIFLOW_HOME/addons/modules/` (hot-registered) |
 | `analysis_config` | `<filename>.yaml` | `$FMRIFLOW_HOME/configs/analysis/` |
 | `workflow_config` | `<filename>.yaml` | `$FMRIFLOW_HOME/configs/workflows/` |
+| `convert_config` | `<filename>.yaml` | `$FMRIFLOW_HOME/configs/convert/` |
+| `preproc_config` | `<filename>.yaml` | `$FMRIFLOW_HOME/configs/preproc/` |
+| `autoflatten_config` | `<filename>.yaml` | `$FMRIFLOW_HOME/configs/autoflatten/` |
 | `stack_preset` | `<name>.yaml` | `$FMRIFLOW_HOME/addons/pipelines/` |
 | `heuristic` | `<name>.py` + `<name>.yaml` | `$FMRIFLOW_HOME/addons/heuristics/` |
 | `transform` | `<name>.py` | `$FMRIFLOW_HOME/addons/transforms/` (rescanned) |

@@ -26,6 +26,7 @@
           "type": "string",
           "enum": [
             "error", "module", "analysis_config", "workflow_config",
+            "convert_config", "preproc_config", "autoflatten_config",
             "stack_preset", "heuristic", "transform", "workflow", "feature_array"
           ],
           "description": "Artifact kind. Determines the local install destination."

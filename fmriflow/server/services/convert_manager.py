@@ -375,7 +375,7 @@ class ConvertManager:
     def collect(self, params: dict) -> dict:
         """Collect existing BIDS outputs into a manifest."""
         from fmriflow.convert.manifest import ConvertConfig
-        from fmriflow.convert.runner import collect_bids
+        from fmriflow.convert.runner import collect_bids, ensure_bidsignore
 
         config = ConvertConfig(
             source_dir=params.get("source_dir", ""),
@@ -387,6 +387,7 @@ class ConvertManager:
         )
 
         manifest = collect_bids(config)
+        ensure_bidsignore(config.bids_dir)
         self.invalidate_cache()
 
         manifest_path = Path(config.bids_dir) / "convert_manifest.json"
@@ -451,7 +452,11 @@ class ConvertManager:
         from fmriflow.convert.errors import ConvertError, HeudiconvError
         from fmriflow.convert.manifest import ConvertConfig
         from fmriflow.convert.heuristics import resolve_heuristic
-        from fmriflow.convert.runner import collect_bids, run_bids_validator
+        from fmriflow.convert.runner import (
+            collect_bids,
+            ensure_bidsignore,
+            run_bids_validator,
+        )
 
         log_path = Path(handle.log_path) if handle.log_path else None
 
@@ -549,6 +554,7 @@ class ConvertManager:
                 )
 
             manifest = collect_bids(config)
+            ensure_bidsignore(config.bids_dir)
             if config.validate_bids:
                 manifest = run_bids_validator(manifest)
 

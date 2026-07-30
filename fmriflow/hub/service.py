@@ -64,7 +64,9 @@ class HubService:
     # Kinds that can be published from the local tier (feature_array blobs are
     # excluded — they're pushed by path, not from a named local artifact).
     PUBLISHABLE_KINDS = (
-        "analysis_config", "workflow_config", "module", "heuristic",
+        "analysis_config", "workflow_config",
+        "convert_config", "preproc_config", "autoflatten_config",
+        "module", "heuristic",
         "stack_preset", "transform", "workflow", "error",
     )
 

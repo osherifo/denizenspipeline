@@ -26,8 +26,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # System deps:
 #  - dcm2niix (heudiconv backend), tini (PID 1), curl/ca-certs,
-#    gosu (drop privs in entrypoint), nodejs+npm (bids-validator),
-#    docker-cli (docker-out-of-docker for fmriprep).
+#    gosu (drop privs in entrypoint), nodejs+npm (bids-validator).
 #  - build-essential — pycortex builds the OpenCTM C extension from
 #    source on install; python:3.11-slim has no compiler by default.
 #  - libgl1 + libglib2.0-0 — opencv-python (cv2) runtime deps.
@@ -37,7 +36,6 @@ RUN apt-get update \
         ca-certificates \
         curl \
         dcm2niix \
-        docker.io \
         git \
         gosu \
         libgl1 \
@@ -47,14 +45,44 @@ RUN apt-get update \
         tini \
     && rm -rf /var/lib/apt/lists/*
 
+# Docker CLI for docker-out-of-docker (fmriprep runs as a sibling
+# container). Debian's docker.io package ships only the daemon --
+# dockerd, docker-proxy, docker-init -- and NOT /usr/bin/docker, so
+# shutil.which("docker") came back None and the fmriprep backend
+# reported itself unavailable. Take the official static client
+# instead: it is the CLI alone, with no daemon and no apt repo keys.
+ARG DOCKER_CLI_VERSION=27.3.1
+# TARGETARCH is populated automatically by buildx. The classic builder
+# leaves it unset, so fall back to uname -m -- which already reports the
+# names download.docker.com uses (x86_64, aarch64), unlike TARGETARCH.
+# ppc64le and s390x need no mapping -- they match the upstream dir names.
+ARG TARGETARCH
+RUN set -eux; \
+    arch="${TARGETARCH:-}"; \
+    case "$arch" in \
+        amd64)  arch=x86_64 ;; \
+        arm64)  arch=aarch64 ;; \
+        arm)    arch=armhf ;; \
+        "")     arch="$(uname -m)" ;; \
+    esac; \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_CLI_VERSION}.tgz" \
+        -o /tmp/docker.tgz; \
+    tar -xzf /tmp/docker.tgz -C /tmp --strip-components=1 docker/docker; \
+    install -m 0755 /tmp/docker /usr/local/bin/docker; \
+    rm -f /tmp/docker.tgz /tmp/docker; \
+    docker --version
+
 # bids-validator (optional — fmriflow gracefully skips if missing).
 RUN npm install -g bids-validator \
     && npm cache clean --force
 
 ARG PUID=1000
 ARG PGID=1000
-RUN groupadd -g ${PGID} fmriflow \
-    && useradd -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
+# -o (non-unique) so a PUID/PGID that collides with an account already
+# in the base image cannot fail the build. See Dockerfile.full, where
+# the fmriprep base owns 1000:1000.
+RUN groupadd -o -g ${PGID} fmriflow \
+    && useradd -o -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
 
 WORKDIR /app
 

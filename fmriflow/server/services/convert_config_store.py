@@ -141,9 +141,13 @@ class ConvertConfigStore:
         except ValueError:
             return None
         if not path.is_file():
-            legacy = LEGACY_DIR / filename
-            if legacy.is_file():
-                path = legacy
+            # Search every legacy root the scan covers, or list_configs
+            # would advertise configs this method cannot return.
+            for legacy_dir in self._legacy_dirs:
+                candidate = legacy_dir / filename
+                if candidate.is_file():
+                    path = candidate
+                    break
             else:
                 return None
         raw = path.read_text()

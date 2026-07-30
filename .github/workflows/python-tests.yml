@@ -1,0 +1,79 @@
+name: Python tests
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'fmriflow/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/python-tests.yml'
+  pull_request:
+    paths:
+      - 'fmriflow/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/python-tests.yml'
+
+jobs:
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -e '.[dev]'
+      - run: pytest tests/ -q
+
+  wheel:
+    name: Wheel builds and carries its data files
+    runs-on: ubuntu-latest
+    # A duplicated force-include entry made `pip wheel .` fail outright for
+    # months without anyone noticing, because `pip install -e .` does not
+    # build a wheel. Every non-editable install path — docker, HPC, any
+    # publish — was broken. Build a real wheel on every change.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build wheel
+        run: |
+          pip install --upgrade pip build
+          python -m build --wheel --outdir dist/
+      - name: Assert packaged data files are present exactly once
+        run: |
+          python - <<'PY'
+          import sys, zipfile, pathlib, collections
+
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = zipfile.ZipFile(wheel).namelist()
+          counts = collections.Counter(names)
+
+          required = [
+              "fmriflow/server/static/index.html",
+              "fmriflow/builtin/README.md",
+              "fmriflow/builtin/subjects.example.json",
+              "fmriflow/hub/hub.schema.json",
+          ]
+
+          failed = False
+          for path in required:
+              n = counts[path]
+              if n != 1:
+                  print(f"FAIL {path}: expected exactly 1 entry, found {n}")
+                  failed = True
+              else:
+                  print(f"ok   {path}")
+
+          # A duplicate anywhere means force-include is fighting `packages`.
+          for path, n in counts.items():
+              if n > 1:
+                  print(f"FAIL duplicate archive entry: {path} x{n}")
+                  failed = True
+
+          sys.exit(1 if failed else 0)
+          PY

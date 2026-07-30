@@ -26,13 +26,19 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# tini + gosu for the entrypoint. The fmriprep image already ships
-# Python, FreeSurfer, fmriprep, ANTs, AFNI, and dcm2niix.
+# tini + gosu for the entrypoint. The fmriprep image ships Python,
+# FreeSurfer, fmriprep and ANTs — but NOT dcm2niix, and not a compiler
+# (pycortex builds the OpenCTM C extension from source).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         ca-certificates \
         curl \
+        dcm2niix \
+        git \
         gosu \
+        libgl1 \
+        libglib2.0-0 \
         tini \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,24 +52,65 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 ARG PUID=1000
 ARG PGID=1000
-RUN groupadd -g ${PGID} fmriflow \
-    && useradd -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
+# -o (non-unique) is required: the nipreps/fmriprep base already owns
+# uid/gid 1000 as the `fmriprep` user, so a plain groupadd -g 1000
+# fails the build outright. The entrypoint re-aligns this account to
+# the host's PUID/PGID at run time anyway, also with -o.
+RUN groupadd -o -g ${PGID} fmriflow \
+    && useradd -o -m -u ${PUID} -g ${PGID} -d /home/fmriflow -s /bin/bash fmriflow
 
 WORKDIR /app
 
-# Install fmriflow on top of the fmriprep python env. Same extras
-# as the slim image so register_builtins succeeds (himalaya needs
-# sklearn at import time). nlp omitted on purpose (torch ~2 GB);
-# derive if needed.
+# Install fmriflow into its OWN virtualenv, not fmriprep's conda env.
+#
+# fmriflow's dependencies are floor-pinned (numpy>=1.24, nibabel>=5.0,
+# …) and resolve to the newest releases, while fmriprep pins the other
+# direction: nitransforms wants numpy~=1.21, nireports numpy<2.0.0,
+# tedana nibabel<=5.2.1. Installing into the shared env silently
+# upgrades numpy to 2.x and leaves fmriprep broken — the one thing this
+# image exists to provide. An isolated venv keeps both stacks intact.
+#
+# fmriprep's console scripts carry absolute shebangs
+# (#!/opt/conda/envs/fmriprep/bin/python3.11), so they keep using their
+# own interpreter no matter what calls them.
+ENV FMRIFLOW_VENV=/opt/fmriflow-venv
+
 COPY pyproject.toml README.md ./
 COPY fmriflow/ ./fmriflow/
 # Frontend bundle from stage 1 — must land BEFORE pip install so
 # hatch packages it into the wheel; otherwise the installed package
 # has no static/ dir and GET / returns 404.
 COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/static/
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir heudiconv \
-    && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
+RUN python -m venv "$FMRIFLOW_VENV" \
+    && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir --upgrade pip \
+    && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir heudiconv \
+    && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir \
+        '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
+
+# Expose the venv's console scripts that fmriflow shells out to by name.
+# Deliberately NOT prepending the venv's bin dir: that would make
+# `python` resolve to fmriflow's interpreter for FreeSurfer and AFNI
+# helper scripts that invoke it generically.
+#
+# This list must cover every binary the code looks up with
+# shutil.which() or passes to subprocess -- `autoflatten` was missed
+# first time round and the autoflatten stage died with
+# FileNotFoundError only after fmriprep had run for hours.
+RUN for bin in fmriflow heudiconv autoflatten; do \
+        test -x "$FMRIFLOW_VENV/bin/$bin" \
+            || { echo "expected $bin in the venv" >&2; exit 1; }; \
+        ln -sf "$FMRIFLOW_VENV/bin/$bin" "/usr/local/bin/$bin"; \
+    done
+
+# Fail the build if fmriflow's install disturbed fmriprep's environment,
+# or if a tool the pipeline resolves by name is not reachable.
+RUN fmriprep --version \
+    && python -c "import numpy, nibabel, nitransforms, nireports; print('fmriprep env intact, numpy', numpy.__version__)" \
+    && fmriflow --help > /dev/null \
+    && python -c "\
+import shutil, sys; \
+missing = [b for b in ('fmriprep', 'recon-all', 'dcm2niix', 'heudiconv', 'autoflatten', 'bids-validator') if not shutil.which(b)]; \
+sys.exit(f'not on PATH: {missing}') if missing else print('pipeline tools on PATH')"
 
 RUN mkdir -p /workspace \
     && chown -R fmriflow:fmriflow /app /workspace

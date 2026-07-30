@@ -10,7 +10,10 @@ import subprocess
 from pathlib import Path
 
 from fmriflow.preproc.backends import register_backend
-from fmriflow.preproc.backends.fmriprep_params import FmriprepParams
+from fmriflow.preproc.backends.fmriprep_params import (
+    SINGULARITY_CONTAINER_TYPES,
+    FmriprepParams,
+)
 from fmriflow.preproc.errors import BackendRunError
 from fmriflow.preproc.manifest import (
     PreprocConfig,
@@ -66,6 +69,17 @@ class FmriprepBackend:
     def run(self, config: PreprocConfig) -> PreprocManifest:
         """Blocking run — spawns fmriprep and waits. Suitable for CLI use."""
         proc = self.spawn(config, log_path=None)
+
+        # Drain the pipe as fmriprep writes. Waiting without reading
+        # deadlocks as soon as the OS pipe buffer fills, which fmriprep
+        # manages within seconds, and it also threw away every line of
+        # diagnostics — a failed run reported only its exit code.
+        output_lines: list[str] = []
+        if proc.stdout is not None:
+            for line in proc.stdout:
+                output_lines.append(line)
+                logger.info("[fmriprep] %s", line.rstrip())
+
         proc.wait()
         if proc.returncode != 0:
             raise BackendRunError(
@@ -73,6 +87,7 @@ class FmriprepBackend:
                 backend="fmriprep",
                 subject=config.subject,
                 returncode=proc.returncode,
+                stderr="".join(output_lines[-50:]),
             )
         return self.collect(config)
 
@@ -231,7 +246,7 @@ class FmriprepBackend:
             if params.container_type == "docker":
                 # Docker image — either already pulled or will be pulled on run
                 return shutil.which("docker") is not None
-            if params.container_type == "singularity":
+            if params.container_type in SINGULARITY_CONTAINER_TYPES:
                 if self._singularity_binary() is None:
                     return False
                 # Could be a .sif path OR a docker://... URI
@@ -272,7 +287,7 @@ class FmriprepBackend:
         params: FmriprepParams,
     ) -> list[str]:
         """Build the container invocation prefix."""
-        if params.container_type == "singularity":
+        if params.container_type in SINGULARITY_CONTAINER_TYPES:
             binary = self._singularity_binary() or "singularity"
             cmd = [
                 binary, "run", "--cleanenv",
