@@ -72,3 +72,4 @@ def list_backends() -> list[str]:
 from fmriflow.preproc.backends import fmriprep as _fmriprep  # noqa: F401, E402
 from fmriflow.preproc.backends import custom as _custom  # noqa: F401, E402
 from fmriflow.preproc.backends import bids_app as _bids_app  # noqa: F401, E402
+from fmriflow.preproc.backends import nipype_bridge as _nipype_bridge  # noqa: F401, E402
