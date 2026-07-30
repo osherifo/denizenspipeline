@@ -57,8 +57,13 @@ export function FlatCortexViewer({ subjectsDir, subject, caption }: Props) {
       .then(r => {
         if (cancelled) return
         const found = Object.keys(r.hemispheres ?? {}) as Hemi[]
+        const available = found.length ? (r.hemispheres[found[0]]?.scalars ?? []) : []
         setHemis(found)
-        setScalars(found.length ? (r.hemispheres[found[0]]?.scalars ?? []) : [])
+        setScalars(available)
+        // 'curv' is the sensible default but is not guaranteed to exist.
+        // Leaving it selected would render a <select> with a value absent
+        // from its options and request a render that 404s.
+        setScalar(cur => (available.includes(cur) ? cur : (available[0] ?? cur)))
       })
       .catch(e => { if (!cancelled) setError(String(e)) })
     return () => { cancelled = true }
@@ -98,7 +103,10 @@ export function FlatCortexViewer({ subjectsDir, subject, caption }: Props) {
       const boxes = loaded.map((img, i) => rotatedSize(
         img.naturalWidth, img.naturalHeight, orient[hemis[i]].rot,
       ))
-      const gapPx = gap * (loaded[0].naturalWidth / 400)  // gap is in screen-ish units
+      // `gap` is a percentage of image width, so it means the same thing on
+      // screen and here. `zoom` is deliberately NOT applied: it magnifies the
+      // preview, and the export is always at the render's native resolution.
+      const gapPx = (gap / 100) * loaded[0].naturalWidth
       const totalW = boxes.reduce((a, b) => a + b.w, 0) + gapPx * (loaded.length - 1)
       const totalH = Math.max(...boxes.map(b => b.h))
 
@@ -178,17 +186,17 @@ export function FlatCortexViewer({ subjectsDir, subject, caption }: Props) {
         {hemis.length > 1 && (
           <label style={labelStyle}>
             gap
-            <button style={ctrlBtnStyle} onClick={() => setGap(g => g - 5)}>−</button>
             <input
-              type="number" step={5} value={gap}
-              onChange={e => setGap(Number(e.target.value) || 0)}
-              style={numStyle}
+              type="range" min={-20} max={40} step={1}
+              value={gap}
+              onChange={e => setGap(Number(e.target.value))}
+              style={rotSliderStyle}
             />
-            <button style={ctrlBtnStyle} onClick={() => setGap(g => g + 5)}>+</button>
+            <span style={rotValueStyle}>{gap}%</span>
           </label>
         )}
 
-        <label style={labelStyle}>
+        <label style={labelStyle} title="Preview only — exports at native resolution">
           zoom
           <input type="range" min={0.4} max={3} step={0.1} value={zoom}
                  onChange={e => setZoom(Number(e.target.value))} />
@@ -216,7 +224,7 @@ export function FlatCortexViewer({ subjectsDir, subject, caption }: Props) {
                 // Mirror nested inside rotate, so flips are about the
                 // image's own axes rather than the screen's.
                 transform: `rotate(${orient[h].rot}deg) scale(${orient[h].fx}, ${orient[h].fy})`,
-                marginLeft: i > 0 ? gap : 0,
+                marginLeft: i > 0 ? `${gap}%` : 0,
                 transition: 'transform 80ms linear',
               }}
             />
@@ -282,11 +290,6 @@ const rotSliderStyle: CSSProperties = { width: 110 }
 const rotValueStyle: CSSProperties = {
   width: 38, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
   color: 'var(--text-primary)',
-}
-const numStyle: CSSProperties = {
-  width: 52, background: 'var(--bg-card)', color: 'var(--text-primary)',
-  border: '1px solid var(--border)', borderRadius: 3, padding: '2px 4px',
-  fontSize: 11, textAlign: 'center',
 }
 const ctrlBtnStyle: CSSProperties = {
   background: 'var(--bg-card)', color: 'var(--text-secondary)',

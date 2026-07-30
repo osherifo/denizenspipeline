@@ -73,18 +73,21 @@ def read_patch(path: Path | str) -> np.ndarray:
     """Read a binary FreeSurfer ``.patch.3d`` file.
 
     Returns a structured array with fields ``vert``, ``x``, ``y``, ``z``.
-    ``vert`` is **1-based**, and its **sign encodes edge status** (negative =
-    on the patch boundary) — so callers must take ``abs(vert) - 1`` to index
-    the surface. Getting that wrong silently produces an off-by-one mesh that
-    still renders, which is why it is handled here rather than at call sites.
+    Values are returned **raw**: ``vert`` is 1-based and its **sign encodes
+    edge status** (negative = on the patch boundary). Decoding to a 0-based
+    index is ``abs(vert) - 1``, done by :func:`build_flat_mesh` — getting it
+    wrong silently produces an off-by-one mesh that still renders, so it is
+    kept in one place rather than repeated at call sites.
     """
     path = Path(path)
     with open(path, "rb") as fp:
-        header_bytes = fp.read(4)
-        if len(header_bytes) < 4:
+        header = fp.read(8)
+        # Both fields are needed; a 4..7 byte file would otherwise reach
+        # struct.unpack and raise struct.error, escaping this module's
+        # error contract.
+        if len(header) < 8:
             raise FlatMeshError(f"{path} is too short to be a patch file")
-        struct.unpack(">i", header_bytes)  # version; unused
-        (nverts,) = struct.unpack(">i", fp.read(4))
+        _version, nverts = struct.unpack(">ii", header)
         data = np.frombuffer(
             fp.read(),
             dtype=[("vert", ">i4"), ("x", ">f4"), ("y", ">f4"), ("z", ">f4")],
@@ -129,11 +132,14 @@ def build_flat_mesh(surf_dir: Path | str, hemi: str) -> FlatMesh:
 
     surf_dir = Path(surf_dir)
     patch = read_patch(patch_path(surf_dir, hemi))
-    _, polys = fsio.read_geometry(_topology_path(surf_dir, hemi))
+    surf_pts, polys = fsio.read_geometry(_topology_path(surf_dir, hemi))
 
     # 1-based, sign-encoded (see read_patch).
     vertex_ids = (np.abs(patch["vert"]).astype(np.int64) - 1)
-    n_full = int(polys.max()) + 1
+    # Count from the surface's own vertex array. Deriving it from the faces
+    # (polys.max() + 1) undercounts when a surface carries vertices no face
+    # references, which would reject a perfectly valid patch.
+    n_full = int(len(surf_pts))
     if vertex_ids.max() >= n_full:
         raise FlatMeshError(
             f"{hemi}: patch references vertex {vertex_ids.max()} but the surface "
@@ -213,9 +219,14 @@ def _is_stale(cache: Path, source: Path) -> bool:
     """True when *cache* is missing or older than *source*.
 
     Re-flattening rewrites the patch, so an mtime check keeps a cached render
-    from silently outliving the geometry it came from.
+    from silently outliving the geometry it came from. Compared in
+    nanoseconds: at seconds resolution a patch rewritten inside the same tick
+    as its render would read as up to date.
     """
-    return not cache.is_file() or cache.stat().st_mtime < source.stat().st_mtime
+    return (
+        not cache.is_file()
+        or cache.stat().st_mtime_ns < source.stat().st_mtime_ns
+    )
 
 
 def render_flat_png(

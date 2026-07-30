@@ -218,3 +218,40 @@ def test_missing_patch_is_reported(tmp_path):
     d.mkdir()
     with pytest.raises(FlatMeshError, match="no flat patch"):
         flat_mesh.render_flat_png(d, "lh", "curv")
+
+
+def test_read_patch_rejects_a_partial_header(tmp_path):
+    """4..7 bytes must raise FlatMeshError, not struct.error.
+
+    The file is long enough to clear a naive `len < 4` guard but too short
+    to hold both header fields.
+    """
+    p = tmp_path / "short.patch.3d"
+    p.write_bytes(struct.pack(">i", -1) + b"\x00\x00")
+
+    with pytest.raises(FlatMeshError, match="too short"):
+        read_patch(p)
+
+
+def test_vertex_count_comes_from_the_surface_not_the_faces(tmp_path):
+    """A surface may carry vertices no face references.
+
+    Deriving the count from `polys.max() + 1` undercounts there and would
+    reject a valid patch as coming from a different run.
+    """
+    d = tmp_path / "surf"
+    d.mkdir()
+    # 5 vertices, but faces only ever reference 0..2 — 3 and 4 are orphans.
+    pts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [5, 5, 5], [6, 6, 6]],
+                   dtype=np.float32)
+    polys = np.array([[0, 1, 2]], dtype=np.int32)
+    fsio.write_geometry(str(d / "lh.inflated"), pts, polys)
+
+    # The patch legitimately references vertex 4, which polys never mentions.
+    _write_patch(d / f"lh{flat_mesh.PATCH_SUFFIX}", [0, 1, 2, 4],
+                 xs=[0, 1, 2, 3], ys=[0, 1, 2, 3])
+
+    mesh = build_flat_mesh(d, "lh")
+
+    assert mesh.n_points == 4
+    assert 4 in mesh.vertex_ids.tolist()

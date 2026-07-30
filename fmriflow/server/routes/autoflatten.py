@@ -304,6 +304,37 @@ async def get_autoflatten_image(path: str):
     )
 
 
+def _subject_surf_dir(subjects_dir: str, subject: str) -> Path:
+    """Resolve <subjects_dir>/<subject>/surf, refusing to escape it.
+
+    `subject` reaches us straight from a query string, so it must be a single
+    path component. Without that check `subject=../..` walks out of the
+    subjects directory, and a containment test on the *result* cannot catch
+    it — the escaped directory is what the test would be measured against.
+    """
+    if (
+        not subject
+        or subject in (".", "..")
+        or "/" in subject
+        or "\\" in subject
+        or "\x00" in subject
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"subject must be a single path component, got {subject!r}",
+        )
+
+    root = Path(subjects_dir).expanduser().resolve()
+    surf_dir = (root / subject / "surf").resolve()
+    if not surf_dir.is_relative_to(root):
+        raise HTTPException(
+            status_code=400, detail="subject escapes the subjects directory",
+        )
+    # Existence is the caller's call: the render endpoint 404s, while the
+    # discovery endpoint reports "nothing here" rather than erroring.
+    return surf_dir
+
+
 @router.get("/autoflatten/flatrender")
 async def get_autoflatten_flatrender(
     subjects_dir: str,
@@ -335,7 +366,7 @@ async def get_autoflatten_flatrender(
             detail=f"scalar must be one of {flat_mesh.SCALARS}, got {scalar!r}",
         )
 
-    surf_dir = (Path(subjects_dir).expanduser() / subject / "surf").resolve()
+    surf_dir = _subject_surf_dir(subjects_dir, subject)
     if not surf_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"No surf/ directory: {surf_dir}")
 
@@ -358,7 +389,7 @@ async def get_autoflatten_flatrender_info(subjects_dir: str, subject: str):
     """
     from fmriflow.preproc import flat_mesh
 
-    surf_dir = (Path(subjects_dir).expanduser() / subject / "surf").resolve()
+    surf_dir = _subject_surf_dir(subjects_dir, subject)
     if not surf_dir.is_dir():
         return {"hemispheres": {}}
 
