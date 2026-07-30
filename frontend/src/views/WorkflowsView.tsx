@@ -19,12 +19,14 @@ import {
   fetchInFlightRun,
   fetchPreprocRunLive,
   fetchPreprocRun,
+  fetchConvertRun,
 } from '../api/client'
 import type { AnalysisInnerStage, NipypeStatusBlock } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
 import { NipypeGraphModal } from '../components/workflow/NipypeGraphModal'
 import { StructuralQCModal } from '../components/workflow/StructuralQCModal'
+import { ConvertDecisionsModal } from '../components/workflow/ConvertDecisionsModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
 import { useDialog } from '../components/common/Dialog'
 import { formatDurationVerbose } from '../utils/format'
@@ -281,6 +283,8 @@ export function WorkflowsView() {
   const [preprocNipype, setPreprocNipype] = useState<{ runId: string; block: NipypeStatusBlock } | null>(null)
   const [nipypeGraph, setNipypeGraph] = useState<{ runId: string; isRunning: boolean } | null>(null)
   const [structuralQC, setStructuralQC] = useState<{ subject: string } | null>(null)
+  const [convertDecisions, setConvertDecisions] =
+    useState<{ bidsDir: string; subject: string } | null>(null)
   const [editing, setEditing] = useState(false)
   const [yamlDraft, setYamlDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -575,6 +579,25 @@ export function WorkflowsView() {
                 isRunning: s.status === 'running',
               })
             }}
+            onOpenConvertDecisions={async (s) => {
+              if (s.stage !== 'convert' || !s.run_id) return
+              try {
+                const detail = await fetchConvertRun(s.run_id)
+                // The manifest is written to the BIDS root, so its directory
+                // is the bids_dir — no extra field needed on the run record.
+                const manifest = detail.manifest_path
+                if (!manifest) {
+                  alert('This convert run wrote no manifest, so its BIDS directory is unknown.')
+                  return
+                }
+                setConvertDecisions({
+                  bidsDir: manifest.replace(/\/[^/]*$/, ''),
+                  subject: detail.subject,
+                })
+              } catch (e) {
+                alert(`Could not load convert run: ${e}`)
+              }
+            }}
             onOpenStructuralQC={async (s) => {
               if (s.stage !== 'preproc' || !s.run_id) return
               try {
@@ -606,6 +629,14 @@ export function WorkflowsView() {
           runId={nipypeGraph.runId}
           isRunning={nipypeGraph.isRunning}
           onClose={() => setNipypeGraph(null)}
+        />
+      )}
+
+      {convertDecisions && (
+        <ConvertDecisionsModal
+          bidsDir={convertDecisions.bidsDir}
+          subject={convertDecisions.subject}
+          onClose={() => setConvertDecisions(null)}
         />
       )}
 

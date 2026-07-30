@@ -47,7 +47,22 @@ type StageNodeData = WorkflowStageStatus & {
   isLast: boolean
   onOpenNipypeDag?: () => void
   onOpenStructuralQC?: () => void
+  onOpenConvertDecisions?: () => void
 }
+
+/** Drill-in button on a finished stage node. */
+const stageActionButton = (color: string): CSSProperties => ({
+  padding: '4px 10px',
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: 0.5,
+  borderRadius: 4,
+  background: `${color}33`,
+  color,
+  border: `1px solid ${color}88`,
+  cursor: 'pointer',
+  textTransform: 'uppercase',
+})
 
 const nodeBase: CSSProperties = {
   borderRadius: 8,
@@ -194,6 +209,22 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
           />
         )}
 
+      {data.stage === 'convert' && data.status === 'done' &&
+        data.onOpenConvertDecisions && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                data.onOpenConvertDecisions?.()
+              }}
+              style={stageActionButton(meta.color)}
+            >
+              DICOM decisions →
+            </button>
+          </div>
+        )}
+
       {data.stage === 'preproc' && data.status === 'done' &&
         data.onOpenStructuralQC && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
@@ -203,18 +234,7 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
                 e.stopPropagation()
                 data.onOpenStructuralQC?.()
               }}
-              style={{
-                padding: '4px 10px',
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: 0.5,
-                borderRadius: 4,
-                background: `${meta.color}33`,
-                color: meta.color,
-                border: `1px solid ${meta.color}88`,
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-              }}
+              style={stageActionButton(meta.color)}
             >
               Structural QC →
             </button>
@@ -342,6 +362,7 @@ function buildGraph(
   stages: WorkflowStageStatus[],
   onOpenNipypeDag?: (stage: WorkflowStageStatus) => void,
   onOpenStructuralQC?: (stage: WorkflowStageStatus) => void,
+  onOpenConvertDecisions?: (stage: WorkflowStageStatus) => void,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = stages.map((s, i) => ({
     id: `stage-${i}-${s.stage}`,
@@ -359,6 +380,10 @@ function buildGraph(
       onOpenStructuralQC:
         s.stage === 'preproc' && onOpenStructuralQC
           ? () => onOpenStructuralQC(s)
+          : undefined,
+      onOpenConvertDecisions:
+        s.stage === 'convert' && onOpenConvertDecisions
+          ? () => onOpenConvertDecisions(s)
           : undefined,
     },
     draggable: false,
@@ -398,6 +423,7 @@ interface WorkflowGraphProps {
   onStageDoubleClick?: (stage: WorkflowStageStatus) => void
   onOpenNipypeDag?: (stage: WorkflowStageStatus) => void
   onOpenStructuralQC?: (stage: WorkflowStageStatus) => void
+  onOpenConvertDecisions?: (stage: WorkflowStageStatus) => void
 }
 
 export function WorkflowGraph(
@@ -408,14 +434,15 @@ export function WorkflowGraph(
     onStageDoubleClick,
     onOpenNipypeDag,
     onOpenStructuralQC,
+    onOpenConvertDecisions,
   }: WorkflowGraphProps,
 ) {
   // Subscribe to the theme so a toggle repaints the status colours read
   // via STATUS() below (this component is memoised).
   useThemeStore((s) => s.mode)
   const { nodes, edges } = useMemo(
-    () => buildGraph(stages, onOpenNipypeDag, onOpenStructuralQC),
-    [stages, onOpenNipypeDag, onOpenStructuralQC],
+    () => buildGraph(stages, onOpenNipypeDag, onOpenStructuralQC, onOpenConvertDecisions),
+    [stages, onOpenNipypeDag, onOpenStructuralQC, onOpenConvertDecisions],
   )
   if (!stages.length) return null
 

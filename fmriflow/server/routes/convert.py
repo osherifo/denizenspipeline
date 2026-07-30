@@ -117,6 +117,100 @@ async def check_tools(request: Request):
     return {"tools": mgr.check_tools()}
 
 
+@router.get("/convert/decision-table")
+async def get_convert_decision_table(
+    bids_dir: str, subject: str, session: str | None = None,
+):
+    """What the heuristic did with every DICOM series it saw.
+
+    Reconstructed from the provenance heudiconv leaves under
+    ``.heudiconv/<subject>/info/`` — so it works on any already-converted
+    dataset without re-running anything. Series the heuristic did not claim
+    are reported as dropped, which is usually correct and occasionally the
+    whole problem.
+
+    ``session`` is optional: heudiconv writes ``.heudiconv/<sub>/ses-<ses>/``
+    for sessioned conversions, and a single-session study resolves without
+    the caller naming the label.
+
+    404 when the dataset carries no heudiconv provenance (converted by other
+    means, or ``.heudiconv`` removed).
+    """
+    from pathlib import Path
+
+    from fmriflow.convert.decision_table import (
+        DecisionTableError,
+        build_decision_table,
+    )
+
+    # `subject` is interpolated into a path, so it must be one component.
+    # Guarding the input rather than the resolved path: a containment check
+    # on the result is measured against the already-escaped directory.
+    if (
+        not subject
+        or subject in (".", "..")
+        or "/" in subject
+        or "\\" in subject
+        or "\x00" in subject
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"subject must be a single path component, got {subject!r}",
+        )
+
+    if session and ("/" in session or "\\" in session or session in (".", "..")):
+        raise HTTPException(
+            status_code=400,
+            detail=f"session must be a single path component, got {session!r}",
+        )
+
+    root = Path(bids_dir).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
+
+    try:
+        table = build_decision_table(root, subject, session)
+    except DecisionTableError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return table.to_dict()
+
+
+@router.get("/convert/coverage")
+async def get_convert_coverage(bids_dir: str):
+    """Subjects x BIDS keys, cell = number of outputs.
+
+    Reads the two failure modes apart at a glance: a column empty for EVERY
+    subject is a rule that never matched (a code bug), while a column empty
+    for ONE subject is that subject missing something the others have (a data
+    incident). ``never_matched`` names the former.
+    """
+    from pathlib import Path
+
+    from fmriflow.convert.decision_table import build_coverage
+
+    root = Path(bids_dir).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
+    return build_coverage(root)
+
+
+@router.get("/convert/flow")
+async def get_convert_flow(bids_dir: str):
+    """Aggregated protocol -> datatype -> suffix counts, for a Sankey.
+
+    Study-level only. At series granularity a Sankey is unreadable; the point
+    of this one is making the dropped ribbon impossible to scroll past.
+    """
+    from pathlib import Path
+
+    from fmriflow.convert.decision_table import build_flow
+
+    root = Path(bids_dir).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
+    return build_flow(root)
+
+
 @router.get("/convert/manifests")
 async def list_manifests(request: Request):
     """List discovered convert manifests."""
