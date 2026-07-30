@@ -180,7 +180,7 @@ def test_manifest_reports_what_was_written(bids, tmp_path):
     assert manifest.backend == "nipype"
     assert manifest.parameters["n_cleaned"] == 2
     assert manifest.parameters["method"] == "soft"
-    assert manifest.additional_steps == ["mp2rage_background_clean:soft:rescaled"]
+    assert manifest.additional_steps == ["mp2rage_background_clean:soft"]
     # Anatomical stage — no BOLD runs by design.
     assert manifest.runs == []
     # Dataset-level files must be carried over or the output is not valid BIDS.
@@ -306,15 +306,17 @@ def test_rescaling_keeps_background_at_zero(bids, tmp_path):
     assert np.median(d[:2, :2, :2]) == 0
 
 
-def test_rescale_is_on_by_default(bids, tmp_path):
+def test_rescale_is_off_by_default(bids, tmp_path):
+    """Measured end to end it did not help and could hurt — see the module
+    docstring. Opt-in rather than on."""
     wf = MP2RAGEBackgroundClean()
-    assert wf._params(_config(bids, tmp_path))["rescale"] is True
-    assert wf._params(_config(bids, tmp_path, rescale=False))["rescale"] is False
+    assert wf._params(_config(bids, tmp_path))["rescale"] is False
+    assert wf._params(_config(bids, tmp_path, rescale=True))["rescale"] is True
 
 
 def test_manifest_records_whether_it_rescaled(bids, tmp_path):
     wf = MP2RAGEBackgroundClean()
-    config = _config(bids, tmp_path)
+    config = _config(bids, tmp_path, rescale=True)
     for uni, inv2, out in _pair_up(config.bids_dir, "01", config.output_dir):
         _clean_one(uni, inv2, out, "soft", 100.0, 2, True)
 

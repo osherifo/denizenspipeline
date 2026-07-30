@@ -22,18 +22,25 @@ Two things go wrong with a raw UNI, and they need different fixes:
 **Background.** The mid-grey noise outside the head breaks skull-stripping and
 biases the normalisation. Fixed by attenuating with INV2 (`method` below).
 
-**Dynamic range.** Every brain voxel sits in the top ~20% of the stored range
-(measured on a real subject: in-head p1..p99 = 3218..4090 of 0..4095).
-FreeSurfer's `conform` rescales linearly over the full range into 8 bits, so
-all tissue lands in roughly 32 of the 256 levels and grey/white differ by a
-handful of quantisation steps — the contrast is gone *before* bias correction
-or normalisation run. Fixed by `rescale`, which windows to the tissue range
-and recovers ~4.6x more levels.
+**Dynamic range.** Every brain voxel sits in the top ~20% of the stored range,
+so FreeSurfer's `conform` squeezes all tissue into a narrow band of 8-bit
+levels. `rescale` windows to the tissue range and widens that band
+considerably (102 -> 214 levels on a real subject).
 
-Masking alone is not enough: it zeroes the background but leaves the brain
-where it was in the range. On a real subject, masking alone moved the
-saturation of `T1.mgz` from 83.8% to 68.7% of non-zero voxels at exactly 110
-— better, still unusable.
+**`rescale` is off by default, because measuring it end to end showed it does
+not help and can hurt.** On one subject, fraction of `T1.mgz` at the single
+modal value: 83.8% raw, 68.7% masked, **95.3% masked+rescaled**, 80.5%
+soft+rescaled. The reasoning behind it was wrong: contrast-to-noise is
+scale-invariant, so stretching multiplies the GM/WM mean difference and the
+within-tissue standard deviations alike and creates no separation that was not
+already there. Occupying more quantisation levels is not the same as being
+more separable. It is kept as an option because the measurement is from a
+single subject and the mechanism may still matter where quantisation really is
+the limiting noise source.
+
+Masking alone is not enough either — 68.7% is still unusable. As of writing,
+no variant here produces a healthy `T1.mgz`; see the error-KB entry for the
+open diagnosis.
 
 Two masking methods, both standard practice:
 
@@ -222,7 +229,7 @@ class MP2RAGEBackgroundClean:
         },
         "rescale": {
             "type": "bool",
-            "default": True,
+            "default": False,
             "description": (
                 "Stretch tissue across the output range before FreeSurfer "
                 "conforms it to 8 bits. MP2RAGE UNI stores tissue in the top "
@@ -262,7 +269,7 @@ class MP2RAGEBackgroundClean:
             "method": p.get("method", "soft"),
             "beta": float(p.get("beta", 100.0)),
             "dilate": int(p.get("dilate", 2)),
-            "rescale": bool(p.get("rescale", True)),
+            "rescale": bool(p.get("rescale", False)),
             "rescale_floor_pct": float(p.get("rescale_floor_pct", 1.0)),
             "copy_dataset_files": bool(p.get("copy_dataset_files", True)),
         }
