@@ -304,6 +304,71 @@ async def get_autoflatten_image(path: str):
     )
 
 
+@router.get("/autoflatten/flatrender")
+async def get_autoflatten_flatrender(
+    subjects_dir: str,
+    subject: str,
+    hemi: str,
+    scalar: str = "curv",
+):
+    """Render the flattened cortex for one hemisphere as a transparent PNG.
+
+    Drawn from the run's own ``.patch.3d``, shaded by a per-vertex scalar
+    (curv / thickness / sulc / area). This is the cortex alone — unlike the
+    ``.flat.patch.png`` the CLI writes, which is a QA figure bundling the
+    patch outline, a distortion map and a histogram.
+
+    Generated on first request and cached beside the patch; regenerated when
+    the patch is newer. Addressed by (subjects_dir, subject, hemi) and
+    validated, rather than taking a free-form path like /autoflatten/image.
+    """
+    from fmriflow.preproc import flat_mesh
+
+    if hemi not in flat_mesh.HEMIS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"hemi must be one of {flat_mesh.HEMIS}, got {hemi!r}",
+        )
+    if scalar not in flat_mesh.SCALARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"scalar must be one of {flat_mesh.SCALARS}, got {scalar!r}",
+        )
+
+    surf_dir = (Path(subjects_dir).expanduser() / subject / "surf").resolve()
+    if not surf_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"No surf/ directory: {surf_dir}")
+
+    try:
+        path = flat_mesh.render_flat_png(surf_dir, hemi, scalar)
+    except flat_mesh.FlatMeshError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    if not path.resolve().is_relative_to(surf_dir):
+        raise HTTPException(status_code=400, detail="resolved outside the subject dir")
+
+    return FileResponse(str(path), media_type="image/png")
+
+
+@router.get("/autoflatten/flatrender-info")
+async def get_autoflatten_flatrender_info(subjects_dir: str, subject: str):
+    """Which hemispheres have a flat patch, and what shadings each offers.
+
+    Lets the frontend decide what to render without probing for 404s.
+    """
+    from fmriflow.preproc import flat_mesh
+
+    surf_dir = (Path(subjects_dir).expanduser() / subject / "surf").resolve()
+    if not surf_dir.is_dir():
+        return {"hemispheres": {}}
+
+    out: dict[str, dict] = {}
+    for hemi in flat_mesh.HEMIS:
+        if flat_mesh.patch_path(surf_dir, hemi).is_file():
+            out[hemi] = {"scalars": flat_mesh.available_scalars(surf_dir, hemi)}
+    return {"hemispheres": out}
+
+
 @router.get("/autoflatten/visualizations")
 async def list_autoflatten_visualizations(
     subjects_dir: str, subject: str,
