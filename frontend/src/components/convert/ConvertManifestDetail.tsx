@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConvertManifestDetail } from '../../api/types'
 import { useConvertStore } from '../../stores/convert-store'
+import { ConvertDecisionTable } from './ConvertDecisionTable'
 
 interface Props {
   manifest: ConvertManifestDetail
@@ -328,6 +329,11 @@ export function ConvertManifestDetailPanel({ manifest }: Props) {
           {manifest.bids_dir}
         </div>
       </div>
+
+      <ConvertDecisionTable
+        bidsDir={manifest.bids_dir}
+        subject={manifest.subject}
+      />
 
       {/* Raw JSON */}
       <div style={sectionLabel}>

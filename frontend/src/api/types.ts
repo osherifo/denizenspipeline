@@ -1279,3 +1279,29 @@ export interface StudyRunDetail {
   study_log?: string
   artifacts: StudyArtifacts
 }
+
+// ── Convert decision table ──────────────────────────────────────────
+
+export interface ConvertSeriesDecision {
+  series_id: string
+  description: string
+  protocol: string
+  n_files: number
+  dims: number[]
+  tr: number | null
+  te: number | null
+  is_derived: boolean
+  /** null when the heuristic did not claim this series. */
+  output_template: string | null
+  dropped: boolean
+}
+
+export interface ConvertDecisionTable {
+  subject: string
+  bids_dir: string
+  n_series: number
+  n_mapped: number
+  n_dropped: number
+  series: ConvertSeriesDecision[]
+  warnings: string[]
+}

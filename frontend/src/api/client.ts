@@ -43,6 +43,7 @@ import type {
   HubInstallResult,
   HubPublishResult,
   HubProvenanceMap,
+  ConvertDecisionTable,
 } from './types'
 
 const BASE = '/api'
@@ -835,6 +836,15 @@ export function connectAutoflattenWs(runId: string): WebSocket {
 
 export function autoflattenImageUrl(path: string): string {
   return `${BASE}/autoflatten/image?path=${encodeURIComponent(path)}`
+}
+
+/** What the heuristic did with each DICOM series — reconstructed from the
+ *  provenance heudiconv leaves behind. 404 when a dataset has none. */
+export async function fetchConvertDecisionTable(
+  bids_dir: string, subject: string,
+): Promise<ConvertDecisionTable> {
+  const qs = new URLSearchParams({ bids_dir, subject }).toString()
+  return json(`${BASE}/convert/decision-table?${qs}`)
 }
 
 export async function fetchAutoflattenVisualizations(

@@ -117,6 +117,52 @@ async def check_tools(request: Request):
     return {"tools": mgr.check_tools()}
 
 
+@router.get("/convert/decision-table")
+async def get_convert_decision_table(bids_dir: str, subject: str):
+    """What the heuristic did with every DICOM series it saw.
+
+    Reconstructed from the provenance heudiconv leaves under
+    ``.heudiconv/<subject>/info/`` — so it works on any already-converted
+    dataset without re-running anything. Series the heuristic did not claim
+    are reported as dropped, which is usually correct and occasionally the
+    whole problem.
+
+    404 when the dataset carries no heudiconv provenance (converted by other
+    means, or ``.heudiconv`` removed).
+    """
+    from pathlib import Path
+
+    from fmriflow.convert.decision_table import (
+        DecisionTableError,
+        build_decision_table,
+    )
+
+    # `subject` is interpolated into a path, so it must be one component.
+    # Guarding the input rather than the resolved path: a containment check
+    # on the result is measured against the already-escaped directory.
+    if (
+        not subject
+        or subject in (".", "..")
+        or "/" in subject
+        or "\\" in subject
+        or "\x00" in subject
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"subject must be a single path component, got {subject!r}",
+        )
+
+    root = Path(bids_dir).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
+
+    try:
+        table = build_decision_table(root, subject)
+    except DecisionTableError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return table.to_dict()
+
+
 @router.get("/convert/manifests")
 async def list_manifests(request: Request):
     """List discovered convert manifests."""
