@@ -497,8 +497,10 @@ class StackRunner:
           packages the resulting manifest into
           ``outputs["manifest"]`` so the workflow wrapper's
           ``to_manifest`` can return it.
-        - anything else — a real nipype Workflow. Not wired yet; will
-          land when the real reference workflow does.
+        - anything else — a real nipype Workflow. Executed with the
+          Linear plugin; the workflow's ``to_manifest`` reads results
+          off disk rather than from harvested node outputs, so nothing
+          here needs to know a given workflow's node names.
         """
         if built is None:
             return {}
@@ -514,11 +516,19 @@ class StackRunner:
             manifest = built.backend.run(built.preproc_config)
             return {"manifest": manifest}
 
-        raise NotImplementedError(
-            "Real nipype workflow execution not yet wired — only the "
-            "identity / passthrough placeholders and the backend-wrapper "
-            "sentinels are supported in Phase 4b."
-        )
+        # A real nipype Workflow. Linear (single-process) is the safe
+        # default: these run inside a detached subprocess that is already
+        # sized by the caller, and MultiProc here would fight it for cores.
+        run_method = getattr(built, "run", None)
+        if not callable(run_method):
+            raise TypeError(
+                f"workflow.build() returned {type(built).__name__}, which is "
+                "neither None, a backend sentinel, nor a runnable nipype Workflow"
+            )
+
+        logger.info("Executing nipype workflow %r", getattr(built, "name", built))
+        result = run_method(plugin="Linear")
+        return {"nipype_result": result}
 
     # ── Transform stage ───────────────────────────────────────────
 
