@@ -163,6 +163,42 @@ async def get_convert_decision_table(bids_dir: str, subject: str):
     return table.to_dict()
 
 
+@router.get("/convert/coverage")
+async def get_convert_coverage(bids_dir: str):
+    """Subjects x BIDS keys, cell = number of outputs.
+
+    Reads the two failure modes apart at a glance: a column empty for EVERY
+    subject is a rule that never matched (a code bug), while a column empty
+    for ONE subject is that subject missing something the others have (a data
+    incident). ``never_matched`` names the former.
+    """
+    from pathlib import Path
+
+    from fmriflow.convert.decision_table import build_coverage
+
+    root = Path(bids_dir).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
+    return build_coverage(root)
+
+
+@router.get("/convert/flow")
+async def get_convert_flow(bids_dir: str):
+    """Aggregated protocol -> datatype -> suffix counts, for a Sankey.
+
+    Study-level only. At series granularity a Sankey is unreadable; the point
+    of this one is making the dropped ribbon impossible to scroll past.
+    """
+    from pathlib import Path
+
+    from fmriflow.convert.decision_table import build_flow
+
+    root = Path(bids_dir).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
+    return build_flow(root)
+
+
 @router.get("/convert/manifests")
 async def list_manifests(request: Request):
     """List discovered convert manifests."""

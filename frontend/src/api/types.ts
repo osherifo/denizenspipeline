@@ -1283,17 +1283,54 @@ export interface StudyRunDetail {
 // ── Convert decision table ──────────────────────────────────────────
 
 export interface ConvertSeriesDecision {
+  series_number: number
   series_id: string
   description: string
   protocol: string
+  sequence: string
   n_files: number
   dims: number[]
   tr: number | null
   te: number | null
   is_derived: boolean
-  /** null when the heuristic did not claim this series. */
-  output_template: string | null
+  image_type: string[]
+  /** Resolved BIDS paths. Several when one series fans out (e.g. a GRE
+   *  fieldmap producing magnitude1, magnitude2 and phasediff). */
+  outputs: string[]
+  /** Templates that claimed this series, parallel to `outputs`. */
+  rules: string[]
   dropped: boolean
+  /** 'ok' | 'dropped' | 'fan-out xN' */
+  status: string
+}
+
+export interface ConvertCoverageRow {
+  subject: string
+  /** Output count per key, parallel to ConvertCoverage.keys. */
+  cells: number[]
+}
+
+export interface ConvertCoverage {
+  bids_dir: string
+  subjects: string[]
+  keys: string[]
+  matrix: ConvertCoverageRow[]
+  /** Keys declared by a heuristic but produced for no subject — rule bugs. */
+  never_matched: string[]
+  errors: Record<string, string>
+}
+
+export interface ConvertFlowLink {
+  source: string
+  target: string
+  value: number
+}
+
+export interface ConvertFlow {
+  bids_dir: string
+  n_series: number
+  n_dropped: number
+  links: ConvertFlowLink[]
 }
 
 export interface ConvertDecisionTable {

@@ -10,20 +10,29 @@ import pytest
 
 from fmriflow.convert.decision_table import (
     DecisionTableError,
+    bids_key,
+    build_coverage,
     build_decision_table,
+    build_flow,
     has_provenance,
+    resolve_template,
 )
 
 SERIES_HEADER = (
     "series_id\tseries_description\tprotocol_name\tsequence_name\t"
-    "series_files\tdim1\tdim2\tdim3\tdim4\tTR\tTE\tis_derived\tis_motion_corrected"
+    "series_files\tdim1\tdim2\tdim3\tdim4\tTR\tTE\tis_derived\t"
+    "is_motion_corrected\timage_type"
 )
 
+IMAGE_TYPE = "('ORIGINAL', 'PRIMARY', 'M')"
 
-def _row(sid, desc, n=176, dims=(256, 256, 176, 1), derived="False"):
+
+def _row(sid, desc, n=176, dims=(256, 256, 176, 1), derived="False",
+         image_type=IMAGE_TYPE):
     return (
         f"{sid}\t{desc}\tprot\tseq\t{n}\t"
-        f"{dims[0]}\t{dims[1]}\t{dims[2]}\t{dims[3]}\t3060\t2.56\t{derived}\tFalse"
+        f"{dims[0]}\t{dims[1]}\t{dims[2]}\t{dims[3]}\t3060\t2.56\t{derived}\t"
+        f"False\t{image_type}"
     )
 
 
@@ -57,12 +66,14 @@ def test_maps_claimed_series_and_marks_the_rest_dropped(tmp_path):
     assert table.n_mapped == 1
     assert table.n_dropped == 2
     by_id = {s.series_id: s for s in table.series}
-    assert by_id["1-uni"].output_template.endswith("_T1w")
+    assert by_id["1-uni"].rules[0].endswith("_T1w")
+    assert by_id["1-uni"].status == "ok"
     assert by_id["2-inv"].dropped
     assert by_id["3-loc"].dropped
 
 
 def test_carries_series_metadata_through(tmp_path):
+    """The audit row must carry what a rule discriminates on."""
     _write(tmp_path, [_row("1-uni", "UNI", n=176, derived="True")],
            {"tmpl": ["1-uni"]})
 
@@ -72,7 +83,9 @@ def test_carries_series_metadata_through(tmp_path):
     assert s.n_files == 176
     assert s.dims == [256, 256, 176, 1]
     assert s.tr == 3060.0
+    assert s.te == 2.56
     assert s.is_derived is True
+    assert s.image_type == ["ORIGINAL", "PRIMARY", "M"]
 
 
 def test_accepts_a_sub_prefixed_subject(tmp_path):
@@ -177,3 +190,148 @@ def test_warns_when_nothing_was_mapped(tmp_path):
     _write(tmp_path, [_row("1-a", "A", n=5)], {})
 
     assert any("matched nothing" in w for w in build_decision_table(tmp_path, "01").warnings)
+
+
+# ── fan-out: one series, several outputs ────────────────────────────
+
+
+def test_a_series_claimed_by_several_rules_fans_out(tmp_path):
+    """A GRE fieldmap produces magnitude1, magnitude2 and phasediff.
+
+    Keeping one template per series would silently drop two of the three,
+    which is exactly the case the audit table exists to make visible.
+    """
+    _write(
+        tmp_path,
+        [_row("7-fmap", "gre_field_map", n=72)],
+        {
+            "sub-{subject}/fmap/sub-{subject}_magnitude1": ["7-fmap"],
+            "sub-{subject}/fmap/sub-{subject}_magnitude2": ["7-fmap"],
+            "sub-{subject}/fmap/sub-{subject}_phasediff": ["7-fmap"],
+        },
+    )
+
+    s = build_decision_table(tmp_path, "01").series[0]
+
+    assert len(s.rules) == 3
+    assert len(s.outputs) == 3
+    assert s.status == "fan-out ×3"
+    assert not s.dropped
+
+
+def test_rows_are_ordered_by_series_number(tmp_path):
+    """Scanner order, which is the order a protocol is read in."""
+    _write(
+        tmp_path,
+        [_row("12-c", "C"), _row("4-a", "A"), _row("7-b", "B")],
+        {"tmpl": ["4-a"]},
+    )
+
+    numbers = [s.series_number for s in build_decision_table(tmp_path, "01").series]
+
+    assert numbers == [4, 7, 12]
+
+
+# ── template resolution ─────────────────────────────────────────────
+
+
+def test_resolves_templates_into_real_bids_paths(tmp_path):
+    assert resolve_template(
+        "sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w", "01", 3,
+    ) == "sub-01/anat/sub-01_run-03_T1w"
+    assert resolve_template("sub-{subject}/anat/sub-{subject}_{item}_T1w", "sub-05", 1) \
+        == "sub-05/anat/sub-05_1_T1w"
+
+
+def test_item_indexes_from_one_within_each_rule(tmp_path):
+    """heudiconv numbers {item} by position in a template's series list."""
+    _write(
+        tmp_path,
+        [_row("1-a", "A"), _row("2-b", "B")],
+        {"sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w": ["1-a", "2-b"]},
+    )
+
+    outs = [s.outputs[0] for s in build_decision_table(tmp_path, "01").series]
+
+    assert outs == ["sub-01/anat/sub-01_run-01_T1w", "sub-01/anat/sub-01_run-02_T1w"]
+
+
+# ── coverage matrix ─────────────────────────────────────────────────
+
+
+def test_bids_key_folds_runs_but_keeps_distinct_images(tmp_path):
+    """Four runs of one thing is one column; inv-1 and inv-2 are two."""
+    assert bids_key("sub-01/anat/sub-01_run-01_T1w") == \
+           bids_key("sub-01/anat/sub-01_run-04_T1w")
+    assert bids_key("sub-01/anat/sub-01_inv-1_MP2RAGE") != \
+           bids_key("sub-01/anat/sub-01_inv-2_MP2RAGE")
+
+
+def test_coverage_counts_outputs_per_subject_and_key(tmp_path):
+    for sub, rows, mapping in (
+        ("01", [_row("1-a", "A"), _row("2-b", "B")],
+         {"sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w": ["1-a", "2-b"]}),
+        ("02", [_row("1-a", "A")],
+         {"sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w": ["1-a"]}),
+    ):
+        _write(tmp_path, rows, mapping, subject=sub)
+
+    cov = build_coverage(tmp_path)
+
+    assert cov["subjects"] == ["01", "02"]
+    assert cov["keys"] == ["anat/T1w"]
+    assert cov["matrix"][0]["cells"] == [2]
+    assert cov["matrix"][1]["cells"] == [1]
+
+
+def test_coverage_distinguishes_a_missing_subject_from_a_dead_rule(tmp_path):
+    """The two failure modes the matrix exists to tell apart.
+
+    sub-02 is missing T2w that sub-01 has — a data incident, one empty cell.
+    `sbref` is declared by both heuristics and produced by neither — a code
+    bug, an empty column.
+    """
+    _write(tmp_path, [_row("1-a", "A"), _row("2-t2", "T2")],
+           {"sub-{subject}/anat/sub-{subject}_T1w": ["1-a"],
+            "sub-{subject}/anat/sub-{subject}_T2w": ["2-t2"],
+            "sub-{subject}/func/sub-{subject}_sbref": []},
+           subject="01")
+    _write(tmp_path, [_row("1-a", "A")],
+           {"sub-{subject}/anat/sub-{subject}_T1w": ["1-a"],
+            "sub-{subject}/anat/sub-{subject}_T2w": [],
+            "sub-{subject}/func/sub-{subject}_sbref": []},
+           subject="02")
+
+    cov = build_coverage(tmp_path)
+    col = {k: i for i, k in enumerate(cov["keys"])}
+    cells = {r["subject"]: r["cells"] for r in cov["matrix"]}
+
+    # data incident: present for one subject, absent for the other
+    assert cells["01"][col["anat/T2w"]] == 1
+    assert cells["02"][col["anat/T2w"]] == 0
+    assert "anat/T2w" not in cov["never_matched"]
+
+    # code bug: declared everywhere, produced nowhere
+    assert "func/sbref" in cov["never_matched"]
+    assert all(r["cells"][col["func/sbref"]] == 0 for r in cov["matrix"])
+
+
+def test_coverage_is_empty_without_provenance(tmp_path):
+    cov = build_coverage(tmp_path)
+    assert cov["subjects"] == [] and cov["matrix"] == []
+
+
+# ── flow ────────────────────────────────────────────────────────────
+
+
+def test_flow_aggregates_and_surfaces_dropped(tmp_path):
+    _write(tmp_path, [_row("1-a", "A"), _row("2-drop", "localizer", n=3)],
+           {"sub-{subject}/anat/sub-{subject}_T1w": ["1-a"]})
+
+    flow = build_flow(tmp_path)
+
+    assert flow["n_series"] == 2
+    assert flow["n_dropped"] == 1
+    pairs = {(l["source"], l["target"]): l["value"] for l in flow["links"]}
+    assert pairs[("prot", "anat")] == 1
+    assert any(t == "— dropped —" for (_, t) in pairs)
