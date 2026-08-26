@@ -33,6 +33,24 @@ The compose files bind `$FMRIFLOW_HOME` to `/workspace` inside the
 container. See the [working-dir guide](working-dir.md) for the
 full layout and tier model.
 
+## Quickstart — guided setup
+
+The easiest path is the interactive setup script:
+
+```bash
+./scripts/fmriflow-setup.sh          # full image
+./scripts/fmriflow-setup.sh --slim   # slim image (orchestrator only)
+```
+
+It asks where `$FMRIFLOW_HOME` should live (creating it if needed), saves
+the choice to `.env` so later plain `docker compose` invocations reuse it,
+checks for symlinks that would dangle inside the container, builds the
+image, and runs in the foreground (Ctrl-C stops it).
+
+For day-to-day restarts use `./scripts/fmriflow-up.sh` — it starts
+detached, waits for the server to come up, and prints the URL
+(`--build` to rebuild first, `--down` to stop).
+
 ## Quickstart — slim image
 
 ```bash
