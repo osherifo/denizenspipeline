@@ -51,6 +51,14 @@ def get_settings() -> dict:
     return paths.settings_snapshot()
 
 
+@router.get("/version")
+def get_version() -> dict:
+    """Return the installed fmriflow package version."""
+    from fmriflow import __version__
+
+    return {"version": __version__}
+
+
 @router.post("")
 def post_settings(update: SettingsUpdate) -> dict:
     """Persist the supplied overrides to ``~/.config/fmriflow/settings.json``.

@@ -43,6 +43,11 @@ describe('<NavBar />', () => {
     }
   })
 
+  it('shows the backend version under the logo', async () => {
+    renderWithProviders(<NavBar currentRoute="dashboard" />)
+    expect(await screen.findByText('v2.0.0-test')).toBeInTheDocument()
+  })
+
   it('Reference group links to the user documentation in a new tab', async () => {
     const { user } = renderWithProviders(<NavBar currentRoute="dashboard" />)
     await user.click(screen.getByText('Reference'))

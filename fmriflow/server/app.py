@@ -63,9 +63,11 @@ def create_app(
 
     for k, v in paths.describe().items():
         logger.info("[paths] %-15s = %s", k, v)
+    from fmriflow import __version__
+
     app = FastAPI(
         title="fMRIflow",
-        version="0.1.0",
+        version=__version__,
         description="Frontend API for the fMRIflow encoding model pipeline.",
     )
 

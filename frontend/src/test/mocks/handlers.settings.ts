@@ -20,6 +20,7 @@ const baseSnapshot = {
 }
 
 export const settingsHandlers = [
+  http.get('/api/settings/version', () => HttpResponse.json({ version: '2.0.0-test' })),
   http.get('/api/settings', () => HttpResponse.json(baseSnapshot)),
   http.post('/api/settings', () =>
     HttpResponse.json({ ...baseSnapshot, restart_required: true }),
