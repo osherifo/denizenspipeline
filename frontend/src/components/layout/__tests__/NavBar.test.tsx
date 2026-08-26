@@ -42,4 +42,12 @@ describe('<NavBar />', () => {
       expect(link.getAttribute('href')).toMatch(/^#/)
     }
   })
+
+  it('Reference group links to the user documentation in a new tab', async () => {
+    const { user } = renderWithProviders(<NavBar currentRoute="dashboard" />)
+    await user.click(screen.getByText('Reference'))
+    const link = screen.getByText('Documentation').closest('a')
+    expect(link).toHaveAttribute('href', '/documentation/')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
 })

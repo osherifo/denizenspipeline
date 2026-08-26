@@ -98,6 +98,7 @@ packages = ["fmriflow"]
 # (docker, where .dockerignore drops server/static) still keeps them.
 artifacts = [
     "fmriflow/server/static/**",
+    "fmriflow/server/docs_site/**",
     "fmriflow/builtin/**",
     "fmriflow/hub/hub.schema.json",
 ]

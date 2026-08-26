@@ -316,6 +316,10 @@ If you have not added any error definitions there yet, this page may be empty by
 - **Error cards** show: ID, stage badge, title, tags, symptom preview
 - **Expanded view**: for available entries, full symptoms, root cause, diagnosis steps, fix instructions, config notes, references
 
+### Documentation
+
+Opens this documentation site in a new browser tab. The server ships a built copy of the docs and serves it at `/documentation/`, so it works offline and inside the Docker container — no separate docs hosting needed.
+
 ### Settings
 
 Browser UI for the working-directory env vars: `FMRIFLOW_HOME`, `FMRIFLOW_DATA`, `FS_LICENSE`, `FMRIFLOW_SINGULARITY_BIN`. See [Working Directory](working-dir.md#editing-paths-from-the-settings-tab) for the layout this controls.

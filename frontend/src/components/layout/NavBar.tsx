@@ -78,7 +78,15 @@ function linkStyle(active: boolean): CSSProperties {
   }
 }
 
-const groups = [
+interface NavItem {
+  key: string
+  label: string
+  hash?: string
+  /** External href — opens in a new tab instead of hash-routing. */
+  href?: string
+}
+
+const groups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Pipeline',
     items: [
@@ -114,6 +122,7 @@ const groups = [
       { key: 'hub', label: 'Hub', hash: '#hub' },
       { key: 'errors', label: 'Errors', hash: '#errors' },
       { key: 'settings', label: 'Settings', hash: '#settings' },
+      { key: 'documentation', label: 'Documentation', href: '/documentation/' },
     ],
   },
 ]
@@ -164,11 +173,23 @@ export function NavBar({ currentRoute }: NavBarProps) {
             </div>
             {isExpanded && (
               <div style={{ paddingBottom: 4 }}>
-                {g.items.map((r) => (
-                  <a key={r.key} href={r.hash} style={linkStyle(currentRoute === r.key)}>
-                    {r.label}
-                  </a>
-                ))}
+                {g.items.map((r) =>
+                  r.href ? (
+                    <a
+                      key={r.key}
+                      href={r.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={linkStyle(false)}
+                    >
+                      {r.label} <span style={{ opacity: 0.5, fontSize: 10 }}>{'↗'}</span>
+                    </a>
+                  ) : (
+                    <a key={r.key} href={r.hash} style={linkStyle(currentRoute === r.key)}>
+                      {r.label}
+                    </a>
+                  )
+                )}
               </div>
             )}
           </div>

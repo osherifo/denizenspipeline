@@ -222,6 +222,12 @@ def create_app(
     app.include_router(qa_router, prefix="/api")
     app.include_router(ws_router)
 
+    # Serve the built MkDocs user documentation (if available). Mounted
+    # before the catch-all static mount; /docs stays FastAPI's swagger UI.
+    docs_dir = Path(__file__).parent / 'docs_site'
+    if docs_dir.is_dir():
+        app.mount("/documentation", StaticFiles(directory=str(docs_dir), html=True))
+
     # Serve built frontend (if available)
     static_dir = Path(__file__).parent / 'static'
     if static_dir.is_dir():
