@@ -1,0 +1,2240 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Module-based pipeline for voxelwise encoding models">
+      
+      
+      
+      
+        <link rel="prev" href="../group-analysis/">
+      
+      
+        <link rel="next" href="../artifact-hub/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Web UI - fMRIflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="cyan" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#web-ui" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="fMRIflow" class="md-header__button md-logo" aria-label="fMRIflow" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            fMRIflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Web UI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="cyan" data-md-color-accent="cyan"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="cyan" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/denizens/fmriflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    denizens/fmriflow
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="fMRIflow" class="md-nav__button md-logo" aria-label="fMRIflow" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    fMRIflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/denizens/fmriflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    denizens/fmriflow
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../working-dir/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Working Directory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../preprocessing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprocessing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../preproc-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprocessing (stack)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../structural-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Structural QC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dicom-to-bids/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DICOM to BIDS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../autoflatten/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autoflatten
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pycortex-transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pycortex Transforms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../post-preproc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-preproc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../group-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web UI
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preprocessing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preprocessing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Preprocessing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dicom-to-bids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DICOM to BIDS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preprocessing-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preprocessing Manager
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Analysis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#module-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module Browser
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#composer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Composer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subject-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subject scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#study-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Study scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run Manager
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Run Manager">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#live-progress-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live progress dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qa-tab-on-graph-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QA tab on graph nodes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#module-editor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module Editor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#error-knowledge-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Knowledge Base
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#result-locations-multiple-result-roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result locations (multiple result roots)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#long-running-analysis-runs-detach-reattach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-running analysis runs — detach &amp; reattach
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Long-running analysis runs — detach &amp; reattach">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#http-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTTP API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outcome-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Outcome inference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tradeoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tradeoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-shortcuts-and-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard shortcuts and tips
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../artifact-hub/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Artifact Hub
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/modules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/defaults/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Defaults
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/hub-store-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hub Store Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preprocessing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preprocessing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Preprocessing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dicom-to-bids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DICOM to BIDS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preprocessing-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preprocessing Manager
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Analysis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#module-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module Browser
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#composer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Composer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subject-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subject scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#study-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Study scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run Manager
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Run Manager">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#live-progress-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live progress dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qa-tab-on-graph-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QA tab on graph nodes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#module-editor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module Editor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#error-knowledge-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Knowledge Base
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#result-locations-multiple-result-roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result locations (multiple result roots)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#long-running-analysis-runs-detach-reattach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-running analysis runs — detach &amp; reattach
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Long-running analysis runs — detach &amp; reattach">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#http-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTTP API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outcome-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Outcome inference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tradeoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tradeoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-shortcuts-and-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard shortcuts and tips
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="web-ui">Web UI<a class="headerlink" href="#web-ui" title="Permanent link">&para;</a></h1>
+<p>fMRIflow includes a browser-based interface for managing experiments, building pipelines, converting DICOMs, and monitoring runs. Start it with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>fmriflow<span class="w"> </span>serve
+</code></pre></div>
+<p>Then open <code>http://127.0.0.1:8000</code> in your browser.</p>
+<p>The sidebar organizes features into four groups: <strong>Pipeline</strong>, <strong>Preprocessing</strong>, <strong>Analysis</strong>, and <strong>Reference</strong>.</p>
+<hr />
+<h2 id="pipeline">Pipeline<a class="headerlink" href="#pipeline" title="Permanent link">&para;</a></h2>
+<h3 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h3>
+<p>End-to-end orchestration across all four stages (convert, preproc, autoflatten, analysis). Each workflow is a single YAML under <code>$FMRIFLOW_HOME/configs/workflows/</code> that references existing per-stage configs. Clicking Run kicks off the stages in order, stopping on the first failure; each stage's child run inherits its own detach/reattach semantics. See the dedicated <a href="../workflows/">Workflows guide</a> for the schema, orchestration semantics, and API.</p>
+<hr />
+<h2 id="preprocessing">Preprocessing<a class="headerlink" href="#preprocessing" title="Permanent link">&para;</a></h2>
+<h3 id="dicom-to-bids">DICOM to BIDS<a class="headerlink" href="#dicom-to-bids" title="Permanent link">&para;</a></h3>
+<p>Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:</p>
+<p><strong>Tools</strong> — Shows installed conversion tools (heudiconv, dcm2niix) and their status.</p>
+<p><strong>Heuristics</strong> — Browse and search available heuristic files. Each card shows the heuristic name, scanner pattern, and description.</p>
+<p><strong>Scan</strong> — Point at a DICOM directory to see what series it contains before converting.</p>
+<p><strong>Manifests</strong> — Browse previously generated conversion manifests. Validate them against configs to check compatibility.</p>
+<p><strong>Configs</strong> — Browse YAML conversion configs saved under <code>./experiments/convert/</code> (pre-migration configs at <code>~/.fmriflow/convert_configs/</code> are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a <strong>Run</strong> button that dispatches either a single or batch conversion based on the file's shape. See <a href="../dicom-to-bids/#saved-configs">DICOM → BIDS → Saved configs</a> for the schema.</p>
+<p><strong>Convert</strong> — Single-subject conversion form:</p>
+<ul>
+<li>Select a heuristic from the dropdown</li>
+<li>Set the BIDS output directory and source DICOM directory</li>
+<li>Enter subject ID and session</li>
+<li>Optional: dataset name, minimal metadata, overwrite, BIDS validation</li>
+<li>Click <strong>Run</strong> and watch live progress with streaming logs</li>
+</ul>
+<p><strong>Batch</strong> — Convert multiple subjects in parallel:</p>
+<ul>
+<li><strong>Shared settings</strong> at the top: heuristic, BIDS dir, source root, max workers</li>
+<li><strong>Jobs table</strong> below: add rows for each subject/session/source directory</li>
+<li><strong>Load YAML</strong> to import a pre-configured batch, or <strong>Export YAML</strong> to save one</li>
+<li><strong>Save Config</strong> stores the batch for re-use (saved to <code>~/.fmriflow/convert_configs/</code>)</li>
+<li><strong>Saved Configs</strong> panel lists previously saved batches with Load/Delete actions</li>
+<li>Click <strong>Run Batch</strong> to start — progress shows per-job status badges (queued, running, done, failed), elapsed time, and expandable per-job logs</li>
+</ul>
+<h3 id="preprocessing-manager">Preprocessing Manager<a class="headerlink" href="#preprocessing-manager" title="Permanent link">&para;</a></h3>
+<p>Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Five tabs:</p>
+<p><strong>Backends</strong> — Lists installed preprocessing backends with version and status.</p>
+<p><strong>Manifests</strong> — Browse completed preprocessing outputs. Each manifest records the backend, parameters, output space, and per-run QC metrics. Validate against an analysis config to check compatibility before running the pipeline.</p>
+<p><strong>Configs</strong> — Browse YAML preproc configs discovered under <code>./experiments/preproc/</code>. Each file must have a top-level <code>preproc:</code> section. Clicking a config shows a summary grid (subject, backend, container, mode, paths) and the raw YAML, with a <strong>Run</strong> button that launches the job and streams live fmriprep output into the progress panel below. An <strong>In Flight</strong> panel at the top lists running jobs (plus recent completions) with <code>Watch</code> and <code>Cancel</code> buttons — jobs launched here survive server restarts and reconnect automatically, with a <code>REATTACHED</code> tag. See <a href="../preprocessing/#workflow-2-run-preprocessing-from-a-yaml-config">Preprocessing → Workflow 2</a> and <a href="../preprocessing/#long-running-jobs--detach--reattach">Long-running jobs</a> for details.</p>
+<p><strong>Collect</strong> — Build a manifest from existing preprocessing outputs (e.g., from a previous fmriprep run). Specify the output directory and file pattern; the tool scans and organizes the files.</p>
+<p><strong>Run</strong> — Launch a preprocessing job from an inline form (no YAML):</p>
+<ul>
+<li>Select backend, set BIDS directory, output directory, work directory, subject ID</li>
+<li>Toggle options like <code>--skip-bids-validation</code> in the Advanced section</li>
+<li>Click <strong>Run</strong> for live progress with event streaming</li>
+<li>Manifest auto-refreshes on completion</li>
+</ul>
+<hr />
+<h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
+<h3 id="dashboard">Dashboard<a class="headerlink" href="#dashboard" title="Permanent link">&para;</a></h3>
+<p>The main control center for running experiments.</p>
+<p><strong>Config browser</strong> (left sidebar):</p>
+<ul>
+<li>Lists all experiment YAML configs found in the project</li>
+<li>Search by filename, experiment name, subject, or model type</li>
+<li>Group by category</li>
+<li>Click a config to open its detail view</li>
+</ul>
+<p><strong>Config detail</strong> (main panel):</p>
+<ul>
+<li>Summary: experiment name, subject, model type, preprocessing settings</li>
+<li>Expandable raw YAML viewer</li>
+<li>Action buttons: <strong>Run</strong>, <strong>Validate</strong>, <strong>Edit in Composer</strong></li>
+<li>Validation errors shown inline</li>
+</ul>
+<p><strong>Live progress</strong> (appears during a run):</p>
+<ul>
+<li>Real-time stage tracker with status badges (pending, running, done, failed)</li>
+<li>Event log with timestamps</li>
+<li>Elapsed timer</li>
+<li>Artifacts section after completion (view/download links)</li>
+</ul>
+<p><strong>In-Flight Analysis Runs panel</strong> (top of the right pane):</p>
+<ul>
+<li>Lists active + recent detached analysis runs, auto-refreshing every 5 s while anything is running.</li>
+<li><code>Log</code> opens a modal with run metadata + last 200 lines of <code>stdout.log</code>.</li>
+<li><code>Cancel</code> sends <code>SIGTERM</code> to the process group with a <code>SIGKILL</code> chaser after 5 s.</li>
+<li>Runs reattached from disk (after a server restart) show a yellow <code>REATTACHED</code> tag — see the <a href="#long-running-analysis-runs--detach--reattach">"Long-running analysis runs" section below</a> for details.</li>
+</ul>
+<p><strong>Run history</strong> (bottom):</p>
+<ul>
+<li>Table of all past runs for the selected config</li>
+<li>Columns: date, experiment, subject, model, mean score, status</li>
+<li>Click to expand: summary metrics, stage timeline, artifacts, log tail</li>
+</ul>
+<h3 id="module-browser">Module Browser<a class="headerlink" href="#module-browser" title="Permanent link">&para;</a></h3>
+<p>Discover and inspect all available modules, organized by processing stage.</p>
+<ul>
+<li><strong>Scope tabs</strong> at the top — Subject (7 stages: stimuli → report),
+  Group (group_analyze, group_report), Study (study_analyze,
+  study_report), <strong>QA</strong> (qa_reporters grouped by the subject pipeline
+  stage they target). Each tab shows a count badge with the total
+  modules registered in that scope.</li>
+<li>Search modules by name or description (filters within the active scope)</li>
+<li>Each card shows: name, category badge, dimension count, parameter count</li>
+<li>Expand a card to see its full parameter table (name, type, default, required, description)</li>
+<li>The QA tab borrows the subject pipeline stage layout — a
+  <code>qa_reporter</code> decorated with <code>stage="prepare"</code> shows up in the
+  <strong>prepare</strong> column under that tab — without leaking into the
+  regular Subject columns, which stay focused on pipeline plugins.</li>
+</ul>
+<p><strong>+ New module</strong> (next to the search bar) opens a dialog that
+creates a new plugin from a starter template:</p>
+<ul>
+<li><strong>Category</strong> — filtered to what the active tab can host:
+  Subject creates <code>feature_extractors</code>, <code>reporters</code>, <code>analyzers</code>,
+  <code>stimulus_loaders</code>, etc.; Group creates <code>group_analyzers</code> /
+  <code>group_reporters</code>; Study creates <code>study_analyzers</code> /
+  <code>study_reporters</code>; <strong>QA</strong> creates <code>qa_reporters</code>.</li>
+<li><strong>Stage</strong> (shown only when category is <code>qa_reporters</code>) — picks
+  which subject pipeline stage the reporter attaches to (<code>stimuli</code>,
+  <code>responses</code>, <code>features</code>, <code>prepare</code>, or <code>model</code>). The template's
+  <code>value</code> argument type matches the stage (<code>ModelResult</code> for <code>model</code>,
+  <code>PreparedData</code> for <code>prepare</code>, etc.).</li>
+<li><strong>Name</strong> — snake_case; the dialog validates the format inline.</li>
+</ul>
+<p>Submit opens the same Monaco editor used for <strong>Edit source</strong>, but
+pre-loaded with the rendered template and a Save button that's
+enabled from the start. Save &amp; Reload writes the file to
+<code>$FMRIFLOW_HOME/addons/modules/</code> and registers the class in the live
+registry in one shot — the new module appears in the browser the
+moment you click <strong>Back</strong>.</p>
+<h3 id="composer">Composer<a class="headerlink" href="#composer" title="Permanent link">&para;</a></h3>
+<p>Build encoding-model pipelines. A <strong>scope tab bar</strong> at the top
+switches between <strong>Subject</strong>, <strong>Group</strong>, and <strong>Study</strong> composers —
+each tab has its own form, its own YAML editor, and its own
+state, so switching between them never loses unsaved edits in
+another scope.</p>
+<h4 id="subject-scope">Subject scope<a class="headerlink" href="#subject-scope" title="Permanent link">&para;</a></h4>
+<p>A vertical strip of seven collapsible <strong>stage cards</strong> (stimuli,
+responses, features, prepare, model, analyze, report). Each card
+holds the modules plugged into that stage plus their parameters.</p>
+<p><strong>Stage cards</strong> (left column):</p>
+<ul>
+<li>The card header shows the stage number, name, fill status (badge
+  colour), and a one-line summary. Click to expand/collapse.</li>
+<li><strong>Stimuli, Responses, Model</strong>: pick a single module from a
+  dropdown, then fill its <code>ParamForm</code>. Response loaders that need
+  a separate reader (e.g. <code>local</code>) reveal a second slot inline.</li>
+<li><strong>Features, Analyze</strong>: a stack of mini-cards. Add, remove,
+  reorder (↑ / ↓ buttons), and edit each entry independently.</li>
+<li><strong>Preparation</strong>: a checkbox toggles between the default single
+  preparer and a pipeline of preparation steps (same stack UX as
+  Features).</li>
+<li><strong>Reporting</strong>: checkbox group for output formats + an output
+  directory input.</li>
+</ul>
+<p><strong>Pipeline preview</strong> (below the strip): a read-only ReactFlow
+graph of the seven stages, coloured by fill status (cyan = filled,
+grey = empty, red = validation error). Clicking a node scrolls
+the matching card into view.</p>
+<p><strong>Right column</strong>: a Monaco YAML editor that mirrors the form. The
+form is the source of truth; raw edits in YAML are applied after
+800 ms of pause. Validate, Copy YAML, and Reset live in the top
+action bar.</p>
+<p>The composer reads and writes
+<code>$FMRIFLOW_HOME/configs/analysis/*.yaml</code>. See the
+<a href="../working-dir/">Working Directory</a> guide for the surrounding
+layout.</p>
+<h4 id="group-scope">Group scope<a class="headerlink" href="#group-scope" title="Permanent link">&para;</a></h4>
+<p>Author a cross-subject group config. Form sections:</p>
+<ul>
+<li><strong>Top fields</strong>: <code>group</code> name, <code>subjects</code> (comma-separated list),
+  <code>output_dir</code>.</li>
+<li><strong>Subject template</strong>: the same seven stage cards the Subject
+  composer renders, scoped to <code>subject_template.*</code>. Edits here flow
+  into the YAML editor's <code>subject_template:</code> block; every subject
+  in the group inherits this pipeline unless overridden.</li>
+<li><strong>Subject overrides</strong>: a list of per-subject sparse override
+  dicts. Pick a subject from the dropdown (only subjects defined
+  above are offered), click <strong>+ Add override</strong>, and edit the
+  partial dict in its own mini Monaco editor (~160 px tall).
+  Overrides are deep-merged on top of the template at run time —
+  set just the key you want to deviate (e.g.
+  <code>model: {params: {alpha: 0.5}}</code>).</li>
+<li><strong>Group analyze</strong> / <strong>Group report</strong>: stacks of
+  <code>group_analyzer</code> / <code>group_reporter</code> plugin picks, same UX as the
+  Subject composer's analyze stage.</li>
+</ul>
+<p>The right pane's Monaco YAML editor stays the source of truth for
+anything the form doesn't surface; form edits sync into it on a
+500 ms debounce, and raw YAML edits apply back after 800 ms.</p>
+<h4 id="study-scope">Study scope<a class="headerlink" href="#study-scope" title="Permanent link">&para;</a></h4>
+<p>Author a cross-group study config:</p>
+<ul>
+<li><strong>Top fields</strong>: <code>study</code> name, <code>output_dir</code>.</li>
+<li><strong>Groups</strong>: a list of <code>(name, config)</code> pairs pointing at saved
+  group YAMLs. The config-path picker has a datalist sourced from
+  the dashboard's saved-config index so you pick by filename.</li>
+<li><strong>Study analyze</strong> / <strong>Study report</strong>: stacks of
+  <code>study_analyzer</code> / <code>study_reporter</code> plugin picks.</li>
+<li>Right pane: Monaco YAML editor.</li>
+</ul>
+<p><code>/api/config/validate</code> sniffs the YAML shape (<code>subject</code> vs
+<code>group:</code> + <code>subjects:</code> vs <code>study:</code> + <code>groups:</code>) and dispatches to
+the right schema validator, so the Validate button works from any
+scope tab without an extra round-trip.</p>
+<h3 id="run-manager">Run Manager<a class="headerlink" href="#run-manager" title="Permanent link">&para;</a></h3>
+<p>Browse historical pipeline executions. There are three sibling views
+in the sidebar — <strong>Subject Runs</strong>, <strong>Group Runs</strong>, <strong>Study Runs</strong> —
+each scoped to one orchestrator level. They share the same detail
+panel features:</p>
+<ul>
+<li><strong>Run table</strong>: date, experiment / group / study, status badge,
+  primary metric where applicable.</li>
+<li><strong>Expanded detail</strong>: summary cards, stage timeline visualization,
+  artifact list with view/download links, log tail (last 300 lines).</li>
+<li><strong>View graph</strong> opens the pipeline graph for that run in a modal.
+  In a <em>finished</em> group or study run, clicking a child node (a group
+  inside a study, a subject inside a group) opens it as a <strong>second
+  pane to the right</strong> instead of replacing the current view —
+  click subject inside that pane and a third pane opens. Each pane
+  has its own ✕ that closes only itself and anything drilled from it.
+  Same drilldown chain works for in-flight runs.</li>
+<li><strong>View YAML</strong> opens the run's resolved <code>config_snapshot</code> as YAML
+  in a read-only Monaco editor with Copy + Download. This is the
+  <em>resolved</em> config (defaults + env vars + inheritance expanded), not
+  the original on-disk file.</li>
+<li>Refresh to reload.</li>
+</ul>
+<h4 id="live-progress-dashboard">Live progress dashboard<a class="headerlink" href="#live-progress-dashboard" title="Permanent link">&para;</a></h4>
+<p>The Dashboard switches between three Live-Progress panels by run
+kind. The selected progress panel shows a streaming event log:
+each subject's <code>▶ stage</code> / <code>✓ stage</code> / <code>✗ stage</code> lines are prefixed
+with <code>group/subject:</code> so you can tell which subject is in which
+stage even when several run concurrently.</p>
+<p>The graph viewer in the dashboard lights up <em>running</em> subject /
+group nodes the moment their first lifecycle event fires (cyan),
+flipping to green / red when each finishes — without waiting for
+any stage records to land. Saved runs colour purely from their
+final stage statuses.</p>
+<h4 id="qa-tab-on-graph-nodes">QA tab on graph nodes<a class="headerlink" href="#qa-tab-on-graph-nodes" title="Permanent link">&para;</a></h4>
+<p>Every stage node in the graph viewer has a <strong>QA tab</strong> that surfaces
+any <code>@qa_reporter</code> artifacts the run wrote for that stage
+(<code>&lt;run_dir&gt;/&lt;subject&gt;/qa/&lt;stage&gt;/</code>). Each artifact is shown inline
+(PNG) or as a download link (JSON, etc.). A <strong>Regenerate</strong> button
+re-runs only the QA plugins for that stage by reloading the saved
+intermediate (when <code>intermediates:</code> was on) — no need to rerun the
+model just to tweak a plot.</p>
+<h3 id="module-editor">Module Editor<a class="headerlink" href="#module-editor" title="Permanent link">&para;</a></h3>
+<p>Write, validate, and register custom modules directly in the browser.</p>
+<p><strong>Sidebar</strong>: list of user-created modules, template categories (feature extractor, preparation step, reporter, analyzer, stimulus loader, response loader), new module button.</p>
+<p><strong>Code editor</strong>: full Python editing with syntax highlighting. Live validation runs as you type (~1 second debounce), checking syntax, method signatures, and protocol compliance.</p>
+<p><strong>Status panel</strong>: validation results, save/delete buttons, success/error messages.</p>
+<p><strong>Workflow</strong>: pick a template (or start blank) → write code → auto-validates → name and save → module is immediately available in the Composer and Module Browser.</p>
+<p>Saved modules go to <code>$FMRIFLOW_HOME/addons/modules/</code> and are auto-loaded on server startup.</p>
+<hr />
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
+<h3 id="error-knowledge-base">Error Knowledge Base<a class="headerlink" href="#error-knowledge-base" title="Permanent link">&para;</a></h3>
+<p>A searchable reference of known pipeline errors with symptoms, root causes, and fixes. The server loads entries from your local error knowledge base — <code>$FMRIFLOW_ERRORS/</code> (default <code>$FMRIFLOW_HOME/errors/</code>). This is a per-user directory of <code>*.yaml</code> entries; it is never committed and the location is configurable via the <code>$FMRIFLOW_ERRORS</code> environment variable or the Settings tab.</p>
+<p>If you have not added any error definitions there yet, this page may be empty by default.</p>
+<ul>
+<li><strong>Search</strong> across symptoms, root cause, fix text, and tags</li>
+<li><strong>Filter</strong> by pipeline stage (stimuli, responses, features, preprocess, model, etc.)</li>
+<li><strong>Error cards</strong> show: ID, stage badge, title, tags, symptom preview</li>
+<li><strong>Expanded view</strong>: for available entries, full symptoms, root cause, diagnosis steps, fix instructions, config notes, references</li>
+</ul>
+<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<p>Opens this documentation site in a new browser tab. The server ships a built copy of the docs and serves it at <code>/documentation/</code>, so it works offline and inside the Docker container — no separate docs hosting needed.</p>
+<h3 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h3>
+<p>Browser UI for the working-directory env vars: <code>FMRIFLOW_HOME</code>, <code>FMRIFLOW_DATA</code>, <code>FS_LICENSE</code>, <code>FMRIFLOW_SINGULARITY_BIN</code>. See <a href="../working-dir/#editing-paths-from-the-settings-tab">Working Directory</a> for the layout this controls.</p>
+<ul>
+<li>Each row shows a <strong>source badge</strong> (<code>env</code> / <code>persisted</code> / <code>default</code>) so you can tell which tier the running server is using.</li>
+<li>Rows shadowed by a shell-exported env var are <strong>locked</strong> — unset the var in your shell to edit the persisted value.</li>
+<li><strong>Save</strong> writes <code>~/.config/fmriflow/settings.json</code> and shows a "restart fmriflow" banner — services cache the resolved layout at startup, so live re-apply is not safe.</li>
+<li><strong>Create directories if they don't exist</strong> checkbox (default on) — <code>mkdir -p</code>s <code>FMRIFLOW_HOME</code> / <code>FMRIFLOW_DATA</code> if they don't exist yet, so you don't have to drop into a terminal.</li>
+<li>The <strong>Resolved layout</strong> table at the bottom mirrors <code>fmriflow paths</code> plus FreeSurfer-license and <code>subjects.json</code> presence.</li>
+</ul>
+<h3 id="result-locations-multiple-result-roots">Result locations (multiple result roots)<a class="headerlink" href="#result-locations-multiple-result-roots" title="Permanent link">&para;</a></h3>
+<p>By default the dashboard scans one location for results and runs — your primary
+<code>$FMRIFLOW_HOME</code>. The <strong>Result locations</strong> section of the Settings tab lets you
+register additional, <strong>read-only</strong> roots so the scanners also surface results
+and runs stored elsewhere (another disk, an archive, a shared lab tree).</p>
+<ul>
+<li>Each extra root should be a <code>$FMRIFLOW_HOME</code>-shaped tree — i.e. it has
+  <code>data/results/</code>, <code>study_runs/</code>, <code>group_runs/</code>, and/or <code>runs/</code> beneath it.
+  Adding <strong>one path</strong> makes all of those visible.</li>
+<li>Extra roots are <strong>read-only</strong>: new runs are always written to the primary
+  root, and runs discovered in an extra root cannot be deleted from the UI.</li>
+<li>Changes apply on the <strong>next refresh</strong> — no restart needed (unlike the path
+  settings above). Each root shows a <code>primary</code> / <code>read-only</code> / <code>unreachable</code>
+  badge; an offline mount is skipped gracefully rather than breaking the scan.</li>
+<li>Runs from a non-primary root carry a small <code>↪ &lt;root&gt;</code> badge in the run lists
+  so you can see where each one lives.</li>
+<li>Headless/CI: set <code>$FMRIFLOW_RESULT_ROOTS</code> to an <code>os.pathsep</code>-separated list of
+  paths; it overrides the persisted list. API: <code>GET/POST/DELETE
+  /api/settings/result-roots</code>.</li>
+</ul>
+<blockquote>
+<p>Identity note: runs are identified by <strong>location + run id</strong>. Each root has a
+stable <code>root_id</code> (a hash of its path), and a run's full identity is
+<code>&lt;root_id&gt;:&lt;run_id&gt;</code>. Bare run ids resolve against the primary root first, so
+existing links keep working; the <code>?root=&lt;root_id&gt;</code> query param disambiguates
+the rare case where the same name/run id exists in more than one root.</p>
+</blockquote>
+<hr />
+<h2 id="long-running-analysis-runs-detach-reattach">Long-running analysis runs — detach &amp; reattach<a class="headerlink" href="#long-running-analysis-runs-detach-reattach" title="Permanent link">&para;</a></h2>
+<p>Clicking <strong>Run</strong> on a config (or POSTing to <code>/api/runs/from-config</code>) now
+spawns <code>fmriflow run &lt;config.yaml&gt;</code> as a detached subprocess
+(<code>start_new_session=True</code>) with stdout+stderr captured to
+<code>~/.fmriflow/runs/{run_id}/stdout.log</code> and a sidecar <code>state.json</code>. The
+analysis subprocess survives server restarts the same way preproc,
+convert, and autoflatten do.</p>
+<p>On server startup, <code>RunManager._reattach_active_runs</code> scans the registry
+and re-registers any live pipeline PIDs. They show up in the In-Flight
+Analysis Runs panel at the top of the Dashboard right pane with a
+<code>REATTACHED</code> tag.</p>
+<h3 id="http-api">HTTP API<a class="headerlink" href="#http-api" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># List active + recent in-flight runs</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>curl<span class="w"> </span>http://localhost:8000/api/runs/in-flight
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Summary + last 200 log lines for one run</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>curl<span class="w"> </span>http://localhost:8000/api/runs/in-flight/abc123def456
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Cancel a running pipeline</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/api/runs/in-flight/abc123def456/cancel
+</code></pre></div>
+<h3 id="outcome-inference">Outcome inference<a class="headerlink" href="#outcome-inference" title="Permanent link">&para;</a></h3>
+<p>On reattach (PID-dead check), the monitor looks for
+<code>{output_dir}/run_summary.json</code> — present → <code>done</code> (and the Run History
+row appears on next Dashboard refresh); missing → <code>failed</code>.</p>
+<h3 id="tradeoff">Tradeoff<a class="headerlink" href="#tradeoff" title="Permanent link">&para;</a></h3>
+<p>Because the pipeline now runs in a child process, the structured stage
+events that the in-process <code>UICaptureProxy</code> used to emit no longer reach
+the server's WebSocket. The live log stream in the Log modal and In-Flight
+panel is still there, and the full stage timeline + artifacts show up in
+Run History once the pipeline writes its <code>run_summary.json</code>. If you need
+mid-run per-stage progress in the dashboard, we can add a JSON-lines
+event file the subprocess writes to — ask.</p>
+<h2 id="keyboard-shortcuts-and-tips">Keyboard shortcuts and tips<a class="headerlink" href="#keyboard-shortcuts-and-tips" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The sidebar auto-expands the group containing the active page</li>
+<li>Click the logo to return to the Dashboard from any view</li>
+<li>All long-running operations (conversions, preprocessing, pipeline runs) stream progress via WebSocket — you see results in real time</li>
+<li>Batch conversion configs saved through the UI are valid YAML files that work with <code>fmriflow convert batch --config</code></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
