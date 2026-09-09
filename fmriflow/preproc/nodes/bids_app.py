@@ -10,6 +10,7 @@ from typing import Any
 from fmriflow.preproc.container import (
     VALID_CONTAINER_TYPES,
     container_prefix,
+    resolve_container_type,
     guest_paths,
     runtime_available,
 )
@@ -62,7 +63,7 @@ class BidsAppNode:
     def validate(self, inputs: dict[str, Any], params: dict[str, Any]) -> list[str]:
         errors: list[str] = []
         container = str(params.get("container") or "")
-        ctype = str(params.get("container_type") or "docker")
+        ctype = resolve_container_type(str(params.get("container_type") or "auto"), binary=str(params.get("container") or ""))
         if not container:
             errors.append("container is required (image, .sif path, or executable for bare)")
         if ctype not in VALID_CONTAINER_TYPES:
@@ -75,7 +76,7 @@ class BidsAppNode:
 
     def build_command(self, inputs: dict[str, Any], params: dict[str, Any], out_dir: Path) -> list[str]:
         container = str(params["container"])
-        ctype = str(params.get("container_type") or "docker")
+        ctype = resolve_container_type(str(params.get("container_type") or "auto"), binary=str(params.get("container") or ""))
         bids_dir = str(inputs["bids_dir"])
         output_dir, work_dir = self._dirs(inputs, out_dir)
         Path(output_dir).mkdir(parents=True, exist_ok=True)

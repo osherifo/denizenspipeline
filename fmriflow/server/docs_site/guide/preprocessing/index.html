@@ -1516,7 +1516,7 @@ the server at its binary:</p>
 <p>From the CLI the same thing is:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>fmriprep_anat_only<span class="w"> </span>--subject<span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--bids-dir<span class="w"> </span>./testing/my_study/bids<span class="w"> </span>--output-dir<span class="w"> </span>./testing/my_study/derivatives<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.container<span class="o">=</span>nipreps/fmriprep:24.1.1<span class="w"> </span>--param<span class="w"> </span>fmriprep.container_type<span class="o">=</span>docker
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.container<span class="o">=</span>nipreps/fmriprep:24.1.1<span class="w"> </span>--param<span class="w"> </span>fmriprep.container_type<span class="o">=</span>docker<span class="w">   </span><span class="c1"># default: auto</span>
 </code></pre></div>
 <p>Save the pipeline under a name to reuse it (it lands in <code>$FMRIFLOW_HOME/configs/preproc/</code>).</p>
 <h3 id="when-a-run-fails">When a run fails<a class="headerlink" href="#when-a-run-fails" title="Permanent link">&para;</a></h3>

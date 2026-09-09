@@ -26,7 +26,29 @@ from typing import Callable, Iterable
 logger = logging.getLogger(__name__)
 
 SINGULARITY_CONTAINER_TYPES = ("singularity", "apptainer")
-VALID_CONTAINER_TYPES = ("singularity", "apptainer", "docker", "bare")
+VALID_CONTAINER_TYPES = ("auto", "singularity", "apptainer", "docker", "bare")
+
+
+def resolve_container_type(container_type: str | None, *, binary: str) -> str:
+    """Turn ``auto`` into what this host can actually do.
+
+    ``bare`` when ``binary`` (the app itself, e.g. ``fmriprep``) is on PATH —
+    the full fMRIflow image ships it that way; otherwise ``docker`` when the
+    Docker CLI is present (the slim image, socket-mounted), otherwise
+    ``apptainer`` when that is; falling back to ``docker`` so the preflight
+    error names the runtime a fresh install most likely wants. Explicit
+    values pass through untouched.
+    """
+    ctype = (container_type or "auto").strip() or "auto"
+    if ctype != "auto":
+        return ctype
+    if shutil.which(binary):
+        return "bare"
+    if shutil.which("docker"):
+        return "docker"
+    if singularity_binary():
+        return "apptainer"
+    return "docker"
 
 # Lines that mean the app has already failed even though its worker pool
 # keeps the process alive for a while (fmriprep's MultiProc plugin).
@@ -91,6 +113,10 @@ def container_prefix(
         cmd = ["docker", "run", "--rm"]
         for host, guest, ro in binds:
             cmd += ["-v", f"{host}:{guest}{':ro' if ro else ''}"]
+    elif container_type == "bare":
+        # Nothing to prefix: the app runs straight from PATH and the image
+        # name, if any, is irrelevant.
+        return []
     else:
         raise ValueError(f"Unknown container_type: {container_type!r}")
     cmd.append(container)

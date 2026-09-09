@@ -84,7 +84,7 @@ From the CLI the same thing is:
 ```bash
 fmriflow preproc run fmriprep_anat_only --subject 01 \
   --bids-dir ./testing/my_study/bids --output-dir ./testing/my_study/derivatives \
-  --param fmriprep.container=nipreps/fmriprep:24.1.1 --param fmriprep.container_type=docker
+  --param fmriprep.container=nipreps/fmriprep:24.1.1 --param fmriprep.container_type=docker   # default: auto
 ```
 
 Save the pipeline under a name to reuse it (it lands in `$FMRIFLOW_HOME/configs/preproc/`).

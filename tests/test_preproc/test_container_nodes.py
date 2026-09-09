@@ -162,3 +162,33 @@ def test_fmriprep_validate_accepts_fs_subjects_dir_on_the_input_port(tmp_path):
     assert not any("requires fs_subjects_dir" in e for e in errs), errs
     errs = FmriprepNode().validate({"bids_dir": str(bids), "subject": "01", "fs_subjects_dir": str(tmp_path / "missing")}, params)
     assert any("fs_subjects_dir not found" in e for e in errs), errs
+
+
+def test_fmriprep_bare_ignores_the_image_name(tmp_path):
+    """container_type: bare with the default image still set must not try to wrap the command."""
+    from fmriflow.preproc.nodes.fmriprep import FmriprepNode
+    bids = tmp_path / "bids"; bids.mkdir()
+    cmd = FmriprepNode().build_command(
+        {"bids_dir": str(bids), "subject": "01", "output_dir": str(tmp_path / "out")},
+        {"mode": "anat_only", "container": "nipreps/fmriprep:24.1.1", "container_type": "bare"}, tmp_path)
+    assert cmd[0] == "fmriprep" and "docker" not in cmd
+
+
+def test_container_type_auto_resolves_from_the_host(monkeypatch, tmp_path):
+    from fmriflow.preproc import container as c
+    from fmriflow.preproc.nodes.fmriprep import FmriprepNode
+    bids = tmp_path / "bids"; bids.mkdir()
+    params = {"mode": "anat_only", "container": "img:1"}   # container_type omitted -> auto
+
+    monkeypatch.setattr(c.shutil, "which", lambda name: "/usr/bin/fmriprep" if name == "fmriprep" else None)
+    assert c.resolve_container_type("auto", binary="fmriprep") == "bare"
+    cmd = FmriprepNode().build_command({"bids_dir": str(bids), "subject": "01"}, params, tmp_path)
+    assert cmd[0] == "fmriprep"
+
+    monkeypatch.setattr(c.shutil, "which", lambda name: "/usr/bin/docker" if name == "docker" else None)
+    assert c.resolve_container_type("auto", binary="fmriprep") == "docker"
+    cmd = FmriprepNode().build_command({"bids_dir": str(bids), "subject": "01"}, params, tmp_path)
+    assert cmd[:3] == ["docker", "run", "--rm"] and "img:1" in cmd
+
+    assert c.resolve_container_type("apptainer", binary="fmriprep") == "apptainer"  # explicit passes through
+    assert c.container_prefix("img:1", "bare", bids_dir="/b", output_dir="/o") == []

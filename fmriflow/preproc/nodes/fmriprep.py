@@ -36,7 +36,7 @@ from fmriflow.preproc.checkpoints import (
     volume_intensity_metrics,
     wm_volume_metrics,
 )
-from fmriflow.preproc.container import container_prefix, guest_paths, runtime_available
+from fmriflow.preproc.container import container_prefix, guest_paths, resolve_container_type, runtime_available
 from fmriflow.preproc.node_registry import preproc_node
 
 logger = logging.getLogger(__name__)
@@ -99,8 +99,10 @@ class FmriprepNode:
         "mode": {"type": "str", "default": "full", "enum": list(VALID_MODES), "group": "Mode",
                  "description": "full | anat_only | func_only | func_precomputed_anat"},
         "container": {"type": "str", "default": "nipreps/fmriprep:24.1.1", "group": "Mode",
-                      "description": "Image (docker tag, .sif path, docker:// URI) or empty for a bare install."},
-        "container_type": {"type": "str", "default": "docker", "enum": list(VALID_CONTAINER_TYPES), "group": "Mode"},
+                      "description": "Image (docker tag, .sif path, docker:// URI); ignored when fmriprep runs bare."},
+        "container_type": {"type": "str", "default": "auto", "enum": list(VALID_CONTAINER_TYPES), "group": "Mode",
+                           "description": "auto: bare when fmriprep is on PATH (full image), else docker (slim image) "
+                                          "or apptainer, whichever is installed."},
         "skip_bids_validation": {"type": "bool", "default": False, "group": "Mode"},
         "task_id": {"type": "str", "default": "", "group": "Mode", "description": "Only this task."},
         "sequence": {"type": "str", "default": "", "enum": ["", "mprage", "mp2rage"], "group": "Mode",
@@ -146,8 +148,16 @@ class FmriprepNode:
 
     @staticmethod
     def _clean(params: dict[str, Any]) -> dict[str, Any]:
-        """Drop empty-string / None values so FmriprepParams keeps its defaults."""
-        return {k: v for k, v in params.items() if v not in ("", None)}
+        """Drop empty-string / None values so FmriprepParams keeps its defaults,
+        and settle ``container_type`` for this host: ``auto`` resolves, and a
+        ``bare`` launch drops the image name so nothing downstream tries to
+        wrap the command in a runtime."""
+        out = {k: v for k, v in params.items() if v not in ("", None)}
+        ctype = resolve_container_type(str(out.get("container_type") or "auto"), binary="fmriprep")
+        out["container_type"] = ctype
+        if ctype == "bare":
+            out.pop("container", None)
+        return out
 
     @staticmethod
     def _dirs(inputs: dict[str, Any], out_dir: Path) -> tuple[str, str]:

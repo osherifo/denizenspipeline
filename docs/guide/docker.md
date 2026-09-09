@@ -85,28 +85,32 @@ empty layout under `$FMRIFLOW_HOME`. Drop your FreeSurfer license at
 
 Open `http://localhost:8421`.
 
-In your preproc YAML, point fmriprep at the bidsapp image:
+The fmriprep node's `container_type` defaults to **`auto`**, which picks
+`docker` here because the Docker CLI is on PATH and fmriprep is not; the
+`container` parameter names the image to run (default
+`nipreps/fmriprep:24.1.1`). Set `container_type: docker` explicitly only to
+pin it:
 
 ```yaml
-backend: fmriprep
-container_type: docker
-container: nipreps/fmriprep:24.1.1
+fmriprep:
+  params:
+    container_type: docker
+    container: nipreps/fmriprep:24.1.1
 ```
 
 ## Standalone — full image
 
 The full image is built **on top of** `nipreps/fmriprep`, so
 fmriprep, FreeSurfer and ANTs are on PATH, with dcm2niix added on top.
-Preproc YAMLs can use `container_type: bare` directly:
+With `container_type: auto` (the default) the fmriprep node runs **bare**
+here, because `fmriprep` is on PATH; the `container` image name is ignored
+in that case. Nothing to configure:
 
 ```bash
 docker compose -f docker-compose.full.yml up --build
 ```
 
-```yaml
-backend: fmriprep
-container_type: bare
-```
+To pin it, `container_type: bare` on the node has the same effect.
 
 Pin a specific fmriprep version with:
 
