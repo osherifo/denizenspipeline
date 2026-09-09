@@ -137,12 +137,17 @@ class Pipeline:
     nodes: list[PipelineNode] = field(default_factory=list)
     edges: list[PipelineEdge] = field(default_factory=list)
     manifest: dict[str, Any] = field(default_factory=dict)
+    # Run-panel values saved with the pipeline (subject, bids_dir, output_dir,
+    # work_dir, plugin, …) so a saved config is a complete, re-runnable thing.
+    # Templates carry none; the CLI and the workflow stage use them as
+    # fallbacks for anything not given explicitly.
+    run_defaults: dict[str, Any] = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
 
     # ── serialisation ──────────────────────────────────────────────
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "schema_version": self.schema_version,
             "name": self.name,
             "description": self.description,
@@ -152,6 +157,9 @@ class Pipeline:
             "edges": [e.to_reactflow() for e in self.edges],
             "manifest": dict(self.manifest),
         }
+        if self.run_defaults:
+            out["run_defaults"] = dict(self.run_defaults)
+        return out
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Pipeline:
@@ -168,6 +176,7 @@ class Pipeline:
             nodes=[PipelineNode.from_reactflow(n) for n in data.get("nodes") or []],
             edges=[PipelineEdge.from_reactflow(e) for e in data.get("edges") or []],
             manifest=dict(data.get("manifest") or {}),
+            run_defaults={k: v for k, v in (data.get("run_defaults") or {}).items() if v not in (None, "", [])},
             schema_version=version,
         )
 

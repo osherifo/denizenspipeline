@@ -40,7 +40,8 @@ export function RunPanel({ onLaunched }: Props) {
 
   return (
     <div style={panel}>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Run</div>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 2 }}>Run</div>
+      <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>these values are saved with the pipeline (Save above) and come back when you reopen it</div>
       <div style={row}><label>subject *</label>{text('subject', 'participant label, e.g. 01')}</div>
       <div style={row}><label>output_dir *</label>{dir('output_dir', 'where derivatives + work go')}</div>
       {wants('bids_dir') && <div style={row}><label>bids_dir</label>{dir('bids_dir', 'BIDS root')}</div>}

@@ -137,3 +137,12 @@ def test_run_request_roundtrip_and_resolve():
     assert req.resolve_input("extra") == 3
     with pytest.raises(KeyError):
         req.resolve_input("nope")
+
+
+def test_run_defaults_roundtrip_and_empty_values_dropped():
+    from fmriflow.preproc.graph import Pipeline
+    p = Pipeline.from_dict({"name": "x", "run_defaults": {"subject": "01", "bids_dir": "/b", "work_dir": "", "n_procs": None, "plugin": "Linear"}})
+    assert p.run_defaults == {"subject": "01", "bids_dir": "/b", "plugin": "Linear"}
+    again = Pipeline.from_yaml(p.to_yaml())
+    assert again.run_defaults == p.run_defaults
+    assert "run_defaults" not in Pipeline(name="t").to_dict()   # templates stay clean

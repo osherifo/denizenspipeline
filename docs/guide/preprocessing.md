@@ -65,6 +65,10 @@ fmriflow preproc run fmriprep_anat_only --subject 01 \
 ```
 
 Save the pipeline under a name to reuse it (it lands in `$FMRIFLOW_HOME/configs/preproc/`).
+The **Run** panel is saved with it, as `run_defaults` — subject, BIDS root, output and
+work dirs, plugin, cache — so reopening a saved pipeline brings those back and a rerun
+is one click. Templates carry no defaults. `fmriflow preproc run <saved-name>` uses the
+saved values for any flag you leave out.
 
 ### When a run fails
 

@@ -33,15 +33,15 @@ def add_preproc_subcommands(subparsers: argparse._SubParsersAction) -> None:
         "run", help="Run a preprocessing pipeline (a saved pipeline, a template, or a YAML file)",
     )
     run_p.add_argument("pipeline", help="pipeline name (configs/preproc), template name, or path to a pipeline YAML")
-    run_p.add_argument("--subject", required=True, help="participant label (no sub-)")
-    run_p.add_argument("--output-dir", required=True, help="derivatives root (work dir defaults to <output_dir>/work)")
+    run_p.add_argument("--subject", help="participant label (no sub-); default: the pipeline's saved run_defaults")
+    run_p.add_argument("--output-dir", help="derivatives root (work dir defaults to <output_dir>/work); default: saved run_defaults")
     run_p.add_argument("--bids-dir", help="BIDS root ($inputs.bids_dir)")
     run_p.add_argument("--derivatives-dir", help="existing preprocessed data ($inputs.derivatives_dir)")
     run_p.add_argument("--work-dir", help="nipype work dir")
-    run_p.add_argument("--dataset", default="unknown", help="dataset label for the manifest")
+    run_p.add_argument("--dataset", default=None, help="dataset label for the manifest")
     run_p.add_argument("--input", action="append", default=[], metavar="NAME=VALUE", help="extra pipeline input")
     run_p.add_argument("--param", action="append", default=[], metavar="NODE.KEY=VALUE", help="override a node parameter")
-    run_p.add_argument("--plugin", default="Linear", choices=["Linear", "MultiProc"])
+    run_p.add_argument("--plugin", default=None, choices=["Linear", "MultiProc"])
     run_p.add_argument("--n-procs", type=int, default=None)
     run_p.add_argument("--no-cache", action="store_true", help="ignore nipype's cache, re-run every node")
     run_p.add_argument("--rerun-from", action="append", default=[], metavar="NODE_ID", help="re-run from this node onwards")
@@ -146,14 +146,30 @@ def _preproc_run(args) -> int:
             print(f"Error: --param expects NODE.KEY=VALUE, got {item!r}", file=sys.stderr)
             return 1
         overrides.setdefault(node_id, {})[pkey] = _coerce(v)
+    # Anything not given on the command line comes from the pipeline's saved
+    # run panel (run_defaults); templates have none, so those need the flags.
+    d = dict(pipeline.run_defaults or {})
+    subject = args.subject or d.get("subject")
+    output_dir = args.output_dir or d.get("output_dir")
+    missing = [n for n, v in (("--subject", subject), ("--output-dir", output_dir)) if not v]
+    if missing:
+        print(f"Error: {' and '.join(missing)} required (not saved with pipeline {ref!r})", file=sys.stderr)
+        return 1
     request = PipelineRunRequest(
-        subject=args.subject, output_dir=args.output_dir, bids_dir=args.bids_dir,
-        derivatives_dir=args.derivatives_dir, work_dir=args.work_dir, dataset=args.dataset,
-        inputs=inputs, plugin=args.plugin, n_procs=args.n_procs, use_cache=not args.no_cache,
-        rerun_from=list(args.rerun_from), abort_on_bad=bool(args.abort_on_bad), params_override=overrides,
+        subject=str(subject), output_dir=str(output_dir),
+        bids_dir=args.bids_dir or d.get("bids_dir"),
+        derivatives_dir=args.derivatives_dir or d.get("derivatives_dir"),
+        work_dir=args.work_dir or d.get("work_dir"),
+        dataset=args.dataset or d.get("dataset") or "unknown",
+        inputs=inputs, plugin=args.plugin or d.get("plugin") or "Linear",
+        n_procs=args.n_procs if args.n_procs is not None else d.get("n_procs"),
+        use_cache=(not args.no_cache) and bool(d.get("use_cache", True)),
+        rerun_from=list(args.rerun_from),
+        abort_on_bad=bool(args.abort_on_bad or d.get("abort_on_bad", False)),
+        params_override=overrides,
     )
     registry = NodeRegistry().discover()
-    out = Path(args.output_dir)
+    out = Path(str(output_dir))
     out.mkdir(parents=True, exist_ok=True)
     runner = PipelineRunner(registry, run_id="cli", crash_dir=out / "work" / "crash",
                             checkpoints_path=out / "checkpoints.jsonl",

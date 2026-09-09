@@ -1503,7 +1503,11 @@ docker or apptainer container is not supported at present.</p>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--bids-dir<span class="w"> </span>./testing/my_study/bids<span class="w"> </span>--output-dir<span class="w"> </span>./testing/my_study/derivatives<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.output_spaces<span class="o">=</span><span class="s1">&#39;[&quot;T1w&quot;]&#39;</span>
 </code></pre></div>
-<p>Save the pipeline under a name to reuse it (it lands in <code>$FMRIFLOW_HOME/configs/preproc/</code>).</p>
+<p>Save the pipeline under a name to reuse it (it lands in <code>$FMRIFLOW_HOME/configs/preproc/</code>).
+The <strong>Run</strong> panel is saved with it, as <code>run_defaults</code> — subject, BIDS root, output and
+work dirs, plugin, cache — so reopening a saved pipeline brings those back and a rerun
+is one click. Templates carry no defaults. <code>fmriflow preproc run &lt;saved-name&gt;</code> uses the
+saved values for any flag you leave out.</p>
 <h3 id="when-a-run-fails">When a run fails<a class="headerlink" href="#when-a-run-fails" title="Permanent link">&para;</a></h3>
 <p>The run header shows the <strong>cause</strong> — the innermost exception message, e.g.
 <code>ValueError: fmriprep: mode 'func_precomputed_anat' requires fs_subjects_dir …</code> —

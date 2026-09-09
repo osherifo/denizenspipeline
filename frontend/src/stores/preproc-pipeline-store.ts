@@ -36,6 +36,30 @@ export interface RunBinding {
   abort_on_bad: boolean
 }
 
+/** The run-panel fields that travel with a saved pipeline (rerun_from is per launch). */
+function bindingToDefaults(b: RunBinding): PipelineDoc['run_defaults'] {
+  const out: Record<string, unknown> = {}
+  for (const k of ['subject', 'output_dir', 'bids_dir', 'derivatives_dir', 'work_dir', 'dataset'] as const) {
+    if (b[k]) out[k] = b[k]
+  }
+  out.plugin = b.plugin
+  if (b.n_procs != null) out.n_procs = b.n_procs
+  out.use_cache = b.use_cache
+  out.abort_on_bad = b.abort_on_bad
+  return out as PipelineDoc['run_defaults']
+}
+
+function defaultsToBinding(d: PipelineDoc['run_defaults'] | undefined): RunBinding {
+  if (!d) return { ...DEFAULT_BINDING }
+  return {
+    ...DEFAULT_BINDING,
+    subject: d.subject ?? '', output_dir: d.output_dir ?? '', bids_dir: d.bids_dir ?? '',
+    derivatives_dir: d.derivatives_dir ?? '', work_dir: d.work_dir ?? '', dataset: d.dataset ?? DEFAULT_BINDING.dataset,
+    plugin: d.plugin ?? DEFAULT_BINDING.plugin, n_procs: d.n_procs ?? null,
+    use_cache: d.use_cache ?? true, abort_on_bad: d.abort_on_bad ?? false,
+  }
+}
+
 export const EMPTY_PIPELINE: PipelineDoc = {
   schema_version: 1,
   name: 'untitled',
@@ -182,6 +206,8 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
       set({
         pipeline, pipelineName: name, dirty: false, selectedNodeId: pipeline.nodes[0]?.id ?? null,
         validation: null, error: null,
+        // A saved pipeline brings its run panel back with it.
+        binding: defaultsToBinding(pipeline.run_defaults),
       })
     } catch (e) {
       set({ error: (e as Error).message })
@@ -277,8 +303,10 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
 
   save: async (name) => {
     try {
-      const res = await savePipeline(name, { ...get().pipeline, name })
-      set({ pipelineName: name, dirty: false, pipeline: { ...get().pipeline, name }, validation: { ok: res.errors.length === 0, errors: res.errors }, error: null })
+      // Save the run panel with the pipeline, so reopening it needs no retyping.
+      const doc: PipelineDoc = { ...get().pipeline, name, run_defaults: bindingToDefaults(get().binding) }
+      const res = await savePipeline(name, doc)
+      set({ pipelineName: name, dirty: false, pipeline: doc, validation: { ok: res.errors.length === 0, errors: res.errors }, error: null })
       await get().loadPipelines()
     } catch (e) {
       set({ error: (e as Error).message })

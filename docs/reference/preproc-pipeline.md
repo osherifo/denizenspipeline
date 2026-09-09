@@ -38,6 +38,14 @@ edges:
 manifest:
   backend_node: fmriprep     # whose outputs define the PreprocManifest
   bold_from: smooth.out_file # re-point the manifest's BOLD files at this port
+run_defaults:                # optional — the Run panel, saved with the pipeline
+  subject: "01"
+  bids_dir: /data/bids
+  output_dir: /data/derivatives/my_study
+  work_dir: /data/work/my_study
+  plugin: Linear             # Linear | MultiProc (+ n_procs)
+  use_cache: true
+  abort_on_bad: false
   confounds_from: fmriprep.confounds
 ```
 

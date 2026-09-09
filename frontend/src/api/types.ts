@@ -1418,6 +1418,21 @@ export interface PipelineDoc {
   nodes: PipelineNodeDoc[]
   edges: PipelineEdgeDoc[]
   manifest: { backend_node?: string; bold_from?: string; confounds_from?: string }
+  /** Run-panel values saved with the pipeline; absent on templates. */
+  run_defaults?: Partial<PipelineRunDefaults>
+}
+
+export interface PipelineRunDefaults {
+  subject: string
+  output_dir: string
+  bids_dir: string
+  derivatives_dir: string
+  work_dir: string
+  dataset: string
+  plugin: 'Linear' | 'MultiProc'
+  n_procs: number | null
+  use_cache: boolean
+  abort_on_bad: boolean
 }
 
 export interface PipelineSummary {

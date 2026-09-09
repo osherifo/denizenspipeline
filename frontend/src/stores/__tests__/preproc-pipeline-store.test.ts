@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { usePreprocPipelineStore, topoOrder } from '../preproc-pipeline-store'
+import { http, HttpResponse } from 'msw'
+import { server } from '../../test/mocks/server'
 import { TEMPLATE_PIPELINE } from '../../test/mocks/handlers.preproc-pipelines'
 
 describe('preproc pipeline store', () => {
@@ -60,6 +62,34 @@ describe('preproc pipeline store', () => {
     const v = usePreprocPipelineStore.getState().validation
     expect(v?.ok).toBe(false)
     expect(v?.errors[0]).toMatch(/bogus/)
+  })
+
+  it('saves the run panel as run_defaults and restores it on load', async () => {
+    let sent: { pipeline: { run_defaults?: Record<string, unknown> } } | null = null
+    server.use(
+      http.put('/api/preproc/pipelines/:name', async ({ request, params }) => {
+        sent = (await request.json()) as typeof sent
+        return HttpResponse.json({ saved: true, name: params.name, path: `/c/${params.name}.yaml`, errors: [] })
+      }),
+      http.get('/api/preproc/pipelines/:name', ({ params }) => HttpResponse.json({
+        name: params.name, path: `/c/${params.name}.yaml`,
+        pipeline: { ...TEMPLATE_PIPELINE, name: String(params.name), run_defaults: { subject: '07', output_dir: '/o', plugin: 'MultiProc', n_procs: 4, use_cache: false } },
+      })),
+    )
+    const s = usePreprocPipelineStore.getState()
+    await s.loadTemplate('derivatives_smooth')
+    s.setBinding({ subject: '01', output_dir: '/out', bids_dir: '', work_dir: '/w', plugin: 'Linear', use_cache: true })
+    await usePreprocPipelineStore.getState().save('mine')
+    expect(sent!.pipeline.run_defaults).toEqual({ subject: '01', output_dir: '/out', work_dir: '/w', dataset: 'unknown', plugin: 'Linear', use_cache: true, abort_on_bad: false })
+
+    await usePreprocPipelineStore.getState().loadPipeline('mine')
+    const b = usePreprocPipelineStore.getState().binding
+    expect(b.subject).toBe('07')
+    expect(b.output_dir).toBe('/o')
+    expect(b.plugin).toBe('MultiProc')
+    expect(b.n_procs).toBe(4)
+    expect(b.use_cache).toBe(false)
+    expect(b.bids_dir).toBe('')
   })
 
   it('saves under a name and launches with the binding', async () => {
