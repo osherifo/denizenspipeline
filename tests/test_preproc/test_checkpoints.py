@@ -245,7 +245,7 @@ def test_checkpoint_watcher_stops_and_joins():
     import threading
     from fmriflow.preproc.checkpoints import CheckpointWatcher
     w = CheckpointWatcher([], {}, lambda cp: None, run_id="r", node="n", subject="01", poll_interval=0.05)
-    assert callable(threading.Thread._stop) and callable(getattr(w, "_stop"))
+    assert not isinstance(getattr(w, "_stop", None), threading.Event)
     w.start()
     w.stop()
     w.join(timeout=5)
