@@ -1381,8 +1381,7 @@ multi-hour run rather than after it:</p>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>fmriflow<span class="w"> </span>autoflatten<span class="w"> </span>doctor<span class="w">   </span><span class="c1"># autoflatten, pycortex, FreeSurfer</span>
 </code></pre></div>
 <p>The same checks are available over HTTP for the running server at
-<code>GET /api/convert/tools</code> and <code>GET /api/autoflatten/doctor</code>; the
-Autoflatten page shows the latter as a <strong>Tool Availability</strong> card. The
+<code>GET /api/convert/tools</code> and <code>GET /api/autoflatten/doctor</code>. The
 Docker build for the full image fails outright if any of <code>fmriprep</code>,
 <code>recon-all</code>, <code>dcm2niix</code>, <code>heudiconv</code>, <code>autoflatten</code> or <code>bids-validator</code>
 is not on <code>PATH</code>, so an image that built is an image with its tools.</p>

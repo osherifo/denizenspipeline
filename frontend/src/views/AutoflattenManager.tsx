@@ -100,11 +100,10 @@ function useResolvedVisualizations(
 // ── Status Tab ──────────────────────────────────────────────────────────
 
 function StatusTab() {
-  const { tools, toolsLoading, loadTools, subjectStatus, statusLoading, statusError, checkStatus, clearStatus } = useAutoflattenStore()
+  const { subjectStatus, statusLoading, statusError, checkStatus, clearStatus } = useAutoflattenStore()
   const [subjectsDir, setSubjectsDir] = useState('')
   const [subject, setSubject] = useState('')
 
-  useEffect(() => { loadTools() }, [])
 
   const previewImages = useResolvedVisualizations(
     undefined,
@@ -118,21 +117,6 @@ function StatusTab() {
 
   return (
     <>
-      {/* Tool availability */}
-      <div style={card}>
-        <div style={cardTitle}>Tool Availability</div>
-        {toolsLoading ? (
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Loading...</div>
-        ) : (
-          tools.map((t) => (
-            <div key={t.name} style={{ fontSize: 12, marginBottom: 6 }}>
-              <span style={statusDot(t.available)} />
-              <strong>{t.name}</strong> — {t.detail}
-            </div>
-          ))
-        )}
-      </div>
-
       {/* Subject check */}
       <div style={card}>
         <div style={cardTitle}>Subject Status</div>

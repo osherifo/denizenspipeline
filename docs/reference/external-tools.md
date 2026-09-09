@@ -44,8 +44,7 @@ fmriflow autoflatten doctor   # autoflatten, pycortex, FreeSurfer
 ```
 
 The same checks are available over HTTP for the running server at
-`GET /api/convert/tools` and `GET /api/autoflatten/doctor`; the
-Autoflatten page shows the latter as a **Tool Availability** card. The
+`GET /api/convert/tools` and `GET /api/autoflatten/doctor`. The
 Docker build for the full image fails outright if any of `fmriprep`,
 `recon-all`, `dcm2niix`, `heudiconv`, `autoflatten` or `bids-validator`
 is not on `PATH`, so an image that built is an image with its tools.

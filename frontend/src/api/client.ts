@@ -663,10 +663,6 @@ export async function runSavedConvertConfig(
 
 // ── Autoflatten ────────────────────────────────────────────────────────
 
-export async function fetchAutoflattenDoctor(): Promise<{ tools: { name: string; available: boolean; detail: string }[] }> {
-  return json(`${BASE}/autoflatten/doctor`)
-}
-
 export async function fetchAutoflattenStatus(params: {
   subjects_dir: string; subject: string
 }): Promise<{
