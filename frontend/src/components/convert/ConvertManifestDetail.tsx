@@ -215,8 +215,8 @@ export function ConvertManifestDetailPanel({ manifest }: Props) {
 
       {/* Runs table */}
       <div style={sectionLabel}>Runs ({manifest.runs.length})</div>
-      <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
-        <table style={tableStyle}>
+      <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflowX: 'auto', marginBottom: 16 }}>
+        <table style={{ ...tableStyle, width: 'max-content', minWidth: '100%' }}>
           <thead>
             <tr>
               <th style={thStyle}>Modality</th>
@@ -249,7 +249,7 @@ export function ConvertManifestDetailPanel({ manifest }: Props) {
                 <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 10 }}>
                   [{run.shape.join(', ')}]
                 </td>
-                <td style={{ ...tdStyle, fontSize: 10, fontFamily: 'monospace', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <td style={{ ...tdStyle, fontSize: 10, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                   {run.output_file}
                 </td>
               </tr>
