@@ -26,6 +26,21 @@ describe('PathPickerModal', () => {
   })
 })
 
+describe('PathPickerModal files in directory mode', () => {
+  it('lists files but only lets a folder be picked', async () => {
+    const onPick = vi.fn()
+    render(<PathPickerModal initialPath="/workspace/data/dicoms" onPick={onPick} onClose={() => {}} />)
+    await waitFor(() => expect(screen.getByText('README.txt')).toBeInTheDocument())
+    expect(screen.getByText(/1 folders · 1 files/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('README.txt'))
+    fireEvent.click(screen.getByText('Use selected'))
+    expect(onPick).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('sub01'))
+    fireEvent.click(screen.getByText('Use selected'))
+    expect(onPick).toHaveBeenCalledWith('/workspace/data/dicoms/sub01')
+  })
+})
+
 describe('PathPickerModal roots', () => {
   it('shows no data/home chips, only extra roots', async () => {
     render(<PathPickerModal onPick={vi.fn()} onClose={() => {}} />)

@@ -35,6 +35,7 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
   const [path, setPath] = useState<string | null>(null)
   const [parent, setParent] = useState<string | null>(null)
   const [entries, setEntries] = useState<FsEntry[]>([])
+  const [truncated, setTruncated] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [extraEnv, setExtraEnv] = useState('FMRIFLOW_BROWSE_ROOTS')
@@ -42,8 +43,10 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
   const open = async (p: string) => {
     setError(null)
     try {
-      const l = await fetchFsListing(p, mode === 'file')
-      setPath(l.path); setParent(l.parent); setEntries(l.entries); setSelected(null)
+      // Files are always listed: in directory mode they are shown greyed and
+      // unselectable, so a folder of DICOMs is distinguishable from an empty one.
+      const l = await fetchFsListing(p, true)
+      setPath(l.path); setParent(l.parent); setEntries(l.entries); setSelected(null); setTruncated(Boolean(l.truncated))
     } catch (e) {
       setError((e as Error).message)
     }
@@ -99,13 +102,20 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
         <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
           {error && <div style={{ color: '#ef4444', padding: 8 }}>{error}</div>}
           {!error && entries.length === 0 && path && <div style={{ color: 'var(--text-secondary)', padding: 8 }}>empty directory</div>}
+          {!error && entries.length > 0 && (
+            <div style={{ color: 'var(--text-secondary)', fontSize: 10, padding: '2px 8px 6px' }}>
+              {entries.filter((e) => e.is_dir).length} folders · {entries.filter((e) => !e.is_dir).length} files
+              {truncated ? ' · listing capped, more not shown' : ''}
+              {mode === 'dir' ? ' · pick a folder; files are shown for orientation only' : ''}
+            </div>
+          )}
           {entries.map((e) => (
             <div
               key={e.path}
-              style={{ ...row(selected === e.path), opacity: e.dangling ? 0.7 : 1 }}
-              onClick={() => { if (!e.dangling) setSelected(e.path) }}
-              onDoubleClick={() => { if (e.dangling) return; e.is_dir ? open(e.path) : onPick(e.path) }}
-              title={e.dangling ? `broken link → ${e.link_target ?? '?'} (not visible to the server; inside Docker the target must be mounted)` : e.is_dir ? 'double-click to open' : e.path}
+              style={{ ...row(selected === e.path), opacity: e.dangling ? 0.7 : (!e.is_dir && mode === 'dir') ? 0.55 : 1, cursor: (!e.is_dir && mode === 'dir') ? 'default' : undefined }}
+              onClick={() => { if (e.dangling || (!e.is_dir && mode === 'dir')) return; setSelected(e.path) }}
+              onDoubleClick={() => { if (e.dangling || (!e.is_dir && mode === 'dir')) return; e.is_dir ? open(e.path) : onPick(e.path) }}
+              title={e.dangling ? `broken link → ${e.link_target ?? '?'} (not visible to the server; inside Docker the target must be mounted)` : e.is_dir ? 'double-click to open' : mode === 'dir' ? `${e.name} (a file — pick the folder)` : e.path}
             >
               <span style={{ width: 16, textAlign: 'center' }}>{e.dangling ? '⚠' : e.is_dir ? '📁' : '·'}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
