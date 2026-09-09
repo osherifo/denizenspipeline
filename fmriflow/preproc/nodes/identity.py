@@ -28,8 +28,8 @@ class IdentityTransform:
     version = "0.1.0"
     description = "No-op transform — passes inputs through unchanged."
 
-    INPUTS = ["in_file"]
-    OUTPUTS = ["out_file"]
+    INPUTS = {"in_file": {"kind": "nifti", "required": True}}
+    OUTPUTS = {"out_file": {"kind": "nifti"}}
     PARAM_SCHEMA: dict = {}
 
     REQUIRED_PYTHON: list[str] = []

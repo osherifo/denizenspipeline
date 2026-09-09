@@ -93,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     runner = PipelineRunner(
         node_registry, run_id=args.run_id, event_sink=writer,
         events_path=events_path, crash_dir=run_dir / "crash",
+        checkpoints_path=run_dir / "checkpoints.jsonl",
     )
     try:
         try:

@@ -68,6 +68,29 @@ async def run_log(request: Request, run_id: str, tail: int = Query(200, ge=1, le
     return {"lines": lines[-tail:], "total": len(lines)}
 
 
+@router.get("/preproc/runs/{run_id}/checkpoints")
+async def run_checkpoints(request: Request, run_id: str):
+    _get(request, run_id)
+    mgr = _manager(request)
+    return {"checkpoints": mgr.checkpoints(run_id), "summary": mgr.checkpoint_summary(run_id)}
+
+
+@router.get("/preproc/runs/{run_id}/checkpoints/{index}/thumbnail")
+async def run_checkpoint_thumbnail(request: Request, run_id: str, index: int):
+    from fastapi.responses import FileResponse
+    from fmriflow.preproc.checkpoints import render_thumbnail
+
+    _get(request, run_id)
+    cps = _manager(request).checkpoints(run_id)
+    if index < 0 or index >= len(cps):
+        raise HTTPException(404, detail="no such checkpoint")
+    artifact = cps[index].get("artifact")
+    png = render_thumbnail(Path(artifact)) if artifact else None
+    if png is None:
+        raise HTTPException(404, detail="no thumbnail for this checkpoint")
+    return FileResponse(str(png), media_type="image/png")
+
+
 @router.post("/preproc/runs/{run_id}/cancel")
 async def cancel_run(request: Request, run_id: str):
     _get(request, run_id)

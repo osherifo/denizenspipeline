@@ -20,6 +20,7 @@ workflows. This module is the only place that knows both vocabularies:
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -197,6 +198,10 @@ class ContainerAppInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
     # Bookkeeping the runner sets; must not change the node's hash.
     events_path = traits.Str(desc="JSONL file for inner nipype node events", nohash=True)
     node_path = traits.Str(desc="dotted path of this node in the run", nohash=True)
+    checkpoints_path = traits.Str(desc="JSONL file for checkpoint records", nohash=True)
+    run_id = traits.Str(desc="run id (checkpoint records)", nohash=True)
+    subject = traits.Str(desc="subject label (checkpoint records)", nohash=True)
+    abort_on_bad = traits.Bool(False, usedefault=True, desc="terminate the app on a bad checkpoint", nohash=True)
     # Content fingerprint of input directories (BIDS edits invalidate the node).
     content_fingerprint = traits.Str(desc="hash of fingerprinted inputs")
 
@@ -273,9 +278,58 @@ class ContainerAppInterface(BaseInterface):
                     ev["inner"] = True
                     append_jsonl(events_path, ev)
 
+        # Live checkpoints: poll the node's declared artefacts while it runs.
+        watcher = None
+        abort_event = threading.Event()
+        checks = list(getattr(cls, "CHECKS", []) or [])
+        if checks and isdefined(self.inputs.checkpoints_path) and self.inputs.checkpoints_path:
+            from fmriflow.preproc.checkpoints import CheckpointSink, CheckpointWatcher
+
+            ctx_fn = getattr(node, "checkpoint_context", None)
+            context = dict(ctx_fn(inputs, params, out_dir)) if callable(ctx_fn) else {}
+            context.setdefault("node_dir", str(out_dir))
+            context.setdefault("subject", str(inputs.get("subject") or ""))
+            sink = CheckpointSink(
+                self.inputs.checkpoints_path,
+                self.inputs.events_path if isdefined(self.inputs.events_path) else None,
+            )
+            node_path = self.inputs.node_path if isdefined(self.inputs.node_path) and self.inputs.node_path else self.inputs.node_type
+            abort = bool(self.inputs.abort_on_bad)
+
+            def _on_bad(cp):
+                if abort:
+                    logger.error("checkpoint %s is bad (%s); aborting %s", cp.step, "; ".join(cp.reasons), node_path)
+                    abort_event.set()
+
+            watcher = CheckpointWatcher(
+                checks, context, sink,
+                run_id=self.inputs.run_id if isdefined(self.inputs.run_id) else "",
+                node=node_path,
+                subject=context.get("subject", ""),
+                sequence=context.get("sequence") or None,
+                poll_interval=float(getattr(cls, "CHECKPOINT_POLL_S", 15.0)),
+                on_bad=_on_bad,
+            )
+            watcher.start()
+
         logger.info("[%s] running: %s", self.inputs.node_type, cmd if isinstance(cmd, str) else " ".join(map(str, cmd)))
-        rc = run_logged(cmd, log_path, shell=isinstance(cmd, str), on_line=on_line)
+        try:
+            rc = run_logged(cmd, log_path, shell=isinstance(cmd, str), on_line=on_line, abort_event=abort_event)
+        finally:
+            if watcher is not None:
+                watcher.stop()
+                watcher.join(timeout=10)
+                try:
+                    watcher.sweep(final=True)
+                except Exception:
+                    logger.exception("final checkpoint sweep failed")
         runtime.returncode = rc
+        if abort_event.is_set():
+            bad = [cp for cp in (watcher.results if watcher else []) if cp.verdict == "bad"]
+            raise RuntimeError(
+                f"{self.inputs.node_type} aborted on a bad checkpoint: "
+                + "; ".join(f"{cp.step}: {', '.join(cp.reasons)}" for cp in bad)
+            )
         if rc != 0:
             tail = ""
             try:

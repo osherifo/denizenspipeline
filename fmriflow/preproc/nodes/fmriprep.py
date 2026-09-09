@@ -27,6 +27,15 @@ from fmriflow.preproc.backends.fmriprep_params import (
     VALID_SKULL_STRIP,
     FmriprepParams,
 )
+from fmriflow.preproc.checkpoints import (
+    Check,
+    aseg_stats_metrics,
+    brain_volume_metrics,
+    surface_metrics,
+    thickness_metrics,
+    volume_intensity_metrics,
+    wm_volume_metrics,
+)
 from fmriflow.preproc.container import container_prefix, guest_paths, runtime_available
 from fmriflow.preproc.node_registry import preproc_node
 
@@ -54,6 +63,21 @@ class FmriprepNode:
     REQUIRED_ENV: list[str] = []
     CONTAINER: str | None = "nipreps/fmriprep"
 
+    # Live checkpoints over the FreeSurfer chain, evaluated as recon-all writes
+    # each file (the MP2RAGE normalisation collapse shows up at nu.mgz, ~20 min in).
+    CHECKS = [
+        Check(step="orig.mgz", artifact="{fs_subject_dir}/mri/orig.mgz", metrics=volume_intensity_metrics, thumbnail="volume"),
+        Check(step="nu.mgz", artifact="{fs_subject_dir}/mri/nu.mgz", metrics=volume_intensity_metrics, thumbnail="volume"),
+        Check(step="T1.mgz", artifact="{fs_subject_dir}/mri/T1.mgz", metrics=volume_intensity_metrics, thumbnail="volume"),
+        Check(step="brainmask.mgz", artifact="{fs_subject_dir}/mri/brainmask.mgz", metrics=brain_volume_metrics, thumbnail="volume"),
+        Check(step="wm.mgz", artifact="{fs_subject_dir}/mri/wm.mgz", metrics=wm_volume_metrics, thumbnail="volume"),
+        Check(step="lh.white", artifact="{fs_subject_dir}/surf/lh.white", metrics=surface_metrics),
+        Check(step="rh.white", artifact="{fs_subject_dir}/surf/rh.white", metrics=surface_metrics),
+        Check(step="lh.thickness", artifact="{fs_subject_dir}/surf/lh.thickness", metrics=thickness_metrics),
+        Check(step="rh.thickness", artifact="{fs_subject_dir}/surf/rh.thickness", metrics=thickness_metrics),
+        Check(step="aseg.stats", artifact="{fs_subject_dir}/stats/aseg.stats", metrics=aseg_stats_metrics),
+    ]
+
     INPUTS = {
         "bids_dir": {"kind": "dir", "required": True, "exists": True, "description": "BIDS root"},
         "subject": {"kind": "str", "required": True, "description": "participant label (no sub-)"},
@@ -79,6 +103,8 @@ class FmriprepNode:
         "container_type": {"type": "str", "default": "docker", "enum": list(VALID_CONTAINER_TYPES), "group": "Mode"},
         "skip_bids_validation": {"type": "bool", "default": False, "group": "Mode"},
         "task_id": {"type": "str", "default": "", "group": "Mode", "description": "Only this task."},
+        "sequence": {"type": "str", "default": "", "enum": ["", "mprage", "mp2rage"], "group": "Mode",
+                     "description": "T1w sequence, selects sequence-specific checkpoint norms."},
         # ── Anatomical ──
         "skull_strip": {"type": "str", "default": "auto", "enum": list(VALID_SKULL_STRIP), "group": "Anatomical"},
         "skull_strip_template": {"type": "str", "default": "", "group": "Anatomical"},
@@ -130,6 +156,22 @@ class FmriprepNode:
         # node paths then map straight onto this node's work tree.
         work_dir = str(inputs.get("work_dir") or out_dir)
         return output_dir, work_dir
+
+    def checkpoint_context(self, inputs: dict[str, Any], params: dict[str, Any], out_dir: Path) -> dict[str, Any]:
+        """Placeholders for ``CHECKS[].artifact`` templates."""
+        output_dir, work_dir = self._dirs(inputs, out_dir)
+        subject = str(inputs.get("subject") or "")
+        label = subject if subject.startswith("sub-") else f"sub-{subject}"
+        fs_root = Path(inputs["fs_subjects_dir"]) if inputs.get("fs_subjects_dir") else Path(output_dir) / "sourcedata" / "freesurfer"
+        return {
+            "node_dir": str(out_dir),
+            "derivatives_dir": output_dir,
+            "work_dir": work_dir,
+            "subject": subject,
+            "fs_subjects_dir": str(fs_root),
+            "fs_subject_dir": str(fs_root / label),
+            "sequence": str(params.get("sequence") or ""),
+        }
 
     # ── node contract ────────────────────────────────────────────
 

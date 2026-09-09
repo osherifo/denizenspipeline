@@ -145,12 +145,15 @@ def run_logged(
     fatal_markers: Iterable[str] = FATAL_MARKERS,
     poll_interval: float = 0.5,
     env: dict[str, str] | None = None,
+    abort_event: threading.Event | None = None,
 ) -> int:
     """Run ``cmd`` detached in its own process group, logging to ``log_path``.
 
     Returns the exit code. Every new log line goes to ``on_line`` (called
     from a tailer thread). A line containing a fatal marker SIGTERMs the
     process group, so a failed fmriprep does not sit "running" for minutes.
+    Setting ``abort_event`` (e.g. a ``bad`` checkpoint with abort opted in)
+    does the same.
     """
     log_path = Path(log_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -197,6 +200,13 @@ def run_logged(
                                 pass
             except FileNotFoundError:
                 pass
+            if abort_event is not None and abort_event.is_set() and not fatal_fired.is_set():
+                fatal_fired.set()
+                logger.error("abort requested; terminating pgid=%s", pgid)
+                try:
+                    os.killpg(pgid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
             if stop.is_set() and (not log_path.exists() or pos >= log_path.stat().st_size):
                 return
             time.sleep(poll_interval)

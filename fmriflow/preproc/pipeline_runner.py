@@ -36,6 +36,7 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 from fmriflow.preproc.graph import INPUT_REF_PREFIX, Pipeline, PipelineNode, PipelineRunRequest, iter_handles
+from fmriflow.preproc.checkpoints import Check
 from fmriflow.preproc.manifest import PreprocManifest, RunRecord, now_iso
 from fmriflow.preproc.node_registry import NodeRegistry, node_ports
 from fmriflow.preproc.stack import StepRecord
@@ -143,9 +144,13 @@ class PipelineRunner:
         event_sink: EventSink | None = None,
         events_path: Path | str | None = None,
         crash_dir: Path | str | None = None,
+        checkpoints_path: Path | str | None = None,
     ) -> None:
         self.registry = registry
         self.run_id = run_id
+        self.checkpoints_path = Path(checkpoints_path) if checkpoints_path else None
+        self._request: PipelineRunRequest | None = None
+        self._pipeline: Pipeline | None = None
         # Set by build(): the nipype workflow name (stable per pipeline + subject).
         self.wf_name = run_id
         self.event_sink = event_sink
@@ -277,6 +282,11 @@ class PipelineRunner:
                 if self.events_path is not None:
                     iface.inputs.events_path = str(self.events_path)
                 iface.inputs.node_path = f"{self.wf_name}.{node.id}"
+                if self.checkpoints_path is not None:
+                    iface.inputs.checkpoints_path = str(self.checkpoints_path)
+                iface.inputs.run_id = self.run_id
+                iface.inputs.subject = request.subject
+                iface.inputs.abort_on_bad = bool(request.abort_on_bad)
                 fp_inputs = list(getattr(cls, "FINGERPRINT_INPUTS", []) or [])
                 parts = []
                 for port in fp_inputs:
@@ -351,6 +361,44 @@ class PipelineRunner:
             "event": "node_done", "node": full, "workflow": wf_path, "leaf": leaf,
             "t": now, "level": "INFO", "cached": cached, "duration_s": now - started,
         })
+        if rec is not None and leaf == top and rec.kind in ("interface", "source"):
+            self._output_checkpoints(node, rec, full)
+
+    def _output_checkpoints(self, node: Any, rec: NodeRunRecord, full: str) -> None:
+        """Generic per-output checks for a finished interface/source node."""
+        from fmriflow.preproc.checkpoints import (
+            CheckpointSink, evaluate, generic_output_checks, worst_verdict,
+        )
+
+        if self.checkpoints_path is None or self._request is None:
+            return
+        try:
+            cls = self.registry.cls(rec.node_type)
+        except KeyError:
+            return
+        checks = generic_output_checks(cls)
+        if not checks:
+            return
+        outputs = _result_outputs(node)
+        sink = CheckpointSink(self.checkpoints_path, self.events_path)
+        verdicts: list[str] = []
+        bad_reasons: list[str] = []
+        for port, check in checks:
+            value = outputs.get(port)
+            files = value if isinstance(value, list) else [value] if value else []
+            for i, f in enumerate(files):
+                step = check.step if len(files) == 1 else f"{check.step}[{i}]"
+                cp = evaluate(
+                    Check(step=step, artifact=port, metrics=check.metrics, norms_key=check.norms_key, live=False),
+                    Path(str(f)), run_id=self.run_id, node=full, subject=self._request.subject,
+                )
+                sink.write(cp)
+                verdicts.append(cp.verdict)
+                if cp.verdict == "bad":
+                    bad_reasons.append(f"{step}: {', '.join(cp.reasons)}")
+        if bad_reasons and self._request.abort_on_bad:
+            raise RuntimeError(f"node {rec.node_id} produced a bad output: " + "; ".join(bad_reasons))
+        rec.error = rec.error if not bad_reasons else "; ".join(bad_reasons)
 
     # ── run ───────────────────────────────────────────────────────
 
@@ -361,6 +409,8 @@ class PipelineRunner:
             self._emit({"event": "failed", "errors": errors})
             return PipelineRunResult(status="failed", manifest=None, node_records=[], duration_s=0.0, errors=errors)
 
+        self._request = request
+        self._pipeline = pipeline
         wf = self.build(pipeline, request)
         self._emit({
             "event": "started", "subject": request.subject, "pipeline": pipeline.name,

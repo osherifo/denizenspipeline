@@ -232,6 +232,21 @@ class PreprocRunManager:
         path = self.registry.run_dir(run_id) / "job.json"
         return json.loads(path.read_text()) if path.is_file() else None
 
+    def checkpoints_path(self, run_id: str) -> Path:
+        return self.registry.run_dir(run_id) / "checkpoints.jsonl"
+
+    def checkpoints(self, run_id: str) -> list[dict]:
+        from fmriflow.preproc.checkpoints import read_checkpoints
+        return [cp.to_dict() for cp in read_checkpoints(self.checkpoints_path(run_id))]
+
+    def checkpoint_summary(self, run_id: str) -> dict:
+        from fmriflow.preproc.checkpoints import read_checkpoints, worst_verdict
+        cps = read_checkpoints(self.checkpoints_path(run_id))
+        counts: dict[str, int] = {"ok": 0, "suspicious": 0, "bad": 0, "unknown": 0}
+        for cp in cps:
+            counts[cp.verdict] = counts.get(cp.verdict, 0) + 1
+        return {"n": len(cps), "counts": counts, "worst": worst_verdict([cp.verdict for cp in cps]) if cps else None}
+
     def nipype_status(self, run_id: str) -> dict:
         from fmriflow.preproc.nipype_log import parse_nipype_events_file, reconcile_with_run_state
 
@@ -264,6 +279,7 @@ class PreprocRunManager:
             "resumed_from": params.get("resumed_from"),
             "config_path": state.config_path,
             "result": state.result,
+            "checkpoints": self.checkpoint_summary(state.run_id),
         }
 
     # ── cancel / delete / reconcile ───────────────────────────────

@@ -21,8 +21,8 @@ class MaskApplyNode:
     REQUIRED_ENV: list[str] = []
     CONTAINER: str | None = None
 
-    INPUTS = ["in_file", "mask_file"]
-    OUTPUTS = ["out_file"]
+    INPUTS = {"in_file": {"kind": "nifti", "required": True}, "mask_file": {"kind": "nifti", "required": False}}
+    OUTPUTS = {"out_file": {"kind": "nifti"}}
 
     PARAM_SCHEMA: dict[str, Any] = {
         "mask_path": {

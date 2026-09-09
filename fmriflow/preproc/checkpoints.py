@@ -1,0 +1,498 @@
+"""Checkpoints — small uniform QA records evaluated as nodes produce files.
+
+A node declares ``CHECKS``: which artefacts to look at and which metric
+function to run on each. Evaluation turns metrics + norms into one
+:class:`Checkpoint` with a verdict (``ok`` / ``suspicious`` / ``bad`` /
+``unknown``). Records are appended to ``<run_dir>/checkpoints.jsonl`` and
+echoed as ``{"event": "checkpoint", ...}`` into the run's event stream, so
+the monitor shows them live.
+
+Two evaluation paths:
+
+- **Live, inside a container app** (fmriprep): :class:`CheckpointWatcher`
+  polls the declared artefacts while the app runs and evaluates each one
+  as soon as it appears or changes — ``nu.mgz`` is judged ~20 minutes
+  into a 10-hour recon-all, not after.
+- **On node completion** (any node): the runner evaluates the generic
+  output checks for every nifti output port.
+
+``abort_on_bad`` (per run, off by default) turns a ``bad`` verdict into a
+termination of the offending app / an abort of the run.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Literal
+
+from fmriflow.preproc.norms import Bound, StepNorms, norms_for
+
+logger = logging.getLogger(__name__)
+
+Verdict = Literal["ok", "suspicious", "bad", "unknown"]
+VERDICT_ORDER = {"ok": 0, "unknown": 1, "suspicious": 2, "bad": 3}
+CHECKPOINTS_FILENAME = "checkpoints.jsonl"
+
+
+@dataclass(frozen=True)
+class Checkpoint:
+    stage: str
+    run_id: str
+    node: str
+    step: str
+    subject: str
+    metrics: dict[str, Any]
+    expectations: dict[str, list]           # {metric: [op, value]} (hard bounds)
+    verdict: str
+    thumbnail: str | None = None
+    detail: dict[str, Any] = field(default_factory=dict)
+    t: float = 0.0
+    artifact: str | None = None
+    reasons: list[str] = field(default_factory=list)
+    soft_expectations: dict[str, list] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "stage": self.stage, "run_id": self.run_id, "node": self.node, "step": self.step,
+            "subject": self.subject, "metrics": self.metrics, "expectations": self.expectations,
+            "soft_expectations": self.soft_expectations, "verdict": self.verdict,
+            "thumbnail": self.thumbnail, "detail": self.detail, "t": self.t,
+            "artifact": self.artifact, "reasons": list(self.reasons),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> Checkpoint:
+        return cls(
+            stage=d.get("stage", "preproc"), run_id=d.get("run_id", ""), node=d.get("node", ""),
+            step=d.get("step", ""), subject=d.get("subject", ""), metrics=dict(d.get("metrics") or {}),
+            expectations=dict(d.get("expectations") or {}), verdict=d.get("verdict", "unknown"),
+            thumbnail=d.get("thumbnail"), detail=dict(d.get("detail") or {}), t=float(d.get("t") or 0.0),
+            artifact=d.get("artifact"), reasons=list(d.get("reasons") or []),
+            soft_expectations=dict(d.get("soft_expectations") or {}),
+        )
+
+
+MetricFn = Callable[[Path], tuple[dict[str, Any], dict[str, Any]]]   # -> (metrics, detail)
+
+
+@dataclass(frozen=True)
+class Check:
+    """One declared check on a node.
+
+    ``artifact`` is a path template with placeholders the node's
+    ``checkpoint_context()`` supplies (``{node_dir}``, ``{fs_subject_dir}``,
+    ``{derivatives_dir}``, ``{subject}``, ...). ``metrics`` computes the
+    metric dict from the file; ``norms_key`` selects the norms row
+    (defaults to ``step``). ``live`` checks are evaluated while the node
+    is still running.
+    """
+
+    step: str
+    artifact: str
+    metrics: MetricFn
+    norms_key: str | None = None
+    live: bool = True
+    thumbnail: str | None = None       # "volume" | None
+
+    @property
+    def key(self) -> str:
+        return self.norms_key or self.step
+
+
+# ── verdicts ──────────────────────────────────────────────────────
+
+def _holds(value: Any, bound: Bound) -> bool:
+    op, ref = bound
+    try:
+        if op == "<":
+            return value < ref
+        if op == "<=":
+            return value <= ref
+        if op == ">":
+            return value > ref
+        if op == ">=":
+            return value >= ref
+        if op == "==":
+            return value == ref
+        if op == "!=":
+            return value != ref
+        if op == "between":
+            lo, hi = ref
+            return lo <= value <= hi
+    except TypeError:
+        return False
+    raise ValueError(f"unknown bound op {op!r}")
+
+
+def _fmt(bound: Bound) -> str:
+    op, ref = bound
+    return f"between {ref[0]} and {ref[1]}" if op == "between" else f"{op} {ref}"
+
+
+def verdict_for(metrics: dict[str, Any], norms: StepNorms) -> tuple[str, list[str]]:
+    """``bad`` if any hard bound fails, else ``suspicious`` if any soft bound fails,
+    ``unknown`` if a bound's metric is missing, else ``ok``."""
+    reasons: list[str] = []
+    verdict = "ok"
+    hard, soft = norms.get("hard", {}), norms.get("soft", {})
+    for metric, bound in hard.items():
+        if metric not in metrics:
+            verdict = max(verdict, "unknown", key=VERDICT_ORDER.get)
+            reasons.append(f"{metric}: not measured")
+            continue
+        if not _holds(metrics[metric], bound):
+            verdict = "bad"
+            reasons.append(f"{metric}={_short(metrics[metric])} violates {_fmt(bound)}")
+    if verdict != "bad":
+        for metric, bound in soft.items():
+            if metric in metrics and not _holds(metrics[metric], bound):
+                verdict = max(verdict, "suspicious", key=VERDICT_ORDER.get)
+                reasons.append(f"{metric}={_short(metrics[metric])} outside {_fmt(bound)}")
+    return verdict, reasons
+
+
+def _short(v: Any) -> str:
+    return f"{v:.3g}" if isinstance(v, float) else str(v)
+
+
+def worst_verdict(verdicts: list[str]) -> str:
+    return max(verdicts, key=lambda v: VERDICT_ORDER.get(v, 1)) if verdicts else "unknown"
+
+
+# ── metric functions ──────────────────────────────────────────────
+
+def _load_volume(path: Path):
+    import nibabel as nib
+    import numpy as np
+    img = nib.load(str(path))
+    data = np.asanyarray(img.dataobj)
+    zooms = img.header.get_zooms()[:3]
+    return data, tuple(float(z) for z in zooms)
+
+
+def volume_intensity_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """n_unique, modal value + fraction and quartiles over the non-zero voxels."""
+    import numpy as np
+    data, zooms = _load_volume(path)
+    nz = data[data != 0]
+    if nz.size == 0:
+        return {"n_nonzero": 0, "n_unique": 0, "modal_fraction": 1.0}, {}
+    flat = nz.ravel()
+    if flat.dtype.kind == "f":
+        rounded = np.round(flat, 3)
+    else:
+        rounded = flat
+    values, counts = np.unique(rounded, return_counts=True)
+    modal_idx = int(np.argmax(counts))
+    p25, p50, p75 = (float(x) for x in np.percentile(flat, [25, 50, 75]))
+    hist, edges = np.histogram(flat, bins=64)
+    metrics = {
+        "n_nonzero": int(flat.size),
+        "n_unique": int(values.size),
+        "modal_value": float(values[modal_idx]),
+        "modal_fraction": float(counts[modal_idx] / flat.size),
+        "p25": p25, "p50": p50, "p75": p75,
+        "min": float(flat.min()), "max": float(flat.max()),
+        "shape": [int(s) for s in data.shape],
+    }
+    detail = {"histogram": [int(h) for h in hist], "edges": [float(e) for e in edges], "zooms": list(zooms)}
+    return metrics, detail
+
+
+def _mask_volume_metrics(path: Path, name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    import numpy as np
+    data, zooms = _load_volume(path)
+    voxel_cm3 = float(np.prod(zooms)) / 1000.0
+    nz = data != 0
+    metrics = {f"{name}_volume_cm3": float(nz.sum() * voxel_cm3), "n_voxels": int(nz.sum())}
+    flat = data[nz]
+    if flat.size:
+        values, counts = np.unique(flat, return_counts=True)
+        metrics["modal_fraction"] = float(counts.max() / flat.size)
+        metrics["n_unique"] = int(values.size)
+    return metrics, {"zooms": list(zooms)}
+
+
+def wm_volume_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    return _mask_volume_metrics(path, "wm")
+
+
+def brain_volume_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    return _mask_volume_metrics(path, "brain")
+
+
+def surface_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Vertex / face counts and the Euler number of a FreeSurfer surface.
+
+    For a closed triangle mesh E = 3F/2 and a sphere-topology surface has
+    Euler number 2; each handle costs 2, so ``n_defects = (2 - euler) / 2``.
+    """
+    from nibabel.freesurfer import read_geometry
+    verts, faces = read_geometry(str(path))
+    n_v, n_f = int(verts.shape[0]), int(faces.shape[0])
+    n_e = (3 * n_f) // 2
+    euler = n_v - n_e + n_f
+    return {"n_vertices": n_v, "n_faces": n_f, "euler": int(euler), "n_defects": int(max(0, (2 - euler) // 2))}, {}
+
+
+def thickness_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    import numpy as np
+    from nibabel.freesurfer import read_morph_data
+    th = np.asarray(read_morph_data(str(path)), dtype="float64")
+    if th.size == 0:
+        return {"n_vertices": 0}, {}
+    nz = th[th > 0]
+    hist, edges = np.histogram(th, bins=40, range=(0.0, 6.0))
+    return {
+        "n_vertices": int(th.size),
+        "mean_mm": float(nz.mean()) if nz.size else 0.0,
+        "p95_mm": float(np.percentile(nz, 95)) if nz.size else 0.0,
+        "zero_fraction": float((th <= 0).mean()),
+    }, {"histogram": [int(h) for h in hist], "edges": [float(e) for e in edges]}
+
+
+def aseg_stats_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Global measures from recon-all's ``aseg.stats`` header."""
+    metrics: dict[str, Any] = {}
+    wanted = {
+        "EstimatedTotalIntraCranialVol": "etiv_cm3",
+        "BrainSegVol": "brainseg_cm3",
+        "CerebralWhiteMatterVol": "cerebral_wm_cm3",
+        "TotalGrayVol": "total_gray_cm3",
+    }
+    for line in path.read_text(errors="replace").splitlines():
+        if not line.startswith("# Measure"):
+            continue
+        parts = [p.strip() for p in line[len("# Measure"):].split(",")]
+        if len(parts) < 4:
+            continue
+        key = parts[0]
+        if key in wanted:
+            try:
+                metrics[wanted[key]] = float(parts[3]) / 1000.0
+            except ValueError:
+                pass
+    return metrics, {}
+
+
+def output_file_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Generic: existence, size and, for NIfTI, shape / 4D-ness / non-zero fraction."""
+    metrics: dict[str, Any] = {"exists": path.exists()}
+    if not path.exists():
+        return metrics, {}
+    metrics["size_bytes"] = int(path.stat().st_size)
+    suffix = "".join(path.suffixes[-2:]).lower()
+    if any(suffix.endswith(s) for s in (".nii", ".nii.gz", ".mgz", ".mgh")):
+        try:
+            import numpy as np
+            data, _ = _load_volume(path)
+            metrics["shape"] = [int(s) for s in data.shape]
+            metrics["is_4d"] = data.ndim == 4
+            metrics["n_trs"] = int(data.shape[3]) if data.ndim == 4 else 1
+            sample = data[..., 0] if data.ndim == 4 else data
+            metrics["nonzero_fraction"] = float(np.count_nonzero(sample) / max(sample.size, 1))
+        except Exception as e:
+            metrics["read_error"] = str(e)
+    return metrics, {}
+
+
+# ── evaluation ────────────────────────────────────────────────────
+
+def evaluate(
+    check: Check,
+    artifact: Path,
+    *,
+    run_id: str,
+    node: str,
+    subject: str,
+    sequence: str | None = None,
+    stage: str = "preproc",
+) -> Checkpoint:
+    norms = norms_for(check.key, sequence)
+    try:
+        metrics, detail = check.metrics(artifact)
+    except Exception as e:
+        logger.warning("checkpoint %s on %s failed: %s", check.step, artifact, e)
+        metrics, detail = {"error": str(e)}, {}
+        verdict, reasons = "unknown", [f"could not compute metrics: {e}"]
+    else:
+        verdict, reasons = verdict_for(metrics, norms)
+    return Checkpoint(
+        stage=stage, run_id=run_id, node=node, step=check.step, subject=subject,
+        metrics=metrics, expectations={k: list(v) for k, v in norms["hard"].items()},
+        soft_expectations={k: list(v) for k, v in norms["soft"].items()},
+        verdict=verdict, thumbnail=None, detail=detail, t=time.time(),
+        artifact=str(artifact), reasons=reasons,
+    )
+
+
+def generic_output_checks(cls: type) -> list[tuple[str, Check]]:
+    """(port, Check) for every nifti-kind output port of a node class."""
+    from fmriflow.preproc.node_registry import node_ports
+    _, outputs = node_ports(cls)
+    checks: list[tuple[str, Check]] = []
+    for port, spec in outputs.items():
+        kind = str(spec.get("kind", "file"))
+        if kind not in ("file", "nifti", "mgz"):
+            continue
+        key = "bold_output" if kind == "nifti" and port in ("bold", "bold_preproc", "out_file") else "output"
+        checks.append((port, Check(step=port, artifact=port, metrics=output_file_metrics, norms_key=key, live=False)))
+    return checks
+
+
+def resolve_artifact(template: str, context: dict[str, Any]) -> Path | None:
+    try:
+        return Path(template.format(**context))
+    except (KeyError, IndexError):
+        return None
+
+
+class CheckpointSink:
+    """Appends checkpoints to ``checkpoints.jsonl`` and mirrors them into the event stream."""
+
+    def __init__(self, checkpoints_path: Path | str | None, events_path: Path | str | None = None) -> None:
+        self.checkpoints_path = Path(checkpoints_path) if checkpoints_path else None
+        self.events_path = Path(events_path) if events_path else None
+        self._lock = threading.Lock()
+
+    def write(self, cp: Checkpoint) -> None:
+        record = cp.to_dict()
+        with self._lock:
+            if self.checkpoints_path is not None:
+                self.checkpoints_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.checkpoints_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(record, default=str) + "\n")
+            if self.events_path is not None:
+                from fmriflow.preproc.nipype_log import append_jsonl
+                append_jsonl(self.events_path, {
+                    "event": "checkpoint", "node": cp.node, "leaf": cp.node.rsplit(".", 1)[-1],
+                    "step": cp.step, "verdict": cp.verdict, "reasons": list(cp.reasons),
+                    "metrics": cp.metrics, "t": cp.t, "timestamp": cp.t,
+                })
+
+
+def read_checkpoints(path: Path | str) -> list[Checkpoint]:
+    p = Path(path)
+    if not p.is_file():
+        return []
+    out: list[Checkpoint] = []
+    for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(Checkpoint.from_dict(json.loads(line)))
+        except (ValueError, KeyError):
+            continue
+    return out
+
+
+class CheckpointWatcher(threading.Thread):
+    """Poll a node's declared artefacts while it runs; evaluate each on appearance / change.
+
+    ``on_bad`` is called (once per artefact) when a verdict is ``bad`` — the
+    container interface uses it to terminate the app when the run opted in.
+    """
+
+    def __init__(
+        self,
+        checks: list[Check],
+        context: dict[str, Any],
+        sink: CheckpointSink,
+        *,
+        run_id: str,
+        node: str,
+        subject: str,
+        sequence: str | None = None,
+        poll_interval: float = 15.0,
+        on_bad: Callable[[Checkpoint], None] | None = None,
+    ) -> None:
+        super().__init__(daemon=True, name=f"checkpoints-{node}")
+        self.checks = [c for c in checks if c.live]
+        self.context = context
+        self.sink = sink
+        self.run_id, self.node, self.subject, self.sequence = run_id, node, subject, sequence
+        self.poll_interval = poll_interval
+        self.on_bad = on_bad
+        self._stop = threading.Event()
+        self._seen: dict[str, float] = {}
+        self.results: list[Checkpoint] = []
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def sweep(self, *, final: bool = False) -> list[Checkpoint]:
+        """Evaluate every artefact that is new or changed since the last sweep."""
+        produced: list[Checkpoint] = []
+        for check in (self.checks if not final else self.checks):
+            artifact = resolve_artifact(check.artifact, self.context)
+            if artifact is None or not artifact.exists():
+                continue
+            try:
+                mtime = artifact.stat().st_mtime
+            except OSError:
+                continue
+            # Skip files still being written (mtime within the last poll).
+            if not final and time.time() - mtime < min(self.poll_interval, 5.0):
+                continue
+            if self._seen.get(check.step) == mtime:
+                continue
+            self._seen[check.step] = mtime
+            cp = evaluate(check, artifact, run_id=self.run_id, node=self.node,
+                          subject=self.subject, sequence=self.sequence)
+            self.sink.write(cp)
+            self.results.append(cp)
+            produced.append(cp)
+            if cp.verdict == "bad" and self.on_bad is not None:
+                try:
+                    self.on_bad(cp)
+                except Exception:
+                    logger.exception("on_bad handler failed")
+        return produced
+
+    def run(self) -> None:
+        while not self._stop.wait(self.poll_interval):
+            try:
+                self.sweep()
+            except Exception:
+                logger.exception("checkpoint sweep failed")
+
+
+# ── thumbnails ────────────────────────────────────────────────────
+
+def render_thumbnail(artifact: Path, *, size: int = 160) -> Path | None:
+    """Mid-axial slice PNG next to the artefact, regenerated when the artefact is newer."""
+    artifact = Path(artifact)
+    if not artifact.exists():
+        return None
+    out = artifact.with_name(artifact.name + ".checkpoint.png")
+    try:
+        if out.exists() and out.stat().st_mtime >= artifact.stat().st_mtime:
+            return out
+    except OSError:
+        pass
+    try:
+        import numpy as np
+        from PIL import Image
+        data, _ = _load_volume(artifact)
+        if data.ndim == 4:
+            data = data[..., 0]
+        if data.ndim != 3:
+            return None
+        sl = np.asarray(data[:, :, data.shape[2] // 2], dtype="float64")
+        nz = sl[sl != 0]
+        hi = float(np.percentile(nz, 99.5)) if nz.size else 1.0
+        lo = float(np.percentile(nz, 0.5)) if nz.size else 0.0
+        norm = np.clip((sl - lo) / max(hi - lo, 1e-6), 0, 1)
+        img = Image.fromarray((np.rot90(norm) * 255).astype("uint8"))
+        img.thumbnail((size, size))
+        img.save(out)
+        return out
+    except Exception as e:
+        logger.debug("thumbnail for %s failed: %s", artifact, e)
+        return None

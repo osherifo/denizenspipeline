@@ -25,8 +25,8 @@ class SmoothNode:
     REQUIRED_ENV: list[str] = []
     CONTAINER: str | None = None
 
-    INPUTS = ["in_file"]
-    OUTPUTS = ["out_file"]
+    INPUTS = {"in_file": {"kind": "nifti", "required": True}}
+    OUTPUTS = {"out_file": {"kind": "nifti"}}
 
     PARAM_SCHEMA: dict[str, Any] = {
         "fwhm": {
