@@ -170,18 +170,10 @@ def test_warns_when_one_output_mixes_geometries(tmp_path):
     assert any("dimensions" in w for w in build_decision_table(tmp_path, "01").warnings)
 
 
-def test_warns_about_substantial_dropped_series(tmp_path):
-    _write(tmp_path, [_row("1-a", "A"), _row("2-big", "INV2", n=176)],
-           {"tmpl": ["1-a"]})
-
-    warnings = build_decision_table(tmp_path, "01").warnings
-
-    assert any("dropped" in w and "INV2" in w for w in warnings)
-
-
-def test_a_dropped_localizer_does_not_warn(tmp_path):
-    """Small series are dropped on purpose constantly; warning on them is noise."""
-    _write(tmp_path, [_row("1-a", "A"), _row("2-loc", "localizer", n=3)],
+def test_dropped_series_do_not_warn(tmp_path):
+    """Dropping is the heuristic's decision and the table already shows it;
+    a warning on top, whatever the series size, is noise."""
+    _write(tmp_path, [_row("1-a", "A"), _row("2-big", "INV2", n=176), _row("3-loc", "localizer", n=3)],
            {"tmpl": ["1-a"]})
 
     assert build_decision_table(tmp_path, "01").warnings == []

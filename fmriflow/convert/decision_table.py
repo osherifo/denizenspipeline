@@ -406,14 +406,6 @@ def _warnings_for(series: list[SeriesDecision]) -> list[str]:
                 f"repeats of one acquisition should share a geometry."
             )
 
-    substantial = [s for s in series if s.dropped and s.n_files >= 20]
-    if substantial:
-        out.append(
-            f"{len(substantial)} dropped series carry ≥20 files each and may "
-            f"hold usable data: "
-            + ", ".join(f"{s.description} ({s.n_files})" for s in substantial)
-        )
-
     if series and not any(not s.dropped for s in series):
         out.append("no series were mapped — the heuristic matched nothing")
 
