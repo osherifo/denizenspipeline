@@ -128,7 +128,7 @@ describe('useConvertStore', () => {
     })
   })
 
-  describe('scan + collect + run', () => {
+  describe('scan + run', () => {
     it('scanDicom starts a job, polls it and populates scanResult', async () => {
       await useConvertStore.getState().scanDicom('/tmp/dicom')
       const st = useConvertStore.getState()
@@ -148,14 +148,6 @@ describe('useConvertStore', () => {
       await useConvertStore.getState().scanDicom('/tmp/dicom')
       expect(useConvertStore.getState().scanError).toMatch(/cancelled after 42 files/)
       expect(useConvertStore.getState().scanResult).toBeNull()
-    })
-
-    it('collect populates collectResult', async () => {
-      await useConvertStore.getState().collect({
-        bids_dir: '/tmp/bids',
-        subject: 'sub-01',
-      })
-      expect(useConvertStore.getState().collectResult).not.toBeNull()
     })
 
     it('startRun sets runId via WS', async () => {

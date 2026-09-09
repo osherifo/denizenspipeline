@@ -543,17 +543,6 @@ export async function cancelDicomScan(scanId: string): Promise<{ cancelled: bool
   return json(`${BASE}/convert/scan/${encodeURIComponent(scanId)}/cancel`, { method: 'POST' })
 }
 
-export async function collectConvertOutputs(params: {
-  bids_dir: string; subject: string; source_dir?: string; heuristic?: string;
-  sessions?: string[]; dataset_name?: string;
-}): Promise<{ manifest: ConvertManifestDetail; manifest_path: string }> {
-  return json(`${BASE}/convert/collect`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-}
-
 export async function startConvertRun(params: {
   source_dir: string; bids_dir: string; subject: string; heuristic: string;
   sessions?: string[]; dataset_name?: string; grouping?: string;

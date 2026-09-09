@@ -56,9 +56,6 @@ export const convertHandlers = [
     }),
   ),
   http.post('/api/convert/scan/:id/cancel', () => HttpResponse.json({ cancelled: true })),
-  http.post('/api/convert/collect', () =>
-    HttpResponse.json({ manifest: {}, manifest_path: '/tmp/m.json' }),
-  ),
   http.post('/api/convert/run', () =>
     HttpResponse.json({ run_id: 'convert-1', status: 'started' }),
   ),

@@ -28,7 +28,6 @@ import {
   startDicomScan,
   fetchDicomScan,
   cancelDicomScan,
-  collectConvertOutputs,
   startConvertRun,
   connectConvertWs,
   startBatchConvert,
@@ -150,10 +149,6 @@ interface ConvertState {
   scanProgress: DicomScanProgress | null
   cancelScan: () => Promise<void>
 
-  // Collect
-  collectResult: { manifest: ConvertManifestDetail; manifest_path: string } | null
-  collecting: boolean
-  collectError: string | null
 
   // Run
   runId: string | null
@@ -203,10 +198,8 @@ interface ConvertState {
   selectManifest: (subject: string) => Promise<void>
   validateSelected: () => Promise<void>
   scanDicom: (sourceDir: string) => Promise<void>
-  collect: (params: Parameters<typeof collectConvertOutputs>[0]) => Promise<void>
   startRun: (params: Parameters<typeof startConvertRun>[0]) => Promise<void>
   clearRun: () => void
-  clearCollect: () => void
   clearScan: () => void
 
   // Batch actions
@@ -265,9 +258,6 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   scanId: null,
   scanProgress: null,
 
-  collectResult: null,
-  collecting: false,
-  collectError: null,
 
   runId: null,
   runEvents: [],
@@ -486,17 +476,6 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     }
   },
 
-  collect: async (params) => {
-    set({ collecting: true, collectError: null, collectResult: null })
-    try {
-      const result = await collectConvertOutputs(params)
-      set({ collectResult: result, collecting: false })
-      get().rescan()
-    } catch (e) {
-      set({ collectError: String(e), collecting: false })
-    }
-  },
-
   startRun: async (params) => {
     set({ running: true, runError: null, runEvents: [], runStartTime: Date.now(), runId: null })
     try {
@@ -526,7 +505,6 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
 
   clearRun: () => set({ runId: null, runEvents: [], runStartTime: null, runError: null, running: false }),
 
-  clearCollect: () => set({ collectResult: null, collectError: null }),
 
   clearScan: () => set({ scanResult: null, scanError: null, scanId: null, scanProgress: null }),
 

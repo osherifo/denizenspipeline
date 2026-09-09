@@ -1660,8 +1660,9 @@ jobs re-appear as standalone convert runs in the Recent Runs panel.</p>
 <h3 id="outcome-inference">Outcome inference<a class="headerlink" href="#outcome-inference" title="Permanent link">&para;</a></h3>
 <p>On reattach (PID-dead check), the monitor looks for
 <code>{bids_dir}/convert_manifest.json</code> — present → <code>done</code> (manifest reloaded);
-missing → <code>failed</code>. You can always re-run the manifest build from the
-Collect tab if heudiconv finished but the parent died mid-collect.</p>
+missing → <code>failed</code>. If heudiconv finished but the server died before the
+manifest was written, rebuild it with <code>fmriflow convert collect --bids-dir … --subject …</code>
+(or <code>POST /api/convert/collect</code>) — the outputs on disk are all it needs.</p>
 <h2 id="web-ui">Web UI<a class="headerlink" href="#web-ui" title="Permanent link">&para;</a></h2>
 <p>The DICOM-to-BIDS tab in the web UI provides:</p>
 <ul>

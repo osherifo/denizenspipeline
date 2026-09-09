@@ -123,7 +123,6 @@ export function ConvertForm() {
   const {
     running, runEvents, runStartTime, runError,
     heuristics, heuristicsLoading, loadHeuristics,
-    collectResult, collecting, collectError, collect, clearCollect,
     startRun, clearRun,
     runForm, updateRunForm, runFormError,
     savedConfigs, savedConfigsLoading, loadSavedConfigs, saveCurrentRunConfig, loadSavedConfig, deleteSavedConfig,
@@ -175,23 +174,7 @@ export function ConvertForm() {
     startRun(runFormParams(runForm) as any)
   }
 
-  const handleCollect = () => {
-    const params: Record<string, unknown> = {
-      bids_dir: bidsDir,
-      subject,
-    }
-    if (sourceDir.trim()) params.source_dir = sourceDir.trim()
-    if (heuristic) params.heuristic = heuristic
-    if (session.trim()) {
-      params.sessions = [session.trim()]
-    }
-    if (datasetName.trim()) params.dataset_name = datasetName.trim()
-
-    collect(params as any)
-  }
-
   const canRun = sourceDir.trim() && bidsDir && subject && heuristic && !running
-  const canCollect = bidsDir && subject && !collecting
 
   const hasProgress = runEvents.length > 0 || running || runError
 
@@ -296,13 +279,6 @@ export function ConvertForm() {
           <button style={primaryBtn} onClick={handleRun} disabled={!canRun}>
             {running ? 'Running...' : 'Run Conversion'}
           </button>
-          <button
-            style={{ ...btnStyle, border: '1px solid var(--border)', backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)' }}
-            onClick={handleCollect}
-            disabled={!canCollect}
-          >
-            {collecting ? 'Collecting...' : 'Collect Existing'}
-          </button>
           <button style={secondaryBtn} onClick={() => { setShowSave(!showSave); setSaveStatus(null) }}>Save Config</button>
           <button style={secondaryBtn} onClick={() => { setShowSaved(!showSaved); if (!showSaved) loadSavedConfigs() }}>Saved Configs</button>
           <button style={secondaryBtn} onClick={handleExportYaml} disabled={!bidsDir && !sourceDir}>Export YAML</button>
@@ -347,40 +323,6 @@ export function ConvertForm() {
           </div>
         )}
 
-        {/* Collect error */}
-        {collectError && (
-          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--accent-red)' }}>
-            {collectError}
-          </div>
-        )}
-
-        {/* Collect result */}
-        {collectResult && (
-          <>
-            <div style={sectionLabelBorder}>Collect Result</div>
-            <div style={{ fontSize: 12, color: 'var(--accent-green)', fontWeight: 600, marginBottom: 8 }}>
-              {'\u2713'} Manifest created: {collectResult.manifest.runs.length} runs found
-            </div>
-            {collectResult.manifest.runs.map((run) => (
-              <div key={run.output_file} style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>
-                {run.output_file} &middot; [{run.shape.join(', ')}]
-                {run.tr != null && <> &middot; TR={run.tr}s</>}
-              </div>
-            ))}
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
-              Saved to: {collectResult.manifest_path}
-            </div>
-            <button
-              style={{ ...btnStyle, backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', border: '1px solid var(--border)', marginTop: 12, fontSize: 11 }}
-              onClick={() => {
-                useConvertStore.setState({ tab: 'manifests' })
-                clearCollect()
-              }}
-            >
-              View in Manifests tab
-            </button>
-          </>
-        )}
       </div>
 
       {/* Live progress */}

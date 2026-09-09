@@ -215,8 +215,9 @@ curl -X POST http://localhost:8000/api/convert/runs/convert_sub01_4f2b9c1a/cance
 
 On reattach (PID-dead check), the monitor looks for
 `{bids_dir}/convert_manifest.json` — present → `done` (manifest reloaded);
-missing → `failed`. You can always re-run the manifest build from the
-Collect tab if heudiconv finished but the parent died mid-collect.
+missing → `failed`. If heudiconv finished but the server died before the
+manifest was written, rebuild it with `fmriflow convert collect --bids-dir … --subject …`
+(or `POST /api/convert/collect`) — the outputs on disk are all it needs.
 
 ## Web UI
 
