@@ -231,6 +231,16 @@ async def validate_manifest(request: Request, subject: str):
     return mgr.validate_manifest(subject)
 
 
+@router.delete("/convert/manifests/{subject}")
+async def delete_manifest(request: Request, subject: str):
+    """Delete a subject's manifest file. BIDS outputs are left in place."""
+    mgr = request.app.state.convert_manager
+    result = mgr.delete_manifest(subject)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No manifest for subject '{subject}'")
+    return result
+
+
 @router.post("/convert/manifests/rescan")
 async def rescan_manifests(request: Request):
     """Force rescan for convert manifests."""

@@ -519,6 +519,10 @@ export async function fetchConvertManifestDetail(subject: string): Promise<Conve
   return json<ConvertManifestDetail>(`${BASE}/convert/manifests/${encodeURIComponent(subject)}`)
 }
 
+export async function deleteConvertManifest(subject: string): Promise<{ deleted: boolean; subject: string; path: string }> {
+  return json(`${BASE}/convert/manifests/${encodeURIComponent(subject)}`, { method: 'DELETE' })
+}
+
 export async function validateConvertManifest(subject: string): Promise<{ errors: string[] }> {
   return json<{ errors: string[] }>(`${BASE}/convert/manifests/${encodeURIComponent(subject)}/validate`, { method: 'POST' })
 }

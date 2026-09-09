@@ -24,6 +24,7 @@ import {
   rescanConvertManifests,
   fetchConvertManifestDetail,
   validateConvertManifest,
+  deleteConvertManifest,
   startDicomScan,
   fetchDicomScan,
   cancelDicomScan,
@@ -197,6 +198,8 @@ interface ConvertState {
   closeEditor: () => void
   loadManifests: () => Promise<void>
   rescan: () => Promise<void>
+  /** Remove the subject's manifest file (BIDS outputs stay), then refresh the list. */
+  deleteManifest: (subject: string) => Promise<void>
   selectManifest: (subject: string) => Promise<void>
   validateSelected: () => Promise<void>
   scanDicom: (sourceDir: string) => Promise<void>
@@ -412,6 +415,19 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
       set({ manifests, manifestsLoading: false })
     } catch {
       set({ manifestsLoading: false })
+    }
+  },
+
+  deleteManifest: async (subject) => {
+    try {
+      await deleteConvertManifest(subject)
+      if (get().selectedSubject === subject) {
+        set({ selectedSubject: null, selectedManifest: null, validationErrors: null })
+      }
+      await get().loadManifests()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ validationErrors: [msg] })
     }
   },
 

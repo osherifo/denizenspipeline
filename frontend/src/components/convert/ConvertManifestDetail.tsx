@@ -4,6 +4,7 @@ import { DirTree } from '../common/DirTree'
 import type { CSSProperties } from 'react'
 import type { ConvertManifestDetail, ConvertRunRecord } from '../../api/types'
 import { useConvertStore } from '../../stores/convert-store'
+import { useDialog } from '../common/Dialog'
 import { ConvertDecisionTable } from './ConvertDecisionTable'
 
 interface Props {
@@ -104,7 +105,8 @@ const tagStyle: CSSProperties = {
 }
 
 export function ConvertManifestDetailPanel({ manifest }: Props) {
-  const { validationErrors, validating, validateSelected } = useConvertStore()
+  const { validationErrors, validating, validateSelected, deleteManifest } = useConvertStore()
+  const dlg = useDialog()
   const [showJson, setShowJson] = useState(false)
 
   useEffect(() => { validateSelected() }, [manifest.subject])
@@ -112,8 +114,23 @@ export function ConvertManifestDetailPanel({ manifest }: Props) {
   return (
     <div>
       {/* Header */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-        sub-{manifest.subject}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+          sub-{manifest.subject}
+        </div>
+        <button
+          style={{ ...btnStyle, marginLeft: 'auto', color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}
+          title="Delete convert_manifest.json for this subject. The BIDS files stay."
+          onClick={async () => {
+            const ok = await dlg.confirm(
+              `Delete the manifest for sub-${manifest.subject}? Only convert_manifest.json is removed; the BIDS files stay on disk.`,
+              { variant: 'danger', confirmLabel: 'Delete manifest' },
+            )
+            if (ok) void deleteManifest(manifest.subject)
+          }}
+        >
+          Delete manifest
+        </button>
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
         {manifest.dataset} &middot; heudiconv {manifest.heudiconv_version}

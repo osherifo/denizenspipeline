@@ -377,6 +377,24 @@ class ConvertManager:
                     return None
         return None
 
+    def delete_manifest(self, subject: str) -> dict | None:
+        """Remove a subject's ``convert_manifest.json``.
+
+        Only the provenance record goes; the BIDS files it describes are
+        untouched. Returns ``None`` when no manifest matches.
+        """
+        for m in self.scan_manifests():
+            if m["subject"] == subject:
+                path = Path(m["path"])
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+                self.invalidate_cache()
+                logger.info("Deleted convert manifest for %s at %s", subject, path)
+                return {"deleted": True, "subject": subject, "path": str(path)}
+        return None
+
     def validate_manifest(self, subject: str) -> dict:
         """Validate a convert manifest for a subject."""
         manifests = self.scan_manifests()

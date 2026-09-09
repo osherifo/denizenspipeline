@@ -25,6 +25,25 @@ describe('useConvertStore', () => {
     expect(useConvertStore.getState().heuristics.length).toBe(1)
   })
 
+  describe('manifests', () => {
+    it('deleteManifest clears the selection and reloads the list', async () => {
+      await useConvertStore.getState().selectManifest('01')
+      expect(useConvertStore.getState().selectedSubject).toBe('01')
+      await useConvertStore.getState().deleteManifest('01')
+      const s = useConvertStore.getState()
+      expect(s.selectedSubject).toBeNull()
+      expect(s.selectedManifest).toBeNull()
+      expect(s.manifests).toEqual([])
+    })
+
+    it('deleteManifest surfaces a server error', async () => {
+      server.use(http.delete('/api/convert/manifests/:subject', () =>
+        HttpResponse.json({ detail: "No manifest for subject 'zz'" }, { status: 404 })))
+      await useConvertStore.getState().deleteManifest('zz')
+      expect(useConvertStore.getState().validationErrors?.[0]).toMatch(/No manifest/)
+    })
+  })
+
   describe('heuristic editor', () => {
     it('openHeuristic loads code', async () => {
       await useConvertStore.getState().openHeuristic('reading_heuristic')

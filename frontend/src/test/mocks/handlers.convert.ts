@@ -28,6 +28,9 @@ export const convertHandlers = [
   ),
   http.get('/api/convert/manifests', () => HttpResponse.json({ manifests: [] })),
   http.post('/api/convert/manifests/rescan', () => HttpResponse.json({ manifests: [] })),
+  http.delete('/api/convert/manifests/:subject', ({ params }) =>
+    HttpResponse.json({ deleted: true, subject: params.subject, path: `/tmp/bids/convert_manifest.json` }),
+  ),
   http.get('/api/convert/manifests/:subject', ({ params }) =>
     HttpResponse.json({ subject: params.subject, sessions: [], runs: [] }),
   ),

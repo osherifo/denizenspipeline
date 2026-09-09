@@ -201,6 +201,9 @@ jobs re-appear as standalone convert runs in the Recent Runs panel.
 # List active + recent convert runs
 curl http://localhost:8000/api/convert/runs
 
+# Delete a subject's manifest (BIDS outputs are left in place)
+curl -X DELETE http://localhost:8000/api/convert/manifests/sub01
+
 # Summary + last 200 log lines for one
 curl http://localhost:8000/api/convert/runs/convert_sub01_4f2b9c1a
 
