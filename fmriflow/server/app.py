@@ -183,6 +183,8 @@ def create_app(
     app.include_router(workflows_router, prefix="/api")
     app.include_router(triage_router, prefix="/api")
     app.include_router(structural_qc_router, prefix="/api")
+    from fmriflow.server.routes.fs_browse import router as fs_router
+    app.include_router(fs_router, prefix="/api")
     app.include_router(node_outputs_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
     app.include_router(hub_router, prefix="/api")

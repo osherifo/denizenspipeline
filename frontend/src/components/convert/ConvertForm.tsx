@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
 import { ConvertProgress } from './ConvertProgress'
+import { PathField } from '../common/PathPicker'
 
 const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -182,13 +183,13 @@ export function ConvertForm() {
         {/* Required fields */}
         <div style={fieldRow}>
           <span style={labelStyle}>Source Dir</span>
-          <input style={inputStyle} value={sourceDir} onChange={(e) => setSourceDir(e.target.value)}
+          <PathField style={inputStyle} value={sourceDir} onChange={setSourceDir}
             placeholder="/data/dicom/sub-01/session1/" />
         </div>
 
         <div style={fieldRow}>
           <span style={labelStyle}>BIDS Dir</span>
-          <input style={inputStyle} value={bidsDir} onChange={(e) => setBidsDir(e.target.value)}
+          <PathField style={inputStyle} value={bidsDir} onChange={setBidsDir}
             placeholder="/data/bids/" />
         </div>
 

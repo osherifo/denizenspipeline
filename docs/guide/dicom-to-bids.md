@@ -2,6 +2,16 @@
 
 Convert raw DICOM data to BIDS format using heudiconv with a heuristic registry and batch conversion support.
 
+
+!!! tip "Browse for paths"
+    Every path field in the Convert and Batch forms has a **Browse…** button. It lists
+    directories *as the server sees them* — inside Docker that is the container's view
+    (`/workspace/data/…`), which is exactly what conversion can open. Browsing is limited to
+    the data roots (`dicoms`, `bids`, `derivatives`, the data dir, the home dir); a typed
+    path the server cannot see gets a warning under the field. To browse another location,
+    such as a read-only mount of a lab share, list it in `FMRIFLOW_BROWSE_ROOTS`
+    (colon-separated) — see [Docker → Browsing other locations](docker.md#browsing-other-locations).
+
 ## Single conversion
 
 ```bash

@@ -579,6 +579,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#browsing-other-locations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browsing other locations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1343,6 +1354,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#browsing-other-locations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browsing other locations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1543,6 +1565,21 @@ host user with:</p>
 </code></pre></div>
 <p>The entrypoint writes it to <code>$FMRIFLOW_HOME/secrets/freesurfer-license.txt</code>
 on first boot.</p>
+<h2 id="browsing-other-locations">Browsing other locations<a class="headerlink" href="#browsing-other-locations" title="Permanent link">&para;</a></h2>
+<p>Path fields in the UI can <strong>Browse…</strong> the server's filesystem, but only under the data
+roots (<code>$FMRIFLOW_DATA</code>, <code>$FMRIFLOW_HOME</code>). Inside Docker that is the container's view,
+so a share mounted on the host is invisible until it is bound into the container. Add a
+<strong>read-only</strong> bind mount and list it in <code>FMRIFLOW_BROWSE_ROOTS</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">services</span><span class="p">:</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">fmriflow</span><span class="p">:</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="nt">volumes</span><span class="p">:</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${FMRIFLOW_HOME}:/workspace</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/lab/share:/shares/lab:ro</span><span class="w">          </span><span class="c1"># read-only: the app can read, never write</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">      </span><span class="nt">FMRIFLOW_BROWSE_ROOTS</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/shares/lab</span><span class="w">             </span><span class="c1"># colon-separated for several</span>
+</code></pre></div>
+<p>Paths picked there are container paths (<code>/shares/lab/...</code>), which is what every stage
+needs. A typed host path that the container cannot see gets a warning under the field.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>fmriprep sibling container can't see /workspace</strong> — when slim

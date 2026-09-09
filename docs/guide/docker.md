@@ -185,6 +185,26 @@ FS_LICENSE_TEXT="abc123\nyou@example.com\n0001\n..."
 The entrypoint writes it to `$FMRIFLOW_HOME/secrets/freesurfer-license.txt`
 on first boot.
 
+## Browsing other locations
+
+Path fields in the UI can **Browse…** the server's filesystem, but only under the data
+roots (`$FMRIFLOW_DATA`, `$FMRIFLOW_HOME`). Inside Docker that is the container's view,
+so a share mounted on the host is invisible until it is bound into the container. Add a
+**read-only** bind mount and list it in `FMRIFLOW_BROWSE_ROOTS`:
+
+```yaml
+services:
+  fmriflow:
+    volumes:
+      - ${FMRIFLOW_HOME}:/workspace
+      - /path/to/lab/share:/shares/lab:ro          # read-only: the app can read, never write
+    environment:
+      FMRIFLOW_BROWSE_ROOTS: /shares/lab             # colon-separated for several
+```
+
+Paths picked there are container paths (`/shares/lab/...`), which is what every stage
+needs. A typed host path that the container cannot see gets a warning under the field.
+
 ## Troubleshooting
 
 - **fmriprep sibling container can't see /workspace** — when slim

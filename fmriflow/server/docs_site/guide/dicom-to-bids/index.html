@@ -1433,6 +1433,16 @@
 
 <h1 id="dicom-to-bids">DICOM to BIDS<a class="headerlink" href="#dicom-to-bids" title="Permanent link">&para;</a></h1>
 <p>Convert raw DICOM data to BIDS format using heudiconv with a heuristic registry and batch conversion support.</p>
+<div class="admonition tip">
+<p class="admonition-title">Browse for paths</p>
+<p>Every path field in the Convert and Batch forms has a <strong>Browse…</strong> button. It lists
+directories <em>as the server sees them</em> — inside Docker that is the container's view
+(<code>/workspace/data/…</code>), which is exactly what conversion can open. Browsing is limited to
+the data roots (<code>dicoms</code>, <code>bids</code>, <code>derivatives</code>, the data dir, the home dir); a typed
+path the server cannot see gets a warning under the field. To browse another location,
+such as a read-only mount of a lab share, list it in <code>FMRIFLOW_BROWSE_ROOTS</code>
+(colon-separated) — see <a href="../docker/#browsing-other-locations">Docker → Browsing other locations</a>.</p>
+</div>
 <h2 id="single-conversion">Single conversion<a class="headerlink" href="#single-conversion" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>fmriflow<span class="w"> </span>convert<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--heuristic<span class="w"> </span>my_study<span class="w"> </span><span class="se">\</span>
