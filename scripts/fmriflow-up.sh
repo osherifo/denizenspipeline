@@ -10,6 +10,7 @@
 #   ./scripts/fmriflow-up.sh --slim       # slim image (orchestrator only)
 #   ./scripts/fmriflow-up.sh --build      # rebuild before starting
 #   ./scripts/fmriflow-up.sh --down       # stop and exit (same as fmriflow-down.sh)
+#   ./scripts/fmriflow-up.sh --down --logs  # ... printing the last log lines first
 #   FMRIFLOW_HOME=/other/path ./scripts/fmriflow-up.sh
 #
 # Siblings: fmriflow-build.sh (build only), fmriflow-down.sh (stop only).
@@ -20,6 +21,8 @@ FMRIFLOW_HOME="${FMRIFLOW_HOME:-/mnt/data/fmriflow}"
 COMPOSE_FILE="docker-compose.full.yml"
 PORT=8421
 BUILD=0
+DOWN=0
+LOGS=0
 
 cd "$(dirname "$0")/.."
 
@@ -27,18 +30,24 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --slim)  COMPOSE_FILE="docker-compose.yml" ;;
         --build) BUILD=1 ;;
-        --down)
-            down_args=()
-            [ "$COMPOSE_FILE" = "docker-compose.yml" ] && down_args+=(--slim)
-            FMRIFLOW_HOME="$FMRIFLOW_HOME" exec scripts/fmriflow-down.sh "${down_args[@]}"
-            ;;
-        -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --down)  DOWN=1 ;;
+        --logs)  LOGS=1 ;;
+        -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
     shift
 done
 
 export FMRIFLOW_HOME
+
+# Options are order-independent, so decide what to do only after parsing.
+if [ "$DOWN" -eq 1 ]; then
+    down_args=()
+    [ "$COMPOSE_FILE" = "docker-compose.yml" ] && down_args+=(--slim)
+    [ "$LOGS" -eq 1 ] && down_args+=(--logs)
+    exec scripts/fmriflow-down.sh "${down_args[@]}"
+fi
+[ "$LOGS" -eq 1 ] && { echo "error: --logs only makes sense with --down" >&2; exit 2; }
 
 # --- preflight -------------------------------------------------------------
 
