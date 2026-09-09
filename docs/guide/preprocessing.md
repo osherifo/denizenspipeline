@@ -108,11 +108,11 @@ For each node the side panel shows:
 
 **Validate** checks ports, kinds, doubly fed inputs and cycles before you run.
 
-`derivatives_smooth_regress` is the template for "data already preprocessed elsewhere":
-a `derivatives_source` finds the BOLD + confounds files, `smooth` and
-`regress_confounds` iterate over them, and the manifest points at the regressed output.
-`reference_nipype` is a hand-written nipype workflow (MCFLIRT → BET → FLIRT BBR → ANTs
-SyN) on raw BIDS — the copyable example of a composite node.
+The shipped templates are the three fmriprep ones. Anything else — smoothing or
+confound regression on derivatives produced elsewhere (`derivatives_source` →
+`smooth` → `regress_confounds`), or a hand-written nipype workflow such as the
+`reference_fsl_ants` composite node — is built from the palette and saved as a
+pipeline of your own.
 
 ## Workflow 3: watch a run
 

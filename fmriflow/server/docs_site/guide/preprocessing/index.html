@@ -1540,11 +1540,11 @@ path the server cannot see gets a warning under the field; bindings such as
   the manifest's BOLD files should point at (<code>bold from</code>).</li>
 </ul>
 <p><strong>Validate</strong> checks ports, kinds, doubly fed inputs and cycles before you run.</p>
-<p><code>derivatives_smooth_regress</code> is the template for "data already preprocessed elsewhere":
-a <code>derivatives_source</code> finds the BOLD + confounds files, <code>smooth</code> and
-<code>regress_confounds</code> iterate over them, and the manifest points at the regressed output.
-<code>reference_nipype</code> is a hand-written nipype workflow (MCFLIRT → BET → FLIRT BBR → ANTs
-SyN) on raw BIDS — the copyable example of a composite node.</p>
+<p>The shipped templates are the three fmriprep ones. Anything else — smoothing or
+confound regression on derivatives produced elsewhere (<code>derivatives_source</code> →
+<code>smooth</code> → <code>regress_confounds</code>), or a hand-written nipype workflow such as the
+<code>reference_fsl_ants</code> composite node — is built from the palette and saved as a
+pipeline of your own.</p>
 <h2 id="workflow-3-watch-a-run">Workflow 3: watch a run<a class="headerlink" href="#workflow-3-watch-a-run" title="Permanent link">&para;</a></h2>
 <p>The Runs tab shows the pipeline graph with each node coloured by status (running /
 done / cached ⟲ / failed) and a checkpoint badge. Click a node to open its <strong>outputs</strong>

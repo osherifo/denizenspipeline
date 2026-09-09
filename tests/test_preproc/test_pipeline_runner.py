@@ -8,13 +8,21 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+
 nib = pytest.importorskip("nibabel")
 nipype = pytest.importorskip("nipype")
 
 from fmriflow.preproc.graph import Pipeline, PipelineEdge, PipelineNode, PipelineRunRequest  # noqa: E402
 from fmriflow.preproc.node_registry import NodeRegistry  # noqa: E402
 from fmriflow.preproc.pipeline_runner import PipelineRunner  # noqa: E402
-from fmriflow.preproc.templates import load_template  # noqa: E402
+
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def fixture_pipeline(name: str):
+    """A test-only pipeline YAML under tests/test_preproc/fixtures/ (formerly a shipped template)."""
+    return Pipeline.from_yaml((_FIXTURES / f"{name}.yaml").read_text())
 
 
 @pytest.fixture(scope="module")
@@ -41,7 +49,7 @@ def _request(tmp_path, derivatives, **kw):
 
 
 def test_template_runs_caches_and_reruns_from(registry, tmp_path, derivatives):
-    pipeline = load_template("derivatives_smooth_regress")
+    pipeline = fixture_pipeline("derivatives_smooth_regress")
     events: list[dict] = []
     runner = PipelineRunner(registry, run_id="r1", event_sink=events.append,
                             events_path=tmp_path / "events.jsonl")
@@ -76,7 +84,7 @@ def test_template_runs_caches_and_reruns_from(registry, tmp_path, derivatives):
 
 
 def test_use_cache_false_reruns_everything(registry, tmp_path, derivatives):
-    pipeline = load_template("derivatives_smooth_regress")
+    pipeline = fixture_pipeline("derivatives_smooth_regress")
     PipelineRunner(registry, run_id="r2").run(pipeline, _request(tmp_path, derivatives))
     result = PipelineRunner(registry, run_id="r2").run(pipeline, _request(tmp_path, derivatives, use_cache=False))
     assert {r.status for r in result.node_records} == {"ok"}
@@ -153,7 +161,7 @@ def test_composite_node_is_embedded_and_wired(registry, tmp_path):
 
 
 def test_iter_on_composite_is_rejected(registry, tmp_path):
-    pipeline = load_template("reference_nipype")
+    pipeline = fixture_pipeline("reference_nipype")
     pipeline.node("ref").iter = {"handle": "bold"}
     errors = PipelineRunner(registry).validate(pipeline, PipelineRunRequest(subject="01", output_dir=str(tmp_path), bids_dir=str(tmp_path)))
     assert any("iter is not supported on composite" in e for e in errors)

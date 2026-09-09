@@ -22,7 +22,7 @@ def client(tmp_path, monkeypatch):
 
 def test_templates_and_nodes(client):
     t = client.get("/api/preproc/pipelines/templates").json()["templates"]
-    assert {x["name"] for x in t} >= {"fmriprep_full", "derivatives_smooth_regress"}
+    assert {x["name"] for x in t} >= {"fmriprep_full", "fmriprep_anat_only"}
     p = client.get("/api/preproc/pipelines/templates/fmriprep_anat_only").json()["pipeline"]
     assert p["nodes"][0]["type"] == "fmriprep"
     assert client.get("/api/preproc/pipelines/templates/nope").status_code == 404
@@ -37,8 +37,8 @@ def test_templates_and_nodes(client):
     assert "preproc_node" in client.get("/api/preproc/nodes/scaffold/interface").json()["code"]
 
 
-def test_pipeline_crud_and_validate(client):
-    p = client.get("/api/preproc/pipelines/templates/derivatives_smooth_regress").json()["pipeline"]
+def test_pipeline_crud_and_validate(client, sample_pipeline):
+    p = sample_pipeline("derivatives_smooth_regress").to_dict()
     r = client.put("/api/preproc/pipelines/mine", json={"pipeline": p})
     assert r.status_code == 200 and r.json()["errors"] == []
     listing = client.get("/api/preproc/pipelines").json()

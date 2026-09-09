@@ -7,8 +7,7 @@ import pytest
 from fmriflow.preproc.node_registry import NodeRegistry
 from fmriflow.preproc.templates import list_templates, load_template, template_names
 
-EXPECTED = {"fmriprep_full", "fmriprep_anat_only", "fmriprep_func_precomputed_anat",
-            "derivatives_smooth_regress", "reference_nipype"}
+EXPECTED = {"fmriprep_full", "fmriprep_anat_only", "fmriprep_func_precomputed_anat"}
 
 
 def test_expected_templates_exist():
@@ -32,7 +31,8 @@ def test_fmriprep_templates_are_linear_and_bound():
 
 def test_list_templates_summary():
     rows = {r["name"]: r for r in list_templates()}
-    assert rows["derivatives_smooth_regress"]["node_types"] == ["derivatives_source", "smooth", "regress_confounds"]
+    assert rows["fmriprep_full"]["node_types"] == ["fmriprep"]
+    assert set(rows) == EXPECTED, "only the fmriprep templates ship"
 
 
 def test_unknown_template():
