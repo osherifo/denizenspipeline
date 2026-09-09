@@ -1406,7 +1406,7 @@ no third tier.</p>
 <h2 id="splitting-data-onto-a-different-disk">Splitting <code>data/</code> onto a different disk<a class="headerlink" href="#splitting-data-onto-a-different-disk" title="Permanent link">&para;</a></h2>
 <p>For workstations where MRI data lives on a RAID separate from your
 configs, set:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FMRIFLOW_DATA</span><span class="o">=</span>/mnt/raid/fmriflow-data
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FMRIFLOW_DATA</span><span class="o">=</span>/data/fmriflow-data
 </code></pre></div>
 <p><code>$FMRIFLOW_DATA</code> overrides the location of <code>data/</code> only. Configs,
 addons, runs, and stores still live under <code>$FMRIFLOW_HOME</code>. The

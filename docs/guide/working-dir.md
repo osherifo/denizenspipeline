@@ -60,7 +60,7 @@ For workstations where MRI data lives on a RAID separate from your
 configs, set:
 
 ```bash
-export FMRIFLOW_DATA=/mnt/raid/fmriflow-data
+export FMRIFLOW_DATA=/data/fmriflow-data
 ```
 
 `$FMRIFLOW_DATA` overrides the location of `data/` only. Configs,

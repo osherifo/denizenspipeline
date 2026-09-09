@@ -282,7 +282,7 @@ async def get_fs_file(request: Request, subject: str, rel: str):
 
 
 # Declared LAST on purpose: this catch-all serves the fmriprep report's
-# relative asset URLs (e.g. `sub-AN/figures/foo.svg`). FastAPI matches
+# relative asset URLs (e.g. `sub-01/figures/foo.svg`). FastAPI matches
 # routes in declaration order, so the dedicated `/report`,
 # `/freeview-command`, and `/fs-file` endpoints above win first.
 @router.get("/preproc/subjects/{subject}/structural-qc/{rest:path}")
@@ -292,8 +292,8 @@ async def get_report_asset(request: Request, subject: str, rest: str):
 
     The report iframe sits at
     ``/api/preproc/subjects/{subject}/structural-qc/report`` so the
-    browser resolves ``sub-AN/figures/foo.svg`` against
-    ``/api/preproc/subjects/AN/structural-qc/sub-AN/figures/foo.svg`` —
+    browser resolves ``sub-01/figures/foo.svg`` against
+    ``/api/preproc/subjects/01/structural-qc/sub-01/figures/foo.svg`` —
     that path lands here. Suffix-whitelisted, with a safe-join check
     against ``output_dir``.
     """

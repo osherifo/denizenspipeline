@@ -64,7 +64,7 @@ class ProjectToFsaverageAnalyzer:
             "type": "str",
             "description": (
                 "FreeSurfer subject name. Defaults to the pycortex surface "
-                "name (e.g. 'ANfs') which is the conventional layout in this lab."
+                "name (e.g. 'sub01fs') which is the conventional layout in this lab."
             ),
         },
         "subjects_dir": {

@@ -202,10 +202,10 @@ jobs re-appear as standalone convert runs in the Recent Runs panel.
 curl http://localhost:8000/api/convert/runs
 
 # Summary + last 200 log lines for one
-curl http://localhost:8000/api/convert/runs/convert_AN_4f2b9c1a
+curl http://localhost:8000/api/convert/runs/convert_sub01_4f2b9c1a
 
 # Cancel a running subprocess (SIGTERM → SIGKILL after 5s)
-curl -X POST http://localhost:8000/api/convert/runs/convert_AN_4f2b9c1a/cancel
+curl -X POST http://localhost:8000/api/convert/runs/convert_sub01_4f2b9c1a/cancel
 ```
 
 ### Outcome inference
