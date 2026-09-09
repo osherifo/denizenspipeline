@@ -196,6 +196,36 @@ class ConvertConfigStore:
         logger.info("Saved convert config: %s", path)
         return self._extract_summary(path, config)
 
+    def update_config(self, filename: str, yaml_text: str) -> dict:
+        """Overwrite a saved config with edited YAML.
+
+        The text must parse to a mapping. ``_meta`` is kept from the file on
+        disk when the edit dropped it (name and creation stay stable). Only
+        configs in the active dir are writable; a legacy one must be
+        duplicated first. Raises ``FileNotFoundError`` / ``ValueError``.
+        """
+        path = self._validate_filename(filename)
+        if not path.is_file():
+            raise FileNotFoundError(f"No editable config {filename!r} (legacy configs are read-only; duplicate it first)")
+        try:
+            data = yaml.safe_load(yaml_text)
+        except yaml.YAMLError as e:
+            raise ValueError(f"YAML does not parse: {e}") from e
+        if not isinstance(data, dict) or not data:
+            raise ValueError("config YAML must be a non-empty mapping")
+        if "_meta" not in data:
+            try:
+                old = yaml.safe_load(path.read_text()) or {}
+            except yaml.YAMLError:
+                old = {}
+            if isinstance(old, dict) and old.get("_meta"):
+                data["_meta"] = old["_meta"]
+        raw = yaml.safe_dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        path.write_text(raw)
+        self._invalidate()
+        logger.info("Updated convert config: %s", path)
+        return self._extract_summary(path, data)
+
     def copy_config(self, filename: str, new_name: str) -> dict:
         """Duplicate a saved config under *new_name* (a legacy, read-only
         config is copied into the active dir, which is also how to adopt it).

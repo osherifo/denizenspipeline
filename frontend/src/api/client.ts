@@ -622,6 +622,14 @@ export async function saveConvertBatchConfig(params: {
   })
 }
 
+export async function updateSavedConvertConfig(filename: string, yamlString: string): Promise<SavedConvertConfig> {
+  return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml_string: yamlString }),
+  })
+}
+
 export async function copySavedConvertConfig(filename: string, newName: string): Promise<SavedConvertConfig> {
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}/copy`, {
     method: 'POST',

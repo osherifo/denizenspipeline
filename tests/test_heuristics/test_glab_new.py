@@ -25,6 +25,8 @@ GP = ("ORIGINAL", "PRIMARY", "P", "ND")
 
 @pytest.fixture
 def heuristic():
+    if not HEURISTIC.is_file():
+        pytest.skip("lab heuristics live in the gitignored heuristics/ dir; glab_new.py not present here")
     spec = importlib.util.spec_from_file_location("glab_new", HEURISTIC)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

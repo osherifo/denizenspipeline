@@ -554,6 +554,22 @@ class CopyConfigBody(BaseModel):
     new_name: str
 
 
+class UpdateConfigBody(BaseModel):
+    yaml_string: str
+
+
+@router.put("/convert/configs/{filename}")
+async def update_saved_config(request: Request, filename: str, body: UpdateConfigBody):
+    """Overwrite a saved config with edited YAML."""
+    store = request.app.state.convert_config_store
+    try:
+        return store.update_config(filename, body.yaml_string)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/convert/configs/{filename}/copy")
 async def copy_saved_config(request: Request, filename: str, body: CopyConfigBody):
     """Duplicate a saved convert config under a new name."""
