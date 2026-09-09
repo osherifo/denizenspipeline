@@ -1418,7 +1418,7 @@ contract the analysis stage reads.</p>
 <tbody>
 <tr>
 <td><strong>Build</strong></td>
-<td>Pick a template or a saved pipeline, edit it as a chain (Simple) or a graph (Graph), set node parameters, bind a subject and paths, run.</td>
+<td>Pick a template or a saved pipeline, edit it in the graph editor, set node parameters, bind a subject and paths, run.</td>
 </tr>
 <tr>
 <td><strong>Runs</strong></td>
@@ -1486,11 +1486,9 @@ the server at its binary:</p>
 </code></pre></div>
 <p>Save the pipeline under a name to reuse it (it lands in <code>$FMRIFLOW_HOME/configs/preproc/</code>).</p>
 <h2 id="workflow-2-build-a-pipeline">Workflow 2: build a pipeline<a class="headerlink" href="#workflow-2-build-a-pipeline" title="Permanent link">&para;</a></h2>
-<p><strong>Simple view</strong> shows a chain as ordered cards — good for <em>fmriprep → smooth → regress
-confounds</em>. <code>+ add step</code> appends a node and wires the previous node's first file output
-into the new node's first file input. <strong>Graph view</strong> is the full editor: add any node,
-drag from an output port to an input port to connect, Backspace deletes the selection.
-Both views edit the same pipeline; Simple is only offered while the graph is a single chain.</p>
+<p>The editor is the graph: click a node in the palette to add it, drag from an output
+port to an input port to connect, Backspace deletes the selection. A plain chain such as
+<em>fmriprep → smooth → regress confounds</em> is just a graph with one edge per node.</p>
 <p>For each node the side panel shows:</p>
 <ul>
 <li><strong>Inputs</strong> — each input port is either connected (an edge), bound to a pipeline input

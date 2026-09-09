@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { usePreprocPipelineStore, isLinear, topoOrder } from '../preproc-pipeline-store'
+import { usePreprocPipelineStore, topoOrder } from '../preproc-pipeline-store'
 import { TEMPLATE_PIPELINE } from '../../test/mocks/handlers.preproc-pipelines'
 
 describe('preproc pipeline store', () => {
@@ -13,11 +13,10 @@ describe('preproc pipeline store', () => {
     expect(st.legacy).toHaveLength(1)
   })
 
-  it('loads a template into the editor and picks the simple view for a chain', async () => {
+  it('loads a template into the editor', async () => {
     await usePreprocPipelineStore.getState().loadTemplate('derivatives_smooth')
     const st = usePreprocPipelineStore.getState()
     expect(st.pipeline.nodes).toHaveLength(2)
-    expect(st.view).toBe('simple')
     expect(st.dirty).toBe(true)
     expect(st.selectedNodeId).toBe('source')
   })
@@ -26,11 +25,11 @@ describe('preproc pipeline store', () => {
     const s = usePreprocPipelineStore.getState()
     await s.loadLibrary()
     await s.loadTemplate('derivatives_smooth')
-    const id = usePreprocPipelineStore.getState().appendAfter('smooth', 'smooth')
+    const id = usePreprocPipelineStore.getState().addNode('smooth')
     expect(id).toBe('smooth_2')
+    usePreprocPipelineStore.getState().addEdge({ source: 'smooth', target: 'smooth_2', sourceHandle: 'out_file', targetHandle: 'in_file' })
     let st = usePreprocPipelineStore.getState()
     expect(st.pipeline.edges.some((e) => e.source === 'smooth' && e.target === 'smooth_2' && e.targetHandle === 'in_file')).toBe(true)
-    expect(isLinear(st.pipeline)).toBe(true)
     expect(topoOrder(st.pipeline).map((n) => n.id)).toEqual(['source', 'smooth', 'smooth_2'])
 
     st.updateNodeParams('smooth_2', { fwhm: 8 })
@@ -41,7 +40,6 @@ describe('preproc pipeline store', () => {
     st = usePreprocPipelineStore.getState()
     expect(st.pipeline.edges.filter((e) => e.target === 'smooth_2')).toHaveLength(1)
     expect(st.pipeline.edges.find((e) => e.target === 'smooth_2')?.source).toBe('source')
-    expect(isLinear(st.pipeline)).toBe(false)
 
     st.removeNode('smooth_2')
     st = usePreprocPipelineStore.getState()

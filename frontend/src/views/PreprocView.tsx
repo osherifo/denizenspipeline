@@ -1,12 +1,11 @@
 /** Preprocessing — one page, four tabs: Build · Runs · Library · Outputs. */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { usePreprocPipelineStore, isLinear } from '../stores/preproc-pipeline-store'
+import { usePreprocPipelineStore } from '../stores/preproc-pipeline-store'
 import { usePreprocRunsStore } from '../stores/preproc-runs-store'
 import { usePreprocStore } from '../stores/preproc-store'
 import type { PreprocNodeInfo } from '../api/types'
 import { PipelineGraph } from '../components/preproc-graph/PipelineGraph'
-import { LinearCards } from '../components/preproc-graph/LinearCards'
 import { NodeParamPanel } from '../components/preproc-graph/NodeParamPanel'
 import { RunPanel } from '../components/preproc-graph/RunPanel'
 import { RunsList } from '../components/preproc-graph/RunsList'
@@ -81,7 +80,6 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
 
   const selected = s.pipeline.nodes.find((n) => n.id === s.selectedNodeId) ?? null
   const info = selected ? s.library.find((n) => n.name === selected.type) : undefined
-  const linear = isLinear(s.pipeline)
   const byName = new Map(s.library.map((n) => [n.name, n]))
 
   return (
@@ -125,10 +123,6 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
           <input style={{ ...input, width: 200, fontWeight: 700 }} value={s.pipeline.name} onChange={(e) => s.setPipelineMeta({ name: e.target.value })} />
           <input style={{ ...input, flex: 1 }} placeholder="description" value={s.pipeline.description ?? ''} onChange={(e) => s.setPipelineMeta({ description: e.target.value })} />
-          <span style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-            <button style={{ ...btn, border: 'none', borderRadius: 0, background: s.view === 'simple' ? 'rgba(0,229,255,0.12)' : 'transparent' }} onClick={() => s.setView('simple')} disabled={!linear} title={linear ? '' : 'the graph is not a single chain'}>Simple</button>
-            <button style={{ ...btn, border: 'none', borderRadius: 0, background: s.view === 'graph' ? 'rgba(0,229,255,0.12)' : 'transparent' }} onClick={() => s.setView('graph')}>Graph</button>
-          </span>
           <button style={btn} onClick={() => void s.validate()}>Validate</button>
           <input style={{ ...input, width: 150 }} placeholder={s.pipelineName ?? 'save as…'} value={saveAs} onChange={(e) => setSaveAs(e.target.value)} />
           <button style={{ ...btn, borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }} onClick={() => void s.save(saveAs || s.pipelineName || s.pipeline.name)}>Save{s.dirty ? ' *' : ''}</button>
@@ -138,9 +132,7 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
             {s.validation.ok ? '✓ pipeline is valid' : s.validation.errors.map((e, i) => <div key={i}>✗ {e}</div>)}
           </div>
         )}
-        {s.view === 'simple' && linear ? (
-          <LinearCards library={s.library} />
-        ) : (
+        {(
           <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 8 }}>
             <NodePalette library={s.library} onAdd={(t) => s.addNode(t)} />
             <div>

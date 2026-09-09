@@ -10,7 +10,7 @@ Open **Preprocessing** in the sidebar. Four tabs:
 
 | Tab | What it does |
 |---|---|
-| **Build** | Pick a template or a saved pipeline, edit it as a chain (Simple) or a graph (Graph), set node parameters, bind a subject and paths, run. |
+| **Build** | Pick a template or a saved pipeline, edit it in the graph editor, set node parameters, bind a subject and paths, run. |
 | **Runs** | Every pipeline run: live node status on the graph, checkpoints, per-node outputs, the inner fmriprep DAG, the log, Resume / Restart. |
 | **Library** | The node library: what each node needs, its parameters and source; author a new node; import an existing nipype pipeline. |
 | **Outputs** | Manifests on disk; collect a manifest from derivatives produced elsewhere. |
@@ -91,11 +91,9 @@ Save the pipeline under a name to reuse it (it lands in `$FMRIFLOW_HOME/configs/
 
 ## Workflow 2: build a pipeline
 
-**Simple view** shows a chain as ordered cards — good for *fmriprep → smooth → regress
-confounds*. `+ add step` appends a node and wires the previous node's first file output
-into the new node's first file input. **Graph view** is the full editor: add any node,
-drag from an output port to an input port to connect, Backspace deletes the selection.
-Both views edit the same pipeline; Simple is only offered while the graph is a single chain.
+The editor is the graph: click a node in the palette to add it, drag from an output
+port to an input port to connect, Backspace deletes the selection. A plain chain such as
+*fmriprep → smooth → regress confounds* is just a graph with one edge per node.
 
 For each node the side panel shows:
 

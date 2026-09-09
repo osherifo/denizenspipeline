@@ -21,7 +21,6 @@ import type {
   PreprocNodeInfo,
 } from '../api/types'
 
-export type BuildView = 'simple' | 'graph'
 
 export interface RunBinding {
   subject: string
@@ -50,21 +49,6 @@ export const EMPTY_PIPELINE: PipelineDoc = {
 const DEFAULT_BINDING: RunBinding = {
   subject: '', output_dir: '', bids_dir: '', derivatives_dir: '', work_dir: '', dataset: 'unknown',
   plugin: 'Linear', n_procs: null, use_cache: true, rerun_from: [], abort_on_bad: false,
-}
-
-/** True when every node has at most one incoming and one outgoing edge along a single chain. */
-export function isLinear(p: PipelineDoc): boolean {
-  if (p.nodes.length === 0) return true
-  if (p.edges.length !== p.nodes.length - 1) return false
-  const inC = new Map<string, number>()
-  const outC = new Map<string, number>()
-  for (const n of p.nodes) { inC.set(n.id, 0); outC.set(n.id, 0) }
-  for (const e of p.edges) {
-    if (!inC.has(e.target) || !outC.has(e.source)) return false
-    inC.set(e.target, (inC.get(e.target) ?? 0) + 1)
-    outC.set(e.source, (outC.get(e.source) ?? 0) + 1)
-  }
-  return [...inC.values()].every((c) => c <= 1) && [...outC.values()].every((c) => c <= 1)
 }
 
 /** Topological order (Kahn); falls back to declaration order on a cycle. */
@@ -106,7 +90,6 @@ interface PipelineState {
   pipeline: PipelineDoc
   pipelineName: string | null      // saved-as name, null for unsaved
   dirty: boolean
-  view: BuildView
   selectedNodeId: string | null
   validation: { ok: boolean; errors: string[] } | null
   binding: RunBinding
@@ -121,7 +104,6 @@ interface PipelineState {
   loadPipeline: (name: string) => Promise<void>
   newPipeline: () => void
   setPipeline: (p: PipelineDoc) => void
-  setView: (v: BuildView) => void
   selectNode: (id: string | null) => void
   addNode: (type: string, position?: { x: number; y: number }) => string | null
   removeNode: (id: string) => void
@@ -130,7 +112,6 @@ interface PipelineState {
   moveNode: (id: string, position: { x: number; y: number }) => void
   addEdge: (edge: Omit<PipelineEdgeDoc, 'id'>) => void
   removeEdge: (id: string) => void
-  appendAfter: (afterId: string | null, type: string) => string | null
   setPipelineMeta: (patch: Partial<Pick<PipelineDoc, 'name' | 'description' | 'inputs' | 'manifest'>>) => void
   validate: () => Promise<void>
   save: (name: string) => Promise<void>
@@ -148,7 +129,6 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
   pipeline: EMPTY_PIPELINE,
   pipelineName: null,
   dirty: false,
-  view: 'simple',
   selectedNodeId: null,
   validation: null,
   binding: DEFAULT_BINDING,
@@ -189,7 +169,7 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
       const { pipeline } = await fetchPipelineTemplate(name)
       set({
         pipeline, pipelineName: null, dirty: true, selectedNodeId: pipeline.nodes[0]?.id ?? null,
-        validation: null, view: isLinear(pipeline) ? 'simple' : 'graph', error: null,
+        validation: null, error: null,
       })
     } catch (e) {
       set({ error: (e as Error).message })
@@ -201,7 +181,7 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
       const { pipeline } = await fetchPipeline(name)
       set({
         pipeline, pipelineName: name, dirty: false, selectedNodeId: pipeline.nodes[0]?.id ?? null,
-        validation: null, view: isLinear(pipeline) ? 'simple' : 'graph', error: null,
+        validation: null, error: null,
       })
     } catch (e) {
       set({ error: (e as Error).message })
@@ -210,11 +190,10 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
 
   newPipeline: () => set({
     pipeline: { ...EMPTY_PIPELINE, inputs: {} }, pipelineName: null, dirty: false,
-    selectedNodeId: null, validation: null, view: 'simple', error: null,
+    selectedNodeId: null, validation: null, error: null,
   }),
 
   setPipeline: (p) => set({ pipeline: p, dirty: true, validation: null }),
-  setView: (view) => set({ view }),
   selectNode: (selectedNodeId) => set({ selectedNodeId }),
 
   addNode: (type, position) => {
@@ -283,30 +262,6 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
   removeEdge: (id) => {
     const p = get().pipeline
     set({ pipeline: { ...p, edges: p.edges.filter((e) => e.id !== id) }, dirty: true, validation: null })
-  },
-
-  /** Simple view: append a node after ``afterId`` (or at the end) and wire the first
-   *  file-like output of the predecessor into the first file-like input of the new node. */
-  appendAfter: (afterId, type) => {
-    const state = get()
-    const order = topoOrder(state.pipeline)
-    const prev = afterId ? order.find((n) => n.id === afterId) ?? null : order[order.length - 1] ?? null
-    const id = state.addNode(type)
-    if (!id) return null
-    if (prev) {
-      const lib = state.library
-      const prevInfo = lib.find((n) => n.name === prev.type)
-      const info = lib.find((n) => n.name === type)
-      const fileish = (spec: { kind: string }) => !['str', 'int', 'float', 'bool', 'dir', 'any'].includes(spec.kind)
-      const srcPorts = Object.entries(prevInfo?.outputs ?? {})
-      const dstPorts = Object.entries(info?.inputs ?? {})
-      const src = srcPorts.find(([, s]) => fileish(s)) ?? srcPorts[0]
-      const dst = dstPorts.find(([, s]) => fileish(s)) ?? dstPorts[0]
-      if (src && dst) {
-        get().addEdge({ source: prev.id, target: id, sourceHandle: src[0], targetHandle: dst[0] })
-      }
-    }
-    return id
   },
 
   setPipelineMeta: (patch) => set({ pipeline: { ...get().pipeline, ...patch }, dirty: true, validation: null }),
