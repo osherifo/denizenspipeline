@@ -15,11 +15,11 @@ import type { WorkflowStageStatus } from '../../api/types'
 import { TriageMatches } from '../triage/TriageMatches'
 import {
   fetchConvertRun,
-  fetchPreprocRun,
   fetchAutoflattenRun,
   fetchInFlightRun,
   fetchBatchStatus,
 } from '../../api/client'
+import { fetchPipelineRun, fetchPipelineRunLog } from '../../api/preproc'
 
 interface ResolvedTarget {
   stage: string
@@ -87,8 +87,8 @@ async function fetchLog(stage: string, runId: string): Promise<LogPayload> {
     return { logTail: r.log_tail ?? '', status: r.status, error: r.error, logPath: r.log_path }
   }
   if (stage === 'preproc') {
-    const r = await fetchPreprocRun(runId)
-    return { logTail: r.log_tail ?? '', status: r.status, error: r.error, logPath: r.log_path }
+    const [r, log] = await Promise.all([fetchPipelineRun(runId, false), fetchPipelineRunLog(runId, 200)])
+    return { logTail: log.lines.join('\n'), status: r.status, error: r.error, logPath: null }
   }
   if (stage === 'autoflatten') {
     const r = await fetchAutoflattenRun(runId) as unknown as {

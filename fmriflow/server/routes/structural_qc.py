@@ -71,7 +71,7 @@ class ReviewBody(BaseModel):
 
 
 def _manifest_for(request: Request, subject: str) -> dict[str, Any]:
-    mgr = request.app.state.preproc_manager
+    mgr = request.app.state.preproc_outputs
     m = mgr.get_manifest(subject)
     if m is None:
         raise HTTPException(404, f"No manifest for subject '{subject}'")

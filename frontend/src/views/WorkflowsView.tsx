@@ -18,13 +18,13 @@ import {
   deleteWorkflowRun,
   fetchInFlightRun,
   fetchPreprocRunLive,
-  fetchPreprocRun,
   fetchConvertRun,
 } from '../api/client'
 import type { AnalysisInnerStage, NipypeStatusBlock } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
 import { RunDetailModal } from '../components/preproc-graph/RunDetailModal'
+import { fetchPipelineRun } from '../api/preproc'
 import { StructuralQCModal } from '../components/workflow/StructuralQCModal'
 import { ConvertDecisionsModal } from '../components/workflow/ConvertDecisionsModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
@@ -601,7 +601,7 @@ export function WorkflowsView() {
             onOpenStructuralQC={async (s) => {
               if (s.stage !== 'preproc' || !s.run_id) return
               try {
-                const detail = await fetchPreprocRun(s.run_id)
+                const detail = await fetchPipelineRun(s.run_id, false)
                 setStructuralQC({ subject: detail.subject })
               } catch (e) {
                 alert(`Could not load preproc run: ${e}`)

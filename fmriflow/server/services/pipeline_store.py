@@ -148,6 +148,50 @@ class PipelineStore:
         self.invalidate()
         return path
 
+    # ── config-store compatibility (artifact hub) ─────────────────
+
+    def list_configs(self) -> list[PipelineSummary]:
+        """Hub-facing alias: summaries carry ``filename`` too."""
+        out = []
+        for p in self.list_pipelines():
+            out.append(PipelineSummary(**{**p.__dict__}))
+            out[-1].filename = Path(p.path).name  # type: ignore[attr-defined]
+        return out
+
+    def get_config(self, filename: str) -> dict[str, Any] | None:
+        name = Path(filename).stem
+        path = self.root / f"{name}.yaml"
+        if not path.is_file():
+            return None
+        raw = path.read_text()
+        try:
+            config = yaml.safe_load(raw) or {}
+        except Exception:
+            config = {}
+        return {"filename": path.name, "path": str(path), "config": config, "yaml_string": raw}
+
+    def save_config(self, filename: str, yaml_string: str) -> dict[str, Any]:
+        """Write raw YAML if it parses as a pipeline; legacy shapes are refused."""
+        name = Path(filename).stem
+        try:
+            validate_slug(name)
+            data = yaml.safe_load(yaml_string) or {}
+        except Exception as e:
+            return {"saved": False, "errors": [str(e)]}
+        if is_legacy_preproc_config(data):
+            return {"saved": False, "errors": ["old-style preproc config (backend/backend_params); run `fmriflow preproc migrate`"]}
+        body = data["pipeline"] if isinstance(data, dict) and "pipeline" in data and "nodes" not in data else data
+        if not isinstance(body, dict) or "nodes" not in body:
+            return {"saved": False, "errors": ["not a pipeline: no 'nodes' list"]}
+        try:
+            pipeline = Pipeline.from_dict(body)
+        except Exception as e:
+            return {"saved": False, "errors": [f"not a pipeline: {e}"]}
+        path = self._path(name)
+        path.write_text(yaml_string)
+        self.invalidate()
+        return {"saved": True, "path": str(path), "name": pipeline.name}
+
     def delete(self, name: str) -> bool:
         path = self._path(name)
         if not path.is_file():

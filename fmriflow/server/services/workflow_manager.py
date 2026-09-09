@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 STAGE_KEYS: tuple[str, ...] = (
-    "convert", "preproc", "autoflatten", "post_preproc", "analysis",
+    "convert", "preproc", "autoflatten", "analysis",
 )
 
 
@@ -416,8 +416,6 @@ class WorkflowManager:
         elif stage.stage == "preproc":
             return mgr.start_run_from_config_file(stage.config)
         elif stage.stage == "autoflatten":
-            return mgr.start_run_from_config_file(stage.config)
-        elif stage.stage == "post_preproc":
             return mgr.start_run_from_config_file(stage.config)
         elif stage.stage == "analysis":
             return mgr.start_run_from_config(stage.config)

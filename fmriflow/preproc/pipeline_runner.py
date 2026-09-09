@@ -37,9 +37,8 @@ from typing import Any, Callable
 
 from fmriflow.preproc.graph import INPUT_REF_PREFIX, Pipeline, PipelineNode, PipelineRunRequest, iter_handles
 from fmriflow.preproc.checkpoints import Check
-from fmriflow.preproc.manifest import PreprocManifest, RunRecord, now_iso
+from fmriflow.preproc.manifest import PreprocManifest, RunRecord, StepRecord, now_iso
 from fmriflow.preproc.node_registry import NodeRegistry, node_ports
-from fmriflow.preproc.stack import StepRecord
 
 logger = logging.getLogger(__name__)
 

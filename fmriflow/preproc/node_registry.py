@@ -61,11 +61,7 @@ USER_MODULE_PREFIX = "_fmriflow_user_node_"
 # Module prefixes the older registries used for user files; a class loaded
 # under one of these is a user node too.
 _LEGACY_USER_PREFIXES = ("_fmriflow_user_workflow_", "_fmriflow_user_transform_")
-_LEGACY_BUILTIN_PACKAGES = (
-    "fmriflow.preproc.backends.nipype_workflows",
-    "fmriflow.preproc.builtin_transforms",
-    "fmriflow.modules.nipype_nodes",
-)
+_LEGACY_BUILTIN_PACKAGES: tuple[str, ...] = ()
 USER_ADDON_KINDS = ("nodes", "workflows", "transforms")
 
 NodeSource = str  # "built-in" | "user" | "pip:<dist>" | "unknown"

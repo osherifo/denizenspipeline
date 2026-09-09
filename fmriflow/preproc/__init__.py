@@ -1,12 +1,11 @@
-"""fMRI preprocessing module — standalone, decoupled from the analysis pipeline.
+"""fMRI preprocessing — one node library, one pipeline model, one runner.
 
 Public API:
-    PreprocManifest, RunRecord, RunQC  — the contract between preprocessing and analysis
-    PreprocConfig, ConfoundsConfig     — configuration dataclasses
-    validate_manifest                  — check manifest validity
-    run_preprocessing                  — run preprocessing via a backend
-    collect_outputs                    — build manifest from existing outputs
-    get_backend, list_backends         — backend registry
+    PreprocManifest, RunRecord, RunQC, StepRecord — the contract between preprocessing and analysis
+    Pipeline, PipelineRunRequest                  — a pipeline and how to run it
+    NodeRegistry, preproc_node                    — the node library
+    PipelineRunner                                — run a pipeline as one nipype Workflow
+    validate_manifest                             — check manifest validity
 """
 
 from fmriflow.preproc.manifest import (
@@ -16,21 +15,27 @@ from fmriflow.preproc.manifest import (
     PreprocStatus,
     RunQC,
     RunRecord,
+    StepRecord,
 )
 from fmriflow.preproc.validation import validate_manifest
-from fmriflow.preproc.runner import collect_outputs, run_preprocessing
-from fmriflow.preproc.backends import get_backend, list_backends
 
 __all__ = [
-    "PreprocManifest",
-    "RunRecord",
-    "RunQC",
-    "PreprocConfig",
-    "ConfoundsConfig",
-    "PreprocStatus",
+    "PreprocManifest", "RunRecord", "RunQC", "StepRecord",
+    "PreprocConfig", "ConfoundsConfig", "PreprocStatus",
     "validate_manifest",
-    "run_preprocessing",
-    "collect_outputs",
-    "get_backend",
-    "list_backends",
+    "Pipeline", "PipelineRunRequest", "NodeRegistry", "preproc_node", "PipelineRunner",
 ]
+
+
+def __getattr__(name: str):
+    # Lazy: the graph / registry / runner import nipype.
+    if name in ("Pipeline", "PipelineRunRequest"):
+        from fmriflow.preproc import graph
+        return getattr(graph, name)
+    if name in ("NodeRegistry", "preproc_node"):
+        from fmriflow.preproc import node_registry
+        return getattr(node_registry, name)
+    if name == "PipelineRunner":
+        from fmriflow.preproc.pipeline_runner import PipelineRunner
+        return PipelineRunner
+    raise AttributeError(name)

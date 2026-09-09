@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   fetchConvertRun,
-  fetchPreprocRun,
   fetchAutoflattenRun,
   fetchInFlightRun,
   fetchBatchStatus,
 } from '../../api/client'
+import { fetchPipelineRun, fetchPipelineRunLog } from '../../api/preproc'
 import type { BatchSummary } from '../../api/types'
 import { TriageMatches } from '../triage/TriageMatches'
 
@@ -111,13 +111,13 @@ async function loadByStage(stage: string, runId: string): Promise<LogDetail> {
     }
   }
   if (stage === 'preproc') {
-    const r = await fetchPreprocRun(runId)
+    const [r, log] = await Promise.all([fetchPipelineRun(runId, false), fetchPipelineRunLog(runId, 500)])
     return {
       title: `${r.subject || 'preproc'} — ${r.run_id}`,
       status: r.status, pid: r.pid,
       startedAt: r.started_at, finishedAt: r.finished_at,
-      error: r.error, logPath: r.log_path, logTail: r.log_tail,
-      extra: [['Manifest', r.manifest_path || '-']],
+      error: r.error, logPath: null, logTail: log.lines.join('\n'),
+      extra: [['Pipeline', r.pipeline || '-'], ['Manifest', r.manifest_path || '-']],
     }
   }
   if (stage === 'autoflatten') {

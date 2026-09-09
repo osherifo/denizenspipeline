@@ -7,7 +7,6 @@ import logging
 import subprocess
 from pathlib import Path
 
-from fmriflow.preproc.backends import register_backend
 from fmriflow.preproc.backends.fmriprep_params import SINGULARITY_CONTAINER_TYPES
 from fmriflow.preproc.errors import BackendRunError
 from fmriflow.preproc.manifest import (
@@ -21,7 +20,6 @@ from fmriflow.preproc.manifest import (
 logger = logging.getLogger(__name__)
 
 
-@register_backend("bids_app")
 class BidsAppBackend:
     """Generic wrapper for any BIDS-App.
 

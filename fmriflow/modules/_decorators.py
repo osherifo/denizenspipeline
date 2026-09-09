@@ -65,18 +65,24 @@ _nipype_node_legacy = _make_decorator(_nipype_nodes)
 
 
 def nipype_node(name: str):
-    """Register a post-preproc DAG node.
+    """Deprecated alias of ``fmriflow.preproc.node_registry.preproc_node`` (interface kind).
 
-    Also registers the class in the unified preprocessing node library
-    (``fmriflow.preproc.node_registry``), where it is an ``interface``
-    node — the same class object serves both.
+    Kept for one release so addon files written for the post-preproc
+    builder keep loading.
     """
     def wrapper(cls):
+        import warnings
+        warnings.warn(
+            "@nipype_node is deprecated; use @preproc_node from fmriflow.preproc.node_registry",
+            DeprecationWarning, stacklevel=2,
+        )
         _nipype_node_legacy(name)(cls)
         from fmriflow.preproc.node_registry import preproc_node
         preproc_node(name, kind="interface")(cls)
         return cls
     return wrapper
+
+
 group_analyzer = _make_decorator(_group_analyzers)
 group_reporter = _make_decorator(_group_reporters)
 study_analyzer = _make_decorator(_study_analyzers)

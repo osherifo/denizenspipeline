@@ -1,42 +1,29 @@
-/** Legacy preprocessing-manager store — manifest browsing only.
+/** Preprocessing outputs store — manifests on disk and "collect" existing derivatives.
  *
- * The launch surface (RunForm, validate-config, run-from-saved-config)
- * was hard-removed in Stage 7d-A. All new launches go through the
- * preproc-stack store in ``preproc-stack-store.ts``. What stays here
- * is read-side state used by the surviving views: BackendStatus,
- * ManifestBrowser, CollectForm, InFlightRuns.
+ * Runs and pipelines live in ``preproc-runs-store.ts`` / ``preproc-pipeline-store.ts``;
+ * what stays here is the read side used by the Outputs tab (ManifestBrowser,
+ * ManifestDetail, CollectForm).
  */
 import { create } from 'zustand'
 import type {
-  BackendInfo,
   ManifestSummary,
   ManifestDetail,
-  PreprocEvent,
   CollectResult,
   ConfigSummary,
-  PreprocRunSummary,
 } from '../api/types'
 import {
-  fetchPreprocBackends,
   fetchManifests,
   rescanManifests,
   fetchManifestDetail,
   validateManifest,
   collectPreprocOutputs,
-  connectPreprocWs,
   fetchConfigs,
-  fetchPreprocRuns,
-  cancelPreprocRun,
 } from '../api/client'
 
-type Tab = 'backends' | 'manifests' | 'collect'
+type Tab = 'manifests' | 'collect'
 
 interface PreprocState {
   tab: Tab
-
-  // Backends
-  backends: BackendInfo[]
-  backendsLoading: boolean
 
   // Manifests
   manifests: ManifestSummary[]
@@ -46,82 +33,38 @@ interface PreprocState {
   validationErrors: string[] | null
   validating: boolean
 
-  // Analysis configs (for the validate-against dropdown).
+  // Analysis configs, for "validate against config"
   configs: ConfigSummary[]
-
-  // In-flight + recent runs (read-only browsing; launches happen on
-  // the preproc-stack page).
-  preprocRuns: PreprocRunSummary[]
-  preprocRunsLoading: boolean
 
   // Collect
   collectResult: CollectResult | null
   collecting: boolean
   collectError: string | null
 
-  // Attached-run state (for tailing an in-flight run from
-  // InFlightRuns).
-  runId: string | null
-  runEvents: PreprocEvent[]
-  runStartTime: number | null
-  runError: string | null
-  running: boolean
-
-  // Actions
   setTab: (tab: Tab) => void
-  loadBackends: () => Promise<void>
   loadManifests: () => Promise<void>
   rescan: () => Promise<void>
   selectManifest: (subject: string) => Promise<void>
   validateSelected: (configFilename?: string) => Promise<void>
   loadConfigs: () => Promise<void>
   collect: (params: Parameters<typeof collectPreprocOutputs>[0]) => Promise<void>
-  loadPreprocRuns: (includeFinished?: boolean) => Promise<void>
-  attachToRun: (runId: string, startedAt?: number) => void
-  cancelRun: (runId: string) => Promise<void>
-  clearRun: () => void
   clearCollect: () => void
 }
 
 export const usePreprocStore = create<PreprocState>((set, get) => ({
-  tab: 'backends',
-
-  backends: [],
-  backendsLoading: false,
-
+  tab: 'manifests',
   manifests: [],
   manifestsLoading: false,
   selectedSubject: null,
   selectedManifest: null,
   validationErrors: null,
   validating: false,
-
   configs: [],
-
-  preprocRuns: [],
-  preprocRunsLoading: false,
-
   collectResult: null,
   collecting: false,
   collectError: null,
 
-  runId: null,
-  runEvents: [],
-  runStartTime: null,
-  runError: null,
-  running: false,
-
   setTab: (tab) => set({ tab }),
-
-  loadBackends: async () => {
-    set({ backendsLoading: true })
-    try {
-      const backends = await fetchPreprocBackends()
-      set({ backends, backendsLoading: false })
-    } catch {
-      set({ backendsLoading: false })
-    }
-  },
 
   loadManifests: async () => {
     set({ manifestsLoading: true })
@@ -185,58 +128,6 @@ export const usePreprocStore = create<PreprocState>((set, get) => ({
       set({ collectError: String(e), collecting: false })
     }
   },
-
-  loadPreprocRuns: async (includeFinished: boolean = true) => {
-    set({ preprocRunsLoading: true })
-    try {
-      const runs = await fetchPreprocRuns(includeFinished)
-      set({ preprocRuns: runs, preprocRunsLoading: false })
-    } catch {
-      set({ preprocRunsLoading: false })
-    }
-  },
-
-  attachToRun: (runId, startedAt) => {
-    // Open a WebSocket to an in-flight job. Used for reattached runs
-    // or clicking into an active run from the In-Flight panel.
-    set({
-      running: true, runError: null, runEvents: [],
-      runStartTime: startedAt ? startedAt * 1000 : Date.now(),
-      runId,
-    })
-    const ws = connectPreprocWs(runId)
-    ws.onmessage = (msg) => {
-      const event: PreprocEvent = JSON.parse(msg.data)
-      set((s) => ({ runEvents: [...s.runEvents, event] }))
-      if (event.event === 'done' || event.event === 'failed' || event.event === 'cancelled') {
-        ws.close()
-        set({
-          running: false,
-          runError: event.event === 'failed' ? (event.error || 'failed') : null,
-        })
-        get().rescan()
-        get().loadPreprocRuns()
-      }
-    }
-    ws.onerror = () => {
-      set({ running: false, runError: 'WebSocket connection failed' })
-    }
-  },
-
-  cancelRun: async (runId) => {
-    try {
-      await cancelPreprocRun(runId)
-      get().loadPreprocRuns()
-    } catch (e) {
-      get().loadPreprocRuns()
-      throw e
-    }
-  },
-
-  clearRun: () => set({
-    runId: null, runEvents: [], runStartTime: null,
-    runError: null, running: false,
-  }),
 
   clearCollect: () => set({ collectResult: null, collectError: null }),
 }))

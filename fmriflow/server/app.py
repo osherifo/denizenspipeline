@@ -16,21 +16,14 @@ from fmriflow.server.services.run_store import RunStore
 from fmriflow.server.services.run_manager import RunManager
 from fmriflow.server.services.module_loader import discover_user_modules
 from fmriflow.server.services.config_store import ConfigStore
-from fmriflow.server.services.preproc_manager import PreprocManager
 from fmriflow.server.services.convert_manager import ConvertManager
 from fmriflow.server.services.convert_config_store import ConvertConfigStore
-from fmriflow.server.services.preproc_config_store import PreprocConfigStore
 from fmriflow.server.services.autoflatten_manager import AutoflattenManager
 from fmriflow.server.services.autoflatten_config_store import AutoflattenConfigStore
 from fmriflow.server.services.workflow_manager import WorkflowManager
 from fmriflow.server.services.workflow_config_store import WorkflowConfigStore
 from fmriflow.server.services.structural_qc_store import StructuralQCStore
-from fmriflow.server.services.post_preproc_manager import PostPreprocManager
-from fmriflow.server.services.post_preproc_workflow_store import PostPreprocWorkflowStore
-from fmriflow.server.services.stack_manager import StackManager
-from fmriflow.server.services.stack_preset_store import StackPresetStore
-from fmriflow.preproc.workflow_registry import WorkflowRegistry
-from fmriflow.preproc.transform_registry import TransformRegistry
+from fmriflow.server.services.preproc_outputs import PreprocOutputs
 
 logger = logging.getLogger(__name__)
 
@@ -95,42 +88,14 @@ def create_app(
     run_manager = RunManager()
     run_store = RunStore(Path(results_dir), registry=run_manager.registry)
     config_store = ConfigStore(Path(configs_dir))
-    preproc_manager = PreprocManager(Path(derivatives_dir))
     convert_manager = ConvertManager()
     convert_config_store = ConvertConfigStore(Path(convert_configs_dir))
-    preproc_config_store = PreprocConfigStore(Path(preproc_configs_dir))
     autoflatten_manager = AutoflattenManager()
     autoflatten_config_store = AutoflattenConfigStore(Path(autoflatten_configs_dir))
     workflow_config_store = WorkflowConfigStore(Path(workflow_configs_dir))
     workflow_manager = WorkflowManager()
     structural_qc_store = StructuralQCStore(
         paths.store_dir("structural_qc")
-    )
-    post_preproc_manager = PostPreprocManager()
-    post_preproc_workflow_store = PostPreprocWorkflowStore(
-        paths.store_dir("post_preproc_workflows")
-    )
-
-    # Preprocessing-stack registries + manager (Phase 5).
-    workflow_registry = WorkflowRegistry()
-    workflow_registry.discover()
-    transform_registry = TransformRegistry()
-    transform_registry.discover()
-    stack_manager = StackManager()
-    stack_preset_store = StackPresetStore()
-    n_orphans = stack_manager.scan_for_orphans()
-    if n_orphans:
-        logger.warning(
-            "Reconciled %d orphaned stack runs from prior server lifetime.",
-            n_orphans,
-        )
-    logger.info(
-        "Stack registries discovered: %d workflow(s), %d transform(s).",
-        len(workflow_registry.names()), len(transform_registry.names()),
-    )
-    post_preproc_manager.bind_dependencies(
-        registry=registry,
-        workflow_store=post_preproc_workflow_store,
     )
     # Unified preprocessing: one node library, saved pipelines, detached runs.
     from fmriflow.preproc.node_registry import NodeRegistry
@@ -141,6 +106,7 @@ def create_app(
     preproc_run_manager = PreprocRunManager(
         pipeline_store=pipeline_store, node_registry=node_registry,
     )
+    preproc_outputs = PreprocOutputs(Path(derivatives_dir), registry=preproc_run_manager.registry)
     n_lost = preproc_run_manager.scan_for_orphans()
     if n_lost:
         logger.warning("Reconciled %d orphaned pipeline run(s) from a prior server lifetime.", n_lost)
@@ -149,7 +115,6 @@ def create_app(
         convert=convert_manager,
         preproc=preproc_run_manager,
         autoflatten=autoflatten_manager,
-        post_preproc=post_preproc_manager,
         analysis=run_manager,
     )
 
@@ -157,21 +122,14 @@ def create_app(
     app.state.run_store = run_store
     app.state.run_manager = run_manager
     app.state.config_store = config_store
-    app.state.preproc_manager = preproc_manager
+    app.state.preproc_outputs = preproc_outputs
     app.state.convert_manager = convert_manager
     app.state.convert_config_store = convert_config_store
-    app.state.preproc_config_store = preproc_config_store
     app.state.autoflatten_manager = autoflatten_manager
     app.state.autoflatten_config_store = autoflatten_config_store
     app.state.workflow_config_store = workflow_config_store
     app.state.workflow_manager = workflow_manager
     app.state.structural_qc_store = structural_qc_store
-    app.state.post_preproc_manager = post_preproc_manager
-    app.state.post_preproc_workflow_store = post_preproc_workflow_store
-    app.state.workflow_registry = workflow_registry
-    app.state.transform_registry = transform_registry
-    app.state.stack_manager = stack_manager
-    app.state.stack_preset_store = stack_preset_store
     app.state.node_registry = node_registry
     app.state.pipeline_store = pipeline_store
     app.state.preproc_run_manager = preproc_run_manager
@@ -188,16 +146,14 @@ def create_app(
     from fmriflow.server.routes.artifacts import router as artifact_router
     from fmriflow.server.routes.editor import router as editor_router
     from fmriflow.server.routes.configs import router as configs_router
-    from fmriflow.server.routes.preproc import router as preproc_router
+    from fmriflow.server.routes.preproc_outputs import router as preproc_outputs_router
     from fmriflow.server.routes.convert import router as convert_router
     from fmriflow.server.routes.errors import router as errors_router
     from fmriflow.server.routes.autoflatten import router as autoflatten_router
     from fmriflow.server.routes.workflows import router as workflows_router
     from fmriflow.server.routes.triage import router as triage_router
     from fmriflow.server.routes.structural_qc import router as structural_qc_router
-    from fmriflow.server.routes.post_preproc import router as post_preproc_router
     from fmriflow.server.routes.node_outputs import router as node_outputs_router
-    from fmriflow.server.routes.stack import router as stack_router
     from fmriflow.server.routes.settings import router as settings_router
     from fmriflow.server.routes.hub import router as hub_router
     from fmriflow.server.routes.group import router as group_router
@@ -214,30 +170,19 @@ def create_app(
     app.include_router(run_router, prefix="/api")
     app.include_router(artifact_router, prefix="/api")
     app.include_router(configs_router, prefix="/api")
-    # The pipeline routers go first: they own /preproc/runs and /preproc/nodes;
-    # the legacy preproc router keeps only the paths that do not collide.
     from fmriflow.server.routes.preproc_pipelines import router as preproc_pipelines_router
     from fmriflow.server.routes.preproc_runs import router as preproc_runs_router
     from fmriflow.server.routes.preproc_nodes import router as preproc_nodes_router
     app.include_router(preproc_pipelines_router, prefix="/api")
     app.include_router(preproc_runs_router, prefix="/api")
     app.include_router(preproc_nodes_router, prefix="/api")
-    app.include_router(preproc_router, prefix="/api")
+    app.include_router(preproc_outputs_router, prefix="/api")
     app.include_router(convert_router, prefix="/api")
     app.include_router(errors_router, prefix="/api")
     app.include_router(autoflatten_router, prefix="/api")
     app.include_router(workflows_router, prefix="/api")
     app.include_router(triage_router, prefix="/api")
     app.include_router(structural_qc_router, prefix="/api")
-    app.include_router(post_preproc_router, prefix="/api")
-    # Stack-runner routes — declared before preproc_router so the
-    # nested /preproc/stack/* paths don't get shadowed by
-    # preproc_router's /preproc/runs/* catch-alls.
-    app.include_router(stack_router, prefix="/api")
-    # `preproc_router` only handles `/preproc/runs/{run_id}` and
-    # `/preproc/runs/{run_id}/{exact-name}` (live, cancel, …), so
-    # `/preproc/runs/{run_id}/node/...` does not collide with those
-    # patterns. Include order does not affect matching here.
     app.include_router(node_outputs_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
     app.include_router(hub_router, prefix="/api")

@@ -14,6 +14,7 @@ import argparse
 import json
 import logging
 import sys
+from pathlib import Path
 
 from fmriflow.preproc.backends.fmriprep_params import VALID_CONTAINER_TYPES
 
@@ -29,143 +30,22 @@ def add_preproc_subcommands(subparsers: argparse._SubParsersAction) -> None:
 
     # ── run ──
     run_p = preproc_subs.add_parser(
-        "run", help="Run preprocessing via a backend",
+        "run", help="Run a preprocessing pipeline (a saved pipeline, a template, or a YAML file)",
     )
-    run_p.add_argument(
-        "--config", type=str, default=None,
-        help="Path to a YAML config with a preproc: section",
-    )
-    run_p.add_argument("--backend", type=str, help="Backend name")
-    run_p.add_argument("--bids-dir", type=str, help="BIDS dataset root")
-    run_p.add_argument("--raw-dir", type=str, help="Raw data directory")
-    run_p.add_argument("--output-dir", type=str, help="Output directory")
-    run_p.add_argument("--work-dir", type=str, help="Work directory")
-    run_p.add_argument("--subject", type=str, help="Subject ID")
-    run_p.add_argument("--task", type=str, help="BIDS task label")
-    run_p.add_argument("--sessions", type=str, nargs="*", help="Session labels")
-    run_p.add_argument(
-        "--run-map", type=str, default=None,
-        help='JSON dict mapping backend run names to pipeline run names',
-    )
-
-    # Container
-    run_p.add_argument(
-        "--container", type=str, default=None,
-        help="Container image (for fmriprep/bids_app backends)",
-    )
-    run_p.add_argument(
-        "--container-type", type=str, default=None,
-        choices=list(VALID_CONTAINER_TYPES),
-    )
-
-    # Mode
-    run_p.add_argument(
-        "--mode", type=str, default=None,
-        choices=["full", "anat_only", "func_only", "func_precomputed_anat"],
-        help="Preprocessing mode",
-    )
-    run_p.add_argument(
-        "--anat-only", action="store_true", default=False,
-        help="Shortcut for --mode anat_only",
-    )
-    run_p.add_argument(
-        "--fs-no-reconall", action="store_true", default=False,
-        help="Shortcut for --mode func_only",
-    )
-
-    # Anatomical options
-    run_p.add_argument(
-        "--skull-strip", type=str, default=None,
-        choices=["auto", "force", "skip"],
-        help="Skull stripping mode (default: auto)",
-    )
-    run_p.add_argument("--skull-strip-template", type=str, default=None)
-    run_p.add_argument(
-        "--no-submm-recon", action="store_true", default=False,
-        help="Disable sub-millimeter reconstruction",
-    )
-    run_p.add_argument(
-        "--fs-subjects-dir", type=str, default=None,
-        help="Path to existing FreeSurfer subjects directory",
-    )
-    run_p.add_argument("--fs-license-file", type=str, help="FreeSurfer license")
-
-    # Functional options
-    run_p.add_argument(
-        "--bold2t1w-init", type=str, default=None,
-        choices=["register", "header"],
-    )
-    run_p.add_argument(
-        "--bold2t1w-dof", type=int, default=None,
-        choices=[6, 9, 12],
-    )
-    run_p.add_argument(
-        "--dummy-scans", type=int, default=None,
-        help="Number of non-steady-state volumes to discard",
-    )
-    run_p.add_argument(
-        "--ignore", type=str, nargs="*", default=None,
-        choices=["fieldmaps", "slicetiming", "sbref"],
-        help="Corrections to skip",
-    )
-    run_p.add_argument(
-        "--task-id", type=str, default=None,
-        help="Filter to specific BIDS task (fmriprep --task-id)",
-    )
-
-    # Fieldmaps
-    run_p.add_argument(
-        "--use-syn-sdc", action="store_true", default=False,
-        help="Use fieldmap-less distortion correction (SyN)",
-    )
-    run_p.add_argument(
-        "--force-syn", action="store_true", default=False,
-        help="Force SyN SDC even if fieldmaps exist",
-    )
-
-    # Output
-    run_p.add_argument(
-        "--output-spaces", type=str, nargs="*",
-        help="Output spaces (e.g. T1w MNI152NLin2009cAsym:res-2)",
-    )
-    run_p.add_argument(
-        "--cifti-output", type=str, default=None,
-        choices=["91k", "170k"],
-    )
-
-    # Denoising
-    run_p.add_argument(
-        "--use-aroma", action="store_true", default=False,
-        help="Enable ICA-AROMA denoising",
-    )
-    run_p.add_argument(
-        "--aroma-melodic-dim", type=int, default=None,
-        help="MELODIC dimensionality for ICA-AROMA (default: -200)",
-    )
-
-    # Resources
-    run_p.add_argument("--nthreads", type=int, default=None)
-    run_p.add_argument("--omp-nthreads", type=int, default=None)
-    run_p.add_argument("--mem-mb", type=int, default=None)
-    run_p.add_argument(
-        "--low-mem", action="store_true", default=False,
-        help="Enable low-memory mode",
-    )
-    run_p.add_argument(
-        "--stop-on-first-crash", action="store_true", default=False,
-    )
-
-    # Custom backend
-    run_p.add_argument(
-        "--command", type=str, default=None,
-        help="Shell command template (for custom backend)",
-    )
-
-    # Escape hatch
-    run_p.add_argument(
-        "--extra-args", type=str, default=None,
-        help="Extra arguments passed directly to the backend, as a quoted string",
-    )
+    run_p.add_argument("pipeline", help="pipeline name (configs/preproc), template name, or path to a pipeline YAML")
+    run_p.add_argument("--subject", required=True, help="participant label (no sub-)")
+    run_p.add_argument("--output-dir", required=True, help="derivatives root (work dir defaults to <output_dir>/work)")
+    run_p.add_argument("--bids-dir", help="BIDS root ($inputs.bids_dir)")
+    run_p.add_argument("--derivatives-dir", help="existing preprocessed data ($inputs.derivatives_dir)")
+    run_p.add_argument("--work-dir", help="nipype work dir")
+    run_p.add_argument("--dataset", default="unknown", help="dataset label for the manifest")
+    run_p.add_argument("--input", action="append", default=[], metavar="NAME=VALUE", help="extra pipeline input")
+    run_p.add_argument("--param", action="append", default=[], metavar="NODE.KEY=VALUE", help="override a node parameter")
+    run_p.add_argument("--plugin", default="Linear", choices=["Linear", "MultiProc"])
+    run_p.add_argument("--n-procs", type=int, default=None)
+    run_p.add_argument("--no-cache", action="store_true", help="ignore nipype's cache, re-run every node")
+    run_p.add_argument("--rerun-from", action="append", default=[], metavar="NODE_ID", help="re-run from this node onwards")
+    run_p.add_argument("--abort-on-bad", action="store_true", help="stop on a bad checkpoint verdict")
 
     # ── collect ──
     collect_p = preproc_subs.add_parser(
@@ -201,8 +81,15 @@ def add_preproc_subcommands(subparsers: argparse._SubParsersAction) -> None:
 
     # ── doctor ──
     preproc_subs.add_parser(
-        "doctor", help="Check backend availability",
+        "doctor", help="Preflight every node in the library (tools, env, python deps)",
     )
+
+    # ── migrate ──
+    mig_p = preproc_subs.add_parser(
+        "migrate", help="Convert old stack presets / post-preproc graphs / backend configs into pipelines",
+    )
+    mig_p.add_argument("--dry-run", action="store_true", help="report what would change without writing")
+    mig_p.add_argument("--workflows-dir", action="append", default=[], help="also convert legacy preproc sections in these workflow YAML dirs")
 
 
 def dispatch_preproc(args) -> int:
@@ -218,62 +105,116 @@ def dispatch_preproc(args) -> int:
         return _preproc_info(args)
     elif cmd == "doctor":
         return _preproc_doctor(args)
+    elif cmd == "migrate":
+        return _preproc_migrate(args)
     else:
-        print("Usage: fmriflow preproc {run|collect|validate|info|doctor}")
+        print("Usage: fmriflow preproc {run|collect|validate|info|doctor|migrate}")
         return 1
 
 
 # ── Subcommand implementations ──────────────────────────────────────────
 
 def _preproc_run(args) -> int:
-    from fmriflow.preproc.runner import run_preprocessing
+    from fmriflow.preproc.graph import Pipeline, PipelineRunRequest
+    from fmriflow.preproc.node_registry import NodeRegistry
+    from fmriflow.preproc.pipeline_runner import PipelineRunner
+    from fmriflow.preproc.templates import load_template, template_names
 
-    config = _build_config_from_args(args)
-    if config is None:
-        return 1
-
+    ref = str(args.pipeline)
+    path = Path(ref)
     try:
-        manifest = run_preprocessing(config)
-        print(f"\nPreprocessing complete.")
-        print(f"  Subject:  {manifest.subject}")
-        print(f"  Backend:  {manifest.backend} {manifest.backend_version}")
-        print(f"  Runs:     {len(manifest.runs)}")
-        print(f"  Manifest: {manifest.output_dir}/sub-{manifest.subject}/preproc_manifest.json")
-        return 0
-    except Exception as e:
-        print(f"\nPreprocessing failed: {e}", file=sys.stderr)
-        # Backends carry the tail of the failing tool's output; without
-        # it the user is left with nothing but an exit code.
-        tail = getattr(e, "stderr", "")
-        if tail:
-            print("\nLast output from the backend:", file=sys.stderr)
-            print(tail.rstrip(), file=sys.stderr)
-        logger.error("Preprocessing failed", exc_info=True)
+        if path.suffix in (".yaml", ".yml") and path.is_file():
+            pipeline = Pipeline.load(path)
+        elif ref in template_names():
+            pipeline = load_template(ref)
+        else:
+            from fmriflow.server.services.pipeline_store import PipelineStore
+            pipeline = PipelineStore().load(ref)
+    except (KeyError, ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
         return 1
+
+    inputs: dict = {}
+    for item in args.input:
+        k, _, v = item.partition("=")
+        inputs[k.strip()] = v
+    overrides: dict[str, dict] = {}
+    for item in args.param:
+        key, _, v = item.partition("=")
+        node_id, _, pkey = key.partition(".")
+        if not node_id or not pkey:
+            print(f"Error: --param expects NODE.KEY=VALUE, got {item!r}", file=sys.stderr)
+            return 1
+        overrides.setdefault(node_id, {})[pkey] = _coerce(v)
+    request = PipelineRunRequest(
+        subject=args.subject, output_dir=args.output_dir, bids_dir=args.bids_dir,
+        derivatives_dir=args.derivatives_dir, work_dir=args.work_dir, dataset=args.dataset,
+        inputs=inputs, plugin=args.plugin, n_procs=args.n_procs, use_cache=not args.no_cache,
+        rerun_from=list(args.rerun_from), abort_on_bad=bool(args.abort_on_bad), params_override=overrides,
+    )
+    registry = NodeRegistry().discover()
+    out = Path(args.output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    runner = PipelineRunner(registry, run_id="cli", crash_dir=out / "work" / "crash",
+                            checkpoints_path=out / "checkpoints.jsonl",
+                            event_sink=lambda ev: _print_event(ev))
+    result = runner.run(pipeline, request)
+    if result.manifest is not None:
+        mp = out / "preproc_manifest.json"
+        result.manifest.save(mp)
+        print(f"\nManifest written to {mp}")
+    if result.status != "completed":
+        print("\nPipeline failed:", file=sys.stderr)
+        for e in result.errors:
+            print(f"  {e.splitlines()[0]}", file=sys.stderr)
+        return 1
+    print(f"\nPipeline complete in {result.duration_s:.0f}s: "
+          + ", ".join(f"{r.node_id}={r.status}" for r in result.node_records))
+    return 0
+
+
+def _coerce(value: str):
+    """Best-effort typed value for --param overrides."""
+    low = value.lower()
+    if low in ("true", "false"):
+        return low == "true"
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    if "," in value:
+        return [v.strip() for v in value.split(",")]
+    return value
+
+
+def _print_event(ev: dict) -> None:
+    kind = ev.get("event")
+    if kind in ("node_start", "node_done", "node_fail"):
+        extra = " (cached)" if ev.get("cached") else ""
+        print(f"  [{kind[5:]:5s}] {ev.get('leaf')}{extra}")
+    elif kind == "checkpoint":
+        print(f"  [check] {ev.get('leaf')}/{ev.get('step')}: {ev.get('verdict')} {'; '.join(ev.get('reasons') or [])}")
+    elif kind in ("started", "completed", "failed"):
+        print(f"  [{kind}]")
 
 
 def _preproc_collect(args) -> int:
-    from fmriflow.preproc.manifest import PreprocConfig
-    from fmriflow.preproc.runner import collect_outputs
+    from fmriflow.server.services.preproc_outputs import collect_manifest
 
     run_map = json.loads(args.run_map) if args.run_map else None
     backend_params = {}
     if args.file_pattern:
         backend_params["file_pattern"] = args.file_pattern
-
-    config = PreprocConfig(
-        subject=args.subject,
-        backend=args.backend,
-        output_dir=args.output_dir,
-        bids_dir=args.bids_dir,
-        task=args.task,
-        sessions=args.sessions,
-        run_map=run_map,
-        backend_params=backend_params,
-    )
-
     try:
-        manifest = collect_outputs(config)
+        manifest = collect_manifest({
+            "backend": args.backend, "subject": args.subject, "output_dir": args.output_dir,
+            "bids_dir": args.bids_dir, "task": args.task, "sessions": args.sessions,
+            "run_map": run_map, "backend_params": backend_params,
+        })
         print(f"\nManifest created.")
         print(f"  Subject:  {manifest.subject}")
         print(f"  Backend:  {manifest.backend} {manifest.backend_version}")
@@ -367,171 +308,28 @@ def _preproc_info(args) -> int:
 
 
 def _preproc_doctor(args) -> int:
-    from fmriflow.preproc.backends import list_backends, get_backend
-    from fmriflow.preproc.manifest import PreprocConfig
+    from fmriflow.preproc.node_registry import NodeRegistry
 
-    print("\nBackend availability:\n")
-
-    backends = list_backends()
-    for name in backends:
-        backend = get_backend(name)
-        if name == "custom":
-            print(f"  {name:15s} (always available)")
-            continue
-
-        try:
-            cfg = PreprocConfig(
-                subject="test", backend=name, output_dir="/tmp",
-                backend_params={},
-            )
-            errors = backend.validate(cfg)
-            if errors:
-                tool_errors = [
-                    e for e in errors
-                    if "not found" in e.lower() or "not installed" in e.lower()
-                ]
-                if tool_errors:
-                    print(f"  {name:15s} NOT AVAILABLE — {tool_errors[0]}")
-                else:
-                    print(f"  {name:15s} available (config needed)")
-            else:
-                print(f"  {name:15s} OK")
-        except Exception as e:
-            print(f"  {name:15s} ERROR — {e}")
-
+    reg = NodeRegistry().discover()
+    print("\nNode library preflight:\n")
+    for name in reg.names():
+        info = reg.info(name)
+        res = reg.preflight(name)
+        if res.ok and not res.warnings:
+            status = "OK"
+        elif res.ok:
+            status = "OK (" + "; ".join(res.warnings) + ")"
+        else:
+            status = "MISSING — " + "; ".join(res.errors)
+        print(f"  {name:22s} {info.kind:14s} {info.source:10s} {status}")
+    if reg.shadowed():
+        print("\nshadowed:", ", ".join(f"{n} ({src})" for n, src in reg.shadowed()))
     return 0
 
 
-# ── Config building ──────────────────────────────────────────────────────
+def _preproc_migrate(args) -> int:
+    from fmriflow.preproc.migrate import migrate_all
 
-def _build_config_from_args(args) -> "PreprocConfig | None":
-    """Build a PreprocConfig from CLI args or a YAML config file."""
-    from fmriflow.preproc.manifest import PreprocConfig
-
-    if args.config:
-        return _load_preproc_config(args.config)
-
-    if not args.backend:
-        print("Error: --backend is required (or use --config).", file=sys.stderr)
-        return None
-    if not args.subject:
-        print("Error: --subject is required.", file=sys.stderr)
-        return None
-    if not args.output_dir:
-        print("Error: --output-dir is required.", file=sys.stderr)
-        return None
-
-    run_map = json.loads(args.run_map) if args.run_map else None
-
-    backend_params: dict = {}
-
-    # Mode: explicit --mode takes precedence, then shortcut flags
-    if args.mode:
-        backend_params["mode"] = args.mode
-    elif args.anat_only:
-        backend_params["mode"] = "anat_only"
-    elif args.fs_no_reconall:
-        backend_params["mode"] = "func_only"
-
-    # Container
-    if args.container:
-        backend_params["container"] = args.container
-    if args.container_type:
-        backend_params["container_type"] = args.container_type
-
-    # Anatomical
-    if args.skull_strip:
-        backend_params["skull_strip"] = args.skull_strip
-    if args.skull_strip_template:
-        backend_params["skull_strip_template"] = args.skull_strip_template
-    if args.no_submm_recon:
-        backend_params["no_submm_recon"] = True
-    if args.fs_subjects_dir:
-        backend_params["fs_subjects_dir"] = args.fs_subjects_dir
-    if args.fs_license_file:
-        backend_params["fs_license_file"] = args.fs_license_file
-
-    # Functional
-    if args.bold2t1w_init:
-        backend_params["bold2t1w_init"] = args.bold2t1w_init
-    if args.bold2t1w_dof is not None:
-        backend_params["bold2t1w_dof"] = args.bold2t1w_dof
-    if args.dummy_scans is not None:
-        backend_params["dummy_scans"] = args.dummy_scans
-    if args.ignore:
-        backend_params["ignore"] = args.ignore
-    if args.task_id:
-        backend_params["task_id"] = args.task_id
-
-    # Fieldmaps
-    if args.use_syn_sdc:
-        backend_params["use_syn_sdc"] = True
-    if args.force_syn:
-        backend_params["force_syn"] = True
-
-    # Output
-    if args.output_spaces:
-        backend_params["output_spaces"] = args.output_spaces
-    if args.cifti_output:
-        backend_params["cifti_output"] = args.cifti_output
-
-    # Denoising
-    if args.use_aroma:
-        backend_params["use_aroma"] = True
-    if args.aroma_melodic_dim is not None:
-        backend_params["aroma_melodic_dim"] = args.aroma_melodic_dim
-
-    # Resources
-    if args.nthreads is not None:
-        backend_params["nthreads"] = args.nthreads
-    if args.omp_nthreads is not None:
-        backend_params["omp_nthreads"] = args.omp_nthreads
-    if args.mem_mb is not None:
-        backend_params["mem_mb"] = args.mem_mb
-    if args.low_mem:
-        backend_params["low_mem"] = True
-    if args.stop_on_first_crash:
-        backend_params["stop_on_first_crash"] = True
-
-    # Custom backend
-    if args.command:
-        backend_params["command"] = args.command
-
-    # Escape hatch
-    if args.extra_args:
-        backend_params["extra_args"] = args.extra_args.split()
-
-    return PreprocConfig(
-        subject=args.subject,
-        backend=args.backend,
-        output_dir=args.output_dir,
-        bids_dir=args.bids_dir,
-        raw_dir=args.raw_dir,
-        work_dir=args.work_dir,
-        task=args.task,
-        sessions=args.sessions,
-        run_map=run_map,
-        backend_params=backend_params,
-    )
-
-
-def _load_preproc_config(yaml_path: str) -> "PreprocConfig | None":
-    """Load a PreprocConfig from a YAML file's ``preproc:`` section."""
-    from pathlib import Path
-    import yaml
-
-    path = Path(yaml_path)
-    if not path.exists():
-        print(f"Config file not found: {path}", file=sys.stderr)
-        return None
-
-    with open(path) as f:
-        data = yaml.safe_load(f)
-
-    preproc_section = data.get("preproc")
-    if not preproc_section:
-        print(f"No 'preproc:' section found in {path}", file=sys.stderr)
-        return None
-
-    from fmriflow.preproc.manifest import PreprocConfig
-    return PreprocConfig.from_dict(preproc_section)
+    report = migrate_all(workflow_dirs=[Path(d) for d in args.workflows_dir], dry_run=bool(args.dry_run))
+    print(("DRY RUN — " if args.dry_run else "") + report.summary())
+    return 0

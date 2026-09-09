@@ -119,14 +119,12 @@ def test_derivatives_source_globs(registry, tmp_path, nifti):
     assert res.outputs.bold == [str(target)]
 
 
-def test_composite_contract_via_old_identity_workflow(registry):
-    """A composite that builds nothing still round-trips; ports come from inputnode/outputnode."""
-    import fmriflow.preproc.backends.nipype_workflows.identity  # noqa: F401  (registers 'identity' workflow as composite alias too)
-    from fmriflow.preproc.backends.nipype_workflows.identity import IdentityWorkflow
-
-    class Cfg:
-        subject = "01"; output_dir = "/tmp/x"; dataset = "d"; sessions = []
-    assert build_composite(IdentityWorkflow, Cfg()) is None
+def test_composite_contract(registry):
+    """A composite that builds nothing returns None; ports come from inputnode/outputnode."""
+    class NoOp:
+        def validate(self, config): return []
+        def build(self, config): return None
+    assert build_composite(NoOp, object()) is None
 
     from nipype.interfaces.utility import IdentityInterface
     wf = Workflow(name="c")

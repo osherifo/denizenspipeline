@@ -6,7 +6,6 @@ import logging
 import subprocess
 from pathlib import Path
 
-from fmriflow.preproc.backends import register_backend
 from fmriflow.preproc.errors import BackendRunError
 from fmriflow.preproc.manifest import (
     PreprocConfig,
@@ -15,12 +14,11 @@ from fmriflow.preproc.manifest import (
     RunRecord,
     now_iso,
 )
-from fmriflow.preproc.stack import StepRecord
+from fmriflow.preproc.manifest import StepRecord
 
 logger = logging.getLogger(__name__)
 
 
-@register_backend("custom")
 class CustomBackend:
     """Run a custom preprocessing command.
 

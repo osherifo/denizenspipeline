@@ -41,7 +41,6 @@ STAGE_MODULE_CATEGORIES = {
     'model': ['models'],
     'analyze': ['analyzers'],
     'report': ['reporters'],
-    'post_preproc': ['nipype_nodes'],
     'group_analyze': ['group_analyzers'],
     'group_report': ['group_reporters'],
     'study_analyze': ['study_analyzers'],
@@ -108,7 +107,6 @@ async def get_module(request: Request, category: str, name: str):
         'analyzers': 'analyze',
         'models': 'model',
         'reporters': 'report',
-        'nipype_nodes': 'post_preproc',
     }
 
     doc = (cls.__doc__ or '').strip()

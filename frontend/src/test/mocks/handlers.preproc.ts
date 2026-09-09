@@ -1,16 +1,7 @@
 import { http, HttpResponse } from 'msw'
-import { buildManifestSummary, buildPreprocRun } from '../factories'
+import { buildManifestSummary } from '../factories'
 
 export const preprocHandlers = [
-  http.get('/api/preproc/backends', () =>
-    HttpResponse.json({
-      backends: [
-        { name: 'fmriprep', available: true, detail: '24.0.0' },
-        { name: 'mock', available: true, detail: 'stub' },
-      ],
-    }),
-  ),
-
   http.get('/api/preproc/manifests', () =>
     HttpResponse.json({ manifests: [buildManifestSummary()] }),
   ),
@@ -50,12 +41,4 @@ export const preprocHandlers = [
     HttpResponse.json({ manifest: {}, manifest_path: '/tmp/m.json' }),
   ),
 
-  http.get('/api/preproc/runs', () => HttpResponse.json({ runs: [buildPreprocRun()] })),
-  http.get('/api/preproc/runs/:runId', ({ params }) =>
-    HttpResponse.json(buildPreprocRun({ run_id: String(params.runId) })),
-  ),
-  http.post('/api/preproc/runs/:runId/cancel', () =>
-    HttpResponse.json({ cancelled: true }),
-  ),
-  http.delete('/api/preproc/runs/:runId', () => HttpResponse.json({ deleted: true })),
 ]

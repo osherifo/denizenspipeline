@@ -82,12 +82,6 @@ def register_builtins(registry):
     import fmriflow.modules.reporters.nsd_fsaverage_flatmap  # noqa: F401
     import fmriflow.modules.reporters.algonauts_fsaverage_flatmap  # noqa: F401
 
-    # Post-fmriprep nipype-style nodes
-    import fmriflow.modules.nipype_nodes.source  # noqa: F401
-    import fmriflow.modules.nipype_nodes.smooth  # noqa: F401
-    import fmriflow.modules.nipype_nodes.mask_apply  # noqa: F401
-    import fmriflow.modules.nipype_nodes.subworkflow  # noqa: F401
-
     # Group-scope analyzers
     import fmriflow.modules.group_analyzers.voxelwise_mean  # noqa: F401
     import fmriflow.modules.group_analyzers.significance_count  # noqa: F401

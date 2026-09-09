@@ -13,10 +13,43 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fmriflow.preproc.stack import StepRecord
 
 
 # ── Quality metrics per run ──────────────────────────────────────────────
+
+@dataclass
+class StepRecord:
+    """Provenance for one executed pipeline node (appended to
+    ``PreprocManifest.additional_steps``). Old string-shaped entries in
+    legacy manifests load via :meth:`from_legacy_string`."""
+
+    name: str
+    version: str = ""
+    params: dict[str, Any] = field(default_factory=dict)
+    input_stage: int = 0
+    output_dir: str = ""
+    duration_s: float = 0.0
+    fingerprint: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> StepRecord:
+        return cls(
+            name=data["name"],
+            version=data.get("version", ""),
+            params=dict(data.get("params") or {}),
+            input_stage=int(data.get("input_stage", 0)),
+            output_dir=data.get("output_dir", ""),
+            duration_s=float(data.get("duration_s", 0.0)),
+            fingerprint=data.get("fingerprint", ""),
+        )
+
+    @classmethod
+    def from_legacy_string(cls, name: str) -> StepRecord:
+        return cls(name=name)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
 
 @dataclass(frozen=True)
 class RunQC:

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import textwrap
-import warnings
-
 import pytest
 
 from fmriflow.preproc import node_registry as nr
@@ -93,26 +91,27 @@ def test_old_transform_and_nipype_node_decorators_register_interfaces():
     from fmriflow.preproc.transform_registry import register_transform
     from fmriflow.modules._decorators import nipype_node
 
-    @register_transform("_t_alias")
-    class T:
-        INPUTS = ["in_file"]; OUTPUTS = ["out_file"]
-        def run(self, i, o, p): return {}
+    with pytest.warns(DeprecationWarning):
+        @register_transform("_t_alias")
+        class T:
+            INPUTS = ["in_file"]; OUTPUTS = ["out_file"]
+            def run(self, i, o, p): return {}
 
-    @nipype_node("_n_alias")
-    class N:
-        INPUTS = ["in_file"]; OUTPUTS = ["out_file"]
-        def run(self, i, o, p): return {}
+    with pytest.warns(DeprecationWarning):
+        @nipype_node("_n_alias")
+        class N:
+            INPUTS = ["in_file"]; OUTPUTS = ["out_file"]
+            def run(self, i, o, p): return {}
 
     table = nr.registered_nodes()
     assert table["_t_alias"] is T and T.NODE_KIND == "interface"
     assert table["_n_alias"] is N and N.NODE_KIND == "interface"
 
 
-def test_backend_adapters_opt_out_of_the_node_library():
-    import fmriflow.preproc.backends.nipype_workflows.backend_adapters  # noqa: F401
-    table = nr.registered_nodes()
-    for name in ("fmriprep", "custom", "bids_app"):
-        assert name not in table or table[name].__module__.startswith("fmriflow.preproc.nodes")
+def test_container_apps_come_from_the_nodes_package():
+    reg = NodeRegistry(user_dirs=[]).discover()
+    for name in ("fmriprep", "custom_shell", "bids_app"):
+        assert reg.cls(name).__module__.startswith("fmriflow.preproc.nodes")
 
 
 def test_unknown_kind_is_rejected():
