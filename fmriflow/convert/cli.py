@@ -316,7 +316,7 @@ def _convert_scan(args) -> int:
     if series:
         print(f"\nSeries:")
         for s in series:
-            print(f"  {s.number:03d}  {s.description:40s} {s.n_images:5d} images  {s.modality_guess}")
+            print(f"  {s.number:03d}  {s.description:40s} {s.n_images:5d} images  {s.modality or ''}")
     else:
         print("\nNo DICOM series found.")
 

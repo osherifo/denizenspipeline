@@ -124,12 +124,13 @@ const thStyle: CSSProperties = {
   color: 'var(--text-secondary)',
   fontWeight: 700,
   fontSize: 10,
-  textTransform: 'uppercase',
+  whiteSpace: 'nowrap',
   letterSpacing: 0.5,
 }
 
 const tdStyle: CSSProperties = {
   padding: '8px 10px',
+  whiteSpace: 'nowrap',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',
 }
@@ -192,61 +193,45 @@ export function DicomScanner() {
         </div>
       )}
 
-      {/* Scanner summary (per-series detail is in the table) */}
-      {scanResult && scanResult.series.length > 0 && (() => {
-        const names = new Map<string, number>()
-        for (const sr of scanResult.series) {
-          const k = [sr.manufacturer, sr.model, sr.field_strength ? `${sr.field_strength}T` : null].filter(Boolean).join(' ') || 'unknown scanner'
-          names.set(k, (names.get(k) ?? 0) + 1)
-        }
-        return (
-          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
-            {names.size > 1 ? `${names.size} different scanners in this directory: ` : 'Scanner: '}
-            {[...names.entries()].map(([k, n]) => `${k} (${n} series)`).join(' · ')}
-          </div>
-        )
-      })()}
       {/* Series table */}
       {scanResult && scanResult.series.length > 0 && (
         <>
           <div style={sectionLabel}>DICOM Series ({scanResult.series.length})</div>
-          <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflow: 'hidden' }}>
-            <table style={tableStyle}>
+          <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflowX: 'auto' }}>
+            <table style={{ ...tableStyle, width: 'max-content', minWidth: '100%' }}>
               <thead>
                 <tr>
-                  <th style={thStyle}>#</th>
-                  <th style={thStyle}>Description</th>
-                  <th style={thStyle}>Images</th>
+                  <th style={thStyle}>SeriesNumber</th>
+                  <th style={thStyle}>SeriesDescription</th>
+                  <th style={thStyle}>Files</th>
                   <th style={thStyle}>Modality</th>
-                  <th style={thStyle}>Scanner</th>
-                  <th style={thStyle}>Station</th>
-                  <th style={thStyle}>Date</th>
+                  <th style={thStyle}>ImageType</th>
+                  <th style={thStyle}>Manufacturer</th>
+                  <th style={thStyle}>ManufacturerModelName</th>
+                  <th style={thStyle}>MagneticFieldStrength</th>
+                  <th style={thStyle}>SoftwareVersions</th>
+                  <th style={thStyle}>StationName</th>
+                  <th style={thStyle}>InstitutionName</th>
+                  <th style={thStyle}>StudyDate</th>
+                  <th style={thStyle}>ProtocolName</th>
                 </tr>
               </thead>
               <tbody>
                 {scanResult.series.map((s) => (
                   <tr key={s.number}>
-                    <td style={{ ...tdStyle, fontWeight: 600, width: 50 }}>{s.number}</td>
-                    <td style={{ ...tdStyle, fontWeight: 600 }}>{s.description}</td>
-                    <td style={tdStyle}>{s.n_images}</td>
-                    <td style={tdStyle}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        borderRadius: 3,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        backgroundColor: modalityColor(s.modality_guess).bg,
-                        color: modalityColor(s.modality_guess).text,
-                      }}>
-                        {s.modality_guess}
-                      </span>
-                    </td>
-                    <td style={tdStyle} title={[s.software_version, s.institution, s.protocol_name].filter(Boolean).join(' · ')}>
-                      {[s.manufacturer, s.model].filter(Boolean).join(' ') || '—'}{s.field_strength ? ` · ${s.field_strength}T` : ''}
-                    </td>
-                    <td style={tdStyle}>{s.station_name || '—'}</td>
-                    <td style={tdStyle}>{s.study_date ? `${s.study_date.slice(0, 4)}-${s.study_date.slice(4, 6)}-${s.study_date.slice(6, 8)}` : '—'}</td>
+                    <td style={tdStyle}>{cell(s.number)}</td>
+                    <td style={tdStyle}>{cell(s.description)}</td>
+                    <td style={tdStyle}>{cell(s.n_images)}</td>
+                    <td style={tdStyle}>{cell(s.modality)}</td>
+                    <td style={tdStyle}>{cell(s.image_type)}</td>
+                    <td style={tdStyle}>{cell(s.manufacturer)}</td>
+                    <td style={tdStyle}>{cell(s.model)}</td>
+                    <td style={tdStyle}>{cell(s.field_strength)}</td>
+                    <td style={tdStyle}>{cell(s.software_version)}</td>
+                    <td style={tdStyle}>{cell(s.station_name)}</td>
+                    <td style={tdStyle}>{cell(s.institution)}</td>
+                    <td style={tdStyle}>{cell(s.study_date)}</td>
+                    <td style={tdStyle}>{cell(s.protocol_name)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -264,22 +249,8 @@ export function DicomScanner() {
   )
 }
 
-function modalityColor(modality: string): { bg: string; text: string } {
-  switch (modality.toLowerCase()) {
-    case 'bold':
-    case 'func':
-      return { bg: 'rgba(0, 229, 255, 0.12)', text: 'var(--accent-cyan)' }
-    case 'anat':
-    case 't1w':
-    case 't2w':
-      return { bg: 'rgba(0, 230, 118, 0.12)', text: 'var(--accent-green)' }
-    case 'dwi':
-    case 'dti':
-      return { bg: 'rgba(255, 214, 0, 0.12)', text: 'var(--accent-yellow)' }
-    case 'fmap':
-    case 'fieldmap':
-      return { bg: 'rgba(255, 23, 68, 0.12)', text: 'var(--accent-red)' }
-    default:
-      return { bg: 'rgba(136, 136, 170, 0.12)', text: 'var(--text-secondary)' }
-  }
+/** Header values verbatim; only absence is decorated. */
+function cell(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === '') return '—'
+  return String(v)
 }

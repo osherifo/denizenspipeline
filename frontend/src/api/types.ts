@@ -597,7 +597,8 @@ export interface DicomSeriesInfo {
   number: number
   description: string
   n_images: number
-  modality_guess: string
+  modality?: string | null
+  image_type?: string | null
   manufacturer?: string | null
   model?: string | null
   field_strength?: number | null

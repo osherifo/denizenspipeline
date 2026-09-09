@@ -21,14 +21,16 @@ logger = logging.getLogger(__name__)
 class SeriesInfo:
     """Summary of a single DICOM series.
 
-    Scanner fields come from the series' own first file, so a directory
-    holding sessions from different scanners reports each correctly.
+    Every field except ``n_images`` is a DICOM attribute read verbatim
+    from the series' own first file (so a directory holding sessions from
+    different scanners reports each correctly); nothing is inferred.
     """
 
-    number: int
-    description: str
-    n_images: int
-    modality_guess: str  # "bold", "T1w", "T2w", "fmap", "localizer", "unknown"
+    number: int          # SeriesNumber
+    description: str     # SeriesDescription
+    n_images: int        # files counted in the series
+    modality: str | None = None      # Modality (0008,0060)
+    image_type: str | None = None    # ImageType (0008,0008), backslash-joined
     manufacturer: str | None = None
     model: str | None = None
     field_strength: float | None = None
@@ -108,6 +110,8 @@ def list_series(
     SERIES_NUMBER_TAG = T(0x0020, 0x0011)
     SERIES_DESC_TAG = T(0x0008, 0x103E)
     SCANNER_TAGS = [
+        T(0x0008, 0x0060),  # Modality
+        T(0x0008, 0x0008),  # ImageType
         T(0x0008, 0x0070),  # Manufacturer
         T(0x0008, 0x1090),  # ManufacturerModelName
         T(0x0018, 0x0087),  # MagneticFieldStrength
@@ -135,6 +139,8 @@ def list_series(
             if num not in series:
                 series[num] = {
                     "description": str(desc), "count": 0,
+                    "modality": _as_str(getattr(ds, "Modality", None)),
+                    "image_type": _as_str(getattr(ds, "ImageType", None)),
                     "manufacturer": _as_str(getattr(ds, "Manufacturer", None)),
                     "model": _as_str(getattr(ds, "ManufacturerModelName", None)),
                     "field_strength": _safe_float(getattr(ds, "MagneticFieldStrength", None)),
@@ -158,7 +164,7 @@ def list_series(
             number=num,
             description=info["description"],
             n_images=info["count"],
-            modality_guess=_guess_modality(info["description"]),
+            modality=info.get("modality"), image_type=info.get("image_type"),
             manufacturer=info.get("manufacturer"), model=info.get("model"),
             field_strength=info.get("field_strength"), software_version=info.get("software_version"),
             station_name=info.get("station_name"), institution=info.get("institution"),
@@ -211,24 +217,6 @@ def _is_dicom(path: Path) -> bool:
     return False
 
 
-def _guess_modality(description: str) -> str:
-    """Guess modality from a DICOM series description."""
-    desc = description.lower()
-    if any(k in desc for k in ("bold", "epi", "fmri", "func", "ep2d")):
-        return "bold"
-    if any(k in desc for k in ("t1", "mprage", "mp2rage", "spgr", "bravo")):
-        return "T1w"
-    if any(k in desc for k in ("t2", "tse", "space")):
-        return "T2w"
-    if any(k in desc for k in ("dwi", "dti", "diffusion")):
-        return "dwi"
-    if any(k in desc for k in ("fmap", "fieldmap", "gre_field", "b0")):
-        return "fmap"
-    if any(k in desc for k in ("localizer", "scout", "survey")):
-        return "localizer"
-    return "unknown"
-
-
 def _safe_float(val: object) -> float | None:
     """Convert a DICOM value to float, or None."""
     if val is None:
@@ -245,6 +233,8 @@ def _as_str(val: object) -> str | None:
         return None
     if isinstance(val, str):
         return val
+    if isinstance(val, (list, tuple)) or type(val).__name__ == "MultiValue":
+        return "\\".join(str(v) for v in val)
     try:
         return str(val)
     except Exception:

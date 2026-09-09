@@ -42,7 +42,7 @@ export const convertHandlers = [
       progress: { files_seen: 10, dicoms_seen: 10, series_found: 1, current_dir: '/tmp/dicom' },
       result: {
         scanner: null,
-        series: [{ number: 1, description: 'T1w', n_images: 10, modality_guess: 'anat', manufacturer: 'Siemens', model: 'Prisma', field_strength: 3, station_name: 'MR1', study_date: '20260101' }],
+        series: [{ number: 1, description: 'T1w', n_images: 10, modality: 'MR', image_type: 'ORIGINAL\\PRIMARY\\M\\ND', manufacturer: 'Siemens', model: 'Prisma', field_strength: 3, station_name: 'MR1', study_date: '20260101' }],
         matching_heuristic: null,
       },
       error: null,
