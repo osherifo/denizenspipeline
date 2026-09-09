@@ -5,6 +5,7 @@ import { useAutoflattenStore } from '../stores/autoflatten-store'
 import { AutoflattenProgress } from '../components/autoflatten/AutoflattenProgress'
 import { FlatmapPreview } from '../components/autoflatten/FlatmapPreview'
 import { FlatCortexViewer } from '../components/autoflatten/FlatCortexViewer'
+import { PathField } from '../components/common/PathPicker'
 import { AutoflattenConfigBrowser } from '../components/autoflatten/AutoflattenConfigBrowser'
 import { fetchAutoflattenVisualizations } from '../api/client'
 import { formatDuration } from '../utils/format'
@@ -137,7 +138,7 @@ function StatusTab() {
         <div style={cardTitle}>Subject Status</div>
         <div style={fieldRow}>
           <span style={label}>Subjects Dir</span>
-          <input style={input} value={subjectsDir} onChange={(e) => setSubjectsDir(e.target.value)}
+          <PathField style={input} value={subjectsDir} onChange={setSubjectsDir}
             placeholder="/data/derivatives/freesurfer" />
         </div>
         <div style={fieldRow}>
@@ -237,7 +238,7 @@ function RunTab() {
       </div>
       <div style={fieldRow}>
         <span style={label}>Subjects Dir</span>
-        <input style={input} value={subjectsDir} onChange={(e) => setSubjectsDir(e.target.value)}
+        <PathField style={input} value={subjectsDir} onChange={setSubjectsDir}
           placeholder="/data/derivatives/freesurfer" />
       </div>
       <div style={fieldRow}>
@@ -353,7 +354,7 @@ function ImportTab() {
       </div>
       <div style={fieldRow}>
         <span style={label}>Subjects Dir</span>
-        <input style={input} value={subjectsDir} onChange={(e) => setSubjectsDir(e.target.value)}
+        <PathField style={input} value={subjectsDir} onChange={setSubjectsDir}
           placeholder="/data/derivatives/freesurfer" />
       </div>
       <div style={fieldRow}>
