@@ -1453,18 +1453,29 @@ full layout and tier model.</p>
 the choice to <code>.env</code> so later plain <code>docker compose</code> invocations reuse it,
 checks for symlinks that would dangle inside the container, builds the
 image, and runs in the foreground (Ctrl-C stops it).</p>
-<p>For day-to-day restarts use <code>./scripts/fmriflow-up.sh</code> — it starts
-detached, waits for the server to come up, and prints the URL
-(<code>--build</code> to rebuild first, <code>--down</code> to stop).</p>
+<p>For day-to-day use there are three small scripts, all accepting <code>--slim</code>
+to target the slim image instead of the full one:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./scripts/fmriflow-up.sh<span class="w">              </span><span class="c1"># start detached, wait for the server, print the URL</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./scripts/fmriflow-up.sh<span class="w"> </span>--build<span class="w">      </span><span class="c1"># rebuild the image, then start</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./scripts/fmriflow-down.sh<span class="w">            </span><span class="c1"># stop (add --logs to print the last log lines first)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>./scripts/fmriflow-build.sh<span class="w">           </span><span class="c1"># build the image only, without starting it</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>./scripts/fmriflow-build.sh<span class="w"> </span>--no-cache<span class="w">   </span><span class="c1"># rebuild every layer; --pull refreshes the base image</span>
+</code></pre></div>
+<p><code>fmriflow-build.sh</code> warns when <code>frontend/src</code> has uncommitted changes
+(the image ships whatever SPA bundle is in the repo, so run
+<code>npm run build</code> first), and when a running container is still on the
+previous image. <code>fmriflow-down.sh</code>
+removes the container but keeps the image and everything under
+<code>$FMRIFLOW_HOME</code>.</p>
 <h2 id="quickstart-slim-image">Quickstart — slim image<a class="headerlink" href="#quickstart-slim-image" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/osherifo/denizenspipeline.git
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>denizenspipeline
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># 1. (Optional) point fmriflow at a custom working dir.</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FMRIFLOW_HOME</span><span class="o">=</span>~/projects/fmriflow
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># 2. Bring it up.</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/osherifo/denizenspipeline.git
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">cd</span><span class="w"> </span>denizenspipeline
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># 1. (Optional) point fmriflow at a custom working dir.</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FMRIFLOW_HOME</span><span class="o">=</span>~/projects/fmriflow
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 2. Bring it up.</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
 </code></pre></div>
 <p>On first boot the container runs <code>fmriflow init</code> to materialise the
 empty layout under <code>$FMRIFLOW_HOME</code>. Drop your FreeSurfer license at
@@ -1472,22 +1483,22 @@ empty layout under <code>$FMRIFLOW_HOME</code>. Drop your FreeSurfer license at
 <code>FS_LICENSE_TEXT</code> in your shell to pass it inline.</p>
 <p>Open <code>http://localhost:8421</code>.</p>
 <p>In your preproc YAML, point fmriprep at the bidsapp image:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">container_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nt">container</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nipreps/fmriprep:24.1.1</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">container_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nt">container</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nipreps/fmriprep:24.1.1</span>
 </code></pre></div>
 <h2 id="standalone-full-image">Standalone — full image<a class="headerlink" href="#standalone-full-image" title="Permanent link">&para;</a></h2>
 <p>The full image is built <strong>on top of</strong> <code>nipreps/fmriprep</code>, so
 fmriprep, FreeSurfer and ANTs are on PATH, with dcm2niix added on top.
 Preproc YAMLs can use <code>container_type: bare</code> directly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.full.yml<span class="w"> </span>up<span class="w"> </span>--build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.full.yml<span class="w"> </span>up<span class="w"> </span>--build
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">container_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bare</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nt">container_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bare</span>
 </code></pre></div>
 <p>Pin a specific fmriprep version with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.full.yml<span class="w"> </span>build<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">FMRIPREP_TAG</span><span class="o">=</span><span class="m">24</span>.1.1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.full.yml<span class="w"> </span>build<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">FMRIPREP_TAG</span><span class="o">=</span><span class="m">24</span>.1.1
 </code></pre></div>
 <h2 id="apptainer-on-host-hpc-pattern">Apptainer-on-host (HPC pattern)<a class="headerlink" href="#apptainer-on-host-hpc-pattern" title="Permanent link">&para;</a></h2>
 <p>On nodes that run apptainer/singularity instead of Docker, you can
@@ -1496,26 +1507,26 @@ keep using the slim image and bind the apptainer binary in:</p>
 <li>Edit <code>docker-compose.yml</code> and <strong>comment out</strong> the line
    <code>- /var/run/docker.sock:/var/run/docker.sock</code>.</li>
 <li>Add to the <code>volumes:</code> block:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/bin/apptainer:/usr/bin/apptainer:ro</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/your/fmriprep.sif:/opt/fmriprep.sif:ro</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/bin/apptainer:/usr/bin/apptainer:ro</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/your/fmriprep.sif:/opt/fmriprep.sif:ro</span>
 </code></pre></div></li>
 <li>Add to the <code>environment:</code> block:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="w">    </span><span class="nt">FMRIFLOW_SINGULARITY_BIN</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/bin/apptainer</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="w">    </span><span class="nt">FMRIFLOW_SINGULARITY_BIN</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/bin/apptainer</span>
 </code></pre></div></li>
 <li>In your preproc YAML:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nt">container_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apptainer</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nt">container</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/opt/fmriprep.sif</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nt">container_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apptainer</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nt">container</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/opt/fmriprep.sif</span>
 </code></pre></div></li>
 </ol>
 <h2 id="splitting-data-onto-a-separate-disk">Splitting <code>data/</code> onto a separate disk<a class="headerlink" href="#splitting-data-onto-a-separate-disk" title="Permanent link">&para;</a></h2>
 <p>Set <code>$FMRIFLOW_DATA</code> on the host to a different path (e.g. a RAID
 mount) and uncomment the matching <code>FMRIFLOW_DATA</code> env + volume in
 <code>docker-compose.yml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">environment</span><span class="p">:</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">FMRIFLOW_DATA</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nt">volumes</span><span class="p">:</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${FMRIFLOW_DATA:-~/projects/fmriflow-data}:/data</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">environment</span><span class="p">:</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">FMRIFLOW_DATA</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nt">volumes</span><span class="p">:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${FMRIFLOW_DATA:-~/projects/fmriflow-data}:/data</span>
 </code></pre></div>
 <p>Inside the container, BIDS / derivatives / work / results live
 under <code>$FMRIFLOW_DATA</code> instead of <code>$FMRIFLOW_HOME/data/</code>.</p>
@@ -1550,13 +1561,13 @@ under <code>$FMRIFLOW_DATA</code> instead of <code>$FMRIFLOW_HOME/data/</code>.<
 <p>Bind-mounted directories pick up the uid/gid of the in-container
 <code>fmriflow</code> user. By default that's <code>1000:1000</code>; align it with your
 host user with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nv">PUID</span><span class="o">=</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="w"> </span><span class="nv">PGID</span><span class="o">=</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>up
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nv">PUID</span><span class="o">=</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="w"> </span><span class="nv">PGID</span><span class="o">=</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>up
 </code></pre></div>
 <h2 id="passing-the-freesurfer-license-inline">Passing the FreeSurfer license inline<a class="headerlink" href="#passing-the-freesurfer-license-inline" title="Permanent link">&para;</a></h2>
 <p>If you don't want to drop a license file at
 <code>$FMRIFLOW_HOME/secrets/freesurfer-license.txt</code>, set
 <code>FS_LICENSE_TEXT</code> on your host (e.g. via <code>.env</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>FS_LICENSE_TEXT=&quot;abc123\nyou@example.com\n0001\n...&quot;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>FS_LICENSE_TEXT=&quot;abc123\nyou@example.com\n0001\n...&quot;
 </code></pre></div>
 <p>The entrypoint writes it to <code>$FMRIFLOW_HOME/secrets/freesurfer-license.txt</code>
 on first boot.</p>
