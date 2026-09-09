@@ -419,12 +419,12 @@ class CheckpointWatcher(threading.Thread):
         self.run_id, self.node, self.subject, self.sequence = run_id, node, subject, sequence
         self.poll_interval = poll_interval
         self.on_bad = on_bad
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self._seen: dict[str, float] = {}
         self.results: list[Checkpoint] = []
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stop_event.set()
 
     def sweep(self, *, final: bool = False) -> list[Checkpoint]:
         """Evaluate every artefact that is new or changed since the last sweep."""
@@ -456,7 +456,7 @@ class CheckpointWatcher(threading.Thread):
         return produced
 
     def run(self) -> None:
-        while not self._stop.wait(self.poll_interval):
+        while not self._stop_event.wait(self.poll_interval):
             try:
                 self.sweep()
             except Exception:

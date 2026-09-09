@@ -316,9 +316,14 @@ class ContainerAppInterface(BaseInterface):
         try:
             rc = run_logged(cmd, log_path, shell=isinstance(cmd, str), on_line=on_line, abort_event=abort_event)
         finally:
+            # Nothing in the watcher's shutdown may replace the app's own
+            # failure as the exception the run reports.
             if watcher is not None:
-                watcher.stop()
-                watcher.join(timeout=10)
+                try:
+                    watcher.stop()
+                    watcher.join(timeout=10)
+                except Exception:
+                    logger.exception("checkpoint watcher did not stop cleanly")
                 try:
                     watcher.sweep(final=True)
                 except Exception:

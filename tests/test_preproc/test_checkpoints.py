@@ -237,3 +237,16 @@ def test_checkpoints_route_and_thumbnail(tmp_path, monkeypatch):
     png = client.get(f"/api/preproc/runs/{run_id}/checkpoints/0/thumbnail")
     assert png.status_code == 200 and png.headers["content-type"] == "image/png"
     assert client.get(f"/api/preproc/runs/{run_id}/checkpoints/9/thumbnail").status_code == 404
+
+
+def test_checkpoint_watcher_stops_and_joins():
+    """Regression: an attribute named `_stop` on a Thread subclass shadows
+    Thread._stop() and makes join() raise "'Event' object is not callable"."""
+    import threading
+    from fmriflow.preproc.checkpoints import CheckpointWatcher
+    w = CheckpointWatcher([], {}, lambda cp: None, run_id="r", node="n", subject="01", poll_interval=0.05)
+    assert callable(threading.Thread._stop) and callable(getattr(w, "_stop"))
+    w.start()
+    w.stop()
+    w.join(timeout=5)
+    assert not w.is_alive()
