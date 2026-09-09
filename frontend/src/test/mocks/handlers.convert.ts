@@ -84,6 +84,10 @@ export const convertHandlers = [
   http.post('/api/convert/configs/:filename/run', () =>
     HttpResponse.json({ kind: 'single', run_id: 'c1', status: 'started', config: 'x.yaml' }),
   ),
+  http.post('/api/convert/configs/:filename/copy', async ({ request }) => {
+    const b = (await request.json()) as { new_name: string }
+    return HttpResponse.json({ filename: `${b.new_name}.yaml`, name: b.new_name, type: 'single', created: '', description: '', heuristic: 'h', bids_dir: '/b' })
+  }),
   http.delete('/api/convert/configs/:filename', () =>
     HttpResponse.json({ deleted: true }),
   ),

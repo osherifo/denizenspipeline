@@ -550,6 +550,26 @@ async def save_batch_config(request: Request, body: SaveBatchConfigBody):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+class CopyConfigBody(BaseModel):
+    new_name: str
+
+
+@router.post("/convert/configs/{filename}/copy")
+async def copy_saved_config(request: Request, filename: str, body: CopyConfigBody):
+    """Duplicate a saved convert config under a new name."""
+    store = request.app.state.convert_config_store
+    if not body.new_name.strip():
+        raise HTTPException(status_code=400, detail="new_name is required")
+    try:
+        return store.copy_config(filename, body.new_name.strip())
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.delete("/convert/configs/{filename}")
 async def delete_saved_config(request: Request, filename: str):
     """Delete a saved conversion config."""

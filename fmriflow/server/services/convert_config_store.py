@@ -196,6 +196,21 @@ class ConvertConfigStore:
         logger.info("Saved convert config: %s", path)
         return self._extract_summary(path, config)
 
+    def copy_config(self, filename: str, new_name: str) -> dict:
+        """Duplicate a saved config under *new_name* (a legacy, read-only
+        config is copied into the active dir, which is also how to adopt it).
+
+        Raises ``FileNotFoundError`` when *filename* is unknown and
+        ``FileExistsError`` when *new_name* is taken.
+        """
+        detail = self.get_config(filename)
+        if detail is None:
+            raise FileNotFoundError(f"No saved config {filename!r}")
+        config = dict(detail.get("config") or {})
+        meta = config.pop("_meta", None) or {}
+        description = str(meta.get("description") or "")
+        return self.save_config(new_name, config, description=description)
+
     def delete_config(self, filename: str) -> bool:
         """Delete a saved config."""
         try:

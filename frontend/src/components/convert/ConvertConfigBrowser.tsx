@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import type { SavedConvertConfig, SavedConvertConfigDetail } from '../../api/types'
 import {
   fetchSavedConvertConfigs,
+  copySavedConvertConfig,
   fetchSavedConvertConfig,
   runSavedConvertConfig,
   deleteSavedConvertConfig,
@@ -231,6 +232,22 @@ export function ConvertConfigBrowser() {
     }
   }
 
+  async function duplicate() {
+    if (!selected) return
+    const base = selected.filename.replace(/\.yaml$/, '')
+    const name = await dlg.prompt(`Duplicate "${selected.filename}" as:`, { defaultValue: `${base}_copy`, placeholder: 'new_config_name' })
+    if (!name || !name.trim()) return
+    setLastResult(null)
+    try {
+      const created = await copySavedConvertConfig(selected.filename, name.trim())
+      await reload()
+      await select(created.filename)
+      setLastResult({ ok: true, message: `Saved a copy as ${created.filename}. Load it from the Convert or Batch tab to edit.` })
+    } catch (e) {
+      setLastResult({ ok: false, message: String(e) })
+    }
+  }
+
   async function runNow() {
     if (!selected) return
     setRunning(true)
@@ -325,6 +342,7 @@ export function ConvertConfigBrowser() {
                 <button style={btn('primary', running)} disabled={running} onClick={runNow}>
                   {running ? 'Starting…' : 'Run'}
                 </button>
+                <button style={btn('muted')} title="Copy this config under a new name (then edit the copy)" onClick={duplicate}>Duplicate</button>
                 <button style={btn('danger')} onClick={() => remove(selected.filename)}>Delete</button>
               </div>
             </div>

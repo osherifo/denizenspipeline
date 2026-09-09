@@ -622,6 +622,14 @@ export async function saveConvertBatchConfig(params: {
   })
 }
 
+export async function copySavedConvertConfig(filename: string, newName: string): Promise<SavedConvertConfig> {
+  return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_name: newName }),
+  })
+}
+
 export async function deleteSavedConvertConfig(filename: string): Promise<{ deleted: boolean }> {
   return json(`${BASE}/convert/configs/${encodeURIComponent(filename)}`, { method: 'DELETE' })
 }
