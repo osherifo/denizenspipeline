@@ -338,11 +338,13 @@ class ContainerAppInterface(BaseInterface):
         if rc != 0:
             tail = ""
             try:
-                tail = "".join(log_path.read_text(errors="replace").splitlines(True)[-30:])
+                # Enough to keep a bids-validator report or a Python traceback
+                # intact; the whole file is one click away in the node outputs.
+                tail = "".join(log_path.read_text(errors="replace").splitlines(True)[-80:])
             except OSError:
                 pass
             raise RuntimeError(
-                f"{self.inputs.node_type} exited with code {rc}; last log lines:\n{tail}"
+                f"{self.inputs.node_type} exited with code {rc} (full log: {log_path}); last log lines:\n{tail}"
             )
         results = node.collect(inputs, params, out_dir) or {}
         self._results = {k: _from_path_value(v) for k, v in results.items()}
