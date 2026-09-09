@@ -47,9 +47,23 @@ the choice to `.env` so later plain `docker compose` invocations reuse it,
 checks for symlinks that would dangle inside the container, builds the
 image, and runs in the foreground (Ctrl-C stops it).
 
-For day-to-day restarts use `./scripts/fmriflow-up.sh` — it starts
-detached, waits for the server to come up, and prints the URL
-(`--build` to rebuild first, `--down` to stop).
+For day-to-day use there are three small scripts, all accepting `--slim`
+to target the slim image instead of the full one:
+
+```bash
+./scripts/fmriflow-up.sh              # start detached, wait for the server, print the URL
+./scripts/fmriflow-up.sh --build      # rebuild the image, then start
+./scripts/fmriflow-down.sh            # stop (add --logs to print the last log lines first)
+./scripts/fmriflow-build.sh           # build the image only, without starting it
+./scripts/fmriflow-build.sh --no-cache   # rebuild every layer; --pull refreshes the base image
+```
+
+`fmriflow-build.sh` warns when `frontend/src` has uncommitted changes
+(the image ships whatever SPA bundle is in the repo, so run
+`npm run build` first), and when a running container is still on the
+previous image. `fmriflow-down.sh`
+removes the container but keeps the image and everything under
+`$FMRIFLOW_HOME`.
 
 ## Quickstart — slim image
 
