@@ -159,7 +159,11 @@ export function NavBar({ currentRoute }: NavBarProps) {
 
   const [version, setVersion] = useState<string | null>(null)
   useEffect(() => {
-    fetchVersion().then((v) => setVersion(v.version)).catch(() => {})
+    let cancelled = false
+    fetchVersion()
+      .then((v) => { if (!cancelled) setVersion(v.version) })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
   return (
