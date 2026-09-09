@@ -24,7 +24,7 @@ nodes:
     kind: interface
     data:
       params: {}
-      iter: {handle: in_file}
+      iter: {handles: [in_file, confounds_file]}
     position: {x: 600, y: 0}
 edges:
   - {id: e1, source: source, sourceHandle: bold, target: smooth, targetHandle: in_file}

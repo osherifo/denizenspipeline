@@ -63,9 +63,77 @@ async def run_websocket(websocket: WebSocket, run_id: str):
             pass
 
 
+async def _tail_events_jsonl(websocket: WebSocket, registry, run_id: str, events_path) -> None:
+    """Replay + live-tail ``events.jsonl`` for a detached run until it leaves ``running``.
+
+    Shared by the pipeline and (legacy) stack sockets. Sends one ``_close``
+    event carrying the terminal status before returning.
+    """
+    def _stream_from(offset: int) -> tuple[int, list[dict]]:
+        events: list[dict] = []
+        if not events_path.is_file():
+            return offset, events
+        try:
+            with open(events_path, "r", encoding="utf-8") as f:
+                f.seek(offset)
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        logger.warning("Malformed event in %s: %r", events_path, line)
+                new_offset = f.tell()
+        except OSError as e:
+            logger.warning("Could not read %s: %s", events_path, e)
+            return offset, events
+        return new_offset, events
+
+    offset = 0
+    try:
+        offset, replay = _stream_from(offset)
+        for ev in replay:
+            await websocket.send_json(ev)
+        while True:
+            current = registry.load(run_id)
+            live_status = current.status if current else "lost"
+            if current is not None and current.status == "running" and not registry.pid_alive(current.pid):
+                live_status = "lost"
+            terminal = current is None or live_status != "running"
+            offset, new = _stream_from(offset)
+            for ev in new:
+                await websocket.send_json(ev)
+            if terminal:
+                await websocket.send_json({"event": "_close", "status": live_status})
+                break
+            if not new:
+                await asyncio.sleep(0.2)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
 @router.websocket("/ws/preproc/{run_id}")
 async def preproc_websocket(websocket: WebSocket, run_id: str):
-    """Stream live events from a running preprocessing job."""
+    """Stream live events from a preprocessing run.
+
+    Pipeline runs (detached ``pipeline_runner_cli``) stream their
+    ``events.jsonl``; anything else falls through to the legacy in-process
+    preproc manager until that surface is removed.
+    """
+    pipeline_manager = getattr(websocket.app.state, "preproc_run_manager", None)
+    if pipeline_manager is not None and pipeline_manager.get_run(run_id) is not None:
+        await websocket.accept()
+        await _tail_events_jsonl(
+            websocket, pipeline_manager.registry, run_id, pipeline_manager.events_path(run_id),
+        )
+        return
+
     manager = websocket.app.state.preproc_manager
     handle = manager.active_runs.get(run_id)
 

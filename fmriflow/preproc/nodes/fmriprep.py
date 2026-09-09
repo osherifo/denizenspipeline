@@ -58,7 +58,7 @@ class FmriprepNode:
         "bids_dir": {"kind": "dir", "required": True, "exists": True, "description": "BIDS root"},
         "subject": {"kind": "str", "required": True, "description": "participant label (no sub-)"},
         "output_dir": {"kind": "dir", "required": False, "description": "derivatives root (default: node dir/derivatives)"},
-        "work_dir": {"kind": "dir", "required": False, "description": "fmriprep work dir (default: node dir/work)"},
+        "work_dir": {"kind": "dir", "required": False, "description": "fmriprep work dir (default: the node dir)"},
         "fs_subjects_dir": {"kind": "dir", "required": False, "description": "precomputed FreeSurfer subjects dir"},
     }
     OUTPUTS = {
@@ -126,7 +126,9 @@ class FmriprepNode:
     @staticmethod
     def _dirs(inputs: dict[str, Any], out_dir: Path) -> tuple[str, str]:
         output_dir = str(inputs.get("output_dir") or out_dir / "derivatives")
-        work_dir = str(inputs.get("work_dir") or out_dir / "work")
+        # Default the work dir to the node dir itself: fmriprep's inner nipype
+        # node paths then map straight onto this node's work tree.
+        work_dir = str(inputs.get("work_dir") or out_dir)
         return output_dir, work_dir
 
     # ── node contract ────────────────────────────────────────────

@@ -46,6 +46,17 @@ NODE_KINDS: tuple[str, ...] = ("interface", "container_app", "composite", "sourc
 INPUT_REF_PREFIX = "$inputs."
 
 
+def iter_handles(spec: dict[str, Any] | None) -> list[str]:
+    """The ports an ``iter`` block maps over (``handle`` or ``handles``)."""
+    if not spec:
+        return []
+    if spec.get("handles"):
+        return [str(h) for h in spec["handles"]]
+    if spec.get("handle"):
+        return [str(spec["handle"])]
+    return []
+
+
 @dataclass
 class PipelineNode:
     id: str
@@ -54,7 +65,7 @@ class PipelineNode:
     params: dict[str, Any] = field(default_factory=dict)
     literal_inputs: dict[str, Any] = field(default_factory=dict)
     bindings: dict[str, str] = field(default_factory=dict)   # port -> "$inputs.<name>"
-    iter: dict[str, Any] | None = None    # {"handle": "<port>"} (+ optional literal "values": [...])
+    iter: dict[str, Any] | None = None    # {"handle": "<port>"} or {"handles": [...]} (+ optional literal "values")
     position: dict[str, float] = field(default_factory=dict)
 
     def to_reactflow(self) -> dict[str, Any]:
@@ -351,23 +362,25 @@ class Pipeline:
         for n in self.nodes:
             if n.iter is None:
                 continue
-            handle = n.iter.get("handle")
-            if not handle:
-                errors.append(f"node {n.id}: iter needs a 'handle'")
-            elif registry is not None and registry.has(n.type):
-                inputs, _ = registry.ports(n.type)
-                if handle not in inputs:
+            handles = iter_handles(n.iter)
+            if not handles:
+                errors.append(f"node {n.id}: iter needs a 'handle' (or 'handles')")
+                continue
+            for handle in handles:
+                if registry is not None and registry.has(n.type):
+                    inputs, _ = registry.ports(n.type)
+                    if handle not in inputs:
+                        errors.append(
+                            f"node {n.id}: iter handle {handle!r} not in "
+                            f"{n.type}.INPUTS={sorted(inputs)}"
+                        )
+                # The list to iterate over arrives on the handle's edge, or is
+                # given literally as ``values``; one of the two must be there.
+                fed_by_edge = any(e.target_handle == handle for e in self.predecessors(n.id))
+                if not fed_by_edge and "values" not in n.iter:
                     errors.append(
-                        f"node {n.id}: iter handle {handle!r} not in "
-                        f"{n.type}.INPUTS={sorted(inputs)}"
+                        f"node {n.id}: iter handle {handle!r} needs an incoming edge or literal 'values'"
                     )
-            # The list to iterate over arrives on the handle's edge, or is
-            # given literally as ``values``; one of the two must be there.
-            fed_by_edge = any(e.target_handle == handle for e in self.predecessors(n.id))
-            if not fed_by_edge and "values" not in n.iter:
-                errors.append(
-                    f"node {n.id}: iter handle {handle!r} needs an incoming edge or literal 'values'"
-                )
 
         backend_node = self.manifest.get("backend_node")
         if backend_node and backend_node not in ids:

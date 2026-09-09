@@ -67,8 +67,13 @@ _MEDIA_TYPES = {
 
 
 def _summary(request: Request, run_id: str) -> dict:
-    mgr = request.app.state.preproc_manager
-    s = mgr.get_run(run_id)
+    pipeline_mgr = getattr(request.app.state, "preproc_run_manager", None)
+    if pipeline_mgr is not None:
+        s = pipeline_mgr.get_run(run_id)
+        if s is not None:
+            return s
+    mgr = getattr(request.app.state, "preproc_manager", None)
+    s = mgr.get_run(run_id) if mgr is not None else None
     if s is None:
         raise HTTPException(404, f"Run '{run_id}' not found")
     return s

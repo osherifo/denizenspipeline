@@ -31,6 +31,7 @@ from nipype.interfaces.base import (
     File,
     InputMultiPath,
     TraitedSpec,
+    Undefined,
     isdefined,
     traits,
 )
@@ -87,6 +88,33 @@ def _from_path_value(value: Any) -> Any:
     return value
 
 
+def _add_output_ports(base: Any, ports: tuple[str, ...]) -> Any:
+    """Add one ``Any`` trait per output port, initialised to ``Undefined``.
+
+    nipype's MapNode collation starts each output as ``[]`` only when the
+    fresh value is *undefined*; ``traits.Any`` defaults to ``None``, which
+    counts as defined and breaks the collation (the pattern nipype's own
+    ``Function`` interface uses).
+    """
+    undefined = {}
+    for port in ports:
+        base.add_trait(port, traits.Any(desc=port))
+        undefined[port] = Undefined
+    if undefined:
+        base.trait_set(trait_change_notify=False, **undefined)
+    return base
+
+
+def _params_with_defaults(cls: type, given: Any) -> dict[str, Any]:
+    """Schema defaults first, then whatever the pipeline set."""
+    from fmriflow.modules._schema import schema_defaults
+
+    params = dict(schema_defaults(getattr(cls, "PARAM_SCHEMA", {}) or {}))
+    if isdefined(given) and given:
+        params.update(dict(given))
+    return params
+
+
 def _resolve_node_cls(node_type: str) -> type:
     from fmriflow.preproc.node_registry import registered_nodes
     cls = registered_nodes().get(node_type)
@@ -126,10 +154,7 @@ class RunNodeInterface(BaseInterface):
             setattr(self.inputs, port, value)
 
     def _outputs(self):
-        base = super()._outputs()
-        for port in self._out_ports:
-            base.add_trait(port, traits.Any(desc=port))
-        return base
+        return _add_output_ports(super()._outputs(), self._out_ports)
 
     def _run_interface(self, runtime):
         cls = _resolve_node_cls(self.inputs.node_type)
@@ -138,7 +163,7 @@ class RunNodeInterface(BaseInterface):
             value = getattr(self.inputs, port)
             if isdefined(value) and value not in (None, [], ""):
                 inputs[port] = _to_path_value(value)
-        params = dict(self.inputs.params) if isdefined(self.inputs.params) else {}
+        params = _params_with_defaults(cls, self.inputs.params)
         out_dir = Path(runtime.cwd)
         out_dir.mkdir(parents=True, exist_ok=True)
         results = cls().run(inputs, out_dir, params) or {}
@@ -204,10 +229,7 @@ class ContainerAppInterface(BaseInterface):
             setattr(self.inputs, port, value)
 
     def _outputs(self):
-        base = super()._outputs()
-        for port in self._out_ports:
-            base.add_trait(port, traits.Any(desc=port))
-        return base
+        return _add_output_ports(super()._outputs(), self._out_ports)
 
     def _port_values(self) -> dict[str, Any]:
         values: dict[str, Any] = {}
@@ -223,7 +245,7 @@ class ContainerAppInterface(BaseInterface):
         cls = _resolve_node_cls(self.inputs.node_type)
         node = cls()
         inputs = self._port_values()
-        params = dict(self.inputs.params) if isdefined(self.inputs.params) else {}
+        params = _params_with_defaults(cls, self.inputs.params)
         out_dir = Path(runtime.cwd)
         out_dir.mkdir(parents=True, exist_ok=True)
 

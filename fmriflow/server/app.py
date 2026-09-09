@@ -132,9 +132,22 @@ def create_app(
         registry=registry,
         workflow_store=post_preproc_workflow_store,
     )
+    # Unified preprocessing: one node library, saved pipelines, detached runs.
+    from fmriflow.preproc.node_registry import NodeRegistry
+    from fmriflow.server.services.pipeline_store import PipelineStore
+    from fmriflow.server.services.preproc_run_manager import PreprocRunManager
+    node_registry = NodeRegistry().discover()
+    pipeline_store = PipelineStore(Path(preproc_configs_dir))
+    preproc_run_manager = PreprocRunManager(
+        pipeline_store=pipeline_store, node_registry=node_registry,
+    )
+    n_lost = preproc_run_manager.scan_for_orphans()
+    if n_lost:
+        logger.warning("Reconciled %d orphaned pipeline run(s) from a prior server lifetime.", n_lost)
+    logger.info("Node library: %d node(s) discovered.", len(node_registry.names()))
     workflow_manager.bind_stage_managers(
         convert=convert_manager,
-        preproc=preproc_manager,
+        preproc=preproc_run_manager,
         autoflatten=autoflatten_manager,
         post_preproc=post_preproc_manager,
         analysis=run_manager,
@@ -159,6 +172,9 @@ def create_app(
     app.state.transform_registry = transform_registry
     app.state.stack_manager = stack_manager
     app.state.stack_preset_store = stack_preset_store
+    app.state.node_registry = node_registry
+    app.state.pipeline_store = pipeline_store
+    app.state.preproc_run_manager = preproc_run_manager
 
     # Artifact Hub (decoupled, optional). The service holds no heavy state
     # and imports no transport deps at construction; safe to attach always.
@@ -198,6 +214,14 @@ def create_app(
     app.include_router(run_router, prefix="/api")
     app.include_router(artifact_router, prefix="/api")
     app.include_router(configs_router, prefix="/api")
+    # The pipeline routers go first: they own /preproc/runs and /preproc/nodes;
+    # the legacy preproc router keeps only the paths that do not collide.
+    from fmriflow.server.routes.preproc_pipelines import router as preproc_pipelines_router
+    from fmriflow.server.routes.preproc_runs import router as preproc_runs_router
+    from fmriflow.server.routes.preproc_nodes import router as preproc_nodes_router
+    app.include_router(preproc_pipelines_router, prefix="/api")
+    app.include_router(preproc_runs_router, prefix="/api")
+    app.include_router(preproc_nodes_router, prefix="/api")
     app.include_router(preproc_router, prefix="/api")
     app.include_router(convert_router, prefix="/api")
     app.include_router(errors_router, prefix="/api")

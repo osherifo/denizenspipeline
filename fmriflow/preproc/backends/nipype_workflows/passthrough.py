@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 @register_preproc_workflow("passthrough")
 class PassthroughWorkflow:
     """Scan ``config.derivatives_dir`` for preprocessed files; no actual run."""
+    _NODE_REGISTRY_SKIP = True  # superseded by the identity / derivatives_source nodes
 
     name = "passthrough"
     version = "0.1.0"

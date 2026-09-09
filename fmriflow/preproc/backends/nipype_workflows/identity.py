@@ -32,6 +32,7 @@ class IdentityWorkflow:
     preprocessing run. Don't use this in production — the manifest
     it emits has no runs, so the analysis stage will reject it.
     """
+    _NODE_REGISTRY_SKIP = True  # superseded by the identity / derivatives_source nodes
 
     name = "identity"
     version = "0.1.0"
