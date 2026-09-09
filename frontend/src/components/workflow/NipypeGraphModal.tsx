@@ -18,6 +18,7 @@ import {
 import dagre from 'dagre'
 
 import { fetchPreprocRunLive, fetchLabelMap } from '../../api/client'
+import { fetchRunNodeInner } from '../../api/preproc'
 import { fetchWorkTree } from '../../api/node-outputs'
 import { formatDuration } from '../../utils/format'
 import type { NipypeNodeStatus, NipypeStatusBlock } from '../../api/types'
@@ -41,7 +42,7 @@ const NEUTRAL = 'var(--text-secondary)'
 // ── Custom nodes ────────────────────────────────────────────────────────
 
 
-type LeafData = NipypeTreeNode & { _kind: 'leaf' }
+type LeafData = NipypeTreeNode & { _kind: 'leaf'; showDocs?: boolean }
 type WorkflowData = NipypeTreeNode & {
   _kind: 'workflow'
   /** True if at least one descendant of this workflow is hidden under
@@ -55,6 +56,8 @@ type WorkflowData = NipypeTreeNode & {
   /** Friendly vs raw label rendering. Injected by the modal so the
    *  node renderer doesn't have to subscribe to the hook. */
   labelMode?: LabelMode
+  /** Docs link icon only when the label family has docs (fmriprep). */
+  showDocs?: boolean
 }
 
 
@@ -131,7 +134,7 @@ function _LeafNodeInner({ data }: NodeProps & { data: LeafData }) {
       title={`${data.full_node ?? data.id} — ${data.status ?? ''}${elapsed}`}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
-      <DocsLinkIcon label={data.label} />
+      {data.showDocs !== false && <DocsLinkIcon label={data.label} />}
       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.label}</div>
       <div style={{ fontSize: 9, color }}>
         {data.status ?? ''}{elapsed}
@@ -187,7 +190,7 @@ function _WorkflowNodeInner({ data }: NodeProps & { data: WorkflowData }) {
       }
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
-      <DocsLinkIcon label={data.label} />
+      {data.showDocs !== false && <DocsLinkIcon label={data.label} />}
       {(data.isExpanded || data.hasHidden) && (
         <span
           aria-hidden
@@ -601,16 +604,40 @@ interface Props {
   onClose: () => void
 }
 
+export interface NipypeDagPanelProps {
+  runId: string
+  isRunning: boolean
+  /** Restrict to one outer pipeline node's inner subtree (its `<workflow>.<nodeId>.` prefix
+   *  is stripped, so the app's own top-level workflow is the root). Absent = the whole run. */
+  nodePath?: { workflow: string | null; nodeId: string }
+  /** Friendly-label family for inner nodes; null/undefined = raw names, no docs links. */
+  labelFamily?: string | null
+  /** Label-map version (fmriprep major), default '25'. */
+  labelVersion?: string
+  /** Rendered as a Close button when given. */
+  onClose?: () => void
+}
 
+
+/** The whole-run DAG in a modal (the Workflows view). */
 export function NipypeGraphModal({ runId, isRunning, onClose }: Props) {
   return (
     <div style={backdrop} onClick={onClose}>
       <div style={card} onClick={(e) => e.stopPropagation()}>
         <ReactFlowProvider>
-          <Inner runId={runId} isRunning={isRunning} onClose={onClose} />
+          <Inner runId={runId} isRunning={isRunning} onClose={onClose} labelFamily="fmriprep" />
         </ReactFlowProvider>
       </div>
     </div>
+  )
+}
+
+/** The DAG as an embeddable panel (fills its parent; the node popup's Inner DAG tab). */
+export function NipypeDagPanel(props: NipypeDagPanelProps) {
+  return (
+    <ReactFlowProvider>
+      <Inner {...props} />
+    </ReactFlowProvider>
   )
 }
 
@@ -622,7 +649,10 @@ export function NipypeGraphModal({ runId, isRunning, onClose }: Props) {
 const DEFAULT_VISIBLE_DEPTH = 3
 
 
-function Inner({ runId, isRunning, onClose }: Props) {
+function Inner({ runId, isRunning, onClose, nodePath, labelFamily, labelVersion }: NipypeDagPanelProps) {
+  // Per-node view: events and work-tree leaves are filtered to this prefix server-side.
+  const prefix = nodePath ? `${nodePath.workflow ? `${nodePath.workflow}.` : ''}${nodePath.nodeId}.` : null
+  const hasDocs = labelFamily === 'fmriprep'
   const [block, setBlock] = useState<NipypeStatusBlock | null>(null)
   const [cachedLeaves, setCachedLeaves] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -631,7 +661,8 @@ function Inner({ runId, isRunning, onClose }: Props) {
   // DEFAULT_VISIBLE_DEPTH. Click on a workflow node toggles
   // membership.
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [labelMode, setLabelMode] = useLabelMode()
+  const [storedLabelMode, setLabelMode] = useLabelMode()
+  const labelMode: LabelMode = labelFamily ? storedLabelMode : 'raw'
   // Lane focus: SHOW_ALL_LANES = render every lane (the default
   // overview), else a specific lane id (e.g. 'lane:run-1') filters
   // the canvas to that lane + the ancestor chain.
@@ -712,9 +743,11 @@ function Inner({ runId, isRunning, onClose }: Props) {
     let cancelled = false
     async function load() {
       try {
-        const detail = await fetchPreprocRunLive(runId, 500)
+        const status = prefix
+          ? (await fetchRunNodeInner(runId, nodePath!.nodeId, 500)).nipype_status
+          : (await fetchPreprocRunLive(runId, 500)).nipype_status
         if (!cancelled) {
-          setBlock(detail.nipype_status)
+          setBlock(status)
           setError(null)
         }
       } catch (e) {
@@ -725,26 +758,27 @@ function Inner({ runId, isRunning, onClose }: Props) {
     if (!isRunning) return () => { cancelled = true }
     const id = setInterval(load, 2000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [runId, isRunning])
+  }, [runId, isRunning, prefix])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // One-shot work_dir walk so cached nodes (no events emitted) still
   // show up in the tree.
   useEffect(() => {
     let cancelled = false
-    fetchWorkTree(runId)
+    fetchWorkTree(runId, prefix ?? undefined)
       .then((t) => { if (!cancelled) setCachedLeaves(t.leaves) })
       .catch(() => { /* non-fatal */ })
     return () => { cancelled = true }
-  }, [runId])
+  }, [runId, prefix])
 
   // Load the version-specific label map from the backend so friendly
   // names stay correct across fmriprep upgrades. Falls back to the
   // embedded v25 map on failure.
   useEffect(() => {
-    fetchLabelMap()
+    if (!hasDocs) return
+    fetchLabelMap(labelVersion ?? '25')
       .then((r) => setRuntimeMap(r.labels))
       .catch(() => { /* non-fatal — embedded fallback */ })
-  }, [])
+  }, [hasDocs, labelVersion])
 
   const mergedNodes = useMemo<NipypeNodeStatus[]>(() => {
     const live = block?.recent_nodes ?? []
@@ -844,7 +878,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
     // payload so the WorkflowNode renderer can show the +/− glyph
     // without re-deriving the state.
     const nodes = laid.nodes.map((n) => {
-      if (n.type !== 'nipype_workflow') return n
+      if (n.type !== 'nipype_workflow') return { ...n, data: { ...(n.data as object), showDocs: hasDocs } }
       return {
         ...n,
         data: {
@@ -852,11 +886,12 @@ function Inner({ runId, isRunning, onClose }: Props) {
           hasHidden: filterResult.hasHidden.get(n.id) ?? false,
           isExpanded: expanded.has(n.id),
           labelMode,
+          showDocs: hasDocs,
         },
       }
     })
     return { nodes, edges: laid.edges }
-  }, [filterResult, lanes, selectedLane, expanded, labelMode])
+  }, [filterResult, lanes, selectedLane, expanded, labelMode, hasDocs])
 
   // useNodesState makes dragging work — it tracks position changes
   // from user drags while still accepting layout-computed positions
@@ -881,7 +916,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
     <>
       <div style={header}>
         <div style={{ fontSize: 14, fontWeight: 700 }}>nipype DAG</div>
-        <code style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{runId}</code>
+        <code style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{nodePath ? nodePath.nodeId : runId}</code>
         {block && (
           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
             {block.counts.running} running · {block.counts.ok} done · {block.counts.failed} failed{block.counts.completed_assumed ? ` · ${block.counts.completed_assumed} assumed` : ''} · {block.counts.total_seen} seen
@@ -899,7 +934,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
         )}
         {fullTree && (
           <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <LabelModeToggle mode={labelMode} onChange={setLabelMode} />
+            {labelFamily && <LabelModeToggle mode={labelMode} onChange={setLabelMode} />}
             <button
               style={toolBtn}
               onClick={() => setExpanded(new Set(allWorkflowIds(fullTree)))}
@@ -917,7 +952,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
             </button>
           </span>
         )}
-        <button style={closeBtn} onClick={onClose}>Close</button>
+        {onClose && <button style={closeBtn} onClick={onClose}>Close</button>}
       </div>
       <LaneSelector lanes={lanes} selected={selectedLane} onSelect={setSelectedLane} />
       <div style={{
@@ -996,7 +1031,7 @@ function Inner({ runId, isRunning, onClose }: Props) {
         {openNode && (
           <NodeOutputsPanel
             runId={runId}
-            node={openNode}
+            node={prefix ? `${prefix}${openNode}` : openNode}
             onClose={() => setOpenNode(null)}
           />
         )}

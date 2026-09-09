@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { PipelineGraph } from '../PipelineGraph'
 import { NODE_LIBRARY, TEMPLATE_PIPELINE } from '../../../test/mocks/handlers.preproc-pipelines'
 
@@ -27,5 +27,13 @@ describe('PipelineGraph', () => {
     )
     expect(screen.getByTitle('2 checkpoint(s), worst: bad')).toBeInTheDocument()
     expect(screen.getByText('3.0s')).toBeInTheDocument()
+  })
+
+  it('double-clicking a node calls onOpen with its id', () => {
+    const onOpen = vi.fn()
+    render(<PipelineGraph pipeline={TEMPLATE_PIPELINE} library={NODE_LIBRARY} onOpen={onOpen} />)
+    // ReactFlow listens on the node wrapper, not the label
+    fireEvent.doubleClick(screen.getByText('smooth').closest('.react-flow__node') ?? screen.getByText('smooth'))
+    expect(onOpen).toHaveBeenCalledWith('smooth')
   })
 })

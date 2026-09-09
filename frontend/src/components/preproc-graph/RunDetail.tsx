@@ -6,7 +6,7 @@ import { usePreprocPipelineStore } from '../../stores/preproc-pipeline-store'
 import { PipelineGraph, type NodeCheckpointStatus, type NodeRunStatus } from './PipelineGraph'
 import { CheckpointFilmstrip, VERDICT_COLORS } from './CheckpointFilmstrip'
 import { NodeOutputsPanel } from '../workflow/NodeOutputsPanel'
-import { NipypeGraphModal } from '../workflow/NipypeGraphModal'
+import { NodePopup } from './NodePopup'
 import { fetchPipelineRunLog, fetchRunCrash } from '../../api/preproc'
 import { formatDuration } from '../../utils/format'
 import type { CheckpointRecord, PipelineEvent, PipelineRunDetail } from '../../api/types'
@@ -72,7 +72,7 @@ export function RunDetail({ compact = false }: Props) {
   const library = usePreprocPipelineStore((s) => s.library)
   const loadLibrary = usePreprocPipelineStore((s) => s.loadLibrary)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
-  const [showInner, setShowInner] = useState(false)
+  const [openNode, setOpenNode] = useState<string | null>(null)
   const [showLog, setShowLog] = useState(false)
   const [log, setLog] = useState<string[]>([])
   const [logTotal, setLogTotal] = useState<number | null>(null)
@@ -104,7 +104,6 @@ export function RunDetail({ compact = false }: Props) {
   const running = detail.status === 'running'
   const recoverable = detail.status === 'lost' || detail.status === 'failed' || detail.status === 'cancelled'
   const elapsed = detail.finished_at ? detail.finished_at - detail.started_at : Date.now() / 1000 - detail.started_at
-  const hasInner = (detail.nipype_status?.counts.total_seen ?? 0) > 0
   const nodeSummary = selectedNode ? detail.result?.nodes.find((n) => n.node_id === selectedNode) : null
   const innerNodePath = selectedNode && detail.workflow ? `${detail.workflow}.${selectedNode}` : selectedNode
 
@@ -119,7 +118,6 @@ export function RunDetail({ compact = false }: Props) {
           <span style={{ color: VERDICT_COLORS[detail.checkpoints.worst], fontSize: 11 }}>● {detail.checkpoints.n} checkpoints · worst {detail.checkpoints.worst}</span>
         )}
         <span style={{ flex: 1 }} />
-        {hasInner && <button style={btn} onClick={() => setShowInner(true)}>Inner DAG</button>}
         <button style={btn} onClick={() => setShowLog(!showLog)}>{showLog ? 'Hide log' : 'Log'}</button>
         {running && <button style={{ ...btn, color: '#ef4444' }} onClick={() => cancel(detail.run_id)}>Cancel</button>}
         {recoverable && <button style={btn} onClick={() => setAskRecover(true)}>Resume / Restart…</button>}
@@ -169,6 +167,7 @@ export function RunDetail({ compact = false }: Props) {
         checkpointsByNode={checkpointsByNode}
         selectedNodeId={selectedNode}
         onSelect={setSelectedNode}
+        onOpen={setOpenNode}
         height={compact ? 300 : 380}
         fitViewKey={detail.run_id}
       />
@@ -179,7 +178,7 @@ export function RunDetail({ compact = false }: Props) {
           {nodeSummary && <span style={{ color: 'var(--text-secondary)' }}>{nodeSummary.status} · {formatDuration(nodeSummary.duration_s)}</span>}
           {nodeSummary?.error && <span style={{ color: '#ef4444' }}>{nodeSummary.error}</span>}
           <span style={{ flex: 1 }} />
-          <button style={btn} onClick={() => setShowLog(false)}>Outputs ▾</button>
+          <button style={btn} onClick={() => setOpenNode(selectedNode)} title="Open this node: outputs, checkpoints, log, and the views the app provides">Open</button>
         </div>
       )}
       {selectedNode && innerNodePath && (
@@ -209,8 +208,8 @@ export function RunDetail({ compact = false }: Props) {
         </>
       )}
 
-      {showInner && (
-        <NipypeGraphModal runId={detail.run_id} isRunning={running} onClose={() => setShowInner(false)} />
+      {openNode && (
+        <NodePopup runId={detail.run_id} nodeId={openNode} onClose={() => setOpenNode(null)} />
       )}
     </div>
   )

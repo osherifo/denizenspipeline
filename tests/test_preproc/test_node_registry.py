@@ -137,3 +137,38 @@ def test_same_file_loaded_twice_is_not_a_shadow(tmp_path, caplog):
 def test_preflight_runs_on_class_requirements():
     reg = NodeRegistry(user_dirs=[]).discover()
     assert reg.preflight("identity").ok
+
+
+def test_info_ui_defaults_derive_from_the_contract_and_ui_overrides():
+    from fmriflow.preproc.node_registry import node_ui
+
+    class App:
+        NODE_KIND = "container_app"   # what @preproc_node(kind=...) stamps
+        INNER_NIPYPE_LOG = True
+        CHECKS = ["x"]
+        OUTPUTS = {"report_html": {"kind": "html"}, "fs_subjects_dir": {"kind": "dir"}, "manifest": {"kind": "json"}}
+
+        def build_command(self, inputs, params, out_dir):
+            return ["true"]
+
+    ui = node_ui(App)
+    assert ui["inner_dag"] and ui["checkpoints"] and ui["log"]
+    assert ui["report"] == "report_html" and ui["structural_qc"] == "fs_subjects_dir" and ui["summary"] == "manifest"
+    assert ui["label_map"] is None and ui["views"] == []
+
+    class Plain:
+        OUTPUTS = ["out_file"]
+
+        def run(self, inputs, out_dir, params):
+            return {}
+
+    ui = node_ui(Plain)
+    assert not ui["inner_dag"] and not ui["checkpoints"] and not ui["log"]
+    assert ui["report"] is None and ui["structural_qc"] is None and ui["summary"] is None
+
+    class Declared(App):
+        UI = {"structural_qc": None, "label_map": "fmriprep", "views": ["carpet"], "bogus": 1}
+
+    ui = node_ui(Declared)
+    assert ui["structural_qc"] is None and ui["label_map"] == "fmriprep" and ui["views"] == ["carpet"]
+    assert "bogus" not in ui

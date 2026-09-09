@@ -205,6 +205,8 @@ class MyApp:
     version = "0.1.0"
     description = "What this app does, in one line."
     INNER_NIPYPE_LOG = False
+    # Optional: opt into built-in run views, e.g. {"report": "report_html"}.
+    UI: dict = {}
     INPUTS = {"in_file": {"kind": "nifti", "required": True}}
     OUTPUTS = {"out_file": {"kind": "nifti"}}
     PARAM_SCHEMA: dict[str, Any] = {}

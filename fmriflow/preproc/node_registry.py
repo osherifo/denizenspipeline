@@ -155,6 +155,47 @@ def node_kind(cls: type) -> str:
     return "interface"
 
 
+UI_KEYS = ("inner_dag", "checkpoints", "log", "report", "structural_qc", "summary", "label_map", "views")
+
+
+def node_ui(cls: type) -> dict[str, Any]:
+    """What the run UI may show for this node — derived from the contract,
+    overridable by a ``UI`` class attribute.
+
+    The pipeline layer never looks at this. The frontend keeps generic tabs
+    for every node and adds one per capability that names an output port:
+
+    - ``inner_dag``: the app streams an inner nipype log (``INNER_NIPYPE_LOG``)
+    - ``checkpoints``: the node declares ``CHECKS``
+    - ``log``: a container app writes ``<node dir>/stdout.log``
+    - ``report``: name of an output port of kind ``html`` (a subject report)
+    - ``structural_qc``: a ``dir`` port named ``fs_subjects_dir`` or with
+      ``role: freesurfer`` (FreeSurfer surfaces + review)
+    - ``summary``: the ``manifest`` port (or ``role: manifest``)
+    - ``label_map``: family of friendly labels for inner nodes (``"fmriprep"``)
+    - ``views``: opaque extra view ids for addon authors; unknown ids are ignored
+    """
+    _, outputs = node_ports(cls)
+
+    def port_where(pred) -> str | None:
+        return next((n for n, spec in outputs.items() if pred(n, spec)), None)
+
+    derived: dict[str, Any] = {
+        "inner_dag": bool(getattr(cls, "INNER_NIPYPE_LOG", False)),
+        "checkpoints": bool(getattr(cls, "CHECKS", None)),
+        "log": node_kind(cls) == "container_app",
+        "report": port_where(lambda n, spec: spec.get("kind") == "html"),
+        "structural_qc": port_where(
+            lambda n, spec: spec.get("kind") == "dir" and (n == "fs_subjects_dir" or spec.get("role") == "freesurfer")
+        ),
+        "summary": port_where(lambda n, spec: n == "manifest" or spec.get("role") == "manifest"),
+        "label_map": None,
+        "views": [],
+    }
+    declared = dict(getattr(cls, "UI", None) or {})
+    return {**derived, **{k: v for k, v in declared.items() if k in UI_KEYS}}
+
+
 # ── Public record ──────────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -174,6 +215,7 @@ class NodeInfo:
     required_env: list[str] = field(default_factory=list)
     params_schema: dict = field(default_factory=dict)
     checks: list[str] = field(default_factory=list)
+    ui: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -190,6 +232,7 @@ class NodeInfo:
             "required_env": self.required_env,
             "params_schema": self.params_schema,
             "checks": self.checks,
+            "ui": self.ui,
         }
 
 
@@ -372,6 +415,7 @@ class NodeRegistry:
             required_env=list(getattr(cls, "REQUIRED_ENV", []) or []),
             params_schema=dict(getattr(cls, "PARAM_SCHEMA", {}) or {}),
             checks=[getattr(c, "step", str(c)) for c in (getattr(cls, "CHECKS", []) or [])],
+            ui=node_ui(cls),
         )
 
     def list(self, kind: str | None = None) -> list[NodeInfo]:

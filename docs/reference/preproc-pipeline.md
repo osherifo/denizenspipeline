@@ -112,7 +112,8 @@ package, a pip entry point (`fmriflow.preproc_nodes`), or a file under
 `$FMRIFLOW_HOME/addons/nodes/`. Class attributes: `name`, `version`, `description`,
 `INPUTS`, `OUTPUTS` (dicts of port specs `{kind, required, description}` or plain lists),
 `PARAM_SCHEMA` (the same schema the module system uses, plus an optional `group` per
-field), `REQUIRED_PYTHON`, `REQUIRED_TOOLS`, `REQUIRED_ENV`, `CONTAINER`, `CHECKS`.
+field), `REQUIRED_PYTHON`, `REQUIRED_TOOLS`, `REQUIRED_ENV`, `CONTAINER`, `CHECKS`, and an
+optional `UI` dict (below).
 
 | Kind | Implements | Notes |
 |---|---|---|
@@ -120,6 +121,34 @@ field), `REQUIRED_PYTHON`, `REQUIRED_TOOLS`, `REQUIRED_ENV`, `CONTAINER`, `CHECK
 | `source` | `run(...)` with no input ports | `bids_source`, `manifest_source`, `derivatives_source` |
 | `container_app` | `validate(inputs, params)`, `build_command(inputs, params, out_dir)`, `collect(inputs, params, out_dir)`, optional `checkpoint_context(...)` | runs in its own process group; set `INNER_NIPYPE_LOG = True` to stream the app's inner nipype nodes |
 | `composite` | `validate(config)`, `build(config) -> nipype.Workflow`, optional `to_manifest(config, outputs)` | ports are the fields of the workflow's `inputnode` / `outputnode` |
+
+### Run views a node can offer (`ui`)
+
+The run UI's node popup shows generic tabs for every node and one more per capability.
+Capabilities are **derived** from the contract and can be overridden by a `UI` class
+attribute; the node library serves them as `ui` on each node:
+
+| key | derived from | unlocks |
+|---|---|---|
+| `inner_dag` | `INNER_NIPYPE_LOG = True` | **Inner DAG**: the app's own nipype workflow, live |
+| `checkpoints` | a non-empty `CHECKS` | **Checkpoints** filmstrip |
+| `log` | kind `container_app` (the app's `stdout.log`) | **Log** |
+| `report` | the first output port of `kind: html` | **Report**: that HTML, with its relative assets |
+| `structural_qc` | a `dir` port named `fs_subjects_dir` (or `role: freesurfer`) | **Structural QC**: FreeSurfer surfaces + review |
+| `summary` | the `manifest` port (or `role: manifest`) | **Summary** of the manifest JSON |
+| `label_map` | — (declare, e.g. `"fmriprep"`) | friendly names + docs links in the Inner DAG |
+| `views` | — (declare) | opaque extra view ids; unknown ids are ignored |
+
+```python
+@preproc_node("my_app", kind="container_app")
+class MyApp:
+    INNER_NIPYPE_LOG = True
+    OUTPUTS = {"report_html": {"kind": "html"}, "manifest": {"kind": "json"}}
+    UI = {"label_map": None}          # everything else derives
+```
+
+The values are port names: the popup serves whatever path that port holds for *this
+run's* node, via `GET /api/preproc/runs/{id}/nodes/{node_id}/…`.
 
 The Library tab's **New node** offers a scaffold per kind; **Import nipype pipeline**
 turns a `.py` file with a `build()` function or a module-level `Workflow` into a
@@ -165,6 +194,7 @@ sequence-specific overrides.
 | GET | `/api/preproc/runs` · `/runs/{id}` · `/runs/{id}/events` · `/runs/{id}/log` · `/runs/{id}/checkpoints` · `/runs/{id}/checkpoints/{i}/thumbnail` | runs |
 | POST | `/api/preproc/runs/{id}/cancel` · `/resume` · `/restart` | control |
 | DELETE | `/api/preproc/runs/{id}` | remove a run record |
-| GET | `/api/preproc/runs/{id}/work_tree` · `/node/{path}/files` · `/file` · `/pickle` | node outputs |
+| GET | `/api/preproc/runs/{id}/work_tree[?prefix=]` · `/node/{path}/files` · `/file` · `/pickle` | node outputs |
+| GET | `/api/preproc/runs/{id}/nodes/{node_id}` · `/log` · `/inner` · `/manifest` · `/report/{rest}` · `/fs-file?rel=` · `/freeview-command` | one node of one run (the popup); `POST …/drawing` |
 | GET/POST | `/api/preproc/manifests…` · `/api/preproc/collect` · `/api/preproc/label-map` | outputs |
 | WS | `/ws/preproc/{run_id}` | event stream |

@@ -43,6 +43,8 @@ interface Props {
   editable?: boolean
   selectedNodeId?: string | null
   onSelect?: (id: string | null) => void
+  /** Double-click on a node (the run view opens the node popup). */
+  onOpen?: (id: string) => void
   onMove?: (id: string, position: { x: number; y: number }) => void
   onConnectPorts?: (edge: { source: string; target: string; sourceHandle: string; targetHandle: string }) => void
   onRemoveNodes?: (ids: string[]) => void
@@ -99,7 +101,7 @@ function toFlow(
 }
 
 function Inner({
-  pipeline, library, editable = false, selectedNodeId, onSelect, onMove, onConnectPorts,
+  pipeline, library, editable = false, selectedNodeId, onSelect, onOpen, onMove, onConnectPorts,
   onRemoveNodes, onRemoveEdges, statusByNode, checkpointsByNode, height = 420, fitViewKey,
 }: Props) {
   const flow = useMemo(() => toFlow(pipeline, library, statusByNode, checkpointsByNode), [pipeline, library, statusByNode, checkpointsByNode])
@@ -132,6 +134,8 @@ function Inner({
         onConnect={onConnect}
         onEdgesDelete={(deleted) => onRemoveEdges?.(deleted.map((e) => e.id))}
         onNodeClick={(_, n) => onSelect?.(n.id)}
+        onNodeDoubleClick={(_, n) => onOpen?.(n.id)}
+        zoomOnDoubleClick={false}
         onPaneClick={() => onSelect?.(null)}
         nodesDraggable={editable}
         nodesConnectable={editable}

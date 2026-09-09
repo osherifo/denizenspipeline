@@ -1,5 +1,7 @@
 import { http, HttpResponse } from 'msw'
-import type { PipelineDoc, PipelineRunDetail, PreprocNodeInfo } from '../../api/types'
+import type { NodeUiCapabilities, PipelineDoc, PipelineRunDetail, PreprocNodeInfo, RunNodeRecord } from '../../api/types'
+
+const NO_UI: NodeUiCapabilities = { inner_dag: false, checkpoints: false, log: false, report: null, structural_qc: null, summary: null, label_map: null, views: [] }
 
 export const NODE_LIBRARY: PreprocNodeInfo[] = [
   {
@@ -7,20 +9,21 @@ export const NODE_LIBRARY: PreprocNodeInfo[] = [
     source: 'built-in', container_bound: false,
     inputs: { derivatives_dir: { kind: 'dir', required: true }, subject: { kind: 'str' } },
     outputs: { bold: { kind: 'nifti' }, confounds: { kind: 'tsv' } },
-    required_python: [], required_tools: [], required_env: [], params_schema: { file_pattern: { type: 'str', default: '*_bold.nii.gz' } }, checks: [],
+    required_python: [], required_tools: [], required_env: [], params_schema: { file_pattern: { type: 'str', default: '*_bold.nii.gz' } }, checks: [], ui: NO_UI,
   },
   {
     name: 'smooth', kind: 'interface', version: '0.1.0', description: 'Gaussian smoothing', source: 'built-in', container_bound: false,
     inputs: { in_file: { kind: 'nifti', required: true } }, outputs: { out_file: { kind: 'nifti' } },
-    required_python: [], required_tools: [], required_env: [], params_schema: { fwhm: { type: 'float', default: 5.0 } }, checks: [],
+    required_python: [], required_tools: [], required_env: [], params_schema: { fwhm: { type: 'float', default: 5.0 } }, checks: [], ui: NO_UI,
   },
   {
     name: 'fmriprep', kind: 'container_app', version: '0.2.0', description: 'fmriprep', source: 'built-in', container_bound: true,
     inputs: { bids_dir: { kind: 'dir', required: true }, subject: { kind: 'str', required: true }, output_dir: { kind: 'dir' } },
-    outputs: { bold_preproc: { kind: 'nifti' }, confounds: { kind: 'tsv' }, manifest: { kind: 'json' } },
+    outputs: { bold_preproc: { kind: 'nifti' }, confounds: { kind: 'tsv' }, manifest: { kind: 'json' }, report_html: { kind: 'html' }, fs_subjects_dir: { kind: 'dir' } },
     required_python: [], required_tools: [], required_env: [],
     params_schema: { mode: { type: 'str', default: 'full', enum: ['full', 'anat_only'], group: 'Mode' }, nthreads: { type: 'int', default: null, group: 'Resources' } },
     checks: ['nu.mgz', 'T1.mgz'],
+    ui: { inner_dag: true, checkpoints: true, log: true, report: 'report_html', structural_qc: 'fs_subjects_dir', summary: 'manifest', label_map: 'fmriprep', views: [] },
   },
 ]
 
@@ -51,7 +54,27 @@ export function buildRunDetail(overrides: Partial<PipelineRunDetail> = {}): Pipe
   }
 }
 
+export function buildRunNode(overrides: Partial<RunNodeRecord> = {}): RunNodeRecord {
+  return {
+    run_id: 'pp_abc', node_id: 'smooth', node_type: 'smooth', kind: 'interface', status: 'ok', duration_s: 3, work_dir: '/w/derivatives_smooth__sub_01/smooth',
+    outputs: { out_file: '/o/x.nii.gz' }, error: null, params: { fwhm: 5 }, ui: NO_UI, output_ports: { out_file: { kind: 'nifti' } },
+    params_schema: { fwhm: { type: 'float', default: 5.0 } }, has_log: false, subject: '01', dataset: 'ds', workflow: 'derivatives_smooth__sub_01', run_status: 'done',
+    ...overrides,
+  }
+}
+
+export const FMRIPREP_RUN_NODE: RunNodeRecord = buildRunNode({
+  node_id: 'fp', node_type: 'fmriprep', kind: 'container_app', has_log: true,
+  outputs: { derivatives_dir: '/o', report_html: '/o/sub-01.html', fs_subjects_dir: '/o/sourcedata/freesurfer', manifest: '/w/fp/preproc_manifest.json' },
+  params: { mode: 'anat_only' }, params_schema: NODE_LIBRARY[2].params_schema, output_ports: NODE_LIBRARY[2].outputs, ui: NODE_LIBRARY[2].ui,
+})
+
 export const preprocPipelinesHandlers = [
+  http.get('/api/preproc/runs/:id/nodes/:node/log', () => HttpResponse.json({ lines: ['a', 'b'], total: 2 })),
+  http.get('/api/preproc/runs/:id/nodes/:node/inner', () => HttpResponse.json({ prefix: 'p.fp.', nipype_status: { counts: { running: 0, ok: 1, failed: 0, completed_assumed: 0, total_seen: 1 }, recent_nodes: [{ node: 'fmriprep_wf.a.n1', leaf: 'n1', workflow: 'fmriprep_wf.a', status: 'ok', started_at: 1, finished_at: 2, elapsed: 1, crash_file: null, level: 'INFO' }] } })),
+  http.get('/api/preproc/runs/:id/nodes/:node/manifest', () => HttpResponse.json({ subject: '01', dataset: 'ds', backend: 'fmriprep', backend_version: '24.1.1', space: 'T1w', resolution: '', output_format: 'nifti', runs: [], confounds_applied: [], created: '2026-01-01T00:00:00Z', output_dir: '/o', sessions: [], additional_steps: [], freesurfer_subjects_dir: null })),
+  http.get('/api/preproc/runs/:id/nodes/:node', ({ params }) => HttpResponse.json(params.node === 'fp' ? FMRIPREP_RUN_NODE : buildRunNode({ node_id: String(params.node), run_id: String(params.id) }))),
+
   http.get('/api/preproc/nodes', () => HttpResponse.json({ nodes: NODE_LIBRARY, shadowed: [] })),
   http.get('/api/preproc/nodes/scaffold/:kind', ({ params }) => HttpResponse.json({ kind: params.kind, code: `@preproc_node("my_node") # ${params.kind}` })),
   http.get('/api/preproc/nodes/:name', ({ params }) => {

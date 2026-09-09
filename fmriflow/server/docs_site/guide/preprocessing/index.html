@@ -1547,11 +1547,25 @@ confound regression on derivatives produced elsewhere (<code>derivatives_source<
 pipeline of your own.</p>
 <h2 id="workflow-3-watch-a-run">Workflow 3: watch a run<a class="headerlink" href="#workflow-3-watch-a-run" title="Permanent link">&para;</a></h2>
 <p>The Runs tab shows the pipeline graph with each node coloured by status (running /
-done / cached ⟲ / failed) and a checkpoint badge. Click a node to open its <strong>outputs</strong>
-(the nipype work dir: NIfTIs render inline, reports and JSON open in place, crash files
-are shown). <strong>Inner DAG</strong> opens the fmriprep node's own nipype workflow — recon-all,
-BOLD preprocessing, field-map estimation — with live node status, because the node
-streams fmriprep's log into the same event stream.</p>
+done / cached ⟲ / failed) and a checkpoint badge. Click a node to see its <strong>outputs</strong>
+inline (the nipype work dir: NIfTIs render inline, reports and JSON open in place, crash
+files are shown). <strong>Double-click a node, or press Open</strong>, for the node popup — a window
+with a tab per thing the node can show:</p>
+<ul>
+<li>every node: <strong>Overview</strong> (status, parameters, outputs by port), <strong>Outputs</strong>,
+  <strong>Checkpoints</strong>, and <strong>Log</strong> when the app wrote its own stdout;</li>
+<li>an app node that declares the capability (fmriprep does): <strong>Inner DAG</strong> — its own
+  nipype workflow (recon-all, BOLD preprocessing, field-map estimation) with lanes per
+  run, friendly labels and docs links, live while it runs; <strong>Summary</strong> — spaces, runs
+  with motion / tSNR badges, confounds; <strong>Report</strong> — the subject's HTML report; and
+  <strong>Structural QC</strong> — FreeSurfer surfaces over the T1 with the review / sign-off form.</li>
+</ul>
+<p>Everything in the popup is scoped to <em>this run's</em> node, not to whichever manifest
+matches the subject. The Workflows view opens the same popup for a preprocessing
+stage's backend node with <strong>Backend node →</strong>. Which tabs a node gets is decided by the
+capabilities it derives from its contract or declares in a <code>UI</code> class attribute (see the
+<a href="../../reference/preproc-pipeline/#node-contract">pipeline reference</a>); a node you write
+yourself gets the generic tabs without any frontend work.</p>
 <p><strong>Checkpoints</strong> are the filmstrip under the graph. As recon-all writes each file the
 fmriprep node measures it — <code>orig/nu/T1.mgz</code> intensity statistics (unique values, modal
 fraction), <code>wm.mgz</code> volume, <code>?h.white</code> Euler numbers, <code>?h.thickness</code> mean and

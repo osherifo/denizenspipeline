@@ -1133,6 +1133,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Node contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#run-views-a-node-can-offer-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run views a node can offer (ui)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1268,6 +1285,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Node contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#run-views-a-node-can-offer-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run views a node can offer (ui)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1490,7 +1524,8 @@ package, a pip entry point (<code>fmriflow.preproc_nodes</code>), or a file unde
 <code>$FMRIFLOW_HOME/addons/nodes/</code>. Class attributes: <code>name</code>, <code>version</code>, <code>description</code>,
 <code>INPUTS</code>, <code>OUTPUTS</code> (dicts of port specs <code>{kind, required, description}</code> or plain lists),
 <code>PARAM_SCHEMA</code> (the same schema the module system uses, plus an optional <code>group</code> per
-field), <code>REQUIRED_PYTHON</code>, <code>REQUIRED_TOOLS</code>, <code>REQUIRED_ENV</code>, <code>CONTAINER</code>, <code>CHECKS</code>.</p>
+field), <code>REQUIRED_PYTHON</code>, <code>REQUIRED_TOOLS</code>, <code>REQUIRED_ENV</code>, <code>CONTAINER</code>, <code>CHECKS</code>, and an
+optional <code>UI</code> dict (below).</p>
 <table>
 <thead>
 <tr>
@@ -1522,6 +1557,69 @@ field), <code>REQUIRED_PYTHON</code>, <code>REQUIRED_TOOLS</code>, <code>REQUIRE
 </tr>
 </tbody>
 </table>
+<h3 id="run-views-a-node-can-offer-ui">Run views a node can offer (<code>ui</code>)<a class="headerlink" href="#run-views-a-node-can-offer-ui" title="Permanent link">&para;</a></h3>
+<p>The run UI's node popup shows generic tabs for every node and one more per capability.
+Capabilities are <strong>derived</strong> from the contract and can be overridden by a <code>UI</code> class
+attribute; the node library serves them as <code>ui</code> on each node:</p>
+<table>
+<thead>
+<tr>
+<th>key</th>
+<th>derived from</th>
+<th>unlocks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inner_dag</code></td>
+<td><code>INNER_NIPYPE_LOG = True</code></td>
+<td><strong>Inner DAG</strong>: the app's own nipype workflow, live</td>
+</tr>
+<tr>
+<td><code>checkpoints</code></td>
+<td>a non-empty <code>CHECKS</code></td>
+<td><strong>Checkpoints</strong> filmstrip</td>
+</tr>
+<tr>
+<td><code>log</code></td>
+<td>kind <code>container_app</code> (the app's <code>stdout.log</code>)</td>
+<td><strong>Log</strong></td>
+</tr>
+<tr>
+<td><code>report</code></td>
+<td>the first output port of <code>kind: html</code></td>
+<td><strong>Report</strong>: that HTML, with its relative assets</td>
+</tr>
+<tr>
+<td><code>structural_qc</code></td>
+<td>a <code>dir</code> port named <code>fs_subjects_dir</code> (or <code>role: freesurfer</code>)</td>
+<td><strong>Structural QC</strong>: FreeSurfer surfaces + review</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td>the <code>manifest</code> port (or <code>role: manifest</code>)</td>
+<td><strong>Summary</strong> of the manifest JSON</td>
+</tr>
+<tr>
+<td><code>label_map</code></td>
+<td>— (declare, e.g. <code>"fmriprep"</code>)</td>
+<td>friendly names + docs links in the Inner DAG</td>
+</tr>
+<tr>
+<td><code>views</code></td>
+<td>— (declare)</td>
+<td>opaque extra view ids; unknown ids are ignored</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nd">@preproc_node</span><span class="p">(</span><span class="s2">&quot;my_app&quot;</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;container_app&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyApp</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">INNER_NIPYPE_LOG</span> <span class="o">=</span> <span class="kc">True</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">OUTPUTS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;report_html&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;kind&quot;</span><span class="p">:</span> <span class="s2">&quot;html&quot;</span><span class="p">},</span> <span class="s2">&quot;manifest&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;kind&quot;</span><span class="p">:</span> <span class="s2">&quot;json&quot;</span><span class="p">}}</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;label_map&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>          <span class="c1"># everything else derives</span>
+</code></pre></div>
+<p>The values are port names: the popup serves whatever path that port holds for <em>this
+run's</em> node, via <code>GET /api/preproc/runs/{id}/nodes/{node_id}/…</code>.</p>
 <p>The Library tab's <strong>New node</strong> offers a scaffold per kind; <strong>Import nipype pipeline</strong>
 turns a <code>.py</code> file with a <code>build()</code> function or a module-level <code>Workflow</code> into a
 composite node.</p>
@@ -1551,13 +1649,13 @@ composite node.</p>
 </table>
 <p><code>&lt;run dir&gt;/checkpoints.jsonl</code> holds the full records
 (<code>GET /api/preproc/runs/{id}/checkpoints</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="nt">&quot;stage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preproc&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pp_…&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;node&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fmriprep_anat_only__sub_01.fmriprep&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w"> </span><span class="nt">&quot;step&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nu.mgz&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;subject&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w"> </span><span class="nt">&quot;metrics&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;n_unique&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">70</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;modal_fraction&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.669</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;modal_value&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">110</span><span class="p">},</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w"> </span><span class="nt">&quot;expectations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;modal_fraction&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&lt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.5</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;n_unique&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">]},</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w"> </span><span class="nt">&quot;soft_expectations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;modal_fraction&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&lt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.3</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;n_unique&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">200</span><span class="p">]},</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w"> </span><span class="nt">&quot;verdict&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bad&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reasons&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;modal_fraction=0.669 violates &lt; 0.5&quot;</span><span class="p">],</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w"> </span><span class="nt">&quot;artifact&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;…/sub-01/mri/nu.mgz&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;t&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1757430000.0</span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="nt">&quot;stage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preproc&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pp_…&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;node&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fmriprep_anat_only__sub_01.fmriprep&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w"> </span><span class="nt">&quot;step&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nu.mgz&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;subject&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w"> </span><span class="nt">&quot;metrics&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;n_unique&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">70</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;modal_fraction&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.669</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;modal_value&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">110</span><span class="p">},</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w"> </span><span class="nt">&quot;expectations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;modal_fraction&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&lt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.5</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;n_unique&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">]},</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w"> </span><span class="nt">&quot;soft_expectations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;modal_fraction&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&lt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.3</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;n_unique&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">200</span><span class="p">]},</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w"> </span><span class="nt">&quot;verdict&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bad&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reasons&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;modal_fraction=0.669 violates &lt; 0.5&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w"> </span><span class="nt">&quot;artifact&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;…/sub-01/mri/nu.mgz&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;t&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1757430000.0</span><span class="p">}</span>
 </code></pre></div>
 <p>Verdicts: <code>ok</code> (all bounds hold), <code>suspicious</code> (a soft bound fails), <code>bad</code> (a hard
 bound fails), <code>unknown</code> (a metric could not be computed). The norms table lives in
@@ -1615,8 +1713,13 @@ sequence-specific overrides.</p>
 </tr>
 <tr>
 <td>GET</td>
-<td><code>/api/preproc/runs/{id}/work_tree</code> · <code>/node/{path}/files</code> · <code>/file</code> · <code>/pickle</code></td>
+<td><code>/api/preproc/runs/{id}/work_tree[?prefix=]</code> · <code>/node/{path}/files</code> · <code>/file</code> · <code>/pickle</code></td>
 <td>node outputs</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/preproc/runs/{id}/nodes/{node_id}</code> · <code>/log</code> · <code>/inner</code> · <code>/manifest</code> · <code>/report/{rest}</code> · <code>/fs-file?rel=</code> · <code>/freeview-command</code></td>
+<td>one node of one run (the popup); <code>POST …/drawing</code></td>
 </tr>
 <tr>
 <td>GET/POST</td>

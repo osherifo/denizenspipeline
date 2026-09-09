@@ -56,6 +56,9 @@ class FmriprepNode:
     version = "0.2.0"
     description = "fmriprep (bare, from PATH): anatomical + functional preprocessing."
     INNER_NIPYPE_LOG = True
+    # Friendly names for the inner nipype nodes; every other UI capability
+    # (report, structural QC, summary, checkpoints) derives from the ports/CHECKS.
+    UI = {"label_map": "fmriprep"}
     FINGERPRINT_INPUTS = ["bids_dir"]
     REQUIRED_PYTHON: list[str] = []
     REQUIRED_TOOLS: list[str] = []

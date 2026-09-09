@@ -2,6 +2,9 @@
 import type {
   CheckpointRecord,
   CheckpointSummary,
+  ManifestDetail,
+  NodeInnerStatus,
+  RunNodeRecord,
   PipelineDoc,
   PipelineEvent,
   PipelineRunDetail,
@@ -127,6 +130,29 @@ export async function fetchPipelineRunLog(runId: string, tail = 200): Promise<{ 
 
 export async function fetchRunCrash(runId: string, name: string): Promise<{ name: string; text: string }> {
   return json(`${BASE}/preproc/runs/${enc(runId)}/crashes/${enc(name)}`)
+}
+
+// ── one node of one run (the node popup) ──
+
+export async function fetchRunNode(runId: string, nodeId: string): Promise<RunNodeRecord> {
+  return json(`${BASE}/preproc/runs/${enc(runId)}/nodes/${enc(nodeId)}`)
+}
+
+export async function fetchRunNodeLog(runId: string, nodeId: string, tail = 500): Promise<{ lines: string[]; total: number }> {
+  return json(`${BASE}/preproc/runs/${enc(runId)}/nodes/${enc(nodeId)}/log?tail=${tail}`)
+}
+
+export async function fetchRunNodeInner(runId: string, nodeId: string, cap = 500): Promise<NodeInnerStatus> {
+  return json(`${BASE}/preproc/runs/${enc(runId)}/nodes/${enc(nodeId)}/inner?cap=${cap}`)
+}
+
+export async function fetchRunNodeManifest(runId: string, nodeId: string): Promise<ManifestDetail> {
+  return json(`${BASE}/preproc/runs/${enc(runId)}/nodes/${enc(nodeId)}/manifest`)
+}
+
+/** Ends with `/report/` so the report's relative asset URLs resolve under it. */
+export function runNodeReportUrl(runId: string, nodeId: string): string {
+  return `${BASE}/preproc/runs/${enc(runId)}/nodes/${enc(nodeId)}/report/`
 }
 
 export async function fetchRunCheckpoints(runId: string): Promise<{ checkpoints: CheckpointRecord[]; summary: CheckpointSummary }> {

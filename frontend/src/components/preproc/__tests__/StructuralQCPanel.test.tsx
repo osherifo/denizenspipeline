@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../../test/mocks/server'
-import { renderWithProviders, screen, waitFor } from '../../../test/render'
+import { renderWithProviders, screen, waitFor, fireEvent } from '../../../test/render'
 import { StructuralQCPanel } from '../StructuralQCPanel'
 
 
@@ -113,5 +113,21 @@ describe('<StructuralQCPanel />', () => {
     await user.click(screen.getByRole('button', { name: /show 3d viewer/i }))
     // Toggle button label flips when the viewer is open.
     expect(screen.getByRole('button', { name: /hide 3d viewer/i })).toBeInTheDocument()
+  })
+
+  it('a run source reads files from the run node and files the review per subject with the dataset', async () => {
+    const seen: string[] = []
+    server.use(
+      http.get('/api/preproc/subjects/sub01/structural-qc', ({ request }) => {
+        seen.push(new URL(request.url).search)
+        return HttpResponse.json({ dataset: 'ds-run', subject: 'sub01', status: 'pending', reviewer: '', timestamp: null, notes: '', freeview_command_used: null })
+      }),
+    )
+    const { container } = renderWithProviders(
+      <StructuralQCPanel source={{ kind: 'run', runId: 'r1', nodeId: 'fp', subject: 'sub01', dataset: 'ds-run' }} />,
+    )
+    await waitFor(() => expect(seen).toContain('?dataset=ds-run'))
+    fireEvent.click(screen.getByText(/show fmriprep report/i))
+    await waitFor(() => expect(container.querySelector('iframe')?.getAttribute('src')).toBe('/api/preproc/runs/r1/nodes/fp/report/'))
   })
 })

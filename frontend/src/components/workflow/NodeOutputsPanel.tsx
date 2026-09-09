@@ -275,11 +275,16 @@ interface Props {
   runId: string
   node: string | null
   leafDir?: string
-  onClose: () => void
+  onClose?: () => void
+  /** `drawer` (default) sits beside a graph at 40% width; `inline` fills its container. */
+  variant?: 'drawer' | 'inline'
 }
 
 
-export function NodeOutputsPanel({ runId, node, onClose }: Props) {
+export function NodeOutputsPanel({ runId, node, onClose, variant = 'drawer' }: Props) {
+  const panelStyle: CSSProperties = variant === 'inline'
+    ? { ...drawer, width: '100%', minWidth: 0, maxWidth: 'none', borderLeft: 'none', height: '100%' }
+    : drawer
   const [data, setData] = useState<NodeOutputsList | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openFile, setOpenFile] = useState<string | null>(null)
@@ -302,21 +307,23 @@ export function NodeOutputsPanel({ runId, node, onClose }: Props) {
   if (!node) return null
 
   return (
-    <div style={drawer}>
+    <div style={panelStyle}>
       <div style={drawerHeader}>
-        <button
-          style={{
-            ...closeBtn,
-            marginLeft: 0,
-            padding: '2px 8px',
-            fontWeight: 700,
-          }}
-          onClick={onClose}
-          title="Hide outputs panel (DAG stays open)"
-          aria-label="Hide outputs panel"
-        >
-          →
-        </button>
+        {onClose && (
+          <button
+            style={{
+              ...closeBtn,
+              marginLeft: 0,
+              padding: '2px 8px',
+              fontWeight: 700,
+            }}
+            onClick={onClose}
+            title="Hide outputs panel (DAG stays open)"
+            aria-label="Hide outputs panel"
+          >
+            →
+          </button>
+        )}
         <div style={{ fontSize: 12, fontWeight: 700 }}>{node.split('.').pop()}</div>
         <code style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
           {node}

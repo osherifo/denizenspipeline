@@ -32,6 +32,7 @@ def test_templates_and_nodes(client):
     assert {"fmriprep", "smooth", "bids_source", "reference_fsl_ants", "select"} <= names
     fp = client.get("/api/preproc/nodes/fmriprep").json()
     assert fp["kind"] == "container_app" and "mode" in fp["params_schema"] and fp["source_code"]
+    assert fp["ui"]["inner_dag"] and fp["ui"]["report"] == "report_html" and fp["ui"]["label_map"] == "fmriprep"
     assert client.get("/api/preproc/nodes/identity/preflight").json()["ok"]
     assert client.get("/api/preproc/nodes/nope").status_code == 404
     assert "preproc_node" in client.get("/api/preproc/nodes/scaffold/interface").json()["code"]

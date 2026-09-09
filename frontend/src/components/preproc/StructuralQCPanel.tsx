@@ -12,11 +12,15 @@ import {
   reportUrl,
   fsFileUrl,
 } from '../../api/structural-qc'
-import type { StructuralQCReview, StructuralQCStatus } from '../../api/types'
+import type { StructuralQCSource, StructuralQCReview, StructuralQCStatus } from '../../api/types'
 import { parseFreeSurferCurv } from './curv_parser'
 
-interface Props {
-  subject: string
+type Props = (
+  | { subject: string; source?: undefined }
+  | { source: StructuralQCSource; subject?: undefined }
+) & {
+  /** Height of the embedded fmriprep report iframe (px). */
+  reportHeight?: number
 }
 
 type SurfaceKind = 'pial' | 'white' | 'inflated'
@@ -65,7 +69,12 @@ const primaryBtn: CSSProperties = {
   border: 'none',
 }
 
-export function StructuralQCPanel({ subject }: Props) {
+export function StructuralQCPanel(props: Props) {
+  // Files come from the source (a subject's manifest, or one run's node);
+  // the review is keyed per subject either way.
+  const src: StructuralQCSource = props.source ?? { kind: 'subject', subject: props.subject as string }
+  const subject = src.subject
+  const reportHeight = props.reportHeight ?? 600
   const [review, setReview] = useState<StructuralQCReview | null>(null)
   const [status, setStatus] = useState<StructuralQCStatus>('pending')
   const [reviewer, setReviewer] = useState('')
@@ -144,7 +153,7 @@ export function StructuralQCPanel({ subject }: Props) {
   // Load existing review
   useEffect(() => {
     let cancelled = false
-    fetchReview(subject)
+    fetchReview(src)
       .then((r) => {
         if (cancelled) return
         setReview(r)
@@ -213,7 +222,7 @@ export function StructuralQCPanel({ subject }: Props) {
     // niivue derives the file format from `name` (preferring it over `url`),
     // so the name MUST keep its extension or `getFileExt` blows up with
     // "Cannot read properties of undefined (reading 'toUpperCase')".
-    nv.loadVolumes([{ url: fsFileUrl(subject, 'mri/T1.mgz'), name: 'T1.mgz' }])
+    nv.loadVolumes([{ url: fsFileUrl(src, 'mri/T1.mgz'), name: 'T1.mgz' }])
       .then(() => {
         nv.setSliceType(sliceType)
         // Populate dim/voxel state so the scrubbers know their range
@@ -685,7 +694,7 @@ export function StructuralQCPanel({ subject }: Props) {
         const dSlope = curvSlope === 0 ? 1e8 : 1.0 / curvSlope
         const layerFor = (h: 'lh' | 'rh') =>
             [{
-                url: fsFileUrl(subject, curvFile(h)),
+                url: fsFileUrl(src, curvFile(h)),
                 name: `${h}.curv`,
                 colormap: 'freeview_curv',
                 colormapNegative: '',
@@ -696,8 +705,8 @@ export function StructuralQCPanel({ subject }: Props) {
                 opacity: curvShaded ? 1 : 0,
               }]
         const specs = [
-          { url: fsFileUrl(subject, `surf/lh.${kind}`), name: `lh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('lh') },
-          { url: fsFileUrl(subject, `surf/rh.${kind}`), name: `rh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('rh') },
+          { url: fsFileUrl(src, `surf/lh.${kind}`), name: `lh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('lh') },
+          { url: fsFileUrl(src, `surf/rh.${kind}`), name: `rh.${kind}`, rgba255: SURFACE_COLOR, layers: layerFor('rh') },
         ]
         // Cast: NVMeshLayer requires cal_minNeg/cal_maxNeg/frame4D/
         // nFrame4D/values in its types, but niivue fills these from
@@ -776,7 +785,7 @@ export function StructuralQCPanel({ subject }: Props) {
           if (!m.layers?.[0]?.values || !m.name) continue
           const h = m.name.startsWith('lh') ? 'lh' : m.name.startsWith('rh') ? 'rh' : null
           if (!h) continue
-          curvUrls.push([m, fsFileUrl(subject, curvFile(h))])
+          curvUrls.push([m, fsFileUrl(src, curvFile(h))])
         }
         if (gl && curvUrls.length > 0) {
           const fetches = curvUrls.map(async ([m, url]) => {
@@ -869,7 +878,7 @@ export function StructuralQCPanel({ subject }: Props) {
   async function handleSave() {
     setSaving(true)
     try {
-      const result = await saveReview(subject, {
+      const result = await saveReview(src, {
         status,
         reviewer,
         notes,
@@ -888,7 +897,7 @@ export function StructuralQCPanel({ subject }: Props) {
   async function handleCopyFreeview() {
     setFreeviewErr(null)
     try {
-      const { command } = await fetchFreeviewCommand(subject)
+      const { command } = await fetchFreeviewCommand(src)
       await navigator.clipboard.writeText(command)
       setFreeviewCmd(command)
     } catch (e) {
@@ -928,11 +937,11 @@ export function StructuralQCPanel({ subject }: Props) {
         </button>
         {showReport && (
           <iframe
-            src={reportUrl(subject)}
+            src={reportUrl(src)}
             title="fmriprep report"
             style={{
               width: '100%',
-              height: 600,
+              height: reportHeight,
               marginTop: 8,
               border: '1px solid var(--border)',
               borderRadius: 4,
@@ -1334,7 +1343,7 @@ export function StructuralQCPanel({ subject }: Props) {
 
                       // Upload to backend + get freeview command
                       try {
-                        const result = await uploadDrawing(subject, bytes, ras)
+                        const result = await uploadDrawing(src, bytes, ras)
                         setFreeviewCmd(result.command)
                         await navigator.clipboard.writeText(result.command)
                       } catch (e) {

@@ -1381,7 +1381,53 @@ export interface PreprocNodeInfo {
   required_env: string[]
   params_schema: Record<string, ParamField & { group?: string }>
   checks: string[]
+  /** What the run UI may show for this node (derived from the contract, overridable by `UI`). */
+  ui: NodeUiCapabilities
 }
+
+/** Run-view capabilities a node declares or derives. File-backed ones name an output port. */
+export interface NodeUiCapabilities {
+  inner_dag: boolean
+  checkpoints: boolean
+  log: boolean
+  report: string | null
+  structural_qc: string | null
+  summary: string | null
+  label_map: string | null
+  views: string[]
+}
+
+/** One node of one run, as served by /preproc/runs/{id}/nodes/{node_id}. */
+export interface RunNodeRecord {
+  run_id: string
+  node_id: string
+  node_type: string
+  kind: PreprocNodeKind | ''
+  status: string
+  duration_s: number | null
+  work_dir: string | null
+  outputs: Record<string, unknown>
+  error: string | null
+  params: Record<string, unknown>
+  ui: Partial<NodeUiCapabilities>
+  output_ports: Record<string, PortSpec>
+  params_schema: Record<string, ParamField & { group?: string }>
+  has_log: boolean
+  subject: string
+  dataset: string | null
+  workflow: string | null
+  run_status: string | null
+}
+
+export interface NodeInnerStatus {
+  prefix: string
+  nipype_status: NipypeStatusBlock
+}
+
+/** Where the structural-QC files for a subject come from: the subject's manifest, or one run's node. */
+export type StructuralQCSource =
+  | { kind: 'subject'; subject: string }
+  | { kind: 'run'; runId: string; nodeId: string; subject: string; dataset?: string | null }
 
 export interface PreprocNodeDetail extends PreprocNodeInfo {
   source_code: string | null

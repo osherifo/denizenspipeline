@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fmriflow.server.routes.structural_qc import _build_freeview_command
+from fmriflow.server.services.qc_files import build_freeview_command
 
 
 def test_command_includes_only_existing_files(tmp_path):
@@ -14,7 +14,7 @@ def test_command_includes_only_existing_files(tmp_path):
     (fs_subject / "mri" / "T1.mgz").write_bytes(b"")
     (fs_subject / "surf" / "lh.pial").write_bytes(b"")
 
-    cmd = _build_freeview_command(fs_subject)
+    cmd = build_freeview_command(fs_subject)
 
     assert cmd.startswith("freeview")
     assert "T1.mgz" in cmd
@@ -29,5 +29,5 @@ def test_command_includes_only_existing_files(tmp_path):
 def test_empty_fs_dir_yields_bare_command(tmp_path):
     fs_subject = tmp_path / "sub-01"
     fs_subject.mkdir()
-    cmd = _build_freeview_command(fs_subject)
+    cmd = build_freeview_command(fs_subject)
     assert cmd == "freeview"

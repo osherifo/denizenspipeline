@@ -117,11 +117,25 @@ pipeline of your own.
 ## Workflow 3: watch a run
 
 The Runs tab shows the pipeline graph with each node coloured by status (running /
-done / cached ⟲ / failed) and a checkpoint badge. Click a node to open its **outputs**
-(the nipype work dir: NIfTIs render inline, reports and JSON open in place, crash files
-are shown). **Inner DAG** opens the fmriprep node's own nipype workflow — recon-all,
-BOLD preprocessing, field-map estimation — with live node status, because the node
-streams fmriprep's log into the same event stream.
+done / cached ⟲ / failed) and a checkpoint badge. Click a node to see its **outputs**
+inline (the nipype work dir: NIfTIs render inline, reports and JSON open in place, crash
+files are shown). **Double-click a node, or press Open**, for the node popup — a window
+with a tab per thing the node can show:
+
+- every node: **Overview** (status, parameters, outputs by port), **Outputs**,
+  **Checkpoints**, and **Log** when the app wrote its own stdout;
+- an app node that declares the capability (fmriprep does): **Inner DAG** — its own
+  nipype workflow (recon-all, BOLD preprocessing, field-map estimation) with lanes per
+  run, friendly labels and docs links, live while it runs; **Summary** — spaces, runs
+  with motion / tSNR badges, confounds; **Report** — the subject's HTML report; and
+  **Structural QC** — FreeSurfer surfaces over the T1 with the review / sign-off form.
+
+Everything in the popup is scoped to *this run's* node, not to whichever manifest
+matches the subject. The Workflows view opens the same popup for a preprocessing
+stage's backend node with **Backend node →**. Which tabs a node gets is decided by the
+capabilities it derives from its contract or declares in a `UI` class attribute (see the
+[pipeline reference](../reference/preproc-pipeline.md#node-contract)); a node you write
+yourself gets the generic tabs without any frontend work.
 
 **Checkpoints** are the filmstrip under the graph. As recon-all writes each file the
 fmriprep node measures it — `orig/nu/T1.mgz` intensity statistics (unique values, modal
