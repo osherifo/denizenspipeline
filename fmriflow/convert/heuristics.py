@@ -309,6 +309,36 @@ def get_heuristic_template(name: str = "my_study") -> str:
     return render_template(name=name)
 
 
+def copy_heuristic(src_name: str, new_name: str) -> HeuristicInfo:
+    """Duplicate a heuristic (any tier) into the user tier under *new_name*.
+
+    Code and sidecar are copied; the sidecar's ``name`` is rewritten. Refuses
+    to overwrite an existing user-tier heuristic of that name.
+    """
+    _validate_heuristic_name(new_name)
+    src_py = get_heuristic(src_name)
+    hdir = _heuristics_dir()
+    dest_py = hdir / f"{new_name}.py"
+    if dest_py.exists():
+        raise HeuristicError(
+            f"Heuristic '{new_name}' already exists; pick another name",
+            subject="",
+        )
+    shutil.copy2(src_py, dest_py)
+    src_yaml = src_py.with_suffix(".yaml")
+    data: dict[str, Any] = {}
+    if src_yaml.is_file():
+        try:
+            data = yaml.safe_load(src_yaml.read_text()) or {}
+        except Exception:
+            logger.warning("Could not parse sidecar %s; copying without it", src_yaml, exc_info=True)
+            data = {}
+    data["name"] = new_name
+    (hdir / f"{new_name}.yaml").write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+    logger.info("Copied heuristic '%s' -> '%s' at %s", src_name, new_name, dest_py)
+    return _load_heuristic_info(dest_py)
+
+
 def remove_heuristic(name: str) -> None:
     """Remove a heuristic and its sidecar from the registry."""
     _validate_heuristic_name(name)

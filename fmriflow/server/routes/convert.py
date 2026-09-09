@@ -58,6 +58,10 @@ class SaveHeuristicBody(BaseModel):
     notes: str | None = None
 
 
+class CopyHeuristicBody(BaseModel):
+    new_name: str
+
+
 class HeuristicTemplateBody(BaseModel):
     name: str = "my_study"
 
@@ -371,6 +375,28 @@ async def delete_heuristic(request: Request, name: str):
         return {"deleted": True, "name": name}
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/convert/heuristics/{name}/copy")
+async def copy_heuristic_route(request: Request, name: str, body: CopyHeuristicBody):
+    """Duplicate a heuristic (bundled or user) into the user tier under a new name."""
+    from fmriflow.convert.heuristics import HeuristicError, copy_heuristic
+
+    try:
+        info = copy_heuristic(name, body.new_name)
+    except HeuristicError as e:
+        status = 409 if "already exists" in str(e) else 404
+        raise HTTPException(status_code=status, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "copied": True,
+        "source": name,
+        "name": info.name,
+        "path": str(info.path),
+        "description": info.description,
+        "version": info.version,
+    }
 
 
 @router.get("/convert/heuristics/{name}/code")

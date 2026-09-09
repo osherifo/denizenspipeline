@@ -122,6 +122,13 @@ def add_convert_subcommands(subparsers: argparse._SubParsersAction) -> None:
     heur_info.add_argument("--code", action="store_true",
                            help="Print the heuristic Python source code")
 
+    # heuristics copy
+    heur_copy = heur_subs.add_parser(
+        "copy", help="Duplicate a heuristic (bundled or user) under a new name",
+    )
+    heur_copy.add_argument("source", help="Existing heuristic name")
+    heur_copy.add_argument("new_name", help="Name for the copy")
+
     # heuristics create
     heur_create = heur_subs.add_parser(
         "create", help="Create a new heuristic from template",
@@ -499,6 +506,16 @@ def _convert_heuristics(args) -> int:
             return 0
         except Exception as e:
             print(f"\nFailed to register: {e}", file=sys.stderr)
+            return 1
+
+    elif heur_cmd == "copy":
+        from fmriflow.convert.heuristics import copy_heuristic
+        try:
+            info = copy_heuristic(args.source, args.new_name)
+            print(f"Copied '{args.source}' -> '{info.name}' at {info.path}")
+            return 0
+        except Exception as e:
+            print(f"\n{e}", file=sys.stderr)
             return 1
 
     elif heur_cmd == "info":

@@ -86,6 +86,14 @@ describe('useConvertStore', () => {
       expect(sent).toMatchObject({ name: 'h', description: 'd', version: '3', tasks: ['a', 'b', 'c'] })
     })
 
+    it('copyHeuristic reloads the list and opens the copy', async () => {
+      await useConvertStore.getState().copyHeuristic('reading_heuristic', 'reading_v2')
+      const s = useConvertStore.getState()
+      expect(s.editorName).toBe('reading_v2')
+      expect(s.editorCode).toBe('# heuristic')
+      expect(s.editorError).toBeNull()
+    })
+
     it('deleteHeuristic clears editor when current heuristic is deleted', async () => {
       useConvertStore.getState().setEditorName('h')
       useConvertStore.getState().setEditorCode('# x')

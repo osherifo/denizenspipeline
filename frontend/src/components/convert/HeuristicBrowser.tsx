@@ -193,7 +193,7 @@ export function HeuristicBrowser() {
     editorCode, editorName, editorMeta, editorDirty, editorLoading, editorSaving,
     editorError, editorSaveSuccess,
     openHeuristic, newHeuristic, setEditorCode, setEditorName, setEditorMeta,
-    saveHeuristic: doSave, deleteHeuristic: doDelete, closeEditor,
+    saveHeuristic: doSave, deleteHeuristic: doDelete, copyHeuristic: doCopy, closeEditor,
   } = store
 
   const [showNewDialog, setShowNewDialog] = useState(false)
@@ -368,6 +368,21 @@ export function HeuristicBrowser() {
                 <span style={{ color: 'var(--accent-green)', fontSize: 11 }}>Saved</span>
               )}
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                {heuristics.some((h) => h.name === editorName) && (
+                  <button
+                    style={btnSmall}
+                    title="Copy this heuristic (code + metadata) under a new name in your addons"
+                    onClick={async () => {
+                      const newName = await dlg.prompt(
+                        `Copy "${editorName}" as:`,
+                        { defaultValue: `${editorName}_copy`, placeholder: 'new_heuristic_name' },
+                      )
+                      if (newName && newName.trim()) doCopy(editorName, newName.trim())
+                    }}
+                  >
+                    Duplicate
+                  </button>
+                )}
                 {heuristics.some((h) => h.name === editorName) && (
                   <button
                     style={{ ...btnSmall, color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}

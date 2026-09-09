@@ -498,6 +498,14 @@ export async function deleteHeuristic(name: string): Promise<{ deleted: boolean;
   return json(`${BASE}/convert/heuristics/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
 
+export async function copyHeuristic(name: string, newName: string): Promise<{ copied: boolean; source: string; name: string; path: string }> {
+  return json(`${BASE}/convert/heuristics/${encodeURIComponent(name)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_name: newName }),
+  })
+}
+
 export async function fetchConvertManifests(): Promise<ConvertManifestSummary[]> {
   const r = await json<{ manifests: ConvertManifestSummary[] }>(`${BASE}/convert/manifests`)
   return r.manifests

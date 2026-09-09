@@ -80,7 +80,14 @@ fmriflow convert heuristics add my_heuristic.py
 
 # Get info about a heuristic
 fmriflow convert heuristics info my_study
+
+# Duplicate one (bundled or your own) under a new name to adapt it
+fmriflow convert heuristics copy glab_general my_study
 ```
+
+A copy takes the code and the metadata sidecar and lands in your own
+`$FMRIFLOW_HOME/addons/heuristics/`, so the bundled original stays as it is.
+The Web UI's Heuristics editor has the same action as a **Duplicate** button.
 
 ### Metadata sidecar
 

@@ -19,6 +19,10 @@ export const convertHandlers = [
   http.post('/api/convert/heuristics/template', () =>
     HttpResponse.json({ code: '# template', name: 'my_study' }),
   ),
+  http.post('/api/convert/heuristics/:name/copy', async ({ params, request }) => {
+    const b = (await request.json()) as { new_name: string }
+    return HttpResponse.json({ copied: true, source: params.name, name: b.new_name, path: `/tmp/${b.new_name}.py` })
+  }),
   http.delete('/api/convert/heuristics/:name', ({ params }) =>
     HttpResponse.json({ deleted: true, name: params.name }),
   ),

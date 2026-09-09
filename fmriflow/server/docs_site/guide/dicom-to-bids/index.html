@@ -1549,7 +1549,13 @@ The picker's <strong>New folder</strong> button creates a directory in place, ha
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Get info about a heuristic</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>fmriflow<span class="w"> </span>convert<span class="w"> </span>heuristics<span class="w"> </span>info<span class="w"> </span>my_study
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Duplicate one (bundled or your own) under a new name to adapt it</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>fmriflow<span class="w"> </span>convert<span class="w"> </span>heuristics<span class="w"> </span>copy<span class="w"> </span>glab_general<span class="w"> </span>my_study
 </code></pre></div>
+<p>A copy takes the code and the metadata sidecar and lands in your own
+<code>$FMRIFLOW_HOME/addons/heuristics/</code>, so the bundled original stays as it is.
+The Web UI's Heuristics editor has the same action as a <strong>Duplicate</strong> button.</p>
 <h3 id="metadata-sidecar">Metadata sidecar<a class="headerlink" href="#metadata-sidecar" title="Permanent link">&para;</a></h3>
 <p>The description, version, scanner pattern, task list and notes shown for a
 heuristic do not come from the Python file. They live in a YAML sidecar

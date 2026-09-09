@@ -19,6 +19,7 @@ import {
   saveHeuristic,
   fetchHeuristicTemplate,
   deleteHeuristic,
+  copyHeuristic,
   fetchConvertManifests,
   rescanConvertManifests,
   fetchConvertManifestDetail,
@@ -191,6 +192,8 @@ interface ConvertState {
   setEditorMeta: (patch: Partial<HeuristicMeta>) => void
   saveHeuristic: () => Promise<void>
   deleteHeuristic: (name: string) => Promise<void>
+  /** Duplicate `name` as `newName` in the user tier, then open the copy. */
+  copyHeuristic: (name: string, newName: string) => Promise<void>
   closeEditor: () => void
   loadManifests: () => Promise<void>
   rescan: () => Promise<void>
@@ -370,6 +373,18 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
         set({ editorCode: '', editorName: '', editorMeta: { ...EMPTY_HEURISTIC_META }, editorDirty: false, editorError: null, editorSaveSuccess: false })
       }
       get().loadHeuristics()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ editorError: msg })
+    }
+  },
+
+  copyHeuristic: async (name, newName) => {
+    set({ editorError: null })
+    try {
+      const r = await copyHeuristic(name, newName)
+      await get().loadHeuristics()
+      await get().openHeuristic(r.name)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       set({ editorError: msg })
