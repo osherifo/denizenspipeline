@@ -33,8 +33,9 @@ describe('PathPickerModal files in directory mode', () => {
     await waitFor(() => expect(screen.getByText('README.txt')).toBeInTheDocument())
     expect(screen.getByText(/1 folders · 1 files/)).toBeInTheDocument()
     fireEvent.click(screen.getByText('README.txt'))
-    fireEvent.click(screen.getByText('Use selected'))
-    expect(onPick).not.toHaveBeenCalled()
+    // a file click selects nothing in directory mode: the pick button still offers the directory
+    expect(screen.getByText('Use this directory')).toBeInTheDocument()
+    expect(screen.queryByText('Use selected')).toBeNull()
     fireEvent.click(screen.getByText('sub01'))
     fireEvent.click(screen.getByText('Use selected'))
     expect(onPick).toHaveBeenCalledWith('/workspace/data/dicoms/sub01')
