@@ -1327,22 +1327,6 @@ export interface ConvertSeriesDecision {
   status: string
 }
 
-export interface ConvertCoverageRow {
-  subject: string
-  /** Output count per key, parallel to ConvertCoverage.keys. */
-  cells: number[]
-}
-
-export interface ConvertCoverage {
-  bids_dir: string
-  subjects: string[]
-  keys: string[]
-  matrix: ConvertCoverageRow[]
-  /** Keys declared by a heuristic but produced for no subject — rule bugs. */
-  never_matched: string[]
-  errors: Record<string, string>
-}
-
 export interface ConvertFlowLink {
   source: string
   target: string

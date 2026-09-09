@@ -43,7 +43,6 @@ import type {
   HubPublishResult,
   HubProvenanceMap,
   ConvertDecisionTable,
-  ConvertCoverage,
   ConvertFlow,
 } from './types'
 
@@ -820,11 +819,6 @@ export async function fetchConvertDecisionTable(
 ): Promise<ConvertDecisionTable> {
   const qs = new URLSearchParams({ bids_dir, subject }).toString()
   return json(`${BASE}/convert/decision-table?${qs}${session ? `&session=${encodeURIComponent(session)}` : ''}`)
-}
-
-export async function fetchConvertCoverage(bids_dir: string): Promise<ConvertCoverage> {
-  const qs = new URLSearchParams({ bids_dir }).toString()
-  return json(`${BASE}/convert/coverage?${qs}`)
 }
 
 export async function fetchConvertFlow(bids_dir: string): Promise<ConvertFlow> {

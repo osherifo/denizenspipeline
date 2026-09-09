@@ -1,36 +1,30 @@
 /**
- * What the heuristic did with each DICOM series — three views, three questions.
+ * What the heuristic did with each DICOM series — two views, two questions.
  *
  * 1. Audit table (per subject). One row per series with the parameters a rule
  *    discriminates on — TR/TE/dims/image_type — beside the BIDS path it
  *    produced. This is the debugging view: you need the parameters and the
  *    outcome in the same row to see *why* a rule fired.
- * 2. Coverage matrix (per study). Subjects x BIDS keys. A whole empty column
- *    is a rule that never matched anywhere — a code bug. A single empty cell
- *    is one subject missing what the others have — a data incident. Same
- *    visual, different diagnosis.
- * 3. Flow (per study). Aggregated protocol -> datatype -> suffix. Aggregate
+ * 2. Flow (per study). Aggregated protocol -> datatype -> suffix. Aggregate
  *    only; at series granularity it is spaghetti. Its job is making the
  *    dropped ribbon impossible to scroll past.
  *
- * All three derive from provenance heudiconv already leaves behind, so they
+ * Both derive from provenance heudiconv already leaves behind, so they
  * work on any converted dataset without re-running anything.
  */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import {
-  fetchConvertCoverage,
   fetchConvertDecisionTable,
   fetchConvertFlow,
 } from '../../api/client'
 import type {
-  ConvertCoverage,
   ConvertDecisionTable as TableData,
   ConvertFlow,
 } from '../../api/types'
 
-type View = 'audit' | 'coverage' | 'flow'
+type View = 'audit' | 'flow'
 
 interface Props {
   bidsDir: string
@@ -38,7 +32,7 @@ interface Props {
   defaultView?: View
 }
 
-export function ConvertDecisionTable({ bidsDir, subject, defaultView = 'coverage' }: Props) {
+export function ConvertDecisionTable({ bidsDir, subject, defaultView = 'audit' }: Props) {
   const [view, setView] = useState<View>(defaultView)
 
   return (
@@ -46,15 +40,14 @@ export function ConvertDecisionTable({ bidsDir, subject, defaultView = 'coverage
       <div style={headerStyle}>
         <span>DICOM → BIDS</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {(['coverage', 'audit', 'flow'] as View[]).map(v => (
+          {(['audit', 'flow'] as View[]).map(v => (
             <button key={v} style={tabStyle(v === view)} onClick={() => setView(v)}>
-              {v === 'coverage' ? 'Coverage' : v === 'audit' ? 'Audit' : 'Flow'}
+              {v === 'audit' ? 'Audit' : 'Flow'}
             </button>
           ))}
         </div>
       </div>
       {view === 'audit' && <AuditTable bidsDir={bidsDir} subject={subject} />}
-      {view === 'coverage' && <CoverageMatrix bidsDir={bidsDir} />}
       {view === 'flow' && <FlowView bidsDir={bidsDir} />}
     </div>
   )
@@ -168,101 +161,7 @@ function StatusTag({ status }: { status: string }) {
   )
 }
 
-// ── 2. coverage matrix ──────────────────────────────────────────────
-
-function CoverageMatrix({ bidsDir }: { bidsDir: string }) {
-  const { data, error, loading } = useAsync<ConvertCoverage>(
-    () => fetchConvertCoverage(bidsDir), [bidsDir])
-
-  if (loading) return <div style={hintStyle}>Scanning subjects…</div>
-  if (error) return <Missing error={error} />
-  if (!data || data.subjects.length === 0) {
-    return <div style={hintStyle}>No converted subjects with provenance in this dataset.</div>
-  }
-
-  const dead = new Set(data.never_matched)
-
-  return (
-    <>
-      <div style={subHeaderStyle}>
-        {data.subjects.length} subject{data.subjects.length === 1 ? '' : 's'} ·{' '}
-        {data.keys.length} BIDS key{data.keys.length === 1 ? '' : 's'}
-        {data.subjects.length === 1 && (
-          <span style={{ marginLeft: 10 }}>
-            (one subject — this view earns its keep once a study has several)
-          </span>
-        )}
-      </div>
-
-      {dead.size > 0 && (
-        <div style={warnBoxStyle}>
-          <div style={warnRowStyle}>
-            ⚠ {dead.size} rule{dead.size === 1 ? '' : 's'} declared but never matched for
-            any subject — a heuristic bug rather than missing data:{' '}
-            {[...dead].join(', ')}
-          </div>
-        </div>
-      )}
-
-      <div style={{ overflowX: 'auto' }}>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>subject</th>
-              {data.keys.map(k => (
-                <th key={k} style={{
-                  ...thStyle,
-                  color: dead.has(k) ? 'var(--accent-red, #ef4444)' : undefined,
-                }}>
-                  {k}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.matrix.map(row => (
-              <tr key={row.subject}>
-                <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 600 }}>
-                  sub-{row.subject}
-                </td>
-                {row.cells.map((n, i) => (
-                  <td key={data.keys[i]} style={cellStyle(n, dead.has(data.keys[i]))}>
-                    {n || '—'}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={footnoteStyle}>
-        Cell = number of outputs. Run indices fold together (four runs of one
-        acquisition is one column); <code>inv-1</code> and <code>inv-2</code> stay
-        separate, because a subject missing one is a real finding. A whole red
-        column is a rule that never fired; a single red cell is one subject
-        missing what the others have.
-      </div>
-    </>
-  )
-}
-
-/** Empty cells are the point of this view, so they get the colour. */
-function cellStyle(n: number, columnDead: boolean): CSSProperties {
-  const base: CSSProperties = {
-    ...tdStyle, textAlign: 'center', fontFamily: 'monospace', fontWeight: 600,
-  }
-  if (n > 0) return { ...base, color: 'var(--text-primary)' }
-  return {
-    ...base,
-    // A dead column is already called out above; a lone empty cell is the
-    // surprising one, so it gets to be the loudest thing on screen.
-    color: columnDead ? 'var(--text-secondary)' : 'var(--on-accent, #fff)',
-    background: columnDead ? 'transparent' : 'var(--accent-red, #ef4444)',
-  }
-}
-
-// ── 3. flow ─────────────────────────────────────────────────────────
+// ── 2. flow ─────────────────────────────────────────────────────────
 
 function FlowView({ bidsDir }: { bidsDir: string }) {
   const { data, error, loading } = useAsync<ConvertFlow>(

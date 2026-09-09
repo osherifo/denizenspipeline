@@ -12,7 +12,6 @@ from fmriflow.convert.decision_table import (
     DecisionTableError,
     list_units,
     bids_key,
-    build_coverage,
     build_decision_table,
     build_flow,
     has_provenance,
@@ -258,7 +257,7 @@ def test_item_indexes_from_one_within_each_rule(tmp_path):
     assert outs == ["sub-01/anat/sub-01_run-01_T1w", "sub-01/anat/sub-01_run-02_T1w"]
 
 
-# ── coverage matrix ─────────────────────────────────────────────────
+# ── bids_key ─────────────────────────────────────────────────
 
 
 def test_bids_key_folds_runs_but_keeps_distinct_images(tmp_path):
@@ -267,60 +266,6 @@ def test_bids_key_folds_runs_but_keeps_distinct_images(tmp_path):
            bids_key("sub-01/anat/sub-01_run-04_T1w")
     assert bids_key("sub-01/anat/sub-01_inv-1_MP2RAGE") != \
            bids_key("sub-01/anat/sub-01_inv-2_MP2RAGE")
-
-
-def test_coverage_counts_outputs_per_subject_and_key(tmp_path):
-    for sub, rows, mapping in (
-        ("01", [_row("1-a", "A"), _row("2-b", "B")],
-         {"sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w": ["1-a", "2-b"]}),
-        ("02", [_row("1-a", "A")],
-         {"sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w": ["1-a"]}),
-    ):
-        _write(tmp_path, rows, mapping, subject=sub)
-
-    cov = build_coverage(tmp_path)
-
-    assert cov["subjects"] == ["sub-01", "sub-02"]
-    assert cov["keys"] == ["anat/T1w"]
-    assert cov["matrix"][0]["cells"] == [2]
-    assert cov["matrix"][1]["cells"] == [1]
-
-
-def test_coverage_distinguishes_a_missing_subject_from_a_dead_rule(tmp_path):
-    """The two failure modes the matrix exists to tell apart.
-
-    sub-02 is missing T2w that sub-01 has — a data incident, one empty cell.
-    `sbref` is declared by both heuristics and produced by neither — a code
-    bug, an empty column.
-    """
-    _write(tmp_path, [_row("1-a", "A"), _row("2-t2", "T2")],
-           {"sub-{subject}/anat/sub-{subject}_T1w": ["1-a"],
-            "sub-{subject}/anat/sub-{subject}_T2w": ["2-t2"],
-            "sub-{subject}/func/sub-{subject}_sbref": []},
-           subject="01")
-    _write(tmp_path, [_row("1-a", "A")],
-           {"sub-{subject}/anat/sub-{subject}_T1w": ["1-a"],
-            "sub-{subject}/anat/sub-{subject}_T2w": [],
-            "sub-{subject}/func/sub-{subject}_sbref": []},
-           subject="02")
-
-    cov = build_coverage(tmp_path)
-    col = {k: i for i, k in enumerate(cov["keys"])}
-    cells = {r["subject"]: r["cells"] for r in cov["matrix"]}
-
-    # data incident: present for one subject, absent for the other
-    assert cells["sub-01"][col["anat/T2w"]] == 1
-    assert cells["sub-02"][col["anat/T2w"]] == 0
-    assert "anat/T2w" not in cov["never_matched"]
-
-    # code bug: declared everywhere, produced nowhere
-    assert "func/sbref" in cov["never_matched"]
-    assert all(r["cells"][col["func/sbref"]] == 0 for r in cov["matrix"])
-
-
-def test_coverage_is_empty_without_provenance(tmp_path):
-    cov = build_coverage(tmp_path)
-    assert cov["subjects"] == [] and cov["matrix"] == []
 
 
 # ── flow ────────────────────────────────────────────────────────────
@@ -385,8 +330,6 @@ def test_units_list_every_session_separately(tmp_path):
         ("01", "ses-01"), ("01", "ses-02"), ("02", "ses-01"),
     ]
 
-    cov = build_coverage(tmp_path)
-    assert cov["subjects"] == ["sub-01/ses-01", "sub-01/ses-02", "sub-02/ses-01"]
 
 
 # ── subject normalisation ───────────────────────────────────────────
@@ -416,7 +359,7 @@ def _write_sessioned(tmp_path, rows, mapping, subject="01", ses="ses-01"):
 
 
 def test_sessioned_heudiconv_layout_is_found(tmp_path):
-    from fmriflow.convert.decision_table import build_coverage, build_flow, has_provenance, list_units
+    from fmriflow.convert.decision_table import build_flow, has_provenance, list_units
     _write_sessioned(tmp_path, [_row("1", "t1"), _row("2", "bold")], {"anat": ["1"], "func": ["2"]}, ses="ses-01")
     _write_sessioned(tmp_path, [_row("3", "t1")], {"anat": ["3"]}, ses="ses-02")
     assert list_units(tmp_path) == [("01", "ses-01"), ("01", "ses-02")]
@@ -425,5 +368,4 @@ def test_sessioned_heudiconv_layout_is_found(tmp_path):
     table = build_decision_table(tmp_path, "01").to_dict()
     assert table["session"] == "ses-01" and table["n_series"] == 2 and table["n_mapped"] == 2
     assert build_decision_table(tmp_path, "01", "02").to_dict()["n_series"] == 1
-    assert build_coverage(tmp_path)["subjects"] != []
     assert build_flow(tmp_path)["n_series"] == 3
