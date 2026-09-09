@@ -32,6 +32,13 @@ done
 # .env does not produce a warning about an unset variable.
 export FMRIFLOW_HOME
 
+# Distinguish "no container" from "cannot talk to docker": an unreachable
+# daemon must not be reported as a successful no-op.
+if ! docker info >/dev/null 2>&1; then
+    echo "error: cannot reach the docker daemon (not running, or no permission)." >&2
+    exit 1
+fi
+
 state="$(docker inspect fmriflow --format '{{.State.Status}}' 2>/dev/null || true)"
 
 if [ -z "$state" ]; then
