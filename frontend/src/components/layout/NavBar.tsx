@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { useThemeStore } from '../../stores/theme-store'
+import { fetchVersion } from '../../api/client'
 
 interface NavBarProps {
   currentRoute: string
@@ -156,9 +157,34 @@ export function NavBar({ currentRoute }: NavBarProps) {
     setExpanded((prev) => ({ ...prev, [label]: !prev[label] }))
   }
 
+  const [version, setVersion] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetchVersion()
+      .then((v) => { if (!cancelled) setVersion(v.version) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <nav style={sidebarStyle}>
-      <a href="#dashboard" style={logoStyle}>fMRIflow</a>
+      <a href="#dashboard" style={logoStyle}>
+        fMRIflow
+        {version && (
+          <span
+            style={{
+              display: 'block',
+              fontSize: 10,
+              fontWeight: 500,
+              letterSpacing: 0.5,
+              color: 'var(--text-secondary)',
+              marginTop: 2,
+            }}
+          >
+            v{version}
+          </span>
+        )}
+      </a>
       {groups.map((g) => {
         const isExpanded = expanded[g.label] ?? false
         const hasActive = g.items.some((i) => i.key === currentRoute)

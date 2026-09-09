@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from fmriflow import __version__
 from fmriflow.core import paths
 from fmriflow.registry import ModuleRegistry
 from fmriflow.server.services.run_store import RunStore
@@ -65,7 +66,7 @@ def create_app(
         logger.info("[paths] %-15s = %s", k, v)
     app = FastAPI(
         title="fMRIflow",
-        version="0.1.0",
+        version=__version__,
         description="Frontend API for the fMRIflow encoding model pipeline.",
     )
 

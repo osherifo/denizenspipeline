@@ -8,7 +8,7 @@ fmriflow serve
 
 Then open `http://127.0.0.1:8000` in your browser.
 
-The sidebar organizes features into four groups: **Pipeline**, **Preprocessing**, **Analysis**, and **Reference**.
+The sidebar organizes features into four groups: **Pipeline**, **Preprocessing**, **Analysis**, and **Reference**. The installed fMRIflow version is shown under the logo at the top of the sidebar.
 
 ---
 

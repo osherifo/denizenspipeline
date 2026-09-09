@@ -926,6 +926,10 @@ export async function fetchSettings(): Promise<import('./types').SettingsSnapsho
   return json(`${BASE}/settings`)
 }
 
+export async function fetchVersion(): Promise<{ version: string }> {
+  return json(`${BASE}/settings/version`)
+}
+
 export async function saveSettings(
   body: import('./types').SettingsUpdate,
 ): Promise<import('./types').SettingsSnapshot> {

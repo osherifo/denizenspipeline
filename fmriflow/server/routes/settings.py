@@ -19,6 +19,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from fmriflow import __version__
 from fmriflow.core import paths
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,12 @@ class SettingsUpdate(BaseModel):
 def get_settings() -> dict:
     """Return the current settings snapshot (resolved paths + sources)."""
     return paths.settings_snapshot()
+
+
+@router.get("/version")
+def get_version() -> dict:
+    """Return the installed fmriflow package version."""
+    return {"version": __version__}
 
 
 @router.post("")
