@@ -1,5 +1,6 @@
 /** Convert manifest detail panel — metadata, runs table, BIDS validation, scanner info. */
 import { useState, useEffect } from 'react'
+import { DirTree } from '../common/DirTree'
 import type { CSSProperties } from 'react'
 import type { ConvertManifestDetail } from '../../api/types'
 import { useConvertStore } from '../../stores/convert-store'
@@ -334,6 +335,10 @@ export function ConvertManifestDetailPanel({ manifest }: Props) {
         bidsDir={manifest.bids_dir}
         subject={manifest.subject}
       />
+
+      {/* Output structure (read-only) */}
+      <div style={sectionLabel}>Output structure</div>
+      <DirTree path={manifest.bids_dir} title="BIDS directory" />
 
       {/* Raw JSON */}
       <div style={sectionLabel}>
