@@ -77,6 +77,12 @@ def register_preproc_workflow(name: str):
                 cls.__module__, cls.__qualname__,
             )
         _REGISTRY[name] = cls
+        # Also a composite node in the unified library (unless the class
+        # opts out — the backend adapters do, since fmriprep/custom/bids_app
+        # become real container_app nodes there).
+        if not getattr(cls, "_NODE_REGISTRY_SKIP", False):
+            from fmriflow.preproc.node_registry import preproc_node
+            preproc_node(name, kind="composite")(cls)
         return cls
 
     return wrapper

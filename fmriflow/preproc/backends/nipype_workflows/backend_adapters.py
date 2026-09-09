@@ -76,6 +76,7 @@ class FmriprepWorkflow:
     (singularity / docker / bare), CLI argument building, and
     manifest construction.
     """
+    _NODE_REGISTRY_SKIP = True  # becomes a real container_app node
 
     name = "fmriprep"
     version = "wrapped"
@@ -118,6 +119,7 @@ class FmriprepWorkflow:
 @register_preproc_workflow("custom")
 class CustomShellWorkflow:
     """Wraps the existing ``CustomBackend`` (shell-command template)."""
+    _NODE_REGISTRY_SKIP = True  # becomes a real container_app node
 
     name = "custom"
     version = "wrapped"
@@ -160,6 +162,7 @@ class CustomShellWorkflow:
 @register_preproc_workflow("bids_app")
 class BidsAppWorkflow:
     """Wraps the existing ``BidsAppBackend`` (any BIDS-App container)."""
+    _NODE_REGISTRY_SKIP = True  # becomes a real container_app node
 
     name = "bids_app"
     version = "wrapped"

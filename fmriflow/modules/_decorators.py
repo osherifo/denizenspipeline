@@ -61,7 +61,22 @@ preparation_step = _make_decorator(_preparation_steps)
 analyzer = _make_decorator(_analyzers)
 model = _make_decorator(_models)
 reporter = _make_decorator(_reporters)
-nipype_node = _make_decorator(_nipype_nodes)
+_nipype_node_legacy = _make_decorator(_nipype_nodes)
+
+
+def nipype_node(name: str):
+    """Register a post-preproc DAG node.
+
+    Also registers the class in the unified preprocessing node library
+    (``fmriflow.preproc.node_registry``), where it is an ``interface``
+    node — the same class object serves both.
+    """
+    def wrapper(cls):
+        _nipype_node_legacy(name)(cls)
+        from fmriflow.preproc.node_registry import preproc_node
+        preproc_node(name, kind="interface")(cls)
+        return cls
+    return wrapper
 group_analyzer = _make_decorator(_group_analyzers)
 group_reporter = _make_decorator(_group_reporters)
 study_analyzer = _make_decorator(_study_analyzers)

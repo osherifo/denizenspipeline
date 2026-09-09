@@ -73,6 +73,9 @@ def register_transform(name: str):
                 cls.__module__, cls.__qualname__,
             )
         _REGISTRY[name] = cls
+        # Also an interface node in the unified library.
+        from fmriflow.preproc.node_registry import preproc_node
+        preproc_node(name, kind="interface")(cls)
         return cls
 
     return wrapper
@@ -96,7 +99,8 @@ def _infer_source(cls: type, pip_modules: dict[str, str]) -> TransformSource:
     ``discover()`` ran in this call.
     """
     mod = getattr(cls, "__module__", "") or ""
-    if mod.startswith(BUILT_IN_PACKAGE):
+    # Built-in transforms now live in the unified node package.
+    if mod.startswith(BUILT_IN_PACKAGE) or mod.startswith("fmriflow.preproc.nodes"):
         return "built-in"
     if mod.startswith(USER_MODULE_PREFIX):
         return "user"
