@@ -9,8 +9,10 @@
 #   ./scripts/fmriflow-up.sh              # full image, /mnt/data/fmriflow
 #   ./scripts/fmriflow-up.sh --slim       # slim image (orchestrator only)
 #   ./scripts/fmriflow-up.sh --build      # rebuild before starting
-#   ./scripts/fmriflow-up.sh --down       # stop and exit
+#   ./scripts/fmriflow-up.sh --down       # stop and exit (same as fmriflow-down.sh)
 #   FMRIFLOW_HOME=/other/path ./scripts/fmriflow-up.sh
+#
+# Siblings: fmriflow-build.sh (build only), fmriflow-down.sh (stop only).
 #
 set -euo pipefail
 
@@ -26,11 +28,11 @@ while [ $# -gt 0 ]; do
         --slim)  COMPOSE_FILE="docker-compose.yml" ;;
         --build) BUILD=1 ;;
         --down)
-            FMRIFLOW_HOME="$FMRIFLOW_HOME" docker compose -f "$COMPOSE_FILE" down
-            echo "stopped."
-            exit 0
+            down_args=()
+            [ "$COMPOSE_FILE" = "docker-compose.yml" ] && down_args+=(--slim)
+            FMRIFLOW_HOME="$FMRIFLOW_HOME" exec scripts/fmriflow-down.sh "${down_args[@]}"
             ;;
-        -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
     shift
