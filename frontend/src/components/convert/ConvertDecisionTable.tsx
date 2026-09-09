@@ -63,8 +63,9 @@ export function ConvertDecisionTable({ bidsDir, subject, defaultView = 'coverage
 // ── 1. audit table ──────────────────────────────────────────────────
 
 function AuditTable({ bidsDir, subject }: { bidsDir: string; subject: string }) {
+  const [session, setSession] = useState<string | undefined>(undefined)
   const { data, error, loading } = useAsync<TableData>(
-    () => fetchConvertDecisionTable(bidsDir, subject), [bidsDir, subject])
+    () => fetchConvertDecisionTable(bidsDir, subject, session), [bidsDir, subject, session])
   const [showDropped, setShowDropped] = useState(true)
 
   if (loading) return <div style={hintStyle}>Reading conversion provenance…</div>
@@ -72,11 +73,22 @@ function AuditTable({ bidsDir, subject }: { bidsDir: string; subject: string }) 
   if (!data) return null
 
   const rows = showDropped ? data.series : data.series.filter(s => !s.dropped)
+  const sessions = data.sessions ?? []
 
   return (
     <>
       <div style={subHeaderStyle}>
-        sub-{data.subject}{data.session ? `/${data.session}` : ''} ·{' '}
+        sub-{data.subject}
+        {sessions.length > 1 ? (
+          <select
+            value={session ?? data.session ?? ''}
+            onChange={e => setSession(e.target.value || undefined)}
+            title="this subject has several sessions with conversion provenance"
+            style={{ marginLeft: 4, fontSize: 11, padding: '1px 4px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }}
+          >
+            {sessions.map(s => <option key={s} value={s}>/{s}</option>)}
+          </select>
+        ) : (data.session ? `/${data.session}` : '')} ·{' '}
         {data.n_series} series in ·{' '}
         <strong style={{ color: 'var(--accent-green, #10b981)' }}>{data.n_mapped} mapped</strong> ·{' '}
         <strong style={{ color: data.n_dropped ? 'var(--accent-yellow, #e2a832)' : 'inherit' }}>
@@ -335,11 +347,12 @@ function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
 /** Absent provenance is ordinary, not a failure. */
 function Missing({ error }: { error: string }) {
   const missing = error.includes('404')
+  // The server says exactly why (no such directory, no provenance, no mapping file…).
+  const detail = error.replace(/^Error:\s*/, '').replace(/^\d{3}:\s*/, '')
   return (
     <div style={hintStyle}>
-      {missing
-        ? 'No conversion provenance for this dataset — it was not produced by heudiconv, or .heudiconv was removed.'
-        : `Could not read it: ${error}`}
+      {missing ? 'No conversion provenance found. ' : 'Could not read it. '}
+      <span style={{ opacity: 0.8 }}>{detail}</span>
     </div>
   )
 }

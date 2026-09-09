@@ -170,11 +170,15 @@ async def get_convert_decision_table(
     if not root.is_dir():
         raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
 
+    from fmriflow.convert.decision_table import list_units
     try:
         table = build_decision_table(root, subject, session)
     except DecisionTableError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    return table.to_dict()
+    out = table.to_dict()
+    label = subject if subject.startswith("sub-") else subject
+    out["sessions"] = [ses for sub, ses in list_units(root) if sub in (subject, label, f"sub-{subject}") and ses]
+    return out
 
 
 @router.get("/convert/coverage")

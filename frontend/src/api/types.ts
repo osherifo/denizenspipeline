@@ -1360,6 +1360,7 @@ export interface ConvertFlow {
 }
 
 export interface ConvertDecisionTable {
+  sessions?: string[]          // sessions with provenance for this subject
   /** Bare label, without the `sub-` prefix. */
   subject: string
   session: string | null

@@ -152,6 +152,26 @@ def _label(subject: str) -> str:
     return subject[4:] if subject.startswith("sub-") else subject
 
 
+
+def _dicominfo(info: Path) -> Path | None:
+    """heudiconv writes ``dicominfo.tsv`` sessionless and ``dicominfo_ses-<ses>.tsv``
+    for a sessioned conversion."""
+    flat = info / "dicominfo.tsv"
+    if flat.is_file():
+        return flat
+    return next(iter(sorted(info.glob("dicominfo_ses-*.tsv"))), None)
+
+
+def _mapping_file(info: Path, label: str) -> Path | None:
+    """``<sub>.auto.txt`` (or a hand-edited ``.edit.txt``); sessioned runs get
+    ``<sub>_ses-<ses>.auto.txt``. The edit file wins when both exist."""
+    for pattern in (f"{label}.edit.txt", f"{label}_ses-*.edit.txt", f"{label}.auto.txt", f"{label}_ses-*.auto.txt"):
+        found = sorted(info.glob(pattern)) if "*" in pattern else ([info / pattern] if (info / pattern).is_file() else [])
+        if found:
+            return found[0]
+    return None
+
+
 def info_dir(bids_dir: Path | str, subject: str, session: str | None = None) -> Path:
     """Locate a conversion's ``info`` directory.
 
@@ -170,10 +190,10 @@ def info_dir(bids_dir: Path | str, subject: str, session: str | None = None) -> 
         return root / label / "info"
 
     flat = root / "info"
-    if (flat / "dicominfo.tsv").is_file():
+    if _dicominfo(flat) is not None:
         return flat
     for child in sorted(root.glob("ses-*")):
-        if (child / "info" / "dicominfo.tsv").is_file():
+        if _dicominfo(child / "info") is not None:
             return child / "info"
     return flat        # nothing found; caller reports the miss
 
@@ -190,10 +210,10 @@ def list_units(bids_dir: Path | str) -> list[tuple[str, str | None]]:
         return []
     units: list[tuple[str, str | None]] = []
     for sub in sorted(p for p in root.iterdir() if p.is_dir()):
-        if (sub / "info" / "dicominfo.tsv").is_file():
+        if _dicominfo(sub / "info") is not None:
             units.append((sub.name, None))
         for ses in sorted(sub.glob("ses-*")):
-            if (ses / "info" / "dicominfo.tsv").is_file():
+            if _dicominfo(ses / "info") is not None:
                 units.append((sub.name, ses.name))
     return units
 
@@ -213,11 +233,11 @@ def unit_label(subject: str, session: str | None) -> str:
 
 
 def _read_series(info: Path) -> list[dict]:
-    path = info / "dicominfo.tsv"
-    if not path.is_file():
+    path = _dicominfo(info)
+    if path is None:
         raise DecisionTableError(
-            f"no dicominfo.tsv under {info} — this dataset was not produced by "
-            "heudiconv, or its .heudiconv directory was removed"
+            f"no dicominfo.tsv (or dicominfo_ses-*.tsv) under {info} — this dataset was not "
+            "produced by heudiconv, or its .heudiconv directory was removed"
         )
     with open(path, newline="") as f:
         return [
@@ -234,8 +254,7 @@ def _read_mapping(info: Path, subject: str) -> dict[str, list[tuple[str, int]]]:
     path actually written.
     """
     label = _label(subject)
-    candidates = [info / f"{label}.auto.txt", info / f"{label}.edit.txt"]
-    path = next((p for p in candidates if p.is_file()), None)
+    path = _mapping_file(info, label)
     if path is None:
         raise DecisionTableError(
             f"no {label}.auto.txt under {info} — the conversion left no "
@@ -263,8 +282,7 @@ def declared_templates(info: Path, subject: str) -> list[str]:
     never matched — the coverage matrix's "whole empty column".
     """
     label = _label(subject)
-    path = next((p for p in (info / f"{label}.auto.txt", info / f"{label}.edit.txt")
-                 if p.is_file()), None)
+    path = _mapping_file(info, label)
     if path is None:
         return []
     try:
@@ -415,6 +433,9 @@ def build_decision_table(
 ) -> DecisionTable:
     """Reconstruct what the heuristic did, from files heudiconv left behind."""
     info = info_dir(bids_dir, subject, session)
+    if not session and info.parent.name.startswith("ses-"):
+        session = info.parent.name  # the session the fallback picked
+
     rows = _read_series(info)
     mapping = _read_mapping(info, subject)
 
@@ -462,10 +483,7 @@ def has_provenance(
 ) -> bool:
     """True when a decision table can be built — lets the UI hide the panel."""
     info = info_dir(bids_dir, subject, session)
-    label = _label(subject)
-    return (info / "dicominfo.tsv").is_file() and (
-        (info / f"{label}.auto.txt").is_file() or (info / f"{label}.edit.txt").is_file()
-    )
+    return _dicominfo(info) is not None and _mapping_file(info, _label(subject)) is not None
 
 
 # ── view 3: coverage matrix ──────────────────────────────────────────

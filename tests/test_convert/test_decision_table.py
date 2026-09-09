@@ -400,3 +400,30 @@ def test_subject_is_returned_as_a_bare_label(tmp_path):
     assert build_decision_table(tmp_path, "01").subject == "01"
     assert build_decision_table(tmp_path, "sub-01").subject == "01"
     assert build_decision_table(tmp_path, "sub-01").to_dict()["subject"] == "01"
+
+
+def _write_sessioned(tmp_path, rows, mapping, subject="01", ses="ses-01"):
+    """heudiconv's layout for a sessioned run: dicominfo_ses-01.tsv + 01_ses-01.auto.txt."""
+    info = tmp_path / ".heudiconv" / subject / ses / "info"
+    info.mkdir(parents=True)
+    (info / f"dicominfo_{ses}.tsv").write_text("\n".join([SERIES_HEADER, *rows]) + "\n")
+    entries = ",\n ".join(
+        f"({template!r}, ('nii.gz',), None): {sids!r}"
+        for template, sids in mapping.items()
+    )
+    (info / f"{subject}_{ses}.auto.txt").write_text("{" + entries + "}")
+    return tmp_path
+
+
+def test_sessioned_heudiconv_layout_is_found(tmp_path):
+    from fmriflow.convert.decision_table import build_coverage, build_flow, has_provenance, list_units
+    _write_sessioned(tmp_path, [_row("1", "t1"), _row("2", "bold")], {"anat": ["1"], "func": ["2"]}, ses="ses-01")
+    _write_sessioned(tmp_path, [_row("3", "t1")], {"anat": ["3"]}, ses="ses-02")
+    assert list_units(tmp_path) == [("01", "ses-01"), ("01", "ses-02")]
+    assert has_provenance(tmp_path, "01")
+    # No session named -> the first session found.
+    table = build_decision_table(tmp_path, "01").to_dict()
+    assert table["session"] == "ses-01" and table["n_series"] == 2 and table["n_mapped"] == 2
+    assert build_decision_table(tmp_path, "01", "02").to_dict()["n_series"] == 1
+    assert build_coverage(tmp_path)["subjects"] != []
+    assert build_flow(tmp_path)["n_series"] == 3
