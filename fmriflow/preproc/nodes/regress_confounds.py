@@ -46,16 +46,20 @@ class RegressConfoundsTransform:
         "BIDS-derivatives TSV; writes a residual NIfTI."
     )
 
-    INPUTS = ["in_file"]
-    OUTPUTS = ["out_file"]
+    INPUTS = {
+        "in_file": {"kind": "nifti", "required": True, "description": "4D BOLD"},
+        "confounds_file": {"kind": "tsv", "required": False,
+                           "description": "confounds TSV (or set the confounds_path param)"},
+    }
+    OUTPUTS = {"out_file": {"kind": "nifti", "description": "residual BOLD"}}
 
     PARAM_SCHEMA: dict[str, Any] = {
         "confounds_path": {
             "type": "str",
             "default": "",
             "description": (
-                "Path to the confounds TSV (BIDS-derivatives style). "
-                "Required."
+                "Path to the confounds TSV (BIDS-derivatives style); "
+                "used when no confounds_file input is connected."
             ),
         },
         "columns": {
@@ -92,10 +96,10 @@ class RegressConfoundsTransform:
         import numpy as np
 
         in_file = Path(inputs["in_file"])
-        confounds_path = params.get("confounds_path") or ""
+        confounds_path = inputs.get("confounds_file") or params.get("confounds_path") or ""
         if not confounds_path:
             raise ValueError(
-                "regress_confounds: 'confounds_path' is required (no default)."
+                "regress_confounds: connect a confounds_file input or set 'confounds_path'."
             )
         confounds_path = Path(confounds_path)
         if not confounds_path.is_file():

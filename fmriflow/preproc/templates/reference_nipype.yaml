@@ -1,0 +1,25 @@
+schema_version: 1
+name: reference_nipype
+description: Hand-written nipype preprocessing (MCFLIRT, BET, FLIRT BBR, ANTs SyN) on raw BIDS. Needs FSL + ANTs.
+inputs:
+  bids_dir: {kind: dir, description: BIDS root}
+  subject: {kind: str, description: participant label}
+nodes:
+  - id: bids
+    type: bids_source
+    kind: source
+    data:
+      params: {}
+      bindings: {bids_dir: $inputs.bids_dir, subject: $inputs.subject}
+    position: {x: 0, y: 0}
+  - id: ref
+    type: reference_fsl_ants
+    kind: composite
+    data:
+      params: {bet_frac: 0.5, mc_ref: mean, bbr_dof: 6, syn_quick: true}
+      iter: {handle: bold}
+    position: {x: 300, y: 0}
+edges:
+  - {id: e1, source: bids, sourceHandle: bold, target: ref, targetHandle: bold}
+  - {id: e2, source: bids, sourceHandle: t1w, target: ref, targetHandle: t1w}
+manifest: {backend_node: ref, bold_from: ref.bold_mc}

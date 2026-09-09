@@ -54,7 +54,7 @@ class PipelineNode:
     params: dict[str, Any] = field(default_factory=dict)
     literal_inputs: dict[str, Any] = field(default_factory=dict)
     bindings: dict[str, str] = field(default_factory=dict)   # port -> "$inputs.<name>"
-    iter: dict[str, Any] | None = None    # {"handle": "<port>", "values": [...] | "$manifest.runs"}
+    iter: dict[str, Any] | None = None    # {"handle": "<port>"} (+ optional literal "values": [...])
     position: dict[str, float] = field(default_factory=dict)
 
     def to_reactflow(self) -> dict[str, Any]:
@@ -361,8 +361,13 @@ class Pipeline:
                         f"node {n.id}: iter handle {handle!r} not in "
                         f"{n.type}.INPUTS={sorted(inputs)}"
                     )
-            if "values" not in n.iter:
-                errors.append(f"node {n.id}: iter needs 'values'")
+            # The list to iterate over arrives on the handle's edge, or is
+            # given literally as ``values``; one of the two must be there.
+            fed_by_edge = any(e.target_handle == handle for e in self.predecessors(n.id))
+            if not fed_by_edge and "values" not in n.iter:
+                errors.append(
+                    f"node {n.id}: iter handle {handle!r} needs an incoming edge or literal 'values'"
+                )
 
         backend_node = self.manifest.get("backend_node")
         if backend_node and backend_node not in ids:

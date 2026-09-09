@@ -1,0 +1,33 @@
+schema_version: 1
+name: derivatives_smooth_regress
+description: Take already-preprocessed BOLD from a derivatives dir, smooth it, regress motion confounds.
+inputs:
+  derivatives_dir: {kind: dir, description: existing preprocessed derivatives}
+  subject: {kind: str, description: participant label}
+nodes:
+  - id: source
+    type: derivatives_source
+    kind: source
+    data:
+      params: {}
+      bindings: {derivatives_dir: $inputs.derivatives_dir, subject: $inputs.subject}
+    position: {x: 0, y: 0}
+  - id: smooth
+    type: smooth
+    kind: interface
+    data:
+      params: {fwhm: 5.0}
+      iter: {handle: in_file}
+    position: {x: 300, y: 0}
+  - id: regress
+    type: regress_confounds
+    kind: interface
+    data:
+      params: {}
+      iter: {handle: in_file}
+    position: {x: 600, y: 0}
+edges:
+  - {id: e1, source: source, sourceHandle: bold, target: smooth, targetHandle: in_file}
+  - {id: e2, source: smooth, sourceHandle: out_file, target: regress, targetHandle: in_file}
+  - {id: e3, source: source, sourceHandle: confounds, target: regress, targetHandle: confounds_file}
+manifest: {backend_node: source, bold_from: regress.out_file, confounds_from: source.confounds}
