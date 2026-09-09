@@ -38,6 +38,18 @@ const input: CSSProperties = { padding: '5px 8px', borderRadius: 4, border: '1px
 const btn: CSSProperties = { ...input, cursor: 'pointer' }
 const small: CSSProperties = { fontSize: 11, color: 'var(--text-secondary)' }
 
+/* Sidebar cards (templates / saved pipelines) live in a narrow column; the
+   node chain is one line that scrolls sideways when it does not fit, and a
+   long name wraps instead of spilling out of the box. */
+const sideCard: CSSProperties = {
+  padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 4,
+  fontSize: 12, background: 'var(--bg-card)', minWidth: 0, overflow: 'hidden',
+}
+const sideCardName: CSSProperties = { fontWeight: 600, overflowWrap: 'anywhere' }
+const sideCardChain: CSSProperties = {
+  fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflowX: 'auto', paddingBottom: 2,
+}
+
 function tabFromHash(): PreprocTab {
   const m = /preproc\/(build|runs|library|outputs)/.exec(window.location.hash)
   return (m?.[1] as PreprocTab) ?? 'build'
@@ -80,9 +92,9 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
           <div style={{ ...small, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Templates</div>
           {s.templates.map((t) => (
             <div key={t.name} title={t.description} onClick={() => void s.loadTemplate(t.name)}
-              style={{ padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 4, cursor: 'pointer', fontSize: 12, background: 'var(--bg-card)' }}>
-              <div style={{ fontWeight: 600 }}>{t.name}</div>
-              <div style={small}>{t.node_types.join(' → ')}</div>
+              style={{ ...sideCard, cursor: 'pointer' }}>
+              <div style={sideCardName}>{t.name}</div>
+              <div style={sideCardChain}>{t.node_types.join(' → ')}</div>
             </div>
           ))}
         </div>
@@ -91,16 +103,16 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
           {s.pipelines.length === 0 && <div style={small}>none yet</div>}
           {s.pipelines.map((p) => (
             <div key={p.name} onClick={() => void s.loadPipeline(p.name)}
-              style={{ padding: '6px 8px', border: `1px solid ${s.pipelineName === p.name ? 'var(--accent-cyan)' : 'var(--border)'}`, borderRadius: 6, marginBottom: 4, cursor: 'pointer', fontSize: 12, background: 'var(--bg-card)', display: 'flex', gap: 6 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{p.name}</div>
-                <div style={small}>{p.error ? <span style={{ color: '#ef4444' }}>{p.error}</span> : p.node_types.join(' → ')}</div>
+              style={{ ...sideCard, cursor: 'pointer', border: `1px solid ${s.pipelineName === p.name ? 'var(--accent-cyan)' : 'var(--border)'}`, display: 'flex', gap: 6 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={sideCardName}>{p.name}</div>
+                <div style={sideCardChain}>{p.error ? <span style={{ color: '#ef4444' }}>{p.error}</span> : p.node_types.join(' → ')}</div>
               </div>
               <button title="delete" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete pipeline ${p.name}?`)) void s.remove(p.name) }} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
             </div>
           ))}
           {s.legacy.length > 0 && (
-            <div style={{ ...small, marginTop: 6 }}>
+            <div style={{ ...small, marginTop: 6, overflowWrap: 'anywhere' }}>
               {s.legacy.length} old-style config(s) in this folder — run <code>fmriflow preproc migrate</code> to convert: {s.legacy.map((l) => l.name).join(', ')}
             </div>
           )}
