@@ -1434,6 +1434,12 @@
 <h1 id="dicom-to-bids">DICOM to BIDS<a class="headerlink" href="#dicom-to-bids" title="Permanent link">&para;</a></h1>
 <p>Convert raw DICOM data to BIDS format using heudiconv with a heuristic registry and batch conversion support.</p>
 <div class="admonition tip">
+<p class="admonition-title">Save and export from the form</p>
+<p>The single-subject Convert form can <strong>Save Config</strong> (a reusable <code>convert:</code> YAML in
+<code>$FMRIFLOW_HOME/configs/convert/</code>), reload it from <strong>Saved Configs</strong>, and <strong>Export YAML</strong>
+to download the same file — the batch form has always had these.</p>
+</div>
+<div class="admonition tip">
 <p class="admonition-title">Browse for paths</p>
 <p>Every path field in the Convert and Batch forms has a <strong>Browse…</strong> button. It lists
 directories <em>as the server sees them</em> — inside Docker that is the container's view

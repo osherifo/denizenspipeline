@@ -3,6 +3,11 @@
 Convert raw DICOM data to BIDS format using heudiconv with a heuristic registry and batch conversion support.
 
 
+!!! tip "Save and export from the form"
+    The single-subject Convert form can **Save Config** (a reusable `convert:` YAML in
+    `$FMRIFLOW_HOME/configs/convert/`), reload it from **Saved Configs**, and **Export YAML**
+    to download the same file — the batch form has always had these.
+
 !!! tip "Browse for paths"
     Every path field in the Convert and Batch forms has a **Browse…** button. It lists
     directories *as the server sees them* — inside Docker that is the container's view

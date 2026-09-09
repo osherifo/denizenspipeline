@@ -5,7 +5,7 @@
  *  path the server can actually open. Typed paths stay free-form; a small hint
  *  says when the server cannot see one.
  */
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { fetchFsExists, fetchFsListing, fetchFsRoots, type FsEntry, type FsRoot } from '../../api/fs'
 
@@ -122,9 +122,10 @@ interface FieldProps {
   style?: CSSProperties
   /** Check whether the server can see a typed path and show a hint. */
   checkExists?: boolean
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }
 
-export function PathField({ value, onChange, placeholder, mode = 'dir', style, checkExists = true }: FieldProps) {
+export function PathField({ value, onChange, placeholder, mode = 'dir', style, checkExists = true, onKeyDown }: FieldProps) {
   const [open, setOpen] = useState(false)
   const [seen, setSeen] = useState<boolean | null>(null)
 
@@ -140,7 +141,7 @@ export function PathField({ value, onChange, placeholder, mode = 'dir', style, c
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        <input style={{ ...style, flex: 1, minWidth: 0 }} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+        <input style={{ ...style, flex: 1, minWidth: 0 }} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} />
         <button type="button" style={btn} onClick={() => setOpen(true)} title="browse the server's data roots">Browse…</button>
       </div>
       {seen === false && (

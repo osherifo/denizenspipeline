@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
+import { PathField } from '../common/PathPicker'
 
 const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -155,10 +156,10 @@ export function DicomScanner() {
 
       <div style={fieldRow}>
         <span style={labelStyle}>Source Dir</span>
-        <input
+        <PathField
           style={inputStyle}
           value={sourceDir}
-          onChange={(e) => setSourceDir(e.target.value)}
+          onChange={setSourceDir}
           onKeyDown={handleKeyDown}
           placeholder="/data/dicom/sub-01/"
         />

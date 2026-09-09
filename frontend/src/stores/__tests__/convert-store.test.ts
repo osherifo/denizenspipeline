@@ -169,3 +169,44 @@ describe('useConvertStore', () => {
     })
   })
 })
+
+describe('single-run form in the store', () => {
+  it('builds run params and YAML from the form', async () => {
+    const { runFormParams, runFormYaml, EMPTY_RUN_FORM } = await import('../convert-store')
+    const f = { ...EMPTY_RUN_FORM, sourceDir: ' /d/sub01 ', bidsDir: '/b', subject: '01', heuristic: 'h', session: '02', minmeta: true, validateBids: false }
+    expect(runFormParams(f)).toEqual({ source_dir: '/d/sub01', bids_dir: '/b', subject: '01', heuristic: 'h', sessions: ['02'], minmeta: true, validate_bids: false })
+    const y = runFormYaml(f)
+    expect(y.startsWith('convert:\n')).toBe(true)
+    expect(y).toContain('source_dir: "/d/sub01"')
+    expect(y).toContain('sessions: ["02"]')
+    expect(y).toContain('validate_bids: false')
+    expect(y).not.toContain('overwrite')
+  })
+
+  it('saves the form and loads a saved single config back into it', async () => {
+    const { http, HttpResponse } = await import('msw')
+    const { server } = await import('../../test/mocks/server')
+    const { useConvertStore } = await import('../convert-store')
+    let saved: Record<string, unknown> | null = null
+    server.use(
+      http.post('/api/convert/configs/save-run', async ({ request }) => {
+        saved = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ filename: 'mine.yaml', name: 'mine', type: 'single', created: '', description: '', heuristic: 'h', bids_dir: '/b' })
+      }),
+      http.get('/api/convert/configs/mine.yaml', () => HttpResponse.json({
+        filename: 'mine.yaml', name: 'mine', type: 'single', created: '', description: '', heuristic: 'h', bids_dir: '/b',
+        config: { convert: { source_dir: '/d', bids_dir: '/b', subject: '01', heuristic: 'h', sessions: ['02'], overwrite: true } },
+        yaml_string: '',
+      })),
+    )
+    useConvertStore.getState().updateRunForm({ sourceDir: '/d', bidsDir: '/b', subject: '01', heuristic: 'h' })
+    await useConvertStore.getState().saveCurrentRunConfig('mine')
+    expect((saved as unknown as { params: Record<string, unknown> })?.params.subject).toBe('01')
+
+    useConvertStore.getState().resetRunForm()
+    await useConvertStore.getState().loadSavedConfig('mine.yaml')
+    const st = useConvertStore.getState()
+    expect(st.tab).toBe('convert')
+    expect(st.runForm).toMatchObject({ sourceDir: '/d', bidsDir: '/b', subject: '01', heuristic: 'h', session: '02', overwrite: true, validateBids: true })
+  })
+})

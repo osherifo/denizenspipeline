@@ -40,6 +40,56 @@ import {
 
 type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
 
+
+export interface RunForm {
+  sourceDir: string
+  bidsDir: string
+  subject: string
+  heuristic: string
+  session: string
+  datasetName: string
+  grouping: string
+  minmeta: boolean
+  overwrite: boolean
+  validateBids: boolean
+}
+
+export const EMPTY_RUN_FORM: RunForm = {
+  sourceDir: '', bidsDir: '', subject: '', heuristic: '', session: '', datasetName: '', grouping: '',
+  minmeta: false, overwrite: false, validateBids: true,
+}
+
+/** The run-request params for the single form (what /convert/run and save-run take). */
+export function runFormParams(f: RunForm): Record<string, unknown> {
+  const params: Record<string, unknown> = {
+    source_dir: f.sourceDir.trim(), bids_dir: f.bidsDir, subject: f.subject, heuristic: f.heuristic,
+  }
+  if (f.session.trim()) params.sessions = [f.session.trim()]
+  if (f.datasetName.trim()) params.dataset_name = f.datasetName.trim()
+  if (f.grouping.trim()) params.grouping = f.grouping.trim()
+  if (f.minmeta) params.minmeta = true
+  if (f.overwrite) params.overwrite = true
+  if (!f.validateBids) params.validate_bids = false
+  return params
+}
+
+/** The YAML the server would save for this form (a `convert:` config). */
+export function runFormYaml(f: RunForm): string {
+  const q = (v: string) => JSON.stringify(v)
+  let y = 'convert:\n'
+  y += `  source_dir: ${q(f.sourceDir.trim())}\n`
+  y += `  bids_dir: ${q(f.bidsDir)}\n`
+  y += `  subject: ${q(f.subject)}\n`
+  y += `  heuristic: ${q(f.heuristic)}\n`
+  if (f.session.trim()) y += `  sessions: [${q(f.session.trim())}]\n`
+  if (f.datasetName.trim()) y += `  dataset_name: ${q(f.datasetName.trim())}\n`
+  if (f.grouping.trim()) y += `  grouping: ${q(f.grouping.trim())}\n`
+  if (f.minmeta) y += '  minmeta: true\n'
+  if (f.overwrite) y += '  overwrite: true\n'
+  if (!f.validateBids) y += '  validate_bids: false\n'
+  return y
+}
+
 interface ConvertState {
   tab: Tab
 
@@ -137,6 +187,11 @@ interface ConvertState {
   clearBatch: () => void
   loadBatchYaml: (yamlText: string) => Promise<void>
 
+  // Single-run form (kept in the store so a saved config can load back into it)
+  runForm: RunForm
+  updateRunForm: (patch: Partial<RunForm>) => void
+  resetRunForm: () => void
+  runFormError: string | null
   // Saved configs
   savedConfigs: SavedConvertConfig[]
   savedConfigsLoading: boolean
@@ -149,6 +204,10 @@ interface ConvertState {
 
 export const useConvertStore = create<ConvertState>((set, get) => ({
   tab: 'tools',
+  runForm: { ...EMPTY_RUN_FORM },
+  runFormError: null,
+  updateRunForm: (patch) => set({ runForm: { ...get().runForm, ...patch } }),
+  resetRunForm: () => set({ runForm: { ...EMPTY_RUN_FORM }, runFormError: null }),
 
   tools: [],
   toolsLoading: false,
@@ -555,13 +614,15 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   },
 
   saveCurrentRunConfig: async (name: string, description?: string, params?: Record<string, unknown>) => {
-    // This is called from ConvertForm with the current form values.
-    // The caller passes the params directly; avoid saving an empty config.
-    if (!params) {
-      return
+    const body = params ?? runFormParams(get().runForm)
+    set({ runFormError: null })
+    try {
+      await saveConvertRunConfig({ name, description, params: body })
+      await get().loadSavedConfigs()
+    } catch (e) {
+      set({ runFormError: String(e) })
+      throw e
     }
-    await saveConvertRunConfig({ name, description, params })
-    get().loadSavedConfigs()
   },
 
   saveCurrentBatchConfig: async (name, description) => {
@@ -616,7 +677,25 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
           })),
         })
       }
-      // Single run configs could be loaded into the convert form in the future
+      if ('convert' in config) {
+        const c = config.convert as Record<string, unknown>
+        const sessions = Array.isArray(c.sessions) ? (c.sessions as unknown[]) : []
+        set({
+          tab: 'convert',
+          runForm: {
+            sourceDir: String(c.source_dir || ''),
+            bidsDir: String(c.bids_dir || ''),
+            subject: String(c.subject || ''),
+            heuristic: String(c.heuristic || ''),
+            session: sessions.length ? String(sessions[0]) : '',
+            datasetName: String(c.dataset_name || ''),
+            grouping: String(c.grouping || ''),
+            minmeta: Boolean(c.minmeta),
+            overwrite: Boolean(c.overwrite),
+            validateBids: c.validate_bids !== false,
+          },
+        })
+      }
     } catch (e) {
       set({ batchError: String(e) })
     }

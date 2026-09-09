@@ -36,7 +36,7 @@ Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
 
 **Configs** — Browse YAML conversion configs saved under `./experiments/convert/` (pre-migration configs at `~/.fmriflow/convert_configs/` are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a **Run** button that dispatches either a single or batch conversion based on the file's shape. See [DICOM → BIDS → Saved configs](dicom-to-bids.md#saved-configs) for the schema.
 
-**Convert** — Single-subject conversion form (path fields have a **Browse…** button that lists directories as the server sees them):
+**Convert** — Single-subject conversion form (path fields have a **Browse…** button that lists directories as the server sees them). Next to **Run** are **Save Config** (writes a `convert:` YAML under `$FMRIFLOW_HOME/configs/convert/`), **Saved Configs** (load a saved single-run config back into the form, or delete it) and **Export YAML** (download the form as a config file). The **Scan** tab's path field browses too:
 
 - Select a heuristic from the dropdown
 - Set the BIDS output directory and source DICOM directory
