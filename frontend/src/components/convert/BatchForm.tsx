@@ -361,11 +361,13 @@ export function BatchForm() {
                   />
                 </td>
                 <td style={tdStyle}>
-                  <input
+                  <PathField
                     style={cellInput}
+                    compact
+                    baseDir={batchShared.sourceRoot || undefined}
                     value={job.source_dir}
-                    onChange={(e) => updateBatchJob(i, { source_dir: e.target.value })}
-                    placeholder="session01/"
+                    onChange={(v) => updateBatchJob(i, { source_dir: v })}
+                    placeholder={batchShared.sourceRoot ? 'session01/ (under Source Root)' : '/data/dicoms/sub01/session01/'}
                   />
                 </td>
                 <td style={tdStyle}>

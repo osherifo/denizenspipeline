@@ -142,26 +142,44 @@ interface FieldProps {
   /** Check whether the server can see a typed path and show a hint. */
   checkExists?: boolean
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  /** When set, the picker opens here and a pick inside it is stored relative to it
+   *  (e.g. a batch job's source dir under the shared Source Root). */
+  baseDir?: string
+  compact?: boolean
 }
 
-export function PathField({ value, onChange, placeholder, mode = 'dir', style, checkExists = true, onKeyDown }: FieldProps) {
+function joinBase(baseDir: string | undefined, value: string): string {
+  if (!value) return value
+  if (!baseDir || value.startsWith('/')) return value
+  return `${baseDir.replace(/\/+$/, '')}/${value}`
+}
+
+function relativeTo(baseDir: string | undefined, picked: string): string {
+  if (!baseDir) return picked
+  const base = baseDir.replace(/\/+$/, '')
+  if (picked === base) return ''
+  return picked.startsWith(`${base}/`) ? picked.slice(base.length + 1) : picked
+}
+
+export function PathField({ value, onChange, placeholder, mode = 'dir', style, checkExists = true, onKeyDown, baseDir, compact = false }: FieldProps) {
   const [open, setOpen] = useState(false)
   const [seen, setSeen] = useState<boolean | null>(null)
 
   useEffect(() => {
-    if (!checkExists || !value || value.length < 2) { setSeen(null); return }
+    const full = joinBase(baseDir, value)
+    if (!checkExists || !full || full.length < 2) { setSeen(null); return }
     let cancelled = false
     const t = setTimeout(() => {
-      fetchFsExists(value).then((r) => { if (!cancelled) setSeen(r.exists) }).catch(() => { if (!cancelled) setSeen(null) })
+      fetchFsExists(full).then((r) => { if (!cancelled) setSeen(r.exists) }).catch(() => { if (!cancelled) setSeen(null) })
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [value, checkExists])
+  }, [value, checkExists, baseDir])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
       <div style={{ display: 'flex', gap: 6 }}>
         <input style={{ ...style, flex: 1, minWidth: 0 }} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} />
-        <button type="button" style={btn} onClick={() => setOpen(true)} title="browse the server's data roots">Browse…</button>
+        <button type="button" style={{ ...btn, ...(compact ? { padding: '2px 6px', fontSize: 10 } : {}) }} onClick={() => setOpen(true)} title={baseDir ? `browse under ${baseDir}` : 'browse the data roots'}>{compact ? '…' : 'Browse…'}</button>
       </div>
       {seen === false && (
         <span style={{ fontSize: 10, color: '#f59e0b' }}>
@@ -169,7 +187,12 @@ export function PathField({ value, onChange, placeholder, mode = 'dir', style, c
         </span>
       )}
       {open && (
-        <PathPickerModal initialPath={value} mode={mode} onPick={(p) => { onChange(p); setOpen(false) }} onClose={() => setOpen(false)} />
+        <PathPickerModal
+          initialPath={joinBase(baseDir, value) || baseDir}
+          mode={mode}
+          onPick={(p) => { onChange(relativeTo(baseDir, p)); setOpen(false) }}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   )

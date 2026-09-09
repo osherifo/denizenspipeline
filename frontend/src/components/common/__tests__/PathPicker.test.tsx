@@ -34,3 +34,16 @@ describe('PathField', () => {
     await waitFor(() => expect(screen.queryByText(/cannot see this path/)).not.toBeInTheDocument(), { timeout: 2000 })
   })
 })
+
+
+describe('PathField with a base dir', () => {
+  it('opens under the base and stores the pick relative to it', async () => {
+    const onChange = vi.fn()
+    render(<PathField value="" onChange={onChange} baseDir="/workspace/data/dicoms" compact />)
+    fireEvent.click(screen.getByText('…'))
+    await waitFor(() => expect(screen.getByText('sub01')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('sub01'))
+    fireEvent.click(screen.getByText('Use selected'))
+    expect(onChange).toHaveBeenCalledWith('sub01')
+  })
+})
