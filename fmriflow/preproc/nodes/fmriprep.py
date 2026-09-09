@@ -1,7 +1,7 @@
 """fmriprep as a pipeline node.
 
 One ``container_app`` node: bind a BIDS root and a subject, choose a mode
-and options, and the node runs fmriprep (docker / apptainer / bare) in its
+and options, and the node runs fmriprep from PATH in its
 own process group, streams its log, parses fmriprep's inner nipype
 ``[Node]`` lines so the recon-all / BOLD DAG shows live under this node,
 and finally collects the derivatives into a ``PreprocManifest``.
@@ -21,8 +21,7 @@ from typing import Any
 
 from fmriflow.preproc.backends.fmriprep_params import (
     VALID_CIFTI_OUTPUT,
-    VALID_CONTAINER_TYPES,
-    VALID_IGNORE,
+        VALID_IGNORE,
     VALID_MODES,
     VALID_SKULL_STRIP,
     FmriprepParams,
@@ -36,7 +35,7 @@ from fmriflow.preproc.checkpoints import (
     volume_intensity_metrics,
     wm_volume_metrics,
 )
-from fmriflow.preproc.container import container_prefix, guest_paths, resolve_container_type, runtime_available
+import shutil
 from fmriflow.preproc.node_registry import preproc_node
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,7 @@ class FmriprepNode:
 
     name = "fmriprep"
     version = "0.2.0"
-    description = "fmriprep (docker / apptainer / bare): anatomical + functional preprocessing."
+    description = "fmriprep (bare, from PATH): anatomical + functional preprocessing."
     INNER_NIPYPE_LOG = True
     FINGERPRINT_INPUTS = ["bids_dir"]
     REQUIRED_PYTHON: list[str] = []
@@ -98,11 +97,6 @@ class FmriprepNode:
         # ── Mode ──
         "mode": {"type": "str", "default": "full", "enum": list(VALID_MODES), "group": "Mode",
                  "description": "full | anat_only | func_only | func_precomputed_anat"},
-        "container": {"type": "str", "default": "nipreps/fmriprep:24.1.1", "group": "Mode",
-                      "description": "Image (docker tag, .sif path, docker:// URI); ignored when fmriprep runs bare."},
-        "container_type": {"type": "str", "default": "auto", "enum": list(VALID_CONTAINER_TYPES), "group": "Mode",
-                           "description": "auto: bare when fmriprep is on PATH (full image), else docker (slim image) "
-                                          "or apptainer, whichever is installed."},
         "skip_bids_validation": {"type": "bool", "default": False, "group": "Mode"},
         "task_id": {"type": "str", "default": "", "group": "Mode", "description": "Only this task."},
         "sequence": {"type": "str", "default": "", "enum": ["", "mprage", "mp2rage"], "group": "Mode",
@@ -148,15 +142,14 @@ class FmriprepNode:
 
     @staticmethod
     def _clean(params: dict[str, Any]) -> dict[str, Any]:
-        """Drop empty-string / None values so FmriprepParams keeps its defaults,
-        and settle ``container_type`` for this host: ``auto`` resolves, and a
-        ``bare`` launch drops the image name so nothing downstream tries to
-        wrap the command in a runtime."""
+        """Drop empty-string / None values so FmriprepParams keeps its defaults.
+
+        fmriprep always runs bare (from PATH); any ``container`` /
+        ``container_type`` left in an older saved pipeline is ignored.
+        """
         out = {k: v for k, v in params.items() if v not in ("", None)}
-        ctype = resolve_container_type(str(out.get("container_type") or "auto"), binary="fmriprep")
-        out["container_type"] = ctype
-        if ctype == "bare":
-            out.pop("container", None)
+        out.pop("container", None)
+        out.pop("container_type", None)
         return out
 
     @staticmethod
@@ -198,9 +191,10 @@ class FmriprepNode:
             errors.append(f"BIDS directory not found: {inputs.get('bids_dir')}")
         if not inputs.get("subject"):
             errors.append("subject is required")
-        if not runtime_available(p.container, p.container_type):
+        if shutil.which("fmriprep") is None:
             errors.append(
-                f"cannot launch container {p.container!r} as {p.container_type}: runtime not available"
+                "fmriprep is not on PATH — preprocessing runs bare and needs the full "
+                "fMRIflow image (or an environment with fmriprep installed)"
             )
         return errors
 
@@ -214,26 +208,9 @@ class FmriprepNode:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         Path(work_dir).mkdir(parents=True, exist_ok=True)
 
-        extra_binds: list[tuple[str, str]] = []
-        if p.container and p.fs_subjects_dir:
-            extra_binds.append((p.fs_subjects_dir, "/fs_subjects"))
-            p = dataclasses.replace(p, fs_subjects_dir="/fs_subjects")
-
-        if p.container:
-            cmd = container_prefix(
-                p.container, p.container_type,
-                bids_dir=bids_dir, output_dir=output_dir, work_dir=work_dir,
-                extra_binds=extra_binds,
-            )
-        else:
-            cmd = ["fmriprep"]
-        g_bids, g_out, g_work = guest_paths(
-            "bare" if not p.container else p.container_type,
-            bids_dir=bids_dir, output_dir=output_dir, work_dir=work_dir,
-        )
-        cmd += [g_bids, g_out, "participant", "--participant-label", subject]
-        if g_work:
-            cmd += ["-w", g_work]
+        cmd = ["fmriprep", bids_dir, output_dir, "participant", "--participant-label", subject]
+        if work_dir:
+            cmd += ["-w", work_dir]
         cmd += p.to_command_args()
         return cmd
 

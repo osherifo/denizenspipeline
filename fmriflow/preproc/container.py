@@ -1,9 +1,11 @@
-"""Running containerised or bare command-line apps from a node.
+"""Running command-line apps from a node.
 
-Shared by the ``container_app`` nodes (fmriprep, bids_app, custom shell):
+Shared by the ``container_app`` nodes (fmriprep, bids_app, custom shell).
+Apps run **bare**, straight from PATH — the full fMRIflow image ships
+fmriprep, FreeSurfer and ANTs, and that is the supported deployment.
+Launching an app inside its own docker / apptainer container is not
+supported at present.
 
-- :func:`container_prefix` builds the ``docker run`` / ``apptainer run``
-  prefix with the standard ``/data`` ``/out`` ``/work`` binds.
 - :func:`run_logged` spawns the command in its own process group, streams
   stdout+stderr to a log file, hands every line to an optional callback
   (the fmriprep node feeds nipype's ``[Node]`` lines to the log parser so
@@ -15,40 +17,14 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import signal
 import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable
 
 logger = logging.getLogger(__name__)
-
-SINGULARITY_CONTAINER_TYPES = ("singularity", "apptainer")
-VALID_CONTAINER_TYPES = ("auto", "singularity", "apptainer", "docker", "bare")
-
-
-def resolve_container_type(container_type: str | None, *, binary: str) -> str:
-    """Turn ``auto`` into what this host can actually do.
-
-    ``bare`` when ``binary`` (the app itself, e.g. ``fmriprep``) is on PATH —
-    the full fMRIflow image ships it that way; otherwise ``docker`` when the
-    Docker CLI is present (the slim image, socket-mounted), otherwise
-    ``apptainer`` when that is; falling back to ``docker`` so the preflight
-    error names the runtime a fresh install most likely wants. Explicit
-    values pass through untouched.
-    """
-    ctype = (container_type or "auto").strip() or "auto"
-    if ctype != "auto":
-        return ctype
-    if shutil.which(binary):
-        return "bare"
-    if shutil.which("docker"):
-        return "docker"
-    if singularity_binary():
-        return "apptainer"
-    return "docker"
 
 # Lines that mean the app has already failed even though its worker pool
 # keeps the process alive for a while (fmriprep's MultiProc plugin).
@@ -59,75 +35,6 @@ FATAL_MARKERS = (
 
 _LIVE_PGIDS: set[int] = set()
 _LIVE_LOCK = threading.Lock()
-
-
-def singularity_binary() -> str | None:
-    """``$FMRIFLOW_SINGULARITY_BIN`` > ``apptainer`` > ``singularity`` on PATH."""
-    override = os.environ.get("FMRIFLOW_SINGULARITY_BIN")
-    if override and Path(override).exists():
-        return override
-    return shutil.which("apptainer") or shutil.which("singularity")
-
-
-def runtime_available(container: str | None, container_type: str) -> bool:
-    """Can this host launch ``container`` the requested way?"""
-    if not container or container_type == "bare":
-        return True
-    if container_type == "docker":
-        return shutil.which("docker") is not None
-    if container_type in SINGULARITY_CONTAINER_TYPES:
-        if singularity_binary() is None:
-            return False
-        if container.startswith(("docker://", "library://", "shub://")):
-            return True
-        return Path(container).exists()
-    return False
-
-
-def container_prefix(
-    container: str,
-    container_type: str,
-    *,
-    bids_dir: str,
-    output_dir: str,
-    work_dir: str | None = None,
-    extra_binds: Iterable[tuple[str, str]] = (),
-) -> list[str]:
-    """``docker run`` / ``apptainer run`` prefix ending with the image name.
-
-    The BIDS root is bound read-only at ``/data``, outputs at ``/out`` and
-    the work dir (if any) at ``/work``; ``extra_binds`` are ``(host, guest)``
-    pairs bound read-write. The caller appends the app's own positional
-    arguments using the *guest* paths.
-    """
-    binds: list[tuple[str, str, bool]] = [(bids_dir, "/data", True), (output_dir, "/out", False)]
-    if work_dir:
-        binds.append((work_dir, "/work", False))
-    binds += [(h, g, False) for h, g in extra_binds]
-
-    if container_type in SINGULARITY_CONTAINER_TYPES:
-        cmd = [singularity_binary() or "singularity", "run", "--cleanenv"]
-        for host, guest, ro in binds:
-            cmd += ["-B", f"{host}:{guest}{':ro' if ro else ''}"]
-    elif container_type == "docker":
-        cmd = ["docker", "run", "--rm"]
-        for host, guest, ro in binds:
-            cmd += ["-v", f"{host}:{guest}{':ro' if ro else ''}"]
-    elif container_type == "bare":
-        # Nothing to prefix: the app runs straight from PATH and the image
-        # name, if any, is irrelevant.
-        return []
-    else:
-        raise ValueError(f"Unknown container_type: {container_type!r}")
-    cmd.append(container)
-    return cmd
-
-
-def guest_paths(container_type: str, *, bids_dir: str, output_dir: str, work_dir: str | None) -> tuple[str, str, str | None]:
-    """The paths an app sees for (bids, out, work): guest paths in a container, host paths bare."""
-    if container_type == "bare":
-        return bids_dir, output_dir, work_dir
-    return "/data", "/out", ("/work" if work_dir else None)
 
 
 # ── process management ────────────────────────────────────────────

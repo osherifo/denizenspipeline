@@ -1479,44 +1479,29 @@ contract the analysis stage reads.</p>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>conda<span class="w"> </span>activate<span class="w"> </span>fmriflow
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>pip<span class="w"> </span>install<span class="w"> </span>fmriprep
 </code></pre></div>
-<p>For container-based runs (Singularity or Apptainer):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>conda<span class="w"> </span>install<span class="w"> </span>conda-forge::apptainer<span class="w">    </span><span class="c1"># preferred — modern fork</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># or: conda install conda-forge::singularity</span>
-</code></pre></div>
-<p>The fmriprep backend resolves the container runtime in this order:</p>
-<ol>
-<li><code>$FMRIFLOW_SINGULARITY_BIN</code> (absolute path, if set)</li>
-<li><code>apptainer</code> on PATH</li>
-<li><code>singularity</code> on PATH</li>
-</ol>
-<p>If your environment ships an old Singularity 2.x that can't run current
-fmriprep images, install Apptainer into a dedicated conda env and point
-the server at its binary:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">FMRIFLOW_SINGULARITY_BIN</span><span class="o">=</span><span class="nv">$HOME</span>/miniconda3/envs/dv2/bin/apptainer<span class="w"> </span>fmriflow<span class="w"> </span>serve
-</code></pre></div>
-<p>Pull an fmriprep image once and point your configs at the <code>.sif</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>~/images/fmriprep/fmriprep_25.1.3.sif<span class="w"> </span>docker://nipreps/fmriprep:25.1.3
-</code></pre></div>
+<p>fmriprep runs <strong>bare</strong>, from PATH — the full Docker image ships it, and the
+node's preflight reports when it is missing. Running fmriprep inside its own
+docker or apptainer container is not supported at present.</p>
 <p>You also need a FreeSurfer license file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FS_LICENSE</span><span class="o">=</span>~/fmriprep-local/fs_license.txt
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FS_LICENSE</span><span class="o">=</span>~/fmriprep-local/fs_license.txt
 </code></pre></div>
 <h2 id="quick-check">Quick check<a class="headerlink" href="#quick-check" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>doctor<span class="w">        </span><span class="c1"># preflight every node: tools, env vars, python deps</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>doctor<span class="w">        </span><span class="c1"># preflight every node: tools, env vars, python deps</span>
 </code></pre></div>
 <h2 id="workflow-1-the-easy-path-fmriprep-from-a-template">Workflow 1: the easy path — fmriprep from a template<a class="headerlink" href="#workflow-1-the-easy-path-fmriprep-from-a-template" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>Build → Templates → <code>fmriprep_full</code></strong> (or <code>fmriprep_anat_only</code>, <code>fmriprep_func_precomputed_anat</code>).
    The pipeline is a single <code>fmriprep</code> node.</li>
 <li>Click the node. Parameters are grouped — <strong>Mode</strong> (full / anat_only / func_only /
-   func_precomputed_anat, container image and runtime), <strong>Anatomical</strong>, <strong>Functional</strong>,
+   func_precomputed_anat), <strong>Anatomical</strong>, <strong>Functional</strong>,
    <strong>Fieldmaps</strong>, <strong>Output</strong> (spaces, CIFTI), <strong>Denoising</strong>, <strong>Resources</strong>.</li>
 <li>In the <strong>Run</strong> panel enter the subject label, the BIDS root and an output directory,
    then <strong>Run pipeline</strong>. The Runs tab opens on the new run.</li>
 </ol>
 <p>From the CLI the same thing is:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>fmriprep_anat_only<span class="w"> </span>--subject<span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--bids-dir<span class="w"> </span>./testing/my_study/bids<span class="w"> </span>--output-dir<span class="w"> </span>./testing/my_study/derivatives<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.container<span class="o">=</span>nipreps/fmriprep:24.1.1<span class="w"> </span>--param<span class="w"> </span>fmriprep.container_type<span class="o">=</span>docker<span class="w">   </span><span class="c1"># default: auto</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>fmriprep_anat_only<span class="w"> </span>--subject<span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--bids-dir<span class="w"> </span>./testing/my_study/bids<span class="w"> </span>--output-dir<span class="w"> </span>./testing/my_study/derivatives<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.output_spaces<span class="o">=</span><span class="s1">&#39;[&quot;T1w&quot;]&#39;</span>
 </code></pre></div>
 <p>Save the pipeline under a name to reuse it (it lands in <code>$FMRIFLOW_HOME/configs/preproc/</code>).</p>
 <h3 id="when-a-run-fails">When a run fails<a class="headerlink" href="#when-a-run-fails" title="Permanent link">&para;</a></h3>
@@ -1585,7 +1570,7 @@ named node onwards after you change a parameter downstream.</p>
 <li><strong>workflow</strong> (<code>composite</code>) — <code>build(config)</code> returns a nipype <code>Workflow</code>; its
   <code>inputnode</code> / <code>outputnode</code> fields are the ports.</li>
 <li><strong>app</strong> (<code>container_app</code>) — <code>build_command(...)</code> and <code>collect(...)</code> for a command-line
-  or containerised tool.</li>
+  tool run from PATH.</li>
 </ul>
 <p>Files are saved to <code>$FMRIFLOW_HOME/addons/nodes/</code> and the library rescans. Addon files
 written for the earlier registries (<code>@register_preproc_workflow</code>, <code>@register_transform</code>,
@@ -1596,39 +1581,39 @@ exposes a module-level <code>Workflow</code>. It becomes a composite node with t
 <code>inputnode</code> / <code>outputnode</code> fields as ports, usable in any pipeline.</p>
 <h2 id="workflow-5-register-outputs-produced-elsewhere">Workflow 5: register outputs produced elsewhere<a class="headerlink" href="#workflow-5-register-outputs-produced-elsewhere" title="Permanent link">&para;</a></h2>
 <p>If fmriprep (or anything else) already ran, build the manifest without re-running:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>collect<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--backend<span class="w"> </span>fmriprep<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--output-dir<span class="w"> </span>/data/derivatives/fmriprep/<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>--subject<span class="w"> </span>sub01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>--task<span class="w"> </span>reading<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span>--run-map<span class="w"> </span><span class="s1">&#39;{&quot;run-01&quot;: &quot;story01&quot;, &quot;run-02&quot;: &quot;story02&quot;}&#39;</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>info<span class="w">     </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>collect<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--backend<span class="w"> </span>fmriprep<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--output-dir<span class="w"> </span>/data/derivatives/fmriprep/<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--subject<span class="w"> </span>sub01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--task<span class="w"> </span>reading<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span>--run-map<span class="w"> </span><span class="s1">&#39;{&quot;run-01&quot;: &quot;story01&quot;, &quot;run-02&quot;: &quot;story02&quot;}&#39;</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>info<span class="w">     </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
 </code></pre></div>
 <p>The same lives under <strong>Outputs → Collect</strong>. Then point an analysis config at it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">response</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">mask_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">thick</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">response</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">mask_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">thick</span>
 </code></pre></div>
 <h2 id="confound-regression">Confound regression<a class="headerlink" href="#confound-regression" title="Permanent link">&para;</a></h2>
 <p>Either put a <code>regress_confounds</code> node in the pipeline (it takes the confounds TSV on its
 <code>confounds_file</code> port and regresses the chosen columns out per voxel), or apply
 regression when the analysis pipeline loads the data:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">response</span><span class="p">:</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manifest.json</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">confounds</span><span class="p">:</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">motion_24</span><span class="w">    </span><span class="c1"># or: motion_6, acompcor, custom</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nt">high_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nt">fd_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">      </span><span class="c1"># scrub high-motion TRs</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">response</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manifest.json</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">confounds</span><span class="p">:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">motion_24</span><span class="w">    </span><span class="c1"># or: motion_6, acompcor, custom</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">high_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">fd_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">      </span><span class="c1"># scrub high-motion TRs</span>
 </code></pre></div>
 <h2 id="migrating-from-the-earlier-surfaces">Migrating from the earlier surfaces<a class="headerlink" href="#migrating-from-the-earlier-surfaces" title="Permanent link">&para;</a></h2>
 <p>Stack presets, saved post-preproc graphs and <code>backend:</code>-style stage configs are converted
 in one go:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w"> </span>--dry-run<span class="w">     </span><span class="c1"># report</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w">               </span><span class="c1"># write pipelines, keep originals as *.migrated</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w"> </span>--dry-run<span class="w">     </span><span class="c1"># report</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w">               </span><span class="c1"># write pipelines, keep originals as *.migrated</span>
 </code></pre></div>
 <p>Workflow YAMLs whose <code>preproc</code> stage still uses <code>backend:</code> / <code>backend_params:</code> are refused
 with the same hint; pass <code>--workflows-dir</code> to convert those too.</p>

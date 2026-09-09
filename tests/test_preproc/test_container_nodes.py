@@ -25,41 +25,41 @@ def dirs(tmp_path, monkeypatch):
     for d in ("bids", "out", "work"):
         (tmp_path / d).mkdir()
     (tmp_path / "bids" / "sub-01").mkdir()
-    monkeypatch.setenv("FMRIFLOW_SINGULARITY_BIN", "/bin/true")
     return {"bids_dir": str(tmp_path / "bids"), "subject": "01",
             "output_dir": str(tmp_path / "out"), "work_dir": str(tmp_path / "work")}
 
 
-@pytest.mark.parametrize("ctype,container", [
-    ("docker", "nipreps/fmriprep:24.1.1"),
-    ("apptainer", "/img/fp.sif"),
-    ("bare", ""),
-])
 @pytest.mark.parametrize("mode", ["full", "anat_only", "func_only"])
-def test_fmriprep_command_matches_old_backend(dirs, tmp_path, ctype, container, mode):
-    params = {"mode": mode, "container": container, "container_type": ctype,
-              "output_spaces": ["T1w", "MNI152NLin2009cAsym:res-2"], "nthreads": 4}
+def test_fmriprep_command_matches_old_backend_bare(dirs, tmp_path, mode):
+    params = {"mode": mode, "output_spaces": ["T1w", "MNI152NLin2009cAsym:res-2"], "nthreads": 4}
     new = FmriprepNode().build_command(dirs, params, tmp_path)
     cfg = PreprocConfig(subject="01", backend="fmriprep", output_dir=dirs["output_dir"],
                         bids_dir=dirs["bids_dir"], work_dir=dirs["work_dir"],
-                        backend_params={k: v for k, v in params.items() if v not in ("", None)})
+                        backend_params={**params, "container_type": "bare"})
     old = FmriprepBackend()._build_command(cfg, FmriprepParams.from_dict(cfg.backend_params))
     assert new == old
+    assert new[0] == "fmriprep" and new[1] == dirs["bids_dir"]
 
 
-def test_fmriprep_precomputed_anat_binds_subjects_dir_into_container(dirs, tmp_path):
-    """The old backend passed a host path into the container; the node binds it."""
-    params = {"mode": "func_precomputed_anat", "container": "nipreps/fmriprep:24.1.1",
-              "container_type": "docker"}
-    cmd = FmriprepNode().build_command({**dirs, "fs_subjects_dir": "/host/fs"}, params, tmp_path)
-    assert "-v" in cmd and "/host/fs:/fs_subjects" in cmd
-    assert cmd[cmd.index("--fs-subjects-dir") + 1] == "/fs_subjects"
+def test_fmriprep_precomputed_anat_passes_subjects_dir_through(dirs, tmp_path):
+    cmd = FmriprepNode().build_command({**dirs, "fs_subjects_dir": "/host/fs"},
+                                       {"mode": "func_precomputed_anat"}, tmp_path)
+    assert cmd[cmd.index("--fs-subjects-dir") + 1] == "/host/fs"
 
 
-def test_fmriprep_validate_reports_missing_bids_and_runtime(tmp_path):
-    errors = FmriprepNode().validate({"bids_dir": str(tmp_path / "nope"), "subject": "01"},
-                                     {"container": "/no/such.sif", "container_type": "apptainer"})
+def test_fmriprep_ignores_container_params_from_older_pipelines(dirs, tmp_path):
+    """A pipeline saved when container/container_type existed still builds a bare command."""
+    cmd = FmriprepNode().build_command(dirs, {"mode": "anat_only", "container": "nipreps/fmriprep:24.1.1",
+                                              "container_type": "docker"}, tmp_path)
+    assert cmd[0] == "fmriprep" and "docker" not in cmd
+
+
+def test_fmriprep_validate_reports_missing_bids_and_binary(tmp_path, monkeypatch):
+    import fmriflow.preproc.nodes.fmriprep as fp
+    monkeypatch.setattr(fp.shutil, "which", lambda name: None)
+    errors = FmriprepNode().validate({"bids_dir": str(tmp_path / "nope"), "subject": "01"}, {})
     assert any("BIDS directory not found" in e for e in errors)
+    assert any("fmriprep is not on PATH" in e for e in errors)
 
 
 def test_fmriprep_schema_is_grouped():
@@ -67,13 +67,15 @@ def test_fmriprep_schema_is_grouped():
     assert {"Mode", "Anatomical", "Functional", "Fieldmaps", "Output", "Denoising", "Resources"} <= groups
 
 
-def test_bids_app_commands(dirs, tmp_path):
-    docker = BidsAppNode().build_command(dirs, {"container": "img:1", "container_type": "docker",
-                                                "extra_args": ["--foo"]}, tmp_path)
-    assert docker[:3] == ["docker", "run", "--rm"]
-    assert docker[-6:] == ["/data", "/out", "participant", "--participant-label", "01", "--foo"]
-    bare = BidsAppNode().build_command(dirs, {"container": "/usr/bin/myapp", "container_type": "bare"}, tmp_path)
-    assert bare[:2] == ["/usr/bin/myapp", dirs["bids_dir"]]
+def test_bids_app_command_runs_the_executable_bare(dirs, tmp_path):
+    cmd = BidsAppNode().build_command(dirs, {"command": "/usr/bin/myapp", "extra_args": ["--foo"]}, tmp_path)
+    assert cmd[:3] == ["/usr/bin/myapp", dirs["bids_dir"], dirs["output_dir"]]
+    assert cmd[3:8] == ["participant", "--participant-label", "01", "-w", dirs["work_dir"]]
+    assert cmd[-1] == "--foo"
+    # the pre-bare-only spelling still resolves
+    assert BidsAppNode().build_command(dirs, {"container": "/usr/bin/myapp"}, tmp_path)[0] == "/usr/bin/myapp"
+    errs = BidsAppNode().validate(dirs, {"command": "/no/such/app"})
+    assert any("command not found" in e for e in errs)
 
 
 def test_custom_shell_render_and_validate(tmp_path):
@@ -157,38 +159,8 @@ def test_fmriprep_validate_accepts_fs_subjects_dir_on_the_input_port(tmp_path):
     from fmriflow.preproc.nodes.fmriprep import FmriprepNode
     bids = tmp_path / "bids"; bids.mkdir()
     fs = tmp_path / "fs"; fs.mkdir()
-    params = {"mode": "func_precomputed_anat", "container_type": "bare", "container": ""}
+    params = {"mode": "func_precomputed_anat"}
     errs = FmriprepNode().validate({"bids_dir": str(bids), "subject": "01", "fs_subjects_dir": str(fs)}, params)
     assert not any("requires fs_subjects_dir" in e for e in errs), errs
     errs = FmriprepNode().validate({"bids_dir": str(bids), "subject": "01", "fs_subjects_dir": str(tmp_path / "missing")}, params)
     assert any("fs_subjects_dir not found" in e for e in errs), errs
-
-
-def test_fmriprep_bare_ignores_the_image_name(tmp_path):
-    """container_type: bare with the default image still set must not try to wrap the command."""
-    from fmriflow.preproc.nodes.fmriprep import FmriprepNode
-    bids = tmp_path / "bids"; bids.mkdir()
-    cmd = FmriprepNode().build_command(
-        {"bids_dir": str(bids), "subject": "01", "output_dir": str(tmp_path / "out")},
-        {"mode": "anat_only", "container": "nipreps/fmriprep:24.1.1", "container_type": "bare"}, tmp_path)
-    assert cmd[0] == "fmriprep" and "docker" not in cmd
-
-
-def test_container_type_auto_resolves_from_the_host(monkeypatch, tmp_path):
-    from fmriflow.preproc import container as c
-    from fmriflow.preproc.nodes.fmriprep import FmriprepNode
-    bids = tmp_path / "bids"; bids.mkdir()
-    params = {"mode": "anat_only", "container": "img:1"}   # container_type omitted -> auto
-
-    monkeypatch.setattr(c.shutil, "which", lambda name: "/usr/bin/fmriprep" if name == "fmriprep" else None)
-    assert c.resolve_container_type("auto", binary="fmriprep") == "bare"
-    cmd = FmriprepNode().build_command({"bids_dir": str(bids), "subject": "01"}, params, tmp_path)
-    assert cmd[0] == "fmriprep"
-
-    monkeypatch.setattr(c.shutil, "which", lambda name: "/usr/bin/docker" if name == "docker" else None)
-    assert c.resolve_container_type("auto", binary="fmriprep") == "docker"
-    cmd = FmriprepNode().build_command({"bids_dir": str(bids), "subject": "01"}, params, tmp_path)
-    assert cmd[:3] == ["docker", "run", "--rm"] and "img:1" in cmd
-
-    assert c.resolve_container_type("apptainer", binary="fmriprep") == "apptainer"  # explicit passes through
-    assert c.container_prefix("img:1", "bare", bids_dir="/b", output_dir="/o") == []

@@ -6,8 +6,8 @@ hand.
 
 | Variant | Size | Use when |
 |---|---|---|
-| **slim** | ~4 GB | You already have Docker (or apptainer) on the host and want fmriflow to delegate fmriprep to it. |
-| **full** | ~11 GB | You want a single self-contained image — fmriprep + FreeSurfer + ANTs baked in. |
+| **slim** | ~4 GB | DICOM conversion, analysis and the web UI only — it has no fmriprep, so **preprocessing pipelines cannot run on it** at present. |
+| **full** | ~11 GB | Everything, including preprocessing: fmriprep + FreeSurfer + ANTs baked in. **This is the supported image for preprocessing.** |
 
 Both images expose the web UI on port `8421` and run as a non-root
 user. Persistent state lives under `$FMRIFLOW_HOME` on the host and
@@ -85,32 +85,22 @@ empty layout under `$FMRIFLOW_HOME`. Drop your FreeSurfer license at
 
 Open `http://localhost:8421`.
 
-The fmriprep node's `container_type` defaults to **`auto`**, which picks
-`docker` here because the Docker CLI is on PATH and fmriprep is not; the
-`container` parameter names the image to run (default
-`nipreps/fmriprep:24.1.1`). Set `container_type: docker` explicitly only to
-pin it:
-
-```yaml
-fmriprep:
-  params:
-    container_type: docker
-    container: nipreps/fmriprep:24.1.1
-```
+Preprocessing is **not available** on the slim image: the fmriprep node
+runs fmriprep from PATH, and slim does not ship it. Launching fmriprep in
+a sibling container through the host's Docker socket is not supported at
+present (the socket mount is kept in `docker-compose.yml` for a future
+iteration). Use the full image for anything under Preprocessing.
 
 ## Standalone — full image
 
 The full image is built **on top of** `nipreps/fmriprep`, so
 fmriprep, FreeSurfer and ANTs are on PATH, with dcm2niix added on top.
-With `container_type: auto` (the default) the fmriprep node runs **bare**
-here, because `fmriprep` is on PATH; the `container` image name is ignored
-in that case. Nothing to configure:
+The fmriprep node runs fmriprep straight from PATH here; there is nothing
+to configure:
 
 ```bash
 docker compose -f docker-compose.full.yml up --build
 ```
-
-To pin it, `container_type: bare` on the node has the same effect.
 
 Pin a specific fmriprep version with:
 
@@ -118,29 +108,6 @@ Pin a specific fmriprep version with:
 docker compose -f docker-compose.full.yml build \
     --build-arg FMRIPREP_TAG=24.1.1
 ```
-
-## Apptainer-on-host (HPC pattern)
-
-On nodes that run apptainer/singularity instead of Docker, you can
-keep using the slim image and bind the apptainer binary in:
-
-1. Edit `docker-compose.yml` and **comment out** the line
-   `- /var/run/docker.sock:/var/run/docker.sock`.
-2. Add to the `volumes:` block:
-   ```yaml
-       - /usr/bin/apptainer:/usr/bin/apptainer:ro
-       - /path/to/your/fmriprep.sif:/opt/fmriprep.sif:ro
-   ```
-3. Add to the `environment:` block:
-   ```yaml
-       FMRIFLOW_SINGULARITY_BIN: /usr/bin/apptainer
-   ```
-4. In your preproc YAML:
-   ```yaml
-   backend: fmriprep
-   container_type: apptainer
-   container: /opt/fmriprep.sif
-   ```
 
 ## Splitting `data/` onto a separate disk
 
@@ -164,7 +131,7 @@ under `$FMRIFLOW_DATA` instead of `$FMRIFLOW_HOME/data/`.
 |---|---|---|
 | `$FMRIFLOW_HOME` (default `~/projects/fmriflow`) | `/workspace` | Configs, addons, runs, stores, secrets, data subtree |
 | `$FMRIFLOW_DATA` *(optional)* | `/data` | Big-data subtree (BIDS / derivatives / work / results) on a separate disk |
-| `/var/run/docker.sock` *(slim only)* | same | docker-out-of-docker for fmriprep |
+| `/var/run/docker.sock` *(slim only)* | same | reserved for a future docker-out-of-docker fmriprep; unused today |
 
 ## File ownership on bind mounts
 
@@ -211,11 +178,8 @@ needs. A typed host path that the container cannot see gets a warning under the 
 
 ## Troubleshooting
 
-- **fmriprep sibling container can't see /workspace** — when slim
-  spawns fmriprep via the docker socket, the *host* path is what
-  the sibling container sees. Make sure your `$FMRIFLOW_HOME` lives
-  at the same path on the host and inside the fmriflow container,
-  or switch to the full image where everything runs in one container.
+- **A preprocessing run fails with "fmriprep is not on PATH"** — you are
+  on the slim image. Preprocessing needs the full image.
 - **Heudiconv complains about `dcm2niix`** — both slim and full
   ship `dcm2niix` on PATH; if you've forked the Dockerfile and
   removed it, reinstall.

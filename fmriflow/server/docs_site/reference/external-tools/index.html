@@ -1316,10 +1316,10 @@ hand when you run through <code>docker compose</code> (see the <a href="../../gu
 </tr>
 <tr>
 <td><strong>fmriprep</strong></td>
-<td>the <code>fmriprep</code> pipeline node</td>
-<td>delegated to the host: <code>container_type: docker</code> or <code>apptainer</code></td>
-<td>✓ 24.1.1 in-image (<code>container_type: bare</code>)</td>
-<td>pull <code>nipreps/fmriprep:24.1.1</code></td>
+<td>the <code>fmriprep</code> pipeline node (runs bare, from PATH)</td>
+<td>✗ — preprocessing needs the full image</td>
+<td>✓ 24.1.1 in-image</td>
+<td><code>pip install fmriprep</code> into the same env</td>
 </tr>
 <tr>
 <td><strong>FreeSurfer</strong> (<code>recon-all</code>, <code>mri_label2label</code>, …) + a license file</td>
@@ -1351,10 +1351,10 @@ hand when you run through <code>docker compose</code> (see the <a href="../../gu
 </tr>
 <tr>
 <td><strong>docker</strong> CLI or <strong>apptainer</strong></td>
-<td>running fmriprep as a sibling container</td>
-<td>✓ docker CLI 27.3.1 (daemon socket bind-mounted from the host)</td>
+<td>not used by the pipeline at present (container-launched apps are a planned iteration)</td>
+<td>docker CLI 27.3.1 present, unused</td>
 <td>not needed</td>
-<td>host runtime; <code>FMRIFLOW_SINGULARITY_BIN</code> for apptainer</td>
+<td>—</td>
 </tr>
 <tr>
 <td><strong>autoflatten</strong> + <strong>pycortex</strong> (pip extras <code>flatten</code>, <code>viz</code>)</td>

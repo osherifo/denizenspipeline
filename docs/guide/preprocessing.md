@@ -30,32 +30,9 @@ conda activate fmriflow
 pip install fmriprep
 ```
 
-For container-based runs (Singularity or Apptainer):
-
-```bash
-conda install conda-forge::apptainer    # preferred — modern fork
-# or: conda install conda-forge::singularity
-```
-
-The fmriprep backend resolves the container runtime in this order:
-
-1. `$FMRIFLOW_SINGULARITY_BIN` (absolute path, if set)
-2. `apptainer` on PATH
-3. `singularity` on PATH
-
-If your environment ships an old Singularity 2.x that can't run current
-fmriprep images, install Apptainer into a dedicated conda env and point
-the server at its binary:
-
-```bash
-FMRIFLOW_SINGULARITY_BIN=$HOME/miniconda3/envs/dv2/bin/apptainer fmriflow serve
-```
-
-Pull an fmriprep image once and point your configs at the `.sif`:
-
-```bash
-apptainer pull ~/images/fmriprep/fmriprep_25.1.3.sif docker://nipreps/fmriprep:25.1.3
-```
+fmriprep runs **bare**, from PATH — the full Docker image ships it, and the
+node's preflight reports when it is missing. Running fmriprep inside its own
+docker or apptainer container is not supported at present.
 
 You also need a FreeSurfer license file:
 
@@ -74,7 +51,7 @@ fmriflow preproc doctor        # preflight every node: tools, env vars, python d
 1. **Build → Templates → `fmriprep_full`** (or `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`).
    The pipeline is a single `fmriprep` node.
 2. Click the node. Parameters are grouped — **Mode** (full / anat_only / func_only /
-   func_precomputed_anat, container image and runtime), **Anatomical**, **Functional**,
+   func_precomputed_anat), **Anatomical**, **Functional**,
    **Fieldmaps**, **Output** (spaces, CIFTI), **Denoising**, **Resources**.
 3. In the **Run** panel enter the subject label, the BIDS root and an output directory,
    then **Run pipeline**. The Runs tab opens on the new run.
@@ -84,7 +61,7 @@ From the CLI the same thing is:
 ```bash
 fmriflow preproc run fmriprep_anat_only --subject 01 \
   --bids-dir ./testing/my_study/bids --output-dir ./testing/my_study/derivatives \
-  --param fmriprep.container=nipreps/fmriprep:24.1.1 --param fmriprep.container_type=docker   # default: auto
+  --param fmriprep.output_spaces='["T1w"]'
 ```
 
 Save the pipeline under a name to reuse it (it lands in `$FMRIFLOW_HOME/configs/preproc/`).
@@ -167,7 +144,7 @@ named node onwards after you change a parameter downstream.
 - **workflow** (`composite`) — `build(config)` returns a nipype `Workflow`; its
   `inputnode` / `outputnode` fields are the ports.
 - **app** (`container_app`) — `build_command(...)` and `collect(...)` for a command-line
-  or containerised tool.
+  tool run from PATH.
 
 Files are saved to `$FMRIFLOW_HOME/addons/nodes/` and the library rescans. Addon files
 written for the earlier registries (`@register_preproc_workflow`, `@register_transform`,

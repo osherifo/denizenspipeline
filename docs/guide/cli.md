@@ -76,7 +76,7 @@ fmriflow preproc doctor
 # Run a pipeline: a saved pipeline name, a template name, or a pipeline YAML
 fmriflow preproc run fmriprep_anat_only --subject 01 \
   --bids-dir ./testing/my_study/bids --output-dir ./testing/my_study/derivatives \
-  --param fmriprep.container=nipreps/fmriprep:24.1.1 --param fmriprep.container_type=docker
+  --param fmriprep.output_spaces='["T1w"]'
 fmriflow preproc run my_pipeline.yaml --subject 01 --output-dir ./out \
   --derivatives-dir /data/derivatives --rerun-from smooth --no-cache
 
