@@ -362,8 +362,8 @@ export function ConvertForm() {
               {'\u2713'} Manifest created: {collectResult.manifest.runs.length} runs found
             </div>
             {collectResult.manifest.runs.map((run) => (
-              <div key={run.run_name} style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>
-                {run.run_name} &middot; {run.modality} &middot; {run.n_volumes} volumes
+              <div key={run.output_file} style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>
+                {run.output_file} &middot; [{run.shape.join(', ')}]
                 {run.tr != null && <> &middot; TR={run.tr}s</>}
               </div>
             ))}

@@ -203,7 +203,7 @@ def _convert_run(args) -> int:
         print(f"  Runs:       {len(manifest.runs)}")
         for run in manifest.runs:
             tr_str = f"  TR={run.tr}s" if run.tr else ""
-            print(f"    {run.modality:6s} {run.output_file}{tr_str}")
+            print(f"    {run.datatype}/{run.suffix:10s} {run.output_file}{tr_str}")
         if manifest.bids_valid is not None:
             status = "PASSED" if manifest.bids_valid else "FAILED"
             print(f"  BIDS valid: {status}")
@@ -243,7 +243,7 @@ def _convert_collect(args) -> int:
         print(f"  Runs:     {len(manifest.runs)}")
         for run in manifest.runs:
             tr_str = f"  TR={run.tr}s" if run.tr else ""
-            print(f"    {run.modality:6s} {run.output_file}{tr_str}")
+            print(f"    {run.datatype}/{run.suffix:10s} {run.output_file}{tr_str}")
         print(f"  Manifest: {manifest_path}")
         return 0
     except Exception as e:

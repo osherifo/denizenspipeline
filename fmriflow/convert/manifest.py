@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
+import re
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -44,9 +45,36 @@ class HeuristicRef:
 
 # ── Per-run record ───────────────────────────────────────────────────────
 
+_ENTITY_RE = re.compile(r"([a-zA-Z]+)-([a-zA-Z0-9]+)")
+
+
+def bids_parts(output_file: str) -> tuple[str, str, dict[str, str]]:
+    """``(datatype, suffix, entities)`` read verbatim from a BIDS relative path.
+
+    ``sub-01/ses-01/func/sub-01_ses-01_task-story_run-02_bold.nii.gz`` gives
+    ``("func", "bold", {"sub": "01", "ses": "01", "task": "story", "run": "02"})``.
+    Nothing is guessed: the datatype is the parent directory, the suffix is
+    the last underscore-separated token of the stem, the entities are the
+    ``key-value`` pairs in file order.
+    """
+    path = PurePosixPath(output_file)
+    datatype = path.parent.name if path.parent.name else ""
+    stem = path.name.split(".", 1)[0]
+    tokens = stem.split("_")
+    suffix = tokens[-1] if tokens and "-" not in tokens[-1] else ""
+    entities = dict(_ENTITY_RE.findall(stem))
+    return datatype, suffix, entities
+
+
 @dataclass(frozen=True)
 class ConvertRunRecord:
-    """Per-run record in the conversion manifest."""
+    """Per-run record in the conversion manifest.
+
+    ``datatype``, ``suffix`` and ``entities`` are the BIDS parts of
+    ``output_file``, verbatim (see :func:`bids_parts`); ``run_name``,
+    ``task`` and ``session`` are the ``run``/``task``/``ses`` entities and
+    are empty when the file carries none. Nothing here is inferred.
+    """
 
     run_name: str
     task: str
@@ -55,10 +83,28 @@ class ConvertRunRecord:
     output_file: str       # relative to bids_dir
     sidecar_file: str      # relative to bids_dir
     n_volumes: int
-    modality: str          # "bold", "T1w", "T2w", "dwi", "fmap", etc.
+    datatype: str = ""     # parent dir: anat / func / fmap / dwi / …
+    suffix: str = ""       # BIDS suffix: T1w / bold / MP2RAGE / phasediff / …
+    entities: dict[str, str] = field(default_factory=dict)
     shape: list[int] = field(default_factory=list)
     tr: float | None = None
     notes: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ConvertRunRecord:
+        """Build from JSON, upgrading manifests written before ``datatype`` /
+        ``suffix`` / ``entities`` existed (they carried a guessed ``modality``)."""
+        d = dict(data)
+        d.pop("modality", None)
+        if not d.get("suffix") or not d.get("entities"):
+            datatype, suffix, entities = bids_parts(d.get("output_file", ""))
+            d.setdefault("datatype", datatype)
+            d["suffix"] = d.get("suffix") or suffix
+            d["entities"] = d.get("entities") or entities
+            # Older records defaulted run_name to "01" when the file had no run entity.
+            if "run" not in entities and d.get("run_name") == "01":
+                d["run_name"] = ""
+        return cls(**d)
 
 
 # ── The manifest ─────────────────────────────────────────────────────────
@@ -128,7 +174,7 @@ class ConvertManifest:
         """Build a manifest from a dict (e.g. parsed JSON)."""
         runs = []
         for r in data.pop("runs", []):
-            runs.append(ConvertRunRecord(**r))
+            runs.append(ConvertRunRecord.from_dict(r))
 
         heuristic_data = data.pop("heuristic", None)
         heuristic = HeuristicRef(**heuristic_data) if heuristic_data else None

@@ -587,7 +587,10 @@ export interface ConvertRunRecord {
   output_file: string
   sidecar_file: string
   n_volumes: number
-  modality: string
+  /** BIDS parts of output_file, verbatim: parent dir, suffix, key-value entities. */
+  datatype: string
+  suffix: string
+  entities: Record<string, string>
   shape: number[]
   tr: number | null
   notes: string | null

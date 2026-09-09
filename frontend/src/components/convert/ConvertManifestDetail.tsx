@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { DirTree } from '../common/DirTree'
 import type { CSSProperties } from 'react'
-import type { ConvertManifestDetail } from '../../api/types'
+import type { ConvertManifestDetail, ConvertRunRecord } from '../../api/types'
 import { useConvertStore } from '../../stores/convert-store'
 import { ConvertDecisionTable } from './ConvertDecisionTable'
 
@@ -65,6 +65,8 @@ const thStyle: CSSProperties = {
   textTransform: 'uppercase',
   letterSpacing: 0.5,
 }
+
+const bidsThStyle: CSSProperties = { ...thStyle, textTransform: 'none', whiteSpace: 'nowrap' }
 
 const tdStyle: CSSProperties = {
   padding: '8px 10px',
@@ -213,50 +215,45 @@ export function ConvertManifestDetailPanel({ manifest }: Props) {
         </>
       )}
 
-      {/* Runs table */}
+      {/* Runs table — BIDS parts of each output file, verbatim: the parent
+          datatype dir, every key-value entity found in any file (in BIDS
+          order), the suffix, then what the sidecar and the image say. */}
       <div style={sectionLabel}>Runs ({manifest.runs.length})</div>
-      <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflowX: 'auto', marginBottom: 16 }}>
-        <table style={{ ...tableStyle, width: 'max-content', minWidth: '100%' }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Modality</th>
-              <th style={thStyle}>Task</th>
-              <th style={thStyle}>Run</th>
-              <th style={thStyle}>Session</th>
-              <th style={thStyle}>Volumes</th>
-              <th style={thStyle}>TR</th>
-              <th style={thStyle}>Shape</th>
-              <th style={thStyle}>Output</th>
-            </tr>
-          </thead>
-          <tbody>
-            {manifest.runs.map((run) => (
-              <tr key={run.run_name}>
-                <td style={tdStyle}>
-                  <span style={{
-                    ...tagStyle,
-                    backgroundColor: modalityColor(run.modality).bg,
-                    color: modalityColor(run.modality).text,
-                  }}>
-                    {run.modality}
-                  </span>
-                </td>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{run.task || '\u2014'}</td>
-                <td style={tdStyle}>{run.run_name}</td>
-                <td style={tdStyle}>{run.session || '\u2014'}</td>
-                <td style={tdStyle}>{run.n_volumes}</td>
-                <td style={tdStyle}>{run.tr != null ? `${run.tr}s` : '\u2014'}</td>
-                <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 10 }}>
-                  [{run.shape.join(', ')}]
-                </td>
-                <td style={{ ...tdStyle, fontSize: 10, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                  {run.output_file}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {(() => {
+        const keys = entityColumns(manifest.runs)
+        return (
+          <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflowX: 'auto', marginBottom: 16 }}>
+            <table style={{ ...tableStyle, width: 'max-content', minWidth: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={bidsThStyle}>datatype</th>
+                  {keys.map((k) => <th key={k} style={bidsThStyle}>{k}</th>)}
+                  <th style={bidsThStyle}>suffix</th>
+                  <th style={bidsThStyle}>shape</th>
+                  <th style={bidsThStyle}>RepetitionTime</th>
+                  <th style={bidsThStyle}>file</th>
+                </tr>
+              </thead>
+              <tbody>
+                {manifest.runs.map((run) => (
+                  <tr key={run.output_file}>
+                    <td style={tdStyle}>{run.datatype || '\u2014'}</td>
+                    {keys.map((k) => <td key={k} style={tdStyle}>{run.entities?.[k] ?? '\u2014'}</td>)}
+                    <td style={{ ...tdStyle, fontWeight: 600 }}>{run.suffix || '\u2014'}</td>
+                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 10 }}>
+                      {run.shape.length ? `[${run.shape.join(', ')}]` : '\u2014'}
+                    </td>
+                    <td style={tdStyle}>{run.tr != null ? run.tr : '\u2014'}</td>
+                    <td style={{ ...tdStyle, fontSize: 10, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                      {run.output_file}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
 
       {/* BIDS Validation */}
       <div style={sectionLabel}>BIDS Validation</div>
@@ -376,22 +373,12 @@ function formatDate(iso: string): string {
   } catch { return iso }
 }
 
-function modalityColor(modality: string): { bg: string; text: string } {
-  switch (modality.toLowerCase()) {
-    case 'bold':
-    case 'func':
-      return { bg: 'rgba(0, 229, 255, 0.12)', text: 'var(--accent-cyan)' }
-    case 'anat':
-    case 't1w':
-    case 't2w':
-      return { bg: 'rgba(0, 230, 118, 0.12)', text: 'var(--accent-green)' }
-    case 'dwi':
-    case 'dti':
-      return { bg: 'rgba(255, 214, 0, 0.12)', text: 'var(--accent-yellow)' }
-    case 'fmap':
-    case 'fieldmap':
-      return { bg: 'rgba(255, 23, 68, 0.12)', text: 'var(--accent-red)' }
-    default:
-      return { bg: 'rgba(136, 136, 170, 0.12)', text: 'var(--text-secondary)' }
-  }
+/** Entity keys present in any run, BIDS-specified order first, then the rest alphabetically. */
+const BIDS_ENTITY_ORDER = ['sub', 'ses', 'sample', 'task', 'tracksys', 'acq', 'nuc', 'voi', 'ce', 'trc', 'stain', 'rec', 'dir', 'run', 'mod', 'echo', 'flip', 'inv', 'mt', 'part', 'proc', 'hemi', 'space', 'split', 'recording', 'chunk', 'seg', 'res', 'den', 'label', 'desc']
+function entityColumns(runs: ConvertRunRecord[]): string[] {
+  const present = new Set<string>()
+  for (const r of runs) for (const k of Object.keys(r.entities ?? {})) present.add(k)
+  const ordered = BIDS_ENTITY_ORDER.filter((k) => present.has(k))
+  const rest = [...present].filter((k) => !BIDS_ENTITY_ORDER.includes(k)).sort()
+  return [...ordered, ...rest]
 }
