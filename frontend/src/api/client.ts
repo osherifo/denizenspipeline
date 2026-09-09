@@ -449,11 +449,10 @@ export async function fetchPreprocRun(runId: string): Promise<PreprocRunSummary>
 }
 
 export async function fetchPreprocRunLive(
-  runId: string, cap: number = 200,
+  runId: string, _cap: number = 200,
 ): Promise<import('./types').PreprocRunLive> {
-  return json(
-    `${BASE}/preproc/runs/${encodeURIComponent(runId)}/live?cap=${cap}`,
-  )
+  // Pipeline runs: the run detail carries nipype_status.
+  return json(`${BASE}/preproc/runs/${encodeURIComponent(runId)}?nipype=true`)
 }
 
 export async function cancelPreprocRun(runId: string): Promise<{ cancelled: boolean }> {

@@ -30,9 +30,9 @@ import {
 describe('preproc /live endpoint', () => {
   it('fetches a live status block', async () => {
     server.use(
-      http.get('/api/preproc/runs/abc/live', ({ request }) => {
+      http.get('/api/preproc/runs/abc', ({ request }) => {
         const url = new URL(request.url)
-        expect(url.searchParams.get('cap')).toBe('200')
+        expect(url.searchParams.get('nipype')).toBe('true')
         return HttpResponse.json({
           run_id: 'abc',
           subject: 'sub01',
@@ -58,29 +58,9 @@ describe('preproc /live endpoint', () => {
     expect(r.nipype_status.counts.failed).toBe(1)
   })
 
-  it('passes a custom cap as query param', async () => {
-    let observedCap: string | null = null
-    server.use(
-      http.get('/api/preproc/runs/xyz/live', ({ request }) => {
-        observedCap = new URL(request.url).searchParams.get('cap')
-        return HttpResponse.json({
-          run_id: 'xyz', subject: 's', backend: 'fmriprep',
-          status: 'done', pid: null, started_at: 0, finished_at: 0,
-          is_reattached: false, manifest_path: null, error: null,
-          config_path: null, log_path: null,
-          nipype_status: { counts: { running: 0, ok: 0, failed: 0, total_seen: 0 }, recent_nodes: [] },
-        })
-      }),
-    )
-    await fetchPreprocRunLive('xyz', 50)
-    expect(observedCap).toBe('50')
-  })
-
   it('throws on a 404', async () => {
     server.use(
-      http.get('/api/preproc/runs/missing/live',
-        () => new HttpResponse('not found', { status: 404 }),
-      ),
+      http.get('/api/preproc/runs/missing', () => new HttpResponse(null, { status: 404 })),
     )
     await expect(fetchPreprocRunLive('missing')).rejects.toThrow(/404/)
   })

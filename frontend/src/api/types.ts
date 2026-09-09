@@ -1344,3 +1344,188 @@ export interface ConvertDecisionTable {
   series: ConvertSeriesDecision[]
   warnings: string[]
 }
+
+// ── Preprocessing pipelines (unified node graph) ─────────────────
+
+export type PreprocNodeKind = 'interface' | 'container_app' | 'composite' | 'source'
+
+export interface PortSpec {
+  kind: string
+  required?: boolean
+  description?: string
+  exists?: boolean
+}
+
+export interface PreprocNodeInfo {
+  name: string
+  kind: PreprocNodeKind
+  version: string
+  description: string
+  source: string
+  container_bound: boolean
+  inputs: Record<string, PortSpec>
+  outputs: Record<string, PortSpec>
+  required_python: string[]
+  required_tools: string[]
+  required_env: string[]
+  params_schema: Record<string, ParamField & { group?: string }>
+  checks: string[]
+}
+
+export interface PreprocNodeDetail extends PreprocNodeInfo {
+  source_code: string | null
+  module: string | null
+}
+
+export interface PipelineNodeDoc {
+  id: string
+  type: string
+  kind: PreprocNodeKind
+  data: {
+    params: Record<string, unknown>
+    literal_inputs?: Record<string, unknown>
+    bindings?: Record<string, string>
+    iter?: { handle?: string; handles?: string[]; values?: unknown[] } | null
+  }
+  position: { x: number; y: number }
+}
+
+export interface PipelineEdgeDoc {
+  id: string
+  source: string
+  target: string
+  sourceHandle: string
+  targetHandle: string
+}
+
+export interface PipelineDoc {
+  schema_version?: number
+  name: string
+  description?: string
+  inputs: Record<string, { kind: string; description?: string; required?: boolean }>
+  outputs?: Record<string, { from: string }>
+  nodes: PipelineNodeDoc[]
+  edges: PipelineEdgeDoc[]
+  manifest: { backend_node?: string; bold_from?: string; confounds_from?: string }
+}
+
+export interface PipelineSummary {
+  name: string
+  path: string
+  description: string
+  n_nodes: number
+  node_types: string[]
+  inputs: Record<string, { kind: string; description?: string }>
+  mtime: number
+  error: string | null
+}
+
+export interface PipelineTemplateSummary {
+  name: string
+  description: string
+  n_nodes: number
+  node_types: string[]
+  inputs: Record<string, { kind: string; description?: string }>
+}
+
+export interface PipelineRunRequestBody {
+  pipeline?: PipelineDoc
+  pipeline_name?: string
+  subject: string
+  output_dir: string
+  bids_dir?: string | null
+  derivatives_dir?: string | null
+  work_dir?: string | null
+  dataset?: string
+  task?: string | null
+  sessions?: string[]
+  inputs?: Record<string, unknown>
+  plugin?: 'Linear' | 'MultiProc'
+  n_procs?: number | null
+  use_cache?: boolean
+  rerun_from?: string[]
+  abort_on_bad?: boolean
+  params_override?: Record<string, Record<string, unknown>>
+}
+
+export type PipelineRunStatus = 'running' | 'done' | 'failed' | 'cancelled' | 'lost'
+
+export interface CheckpointSummary {
+  n: number
+  counts: Record<string, number>
+  worst: 'ok' | 'suspicious' | 'bad' | 'unknown' | null
+}
+
+export interface PipelineNodeRunRecord {
+  node_id: string
+  node_type: string
+  kind: PreprocNodeKind
+  status: 'ok' | 'failed' | 'cached' | 'skipped' | 'pending'
+  duration_s: number
+  work_dir: string
+  outputs: Record<string, unknown>
+  error: string | null
+}
+
+export interface PipelineRunSummary {
+  run_id: string
+  kind: string
+  backend: string
+  subject: string
+  status: PipelineRunStatus
+  pid: number | null
+  started_at: number
+  finished_at: number
+  manifest_path: string | null
+  error: string | null
+  pipeline: string | null
+  nodes: { id: string; type: string; kind: PreprocNodeKind }[]
+  n_nodes: number
+  work_dir: string | null
+  workflow: string | null
+  output_dir: string | null
+  use_cache: boolean
+  resumed_from: string | null
+  config_path: string | null
+  result: { status: string; duration_s: number; errors: string[]; nodes: PipelineNodeRunRecord[] } | null
+  checkpoints: CheckpointSummary
+}
+
+export interface PipelineRunDetail extends PipelineRunSummary {
+  nipype_status?: NipypeStatusBlock
+  job?: { pipeline: PipelineDoc; request: PipelineRunRequestBody } | null
+}
+
+export interface CheckpointRecord {
+  stage: string
+  run_id: string
+  node: string
+  step: string
+  subject: string
+  metrics: Record<string, unknown>
+  expectations: Record<string, [string, unknown]>
+  soft_expectations: Record<string, [string, unknown]>
+  verdict: 'ok' | 'suspicious' | 'bad' | 'unknown'
+  thumbnail: string | null
+  detail: Record<string, unknown>
+  t: number
+  artifact: string | null
+  reasons: string[]
+}
+
+export interface PipelineEvent {
+  event: string
+  timestamp?: number
+  t?: number
+  node?: string
+  leaf?: string
+  workflow?: string
+  cached?: boolean
+  duration_s?: number
+  verdict?: string
+  step?: string
+  reasons?: string[]
+  errors?: string[]
+  status?: string
+  [key: string]: unknown
+}

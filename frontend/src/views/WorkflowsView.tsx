@@ -24,7 +24,7 @@ import {
 import type { AnalysisInnerStage, NipypeStatusBlock } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
-import { NipypeGraphModal } from '../components/workflow/NipypeGraphModal'
+import { RunDetailModal } from '../components/preproc-graph/RunDetailModal'
 import { StructuralQCModal } from '../components/workflow/StructuralQCModal'
 import { ConvertDecisionsModal } from '../components/workflow/ConvertDecisionsModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
@@ -625,9 +625,8 @@ export function WorkflowsView() {
       )}
 
       {nipypeGraph && (
-        <NipypeGraphModal
+        <RunDetailModal
           runId={nipypeGraph.runId}
-          isRunning={nipypeGraph.isRunning}
           onClose={() => setNipypeGraph(null)}
         />
       )}

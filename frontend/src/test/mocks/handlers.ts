@@ -6,8 +6,11 @@ import { autoflattenHandlers } from './handlers.autoflatten'
 import { convertHandlers } from './handlers.convert'
 import { errorsHandlers } from './handlers.errors'
 import { settingsHandlers } from './handlers.settings'
+import { preprocPipelinesHandlers } from './handlers.preproc-pipelines'
 
 export const handlers = [
+  // Pipeline runs own /api/preproc/runs; they must precede the legacy preproc handlers.
+  ...preprocPipelinesHandlers,
   ...modulesHandlers,
   ...configsHandlers,
   ...runsHandlers,

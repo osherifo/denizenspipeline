@@ -98,10 +98,8 @@ const groups: { label: string; items: NavItem[] }[] = [
     label: 'Preprocessing',
     items: [
       { key: 'convert', label: 'DICOM \u2192 BIDS', hash: '#convert' },
-      { key: 'preproc', label: 'Preproc', hash: '#preproc' },
-      { key: 'preproc-stack', label: 'Preproc (stack)', hash: '#preproc-stack' },
+      { key: 'preproc', label: 'Preprocessing', hash: '#preproc' },
       { key: 'autoflatten', label: 'Autoflatten', hash: '#autoflatten' },
-      { key: 'post-preproc', label: 'Post-preproc (nipype)', hash: '#post-preproc' },
       { key: 'qc-reviews', label: 'QC Reviews', hash: '#qc-reviews' },
     ],
   },
