@@ -11,23 +11,21 @@ duplicate of stage config bodies.
 
 ```yaml
 workflow:
-  name: AN reading (en) — full pipeline
-  subject: AN   # optional, for display
+  name: sub01 reading (en) — full pipeline
+  subject: sub01   # optional, for display
 
   stages:
     - stage: convert
-      config: experiments/convert/an_reading_en.yaml
+      config: experiments/convert/sub01_reading.yaml
     - stage: preproc
-      config: experiments/preproc/fmriprep_AN.yaml
+      config: experiments/preproc/sub01_fmriprep.yaml   # preproc: {pipeline: <name>, subject, output_dir, …}
     - stage: autoflatten
-      config: experiments/autoflatten/AN.yaml
-    - stage: post_preproc
-      config: experiments/post_preproc/smooth_AN.yaml
+      config: experiments/autoflatten/sub01.yaml
     - stage: analysis
-      config: experiments/mkr_AN.yaml
+      config: experiments/sub01_encoding.yaml
 ```
 
-- `stages[].stage` must be one of `convert`, `preproc`, `autoflatten`, `post_preproc`, `analysis`.
+- `stages[].stage` must be one of `convert`, `preproc`, `autoflatten`, `analysis`. A `preproc` stage config references a saved pipeline (`preproc: {pipeline: <name>, …}`, see the [pipeline reference](../reference/preproc-pipeline.md#workflow-stage)); post-processing steps are nodes inside that pipeline.
 - `stages[].config` is a path to an existing stage YAML. Relative paths resolve against the workflow YAML's parent dir first, then against the server's cwd.
 - Stages run **in list order**, one at a time, stop-on-first-failure.
 - You can omit any stage — a workflow can be just `preproc → analysis` if convert isn't needed.
@@ -39,7 +37,6 @@ The workflow config store scans `./experiments/workflows/`. Same pattern as the 
 - `./experiments/preproc/`
 - `./experiments/convert/`
 - `./experiments/autoflatten/`
-- `./experiments/post_preproc/` — see [Post-preproc stage YAML](post-preproc.md#use-as-a-workflow-stage)
 - `./experiments/workflows/` — **this page**
 
 ## Running
@@ -121,7 +118,7 @@ Behind the scenes:
 - Events are appended to
   `~/.fmriflow/runs/{run_id}/nipype_events.jsonl`.
 - The frontend polls
-  `GET /api/preproc/runs/{run_id}/live` every 2 s while the stage
+  `GET /api/preproc/runs/{run_id}` every 2 s while the stage
   is running; the response includes a `nipype_status` block built
   by re-parsing the JSONL.
 - The JSONL on disk is the source of truth, so the strip
@@ -192,7 +189,7 @@ laid out top-to-bottom by `dagre`. Each leaf is a real nipype node
 summary box for a sub-workflow that rolls up `running / done / failed`
 counts of its descendants.
 
-The modal polls the same `/api/preproc/runs/{run_id}/live` endpoint as
+The modal polls the same `/api/preproc/runs/{run_id}` endpoint as
 the strip and re-lays out on each refresh. Once the run finishes, the
 DAG remains viewable from the saved JSONL — useful for postmortems on
 failed runs ("which sub-workflow blew up?"). v1 derives the DAG from
@@ -265,7 +262,7 @@ documented conceptual stages.
   at the section for that step.
 
 The lane selector and friendly labels are fmriprep-specific. Other
-nipype backends (a future hand-rolled preproc-stack workflow) get a
+nipype workflows (a composite node such as `reference_fsl_ants`) get a
 single fallback `Workflow` lane (so the selector hides) plus raw
 labels — we don't pretend to know their conceptual stages.
 

@@ -53,26 +53,17 @@ Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
 - **Saved Configs** panel lists previously saved batches with Load/Delete actions
 - Click **Run Batch** to start — progress shows per-job status badges (queued, running, done, failed), elapsed time, and expandable per-job logs
 
-### Preprocessing Manager
+### Preprocessing
 
-Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Five tabs:
+One page, four tabs, over one pipeline graph. See the [Preprocessing guide](preprocessing.md).
 
-**Backends** — Lists installed preprocessing backends with version and status.
+**Build** — Templates (`fmriprep_full`, `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`, `derivatives_smooth_regress`, `reference_nipype`) and saved pipelines on the left; the editor in the middle as a **Simple** chain of cards or a **Graph** (drag ports to connect); the selected node's grouped parameters, input bindings, ×N iteration and manifest role on the right, above the **Run** panel (subject, paths, plugin, cache, rerun-from, abort-on-bad-checkpoint).
 
-**Manifests** — Browse completed preprocessing outputs. Each manifest records the backend, parameters, output space, and per-run QC metrics. Validate against an analysis config to check compatibility before running the pipeline.
+**Runs** — Every pipeline run. The detail shows the graph with live node status, the checkpoint filmstrip (verdict-coloured frames with thumbnails and the metric / bound table), a node's outputs drawer (NIfTI viewer, reports, JSON, pickles, crash files), the fmriprep node's **Inner DAG**, the log, the event stream, and a **Resume / Restart** choice for lost or failed runs.
 
-**Configs** — Browse YAML preproc configs discovered under `./experiments/preproc/`. Each file must have a top-level `preproc:` section. Clicking a config shows a summary grid (subject, backend, container, mode, paths) and the raw YAML, with a **Run** button that launches the job and streams live fmriprep output into the progress panel below. An **In Flight** panel at the top lists running jobs (plus recent completions) with `Watch` and `Cancel` buttons — jobs launched here survive server restarts and reconnect automatically, with a `REATTACHED` tag. See [Preprocessing → Workflow 2](preprocessing.md#workflow-2-run-preprocessing-from-a-yaml-config) and [Long-running jobs](preprocessing.md#long-running-jobs--detach--reattach) for details.
+**Library** — Browse nodes by kind (source / node / app / workflow) and source (built-in / user), with preflight status, parameter schema and source code. **New node** opens a Monaco scaffold saved to `$FMRIFLOW_HOME/addons/nodes/`; **Import nipype pipeline** turns an existing `.py` into a composite node.
 
-**Collect** — Build a manifest from existing preprocessing outputs (e.g., from a previous fmriprep run). Specify the output directory and file pattern; the tool scans and organizes the files.
-
-**Run** — Launch a preprocessing job from an inline form (no YAML):
-
-- Select backend, set BIDS directory, output directory, work directory, subject ID
-- Toggle options like `--skip-bids-validation` in the Advanced section
-- Click **Run** for live progress with event streaming
-- Manifest auto-refreshes on completion
-
----
+**Outputs** — Manifests on disk (validate against an analysis config; structural-QC status per subject) and **Collect** existing derivatives into a manifest.
 
 ## Analysis
 

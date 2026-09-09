@@ -14,7 +14,7 @@
         <link rel="prev" href="../modules/">
       
       
-        <link rel="next" href="../preproc-stack/">
+        <link rel="next" href="../structural-qc/">
       
       
         
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#fmri-preprocessing" class="md-skip">
+        <a href="#preprocessing" class="md-skip">
           Skip to content
         </a>
       
@@ -696,10 +696,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-1-register-existing-outputs" class="md-nav__link">
+  <a href="#workflow-1-the-easy-path-fmriprep-from-a-template" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow 1: Register existing outputs
+        Workflow 1: the easy path — fmriprep from a template
       
     </span>
   </a>
@@ -707,121 +707,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-2-run-preprocessing-from-a-yaml-config" class="md-nav__link">
+  <a href="#workflow-2-build-a-pipeline" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow 2: Run preprocessing from a YAML config
+        Workflow 2: build a pipeline
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Workflow 2: Run preprocessing from a YAML config">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#config-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Config format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2a-run-from-the-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2a. Run from the CLI
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2b-run-from-the-dashboard-preprocessing-configs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2b. Run from the dashboard (Preprocessing → Configs)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2c-run-via-http-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2c. Run via HTTP API
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#long-running-jobs-detach-reattach" class="md-nav__link">
+  <a href="#workflow-3-watch-a-run" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Long-running jobs — detach &amp; reattach
+        Workflow 3: watch a run
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Long-running jobs — detach &amp; reattach">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ui" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#http-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        HTTP API
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#caveats" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Caveats
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-3-custom-script" class="md-nav__link">
+  <a href="#workflow-4-your-own-nodes-and-pipelines" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow 3: Custom script
+        Workflow 4: your own nodes and pipelines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflow-5-register-outputs-produced-elsewhere" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow 5: register outputs produced elsewhere
       
     </span>
   </a>
@@ -840,10 +762,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#backends" class="md-nav__link">
+  <a href="#migrating-from-the-earlier-surfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Backends
+        Migrating from the earlier surfaces
       
     </span>
   </a>
@@ -865,34 +787,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../preproc-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Preprocessing (stack)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -997,34 +891,6 @@
     
   
     Pycortex Transforms
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../post-preproc/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Post-preproc
   
 
     
@@ -1316,6 +1182,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/preproc-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprocessing pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1372,10 +1266,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-1-register-existing-outputs" class="md-nav__link">
+  <a href="#workflow-1-the-easy-path-fmriprep-from-a-template" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow 1: Register existing outputs
+        Workflow 1: the easy path — fmriprep from a template
       
     </span>
   </a>
@@ -1383,121 +1277,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-2-run-preprocessing-from-a-yaml-config" class="md-nav__link">
+  <a href="#workflow-2-build-a-pipeline" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow 2: Run preprocessing from a YAML config
+        Workflow 2: build a pipeline
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Workflow 2: Run preprocessing from a YAML config">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#config-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Config format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2a-run-from-the-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2a. Run from the CLI
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2b-run-from-the-dashboard-preprocessing-configs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2b. Run from the dashboard (Preprocessing → Configs)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2c-run-via-http-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2c. Run via HTTP API
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#long-running-jobs-detach-reattach" class="md-nav__link">
+  <a href="#workflow-3-watch-a-run" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Long-running jobs — detach &amp; reattach
+        Workflow 3: watch a run
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Long-running jobs — detach &amp; reattach">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ui" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#http-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        HTTP API
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#caveats" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Caveats
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflow-3-custom-script" class="md-nav__link">
+  <a href="#workflow-4-your-own-nodes-and-pipelines" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflow 3: Custom script
+        Workflow 4: your own nodes and pipelines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflow-5-register-outputs-produced-elsewhere" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow 5: register outputs produced elsewhere
       
     </span>
   </a>
@@ -1516,10 +1332,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#backends" class="md-nav__link">
+  <a href="#migrating-from-the-earlier-surfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Backends
+        Migrating from the earlier surfaces
       
     </span>
   </a>
@@ -1557,19 +1373,39 @@
   
 
 
-<h1 id="fmri-preprocessing">fMRI Preprocessing<a class="headerlink" href="#fmri-preprocessing" title="Permanent link">&para;</a></h1>
-<div class="admonition info">
-<p class="admonition-title">New page: Preprocessing (stack)</p>
-<p>The unified <strong><a href="../preproc-stack/">Preproc (stack)</a></strong> page is now the
-recommended way to launch preprocessing runs. It supports cached
-re-runs, mid-pipeline transforms (smooth, mask, regress
-confounds), schema-driven param forms, and presets.</p>
-<p>This page describes the underlying preprocessing module + the
-<code>PreprocManifest</code> contract. The legacy single-backend launch
-form was removed; the manifest / collect / backend-status
-surfaces below still work.</p>
-</div>
-<p>A standalone module for managing fMRI preprocessing (fmriprep, custom scripts, BIDS-Apps). It produces a <code>PreprocManifest</code> — a JSON contract between preprocessing and the analysis pipeline — providing provenance tracking, validation, and reproducibility.</p>
+<h1 id="preprocessing">Preprocessing<a class="headerlink" href="#preprocessing" title="Permanent link">&para;</a></h1>
+<p>fMRIflow preprocessing is <strong>one graph</strong>: a pipeline is a set of nodes — fmriprep, a
+BIDS-App, a shell command, a smoothing step, a hand-written nipype workflow you imported —
+wired port to port and run as a single nipype workflow. The same page builds it, runs it,
+watches it, and checks its outputs. Everything ends in a <code>PreprocManifest</code>, the JSON
+contract the analysis stage reads.</p>
+<p>Open <strong>Preprocessing</strong> in the sidebar. Four tabs:</p>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Build</strong></td>
+<td>Pick a template or a saved pipeline, edit it as a chain (Simple) or a graph (Graph), set node parameters, bind a subject and paths, run.</td>
+</tr>
+<tr>
+<td><strong>Runs</strong></td>
+<td>Every pipeline run: live node status on the graph, checkpoints, per-node outputs, the inner fmriprep DAG, the log, Resume / Restart.</td>
+</tr>
+<tr>
+<td><strong>Library</strong></td>
+<td>The node library: what each node needs, its parameters and source; author a new node; import an existing nipype pipeline.</td>
+</tr>
+<tr>
+<td><strong>Outputs</strong></td>
+<td>Manifests on disk; collect a manifest from derivatives produced elsewhere.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="environment-setup">Environment setup<a class="headerlink" href="#environment-setup" title="Permanent link">&para;</a></h2>
 <p>fMRIPrep has heavy dependencies, so install fMRIflow into the conda env that already has fmriprep:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Option A: install the pipeline into your fmriprep env (recommended)</span>
@@ -1603,201 +1439,130 @@ the server at its binary:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FS_LICENSE</span><span class="o">=</span>~/fmriprep-local/fs_license.txt
 </code></pre></div>
 <h2 id="quick-check">Quick check<a class="headerlink" href="#quick-check" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>doctor
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>doctor<span class="w">        </span><span class="c1"># preflight every node: tools, env vars, python deps</span>
 </code></pre></div>
-<h2 id="workflow-1-register-existing-outputs">Workflow 1: Register existing outputs<a class="headerlink" href="#workflow-1-register-existing-outputs" title="Permanent link">&para;</a></h2>
-<p>If you already ran fmriprep and want to hook the outputs into the pipeline:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Build a manifest from existing fmriprep derivatives</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>collect<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--backend<span class="w"> </span>fmriprep<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>--output-dir<span class="w"> </span>/data/derivatives/fmriprep/<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span>--subject<span class="w"> </span>sub01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span>--task<span class="w"> </span>reading<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span>--run-map<span class="w"> </span><span class="s1">&#39;{&quot;run-01&quot;: &quot;story01&quot;, &quot;run-02&quot;: &quot;story02&quot;}&#39;</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># Inspect and validate</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>info<span class="w"> </span>manifest.json
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>manifest.json
+<h2 id="workflow-1-the-easy-path-fmriprep-from-a-template">Workflow 1: the easy path — fmriprep from a template<a class="headerlink" href="#workflow-1-the-easy-path-fmriprep-from-a-template" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Build → Templates → <code>fmriprep_full</code></strong> (or <code>fmriprep_anat_only</code>, <code>fmriprep_func_precomputed_anat</code>).
+   The pipeline is a single <code>fmriprep</code> node.</li>
+<li>Click the node. Parameters are grouped — <strong>Mode</strong> (full / anat_only / func_only /
+   func_precomputed_anat, container image and runtime), <strong>Anatomical</strong>, <strong>Functional</strong>,
+   <strong>Fieldmaps</strong>, <strong>Output</strong> (spaces, CIFTI), <strong>Denoising</strong>, <strong>Resources</strong>.</li>
+<li>In the <strong>Run</strong> panel enter the subject label, the BIDS root and an output directory,
+   then <strong>Run pipeline</strong>. The Runs tab opens on the new run.</li>
+</ol>
+<p>From the CLI the same thing is:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>fmriprep_anat_only<span class="w"> </span>--subject<span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--bids-dir<span class="w"> </span>./testing/my_study/bids<span class="w"> </span>--output-dir<span class="w"> </span>./testing/my_study/derivatives<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.container<span class="o">=</span>nipreps/fmriprep:24.1.1<span class="w"> </span>--param<span class="w"> </span>fmriprep.container_type<span class="o">=</span>docker
 </code></pre></div>
-<p>Then point your analysis config at the manifest:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">response</span><span class="p">:</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">mask_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">thick</span>
-</code></pre></div>
-<h2 id="workflow-2-run-preprocessing-from-a-yaml-config">Workflow 2: Run preprocessing from a YAML config<a class="headerlink" href="#workflow-2-run-preprocessing-from-a-yaml-config" title="Permanent link">&para;</a></h2>
-<p>The same YAML drives three equivalent entry points: CLI, HTTP API, and the
-dashboard's <strong>Configs</strong> tab. Put the file anywhere for CLI use, or under
-<code>./experiments/preproc/</code> so the dashboard and API auto-discover it.</p>
-<h3 id="config-format">Config format<a class="headerlink" href="#config-format" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">preproc</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">bids_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/bids/my_study/</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/derivatives/fmriprep/</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">work_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/derivatives/work/</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">subject</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sub01</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">reading</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span><span class="nt">sessions</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">session01</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="nt">backend_params</span><span class="p">:</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">    </span><span class="c1"># Container</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span><span class="nt">container</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/images/fmriprep/fmriprep_25.1.3.sif</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">    </span><span class="nt">container_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">singularity</span><span class="w">         </span><span class="c1"># also runs under Apptainer — see above</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">    </span><span class="c1"># Mode: full | anat_only | func_only | func_precomputed_anat</span>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">func_only</span><span class="w">                     </span><span class="c1"># skips FreeSurfer reconall</span>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">    </span><span class="c1"># FreeSurfer license (required for full / func_precomputed_anat)</span>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">    </span><span class="nt">fs_license_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">~/.freesurfer/license.txt</span>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
-<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">    </span><span class="c1"># Output spaces</span>
-<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="w">    </span><span class="nt">output_spaces</span><span class="p">:</span>
-<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MNI152NLin2009cAsym:res-2</span>
-<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">T1w</span>
-<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>
-<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="w">    </span><span class="c1"># Resources</span>
-<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="w">    </span><span class="nt">nthreads</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
-<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="w">    </span><span class="nt">omp_nthreads</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
-<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="w">    </span><span class="nt">mem_mb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32000</span>
-<a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>
-<a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a><span class="w">    </span><span class="c1"># Bypass the in-container BIDS validator for datasets that intentionally</span>
-<a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a><span class="w">    </span><span class="c1"># deviate from strict BIDS.</span>
-<a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a><span class="w">    </span><span class="nt">skip_bids_validation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-8-34" name="__codelineno-8-34" href="#__codelineno-8-34"></a>
-<a id="__codelineno-8-35" name="__codelineno-8-35" href="#__codelineno-8-35"></a><span class="w">  </span><span class="nt">confounds</span><span class="p">:</span>
-<a id="__codelineno-8-36" name="__codelineno-8-36" href="#__codelineno-8-36"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">motion_24</span>
-<a id="__codelineno-8-37" name="__codelineno-8-37" href="#__codelineno-8-37"></a><span class="w">    </span><span class="nt">high_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
-<a id="__codelineno-8-38" name="__codelineno-8-38" href="#__codelineno-8-38"></a>
-<a id="__codelineno-8-39" name="__codelineno-8-39" href="#__codelineno-8-39"></a><span class="w">  </span><span class="nt">run_map</span><span class="p">:</span>
-<a id="__codelineno-8-40" name="__codelineno-8-40" href="#__codelineno-8-40"></a><span class="w">    </span><span class="nt">run-01</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">story01</span>
-<a id="__codelineno-8-41" name="__codelineno-8-41" href="#__codelineno-8-41"></a><span class="w">    </span><span class="nt">run-02</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">story02</span>
-</code></pre></div>
-<p>The backend auto-creates <code>output_dir</code> and <code>work_dir</code> before launching —
-Apptainer refuses to bind-mount paths that don't exist on the host.</p>
-<h3 id="2a-run-from-the-cli">2a. Run from the CLI<a class="headerlink" href="#2a-run-from-the-cli" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>--config<span class="w"> </span>experiments/preproc/my_config.yaml
-</code></pre></div>
-<h3 id="2b-run-from-the-dashboard-preprocessing-configs">2b. Run from the dashboard (Preprocessing → Configs)<a class="headerlink" href="#2b-run-from-the-dashboard-preprocessing-configs" title="Permanent link">&para;</a></h3>
-<p>The dashboard scans <code>./experiments/preproc/*.yaml</code> for files with a top-level
-<code>preproc:</code> section and lists them in the <strong>Configs</strong> tab. Clicking a config
-shows its summary (subject, backend, container, mode, paths) and the raw YAML,
-with a <strong>Run</strong> button that starts the job and streams live fmriprep output
-into the progress panel below.</p>
-<h3 id="2c-run-via-http-api">2c. Run via HTTP API<a class="headerlink" href="#2c-run-via-http-api" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># List discovered configs</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>curl<span class="w"> </span>http://localhost:8000/api/preproc/configs
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Get one</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>curl<span class="w"> </span>http://localhost:8000/api/preproc/configs/my_config.yaml
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Kick off a run (body is optional — any fields shallow-merge onto the YAML)</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/api/preproc/configs/my_config.yaml/run<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;subject&quot;: &quot;sub02&quot;}&#39;</span>
-</code></pre></div>
-<p>The response returns a <code>run_id</code> you can use to tail live events over
-<code>/ws/preproc/{run_id}</code>.</p>
-<h2 id="long-running-jobs-detach-reattach">Long-running jobs — detach &amp; reattach<a class="headerlink" href="#long-running-jobs-detach-reattach" title="Permanent link">&para;</a></h2>
-<p>fmriprep runs take hours. To let you close the browser, restart the server,
-or reboot the machine without killing a job in progress, fmriprep jobs
-launched through the dashboard or <code>/api/preproc/configs/{file}/run</code> are
-detached from the server process:</p>
+<p>Save the pipeline under a name to reuse it (it lands in <code>$FMRIFLOW_HOME/configs/preproc/</code>).</p>
+<h2 id="workflow-2-build-a-pipeline">Workflow 2: build a pipeline<a class="headerlink" href="#workflow-2-build-a-pipeline" title="Permanent link">&para;</a></h2>
+<p><strong>Simple view</strong> shows a chain as ordered cards — good for <em>fmriprep → smooth → regress
+confounds</em>. <code>+ add step</code> appends a node and wires the previous node's first file output
+into the new node's first file input. <strong>Graph view</strong> is the full editor: add any node,
+drag from an output port to an input port to connect, Backspace deletes the selection.
+Both views edit the same pipeline; Simple is only offered while the graph is a single chain.</p>
+<p>For each node the side panel shows:</p>
 <ul>
-<li>The fmriprep subprocess is spawned in its own process group
-  (<code>start_new_session=True</code>), so it survives if the parent dies.</li>
-<li>stdout+stderr go straight to a log file under
-  <code>~/.fmriflow/runs/{run_id}/stdout.log</code> — never to a broken pipe.</li>
-<li>A sidecar <code>state.json</code> in the same directory records pid, pgid, start
-  time, config path, and current status.</li>
+<li><strong>Inputs</strong> — each input port is either connected (an edge), bound to a pipeline input
+  (<code>$inputs.bids_dir</code>), or given a literal value. <strong>×N</strong> on a port makes the node
+  iterate over the list arriving there (one nipype <code>MapNode</code> per item — e.g. smooth
+  every BOLD run).</li>
+<li><strong>Parameters</strong> — a schema-driven form, grouped when the node declares groups.</li>
+<li><strong>Manifest role</strong> — which node's outputs define the manifest (★), and which port
+  the manifest's BOLD files should point at (<code>bold from</code>).</li>
 </ul>
-<p>When the server restarts it scans <code>~/.fmriflow/runs/*/state.json</code>:</p>
+<p><strong>Validate</strong> checks ports, kinds, doubly fed inputs and cycles before you run.</p>
+<p><code>derivatives_smooth_regress</code> is the template for "data already preprocessed elsewhere":
+a <code>derivatives_source</code> finds the BOLD + confounds files, <code>smooth</code> and
+<code>regress_confounds</code> iterate over them, and the manifest points at the regressed output.
+<code>reference_nipype</code> is a hand-written nipype workflow (MCFLIRT → BET → FLIRT BBR → ANTs
+SyN) on raw BIDS — the copyable example of a composite node.</p>
+<h2 id="workflow-3-watch-a-run">Workflow 3: watch a run<a class="headerlink" href="#workflow-3-watch-a-run" title="Permanent link">&para;</a></h2>
+<p>The Runs tab shows the pipeline graph with each node coloured by status (running /
+done / cached ⟲ / failed) and a checkpoint badge. Click a node to open its <strong>outputs</strong>
+(the nipype work dir: NIfTIs render inline, reports and JSON open in place, crash files
+are shown). <strong>Inner DAG</strong> opens the fmriprep node's own nipype workflow — recon-all,
+BOLD preprocessing, field-map estimation — with live node status, because the node
+streams fmriprep's log into the same event stream.</p>
+<p><strong>Checkpoints</strong> are the filmstrip under the graph. As recon-all writes each file the
+fmriprep node measures it — <code>orig/nu/T1.mgz</code> intensity statistics (unique values, modal
+fraction), <code>wm.mgz</code> volume, <code>?h.white</code> Euler numbers, <code>?h.thickness</code> mean and
+zero-thickness fraction, <code>aseg.stats</code> — and judges it against a norms table:
+<strong>ok</strong>, <strong>suspicious</strong>, <strong>bad</strong> (with the reasons), or <strong>unknown</strong>. A bad <code>nu.mgz</code> is
+visible ~20 minutes into a 10-hour run instead of after it. Every node also gets generic
+output checks (file exists, non-empty, 4D where a BOLD is expected). Tick <strong>abort on bad
+checkpoint</strong> in the Run panel to have a <code>bad</code> verdict terminate the run.</p>
+<p>Runs are detached processes; a server restart cannot kill them. A run whose process is
+gone shows as <strong>lost</strong>, and <strong>Resume / Restart…</strong> asks what you want: <em>Resume</em> launches
+the same job and nipype skips every node whose inputs are unchanged; <em>Restart</em> ignores
+the cache. Nothing resumes silently. <strong>Rerun from</strong> in the Run panel re-executes from a
+named node onwards after you change a parameter downstream.</p>
+<h2 id="workflow-4-your-own-nodes-and-pipelines">Workflow 4: your own nodes and pipelines<a class="headerlink" href="#workflow-4-your-own-nodes-and-pipelines" title="Permanent link">&para;</a></h2>
+<p><strong>Library → New node</strong> opens a Monaco editor with a scaffold for each kind:</p>
 <ul>
-<li>Any run marked <code>running</code> whose PID is still alive is re-registered.
-  Its progress is reconstructed by tailing the existing <code>stdout.log</code>,
-  and a <code>REATTACHED</code> tag appears next to it in the UI.</li>
-<li>If the PID is dead, the run is marked <code>lost</code> so the history view
-  doesn't show an eternal "running."</li>
-<li>Finished runs stay on disk for inspection; no auto-delete.</li>
+<li><strong>node</strong> (<code>interface</code>) — a class with <code>INPUTS</code> / <code>OUTPUTS</code> / <code>PARAM_SCHEMA</code> and a
+  plain <code>run(inputs, out_dir, params)</code> returning output paths. No nipype knowledge
+  needed; the adapter wraps it.</li>
+<li><strong>workflow</strong> (<code>composite</code>) — <code>build(config)</code> returns a nipype <code>Workflow</code>; its
+  <code>inputnode</code> / <code>outputnode</code> fields are the ports.</li>
+<li><strong>app</strong> (<code>container_app</code>) — <code>build_command(...)</code> and <code>collect(...)</code> for a command-line
+  or containerised tool.</li>
 </ul>
-<h3 id="ui">UI<a class="headerlink" href="#ui" title="Permanent link">&para;</a></h3>
-<p>In the Preprocessing → Configs tab a new <strong>In Flight</strong> panel at the top
-lists running jobs (plus recent completions). Each row has:</p>
-<ul>
-<li><code>Watch</code> — opens the live progress panel and starts streaming from the
-  log file via WebSocket.</li>
-<li><code>Cancel</code> — <code>SIGTERM</code> the process group; <code>SIGKILL</code> after a 5-second grace
-  period.</li>
-</ul>
-<h3 id="http-api">HTTP API<a class="headerlink" href="#http-api" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># List all runs (in-memory + on-disk)</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>curl<span class="w"> </span>http://localhost:8000/api/preproc/runs
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Get summary + last 200 log lines for one</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>curl<span class="w"> </span>http://localhost:8000/api/preproc/runs/preproc_AH_4f2b9c1a
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Cancel a running job</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/api/preproc/runs/preproc_AH_4f2b9c1a/cancel
+<p>Files are saved to <code>$FMRIFLOW_HOME/addons/nodes/</code> and the library rescans. Addon files
+written for the earlier registries (<code>@register_preproc_workflow</code>, <code>@register_transform</code>,
+<code>@nipype_node</code>) still load — the decorators are aliases now.</p>
+<p><strong>Library → Import nipype pipeline</strong> takes a path to a <code>.py</code> that defines
+<code>build(config)</code> (or <code>create_workflow</code> / <code>make_workflow</code>) returning a nipype <code>Workflow</code>, or
+exposes a module-level <code>Workflow</code>. It becomes a composite node with the workflow's
+<code>inputnode</code> / <code>outputnode</code> fields as ports, usable in any pipeline.</p>
+<h2 id="workflow-5-register-outputs-produced-elsewhere">Workflow 5: register outputs produced elsewhere<a class="headerlink" href="#workflow-5-register-outputs-produced-elsewhere" title="Permanent link">&para;</a></h2>
+<p>If fmriprep (or anything else) already ran, build the manifest without re-running:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>collect<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--backend<span class="w"> </span>fmriprep<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--output-dir<span class="w"> </span>/data/derivatives/fmriprep/<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>--subject<span class="w"> </span>sub01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>--task<span class="w"> </span>reading<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span>--run-map<span class="w"> </span><span class="s1">&#39;{&quot;run-01&quot;: &quot;story01&quot;, &quot;run-02&quot;: &quot;story02&quot;}&#39;</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>info<span class="w">     </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
 </code></pre></div>
-<h3 id="caveats">Caveats<a class="headerlink" href="#caveats" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Only the <code>fmriprep</code> backend is detached. <code>custom</code> and <code>bids_app</code> still
-  run in-process and will be killed if the server dies.</li>
-<li>The subprocess's exit code is only known to the server that spawned
-  it. Reattached runs infer outcome by checking for fmriprep's HTML
-  report in the output dir — present → <code>done</code>, missing → <code>failed</code>.</li>
-<li>If you're running under Docker, bind-mount <code>~/.fmriflow</code> to the host
-  so the runs directory survives container restarts.</li>
-</ul>
-<h2 id="workflow-3-custom-script">Workflow 3: Custom script<a class="headerlink" href="#workflow-3-custom-script" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--backend<span class="w"> </span>custom<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>--raw-dir<span class="w"> </span>/data/raw/sub01/<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>--output-dir<span class="w"> </span>/data/preprocessed/sub01/<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>--subject<span class="w"> </span>sub01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span>--command<span class="w"> </span><span class="s2">&quot;python my_preproc.py --subject {subject} --input {input_dir} --output {output_dir}&quot;</span>
+<p>The same lives under <strong>Outputs → Collect</strong>. Then point an analysis config at it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">response</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">mask_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">thick</span>
 </code></pre></div>
 <h2 id="confound-regression">Confound regression<a class="headerlink" href="#confound-regression" title="Permanent link">&para;</a></h2>
-<p>Apply confound regression when the analysis pipeline loads the data:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">response</span><span class="p">:</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manifest.json</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">confounds</span><span class="p">:</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">motion_24</span><span class="w">    </span><span class="c1"># or: motion_6, acompcor, custom</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="nt">high_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="nt">fd_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">      </span><span class="c1"># scrub high-motion TRs</span>
+<p>Either put a <code>regress_confounds</code> node in the pipeline (it takes the confounds TSV on its
+<code>confounds_file</code> port and regresses the chosen columns out per voxel), or apply
+regression when the analysis pipeline loads the data:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">response</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manifest.json</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">confounds</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">motion_24</span><span class="w">    </span><span class="c1"># or: motion_6, acompcor, custom</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nt">high_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nt">fd_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">      </span><span class="c1"># scrub high-motion TRs</span>
 </code></pre></div>
-<p>Available strategies:</p>
-<ul>
-<li><code>motion_24</code> — 6 motion params + derivatives + squared + squared derivatives</li>
-<li><code>motion_6</code> — 6 motion params only</li>
-<li><code>acompcor</code> — 6 motion params + 5 anatomical CompCor components</li>
-<li><code>custom</code> — specify exact column names with <code>columns: [col1, col2, ...]</code></li>
-</ul>
-<h2 id="backends">Backends<a class="headerlink" href="#backends" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Backend</th>
-<th>Use case</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>fmriprep</code></td>
-<td>Wraps fmriprep (bare, Singularity, or Docker)</td>
-</tr>
-<tr>
-<td><code>custom</code></td>
-<td>Runs any shell command with <code>{subject}</code>, <code>{input_dir}</code>, <code>{output_dir}</code> placeholders</td>
-</tr>
-<tr>
-<td><code>bids_app</code></td>
-<td>Generic BIDS-App wrapper (any container following the standard CLI)</td>
-</tr>
-</tbody>
-</table>
+<h2 id="migrating-from-the-earlier-surfaces">Migrating from the earlier surfaces<a class="headerlink" href="#migrating-from-the-earlier-surfaces" title="Permanent link">&para;</a></h2>
+<p>Stack presets, saved post-preproc graphs and <code>backend:</code>-style stage configs are converted
+in one go:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w"> </span>--dry-run<span class="w">     </span><span class="c1"># report</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w">               </span><span class="c1"># write pipelines, keep originals as *.migrated</span>
+</code></pre></div>
+<p>Workflow YAMLs whose <code>preproc</code> stage still uses <code>backend:</code> / <code>backend_params:</code> are refused
+with the same hint; pass <code>--workflows-dir</code> to convert those too.</p>
 <h2 id="the-manifest">The manifest<a class="headerlink" href="#the-manifest" title="Permanent link">&para;</a></h2>
-<p><code>preproc_manifest.json</code> records everything about preprocessing: backend, version, parameters, output space, confounds, per-run QC metrics (framewise displacement, tSNR), and file paths. The analysis pipeline validates this before loading data, catching mismatches early.</p>
+<p><code>preproc_manifest.json</code> records everything about preprocessing: which node produced it,
+its version and parameters, output space, per-run QC metrics (framewise displacement,
+tSNR), file paths, and one <code>StepRecord</code> per node that ran (parameters, work dir, duration,
+nipype hash). The analysis pipeline validates this before loading data, catching
+mismatches early.</p>
+<p>See the <a href="../../reference/preproc-pipeline/">pipeline reference</a> for the YAML schema, the
+run request, the node contract, the event and checkpoint records, and the HTTP API.</p>
 
 
 

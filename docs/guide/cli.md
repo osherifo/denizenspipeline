@@ -70,10 +70,17 @@ fmriflow convert validate /data/bids/my_study/
 ## Preprocessing
 
 ```bash
-# Check available backends
+# Preflight every node in the library (tools, env vars, python deps)
 fmriflow preproc doctor
 
-# Build manifest from existing fmriprep outputs
+# Run a pipeline: a saved pipeline name, a template name, or a pipeline YAML
+fmriflow preproc run fmriprep_anat_only --subject 01 \
+  --bids-dir ./testing/my_study/bids --output-dir ./testing/my_study/derivatives \
+  --param fmriprep.container=nipreps/fmriprep:24.1.1 --param fmriprep.container_type=docker
+fmriflow preproc run my_pipeline.yaml --subject 01 --output-dir ./out \
+  --derivatives-dir /data/derivatives --rerun-from smooth --no-cache
+
+# Build a manifest from existing fmriprep outputs (no run)
 fmriflow preproc collect \
   --backend fmriprep \
   --output-dir /data/derivatives/fmriprep/ \
@@ -81,18 +88,14 @@ fmriflow preproc collect \
   --task reading \
   --run-map '{"run-01": "story01", "run-02": "story02"}'
 
-# Run preprocessing
-fmriflow preproc run --config preproc_config.yaml
-
-# Inspect a manifest
+# Inspect / validate a manifest
 fmriflow preproc info /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
-
-# Validate a manifest
 fmriflow preproc validate /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+fmriflow preproc validate manifest.json --for-config experiments/my_experiment.yaml
 
-# Validate against an analysis config
-fmriflow preproc validate manifest.json \
-  --for-config experiments/my_experiment.yaml
+# Convert old stack presets / post-preproc graphs / backend-style configs into pipelines
+fmriflow preproc migrate --dry-run
+fmriflow preproc migrate --workflows-dir ./experiments/workflows
 ```
 
 ## Server

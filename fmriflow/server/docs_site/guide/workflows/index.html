@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../post-preproc/">
+        <link rel="prev" href="../pycortex-transforms/">
       
       
         <link rel="next" href="../group-analysis/">
@@ -642,34 +642,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../preproc-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Preprocessing (stack)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../structural-qc/" class="md-nav__link">
         
   
@@ -762,34 +734,6 @@
     
   
     Pycortex Transforms
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../post-preproc/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Post-preproc
   
 
     
@@ -1272,6 +1216,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/preproc-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprocessing pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1478,23 +1450,21 @@ stage-config YAML that already lives under
 duplicate of stage config bodies.</p>
 <h2 id="yaml-schema">YAML schema<a class="headerlink" href="#yaml-schema" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">workflow</span><span class="p">:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AN reading (en) — full pipeline</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">subject</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AN</span><span class="w">   </span><span class="c1"># optional, for display</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sub01 reading (en) — full pipeline</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">subject</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sub01</span><span class="w">   </span><span class="c1"># optional, for display</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">stages</span><span class="p">:</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">convert</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/convert/an_reading_en.yaml</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/convert/sub01_reading.yaml</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/preproc/fmriprep_AN.yaml</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/preproc/sub01_fmriprep.yaml</span><span class="w">   </span><span class="c1"># preproc: {pipeline: &lt;name&gt;, subject, output_dir, …}</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">autoflatten</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/autoflatten/AN.yaml</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">post_preproc</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/post_preproc/smooth_AN.yaml</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">analysis</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/mkr_AN.yaml</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/autoflatten/sub01.yaml</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">analysis</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiments/sub01_encoding.yaml</span>
 </code></pre></div>
 <ul>
-<li><code>stages[].stage</code> must be one of <code>convert</code>, <code>preproc</code>, <code>autoflatten</code>, <code>post_preproc</code>, <code>analysis</code>.</li>
+<li><code>stages[].stage</code> must be one of <code>convert</code>, <code>preproc</code>, <code>autoflatten</code>, <code>analysis</code>. A <code>preproc</code> stage config references a saved pipeline (<code>preproc: {pipeline: &lt;name&gt;, …}</code>, see the <a href="../../reference/preproc-pipeline/#workflow-stage">pipeline reference</a>); post-processing steps are nodes inside that pipeline.</li>
 <li><code>stages[].config</code> is a path to an existing stage YAML. Relative paths resolve against the workflow YAML's parent dir first, then against the server's cwd.</li>
 <li>Stages run <strong>in list order</strong>, one at a time, stop-on-first-failure.</li>
 <li>You can omit any stage — a workflow can be just <code>preproc → analysis</code> if convert isn't needed.</li>
@@ -1505,7 +1475,6 @@ duplicate of stage config bodies.</p>
 - <code>./experiments/preproc/</code>
 - <code>./experiments/convert/</code>
 - <code>./experiments/autoflatten/</code>
-- <code>./experiments/post_preproc/</code> — see <a href="../post-preproc/#use-as-a-workflow-stage">Post-preproc stage YAML</a>
 - <code>./experiments/workflows/</code> — <strong>this page</strong></p>
 <h2 id="running">Running<a class="headerlink" href="#running" title="Permanent link">&para;</a></h2>
 <h3 id="dashboard">Dashboard<a class="headerlink" href="#dashboard" title="Permanent link">&para;</a></h3>
@@ -1574,7 +1543,7 @@ seconds.</p>
 <li>Events are appended to
   <code>~/.fmriflow/runs/{run_id}/nipype_events.jsonl</code>.</li>
 <li>The frontend polls
-  <code>GET /api/preproc/runs/{run_id}/live</code> every 2 s while the stage
+  <code>GET /api/preproc/runs/{run_id}</code> every 2 s while the stage
   is running; the response includes a <code>nipype_status</code> block built
   by re-parsing the JSONL.</li>
 <li>The JSONL on disk is the source of truth, so the strip
@@ -1636,7 +1605,7 @@ laid out top-to-bottom by <code>dagre</code>. Each leaf is a real nipype node
 (colored by status, with elapsed seconds); each parent is a virtual
 summary box for a sub-workflow that rolls up <code>running / done / failed</code>
 counts of its descendants.</p>
-<p>The modal polls the same <code>/api/preproc/runs/{run_id}/live</code> endpoint as
+<p>The modal polls the same <code>/api/preproc/runs/{run_id}</code> endpoint as
 the strip and re-lays out on each refresh. Once the run finishes, the
 DAG remains viewable from the saved JSONL — useful for postmortems on
 failed runs ("which sub-workflow blew up?"). v1 derives the DAG from
@@ -1703,7 +1672,7 @@ documented conceptual stages.</p>
   at the section for that step.</li>
 </ul>
 <p>The lane selector and friendly labels are fmriprep-specific. Other
-nipype backends (a future hand-rolled preproc-stack workflow) get a
+nipype workflows (a composite node such as <code>reference_fsl_ants</code>) get a
 single fallback <code>Workflow</code> lane (so the selector hides) plus raw
 labels — we don't pretend to know their conceptual stages.</p>
 <p><strong>Each node has a small <code>?</code> link in its top-right corner</strong> that opens

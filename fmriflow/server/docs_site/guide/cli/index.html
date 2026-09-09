@@ -744,34 +744,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../preproc-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Preprocessing (stack)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../structural-qc/" class="md-nav__link">
         
   
@@ -864,34 +836,6 @@
     
   
     Pycortex Transforms
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../post-preproc/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Post-preproc
   
 
     
@@ -1183,6 +1127,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/preproc-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprocessing pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1351,29 +1323,32 @@
 <a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>fmriflow<span class="w"> </span>convert<span class="w"> </span>validate<span class="w"> </span>/data/bids/my_study/
 </code></pre></div>
 <h2 id="preprocessing">Preprocessing<a class="headerlink" href="#preprocessing" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Check available backends</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Preflight every node in the library (tools, env vars, python deps)</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>doctor
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Build manifest from existing fmriprep outputs</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>collect<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>--backend<span class="w"> </span>fmriprep<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--output-dir<span class="w"> </span>/data/derivatives/fmriprep/<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span>--subject<span class="w"> </span>sub01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span>--task<span class="w"> </span>reading<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span>--run-map<span class="w"> </span><span class="s1">&#39;{&quot;run-01&quot;: &quot;story01&quot;, &quot;run-02&quot;: &quot;story02&quot;}&#39;</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># Run preprocessing</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>--config<span class="w"> </span>preproc_config.yaml
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="c1"># Inspect a manifest</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>info<span class="w"> </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="c1"># Validate a manifest</span>
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="c1"># Validate against an analysis config</span>
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>manifest.json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">  </span>--for-config<span class="w"> </span>experiments/my_experiment.yaml
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Run a pipeline: a saved pipeline name, a template name, or a pipeline YAML</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>fmriprep_anat_only<span class="w"> </span>--subject<span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>--bids-dir<span class="w"> </span>./testing/my_study/bids<span class="w"> </span>--output-dir<span class="w"> </span>./testing/my_study/derivatives<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.container<span class="o">=</span>nipreps/fmriprep:24.1.1<span class="w"> </span>--param<span class="w"> </span>fmriprep.container_type<span class="o">=</span>docker
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>run<span class="w"> </span>my_pipeline.yaml<span class="w"> </span>--subject<span class="w"> </span><span class="m">01</span><span class="w"> </span>--output-dir<span class="w"> </span>./out<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span>--derivatives-dir<span class="w"> </span>/data/derivatives<span class="w"> </span>--rerun-from<span class="w"> </span>smooth<span class="w"> </span>--no-cache
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># Build a manifest from existing fmriprep outputs (no run)</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>collect<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">  </span>--backend<span class="w"> </span>fmriprep<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">  </span>--output-dir<span class="w"> </span>/data/derivatives/fmriprep/<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">  </span>--subject<span class="w"> </span>sub01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">  </span>--task<span class="w"> </span>reading<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">  </span>--run-map<span class="w"> </span><span class="s1">&#39;{&quot;run-01&quot;: &quot;story01&quot;, &quot;run-02&quot;: &quot;story02&quot;}&#39;</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="c1"># Inspect / validate a manifest</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>info<span class="w"> </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>/data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>validate<span class="w"> </span>manifest.json<span class="w"> </span>--for-config<span class="w"> </span>experiments/my_experiment.yaml
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="c1"># Convert old stack presets / post-preproc graphs / backend-style configs into pipelines</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w"> </span>--dry-run
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>fmriflow<span class="w"> </span>preproc<span class="w"> </span>migrate<span class="w"> </span>--workflows-dir<span class="w"> </span>./experiments/workflows
 </code></pre></div>
 <h2 id="server">Server<a class="headerlink" href="#server" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Start the web UI</span>

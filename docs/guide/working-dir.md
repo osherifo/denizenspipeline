@@ -28,7 +28,7 @@ fmriflow paths        # confirm what was resolved
 $FMRIFLOW_HOME/
 ├── addons/                 # your overrides + extensions
 │   ├── heuristics/         # heudiconv heuristics
-│   ├── workflows/          # post-preproc workflow templates
+│   ├── workflows/          # legacy nipype workflow addons (still loaded as composite nodes)
 │   └── modules/            # custom Python plugins
 ├── configs/                # YAML configs
 │   ├── analysis/           # encoding-model pipelines
@@ -39,7 +39,7 @@ $FMRIFLOW_HOME/
 ├── runs/                   # run registry (state.json + stdout.log per run)
 ├── stores/                 # named state stores
 │   ├── structural_qc/
-│   └── post_preproc_workflows/
+│   └── post_preproc_workflows/   # legacy; `fmriflow preproc migrate` converts these into configs/preproc/
 ├── secrets/
 │   └── freesurfer-license.txt
 ├── subjects.json           # your subject metadata

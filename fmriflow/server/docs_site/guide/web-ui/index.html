@@ -642,34 +642,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../preproc-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Preprocessing (stack)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../structural-qc/" class="md-nav__link">
         
   
@@ -762,34 +734,6 @@
     
   
     Pycortex Transforms
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../post-preproc/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Post-preproc
   
 
     
@@ -977,10 +921,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#preprocessing-manager" class="md-nav__link">
+  <a href="#preprocessing_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Preprocessing Manager
+        Preprocessing
       
     </span>
   </a>
@@ -1456,6 +1400,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/preproc-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprocessing pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1541,10 +1513,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#preprocessing-manager" class="md-nav__link">
+  <a href="#preprocessing_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Preprocessing Manager
+        Preprocessing
       
     </span>
   </a>
@@ -1873,20 +1845,12 @@
 <li><strong>Saved Configs</strong> panel lists previously saved batches with Load/Delete actions</li>
 <li>Click <strong>Run Batch</strong> to start — progress shows per-job status badges (queued, running, done, failed), elapsed time, and expandable per-job logs</li>
 </ul>
-<h3 id="preprocessing-manager">Preprocessing Manager<a class="headerlink" href="#preprocessing-manager" title="Permanent link">&para;</a></h3>
-<p>Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Five tabs:</p>
-<p><strong>Backends</strong> — Lists installed preprocessing backends with version and status.</p>
-<p><strong>Manifests</strong> — Browse completed preprocessing outputs. Each manifest records the backend, parameters, output space, and per-run QC metrics. Validate against an analysis config to check compatibility before running the pipeline.</p>
-<p><strong>Configs</strong> — Browse YAML preproc configs discovered under <code>./experiments/preproc/</code>. Each file must have a top-level <code>preproc:</code> section. Clicking a config shows a summary grid (subject, backend, container, mode, paths) and the raw YAML, with a <strong>Run</strong> button that launches the job and streams live fmriprep output into the progress panel below. An <strong>In Flight</strong> panel at the top lists running jobs (plus recent completions) with <code>Watch</code> and <code>Cancel</code> buttons — jobs launched here survive server restarts and reconnect automatically, with a <code>REATTACHED</code> tag. See <a href="../preprocessing/#workflow-2-run-preprocessing-from-a-yaml-config">Preprocessing → Workflow 2</a> and <a href="../preprocessing/#long-running-jobs--detach--reattach">Long-running jobs</a> for details.</p>
-<p><strong>Collect</strong> — Build a manifest from existing preprocessing outputs (e.g., from a previous fmriprep run). Specify the output directory and file pattern; the tool scans and organizes the files.</p>
-<p><strong>Run</strong> — Launch a preprocessing job from an inline form (no YAML):</p>
-<ul>
-<li>Select backend, set BIDS directory, output directory, work directory, subject ID</li>
-<li>Toggle options like <code>--skip-bids-validation</code> in the Advanced section</li>
-<li>Click <strong>Run</strong> for live progress with event streaming</li>
-<li>Manifest auto-refreshes on completion</li>
-</ul>
-<hr />
+<h3 id="preprocessing_1">Preprocessing<a class="headerlink" href="#preprocessing_1" title="Permanent link">&para;</a></h3>
+<p>One page, four tabs, over one pipeline graph. See the <a href="../preprocessing/">Preprocessing guide</a>.</p>
+<p><strong>Build</strong> — Templates (<code>fmriprep_full</code>, <code>fmriprep_anat_only</code>, <code>fmriprep_func_precomputed_anat</code>, <code>derivatives_smooth_regress</code>, <code>reference_nipype</code>) and saved pipelines on the left; the editor in the middle as a <strong>Simple</strong> chain of cards or a <strong>Graph</strong> (drag ports to connect); the selected node's grouped parameters, input bindings, ×N iteration and manifest role on the right, above the <strong>Run</strong> panel (subject, paths, plugin, cache, rerun-from, abort-on-bad-checkpoint).</p>
+<p><strong>Runs</strong> — Every pipeline run. The detail shows the graph with live node status, the checkpoint filmstrip (verdict-coloured frames with thumbnails and the metric / bound table), a node's outputs drawer (NIfTI viewer, reports, JSON, pickles, crash files), the fmriprep node's <strong>Inner DAG</strong>, the log, the event stream, and a <strong>Resume / Restart</strong> choice for lost or failed runs.</p>
+<p><strong>Library</strong> — Browse nodes by kind (source / node / app / workflow) and source (built-in / user), with preflight status, parameter schema and source code. <strong>New node</strong> opens a Monaco scaffold saved to <code>$FMRIFLOW_HOME/addons/nodes/</code>; <strong>Import nipype pipeline</strong> turns an existing <code>.py</code> into a composite node.</p>
+<p><strong>Outputs</strong> — Manifests on disk (validate against an analysis config; structural-QC status per subject) and <strong>Collect</strong> existing derivatives into a manifest.</p>
 <h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
 <h3 id="dashboard">Dashboard<a class="headerlink" href="#dashboard" title="Permanent link">&para;</a></h3>
 <p>The main control center for running experiments.</p>

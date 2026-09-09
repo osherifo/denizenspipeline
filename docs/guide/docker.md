@@ -23,7 +23,7 @@ $FMRIFLOW_HOME/        # default ~/projects/fmriflow
 ├── addons/            # your heuristics, workflows, custom modules
 ├── configs/           # convert / preproc / autoflatten / workflow YAMLs
 ├── runs/              # run registry — needed for reattach
-├── stores/            # structural-QC + post-preproc state
+├── stores/            # structural-QC state
 ├── secrets/           # FreeSurfer license, etc.
 ├── subjects.json      # your subject metadata
 └── data/              # MRI: bids/, dicoms/, derivatives/, work/, results/

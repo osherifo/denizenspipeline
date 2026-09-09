@@ -1,17 +1,19 @@
-# fMRI Preprocessing
+# Preprocessing
 
-!!! info "New page: Preprocessing (stack)"
-    The unified **[Preproc (stack)](preproc-stack.md)** page is now the
-    recommended way to launch preprocessing runs. It supports cached
-    re-runs, mid-pipeline transforms (smooth, mask, regress
-    confounds), schema-driven param forms, and presets.
+fMRIflow preprocessing is **one graph**: a pipeline is a set of nodes — fmriprep, a
+BIDS-App, a shell command, a smoothing step, a hand-written nipype workflow you imported —
+wired port to port and run as a single nipype workflow. The same page builds it, runs it,
+watches it, and checks its outputs. Everything ends in a `PreprocManifest`, the JSON
+contract the analysis stage reads.
 
-    This page describes the underlying preprocessing module + the
-    `PreprocManifest` contract. The legacy single-backend launch
-    form was removed; the manifest / collect / backend-status
-    surfaces below still work.
+Open **Preprocessing** in the sidebar. Four tabs:
 
-A standalone module for managing fMRI preprocessing (fmriprep, custom scripts, BIDS-Apps). It produces a `PreprocManifest` — a JSON contract between preprocessing and the analysis pipeline — providing provenance tracking, validation, and reproducibility.
+| Tab | What it does |
+|---|---|
+| **Build** | Pick a template or a saved pipeline, edit it as a chain (Simple) or a graph (Graph), set node parameters, bind a subject and paths, run. |
+| **Runs** | Every pipeline run: live node status on the graph, checkpoints, per-node outputs, the inner fmriprep DAG, the log, Resume / Restart. |
+| **Library** | The node library: what each node needs, its parameters and source; author a new node; import an existing nipype pipeline. |
+| **Outputs** | Manifests on disk; collect a manifest from derivatives produced elsewhere. |
 
 ## Environment setup
 
@@ -64,15 +66,105 @@ export FS_LICENSE=~/fmriprep-local/fs_license.txt
 ## Quick check
 
 ```bash
-fmriflow preproc doctor
+fmriflow preproc doctor        # preflight every node: tools, env vars, python deps
 ```
 
-## Workflow 1: Register existing outputs
+## Workflow 1: the easy path — fmriprep from a template
 
-If you already ran fmriprep and want to hook the outputs into the pipeline:
+1. **Build → Templates → `fmriprep_full`** (or `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`).
+   The pipeline is a single `fmriprep` node.
+2. Click the node. Parameters are grouped — **Mode** (full / anat_only / func_only /
+   func_precomputed_anat, container image and runtime), **Anatomical**, **Functional**,
+   **Fieldmaps**, **Output** (spaces, CIFTI), **Denoising**, **Resources**.
+3. In the **Run** panel enter the subject label, the BIDS root and an output directory,
+   then **Run pipeline**. The Runs tab opens on the new run.
+
+From the CLI the same thing is:
 
 ```bash
-# Build a manifest from existing fmriprep derivatives
+fmriflow preproc run fmriprep_anat_only --subject 01 \
+  --bids-dir ./testing/my_study/bids --output-dir ./testing/my_study/derivatives \
+  --param fmriprep.container=nipreps/fmriprep:24.1.1 --param fmriprep.container_type=docker
+```
+
+Save the pipeline under a name to reuse it (it lands in `$FMRIFLOW_HOME/configs/preproc/`).
+
+## Workflow 2: build a pipeline
+
+**Simple view** shows a chain as ordered cards — good for *fmriprep → smooth → regress
+confounds*. `+ add step` appends a node and wires the previous node's first file output
+into the new node's first file input. **Graph view** is the full editor: add any node,
+drag from an output port to an input port to connect, Backspace deletes the selection.
+Both views edit the same pipeline; Simple is only offered while the graph is a single chain.
+
+For each node the side panel shows:
+
+- **Inputs** — each input port is either connected (an edge), bound to a pipeline input
+  (`$inputs.bids_dir`), or given a literal value. **×N** on a port makes the node
+  iterate over the list arriving there (one nipype `MapNode` per item — e.g. smooth
+  every BOLD run).
+- **Parameters** — a schema-driven form, grouped when the node declares groups.
+- **Manifest role** — which node's outputs define the manifest (★), and which port
+  the manifest's BOLD files should point at (`bold from`).
+
+**Validate** checks ports, kinds, doubly fed inputs and cycles before you run.
+
+`derivatives_smooth_regress` is the template for "data already preprocessed elsewhere":
+a `derivatives_source` finds the BOLD + confounds files, `smooth` and
+`regress_confounds` iterate over them, and the manifest points at the regressed output.
+`reference_nipype` is a hand-written nipype workflow (MCFLIRT → BET → FLIRT BBR → ANTs
+SyN) on raw BIDS — the copyable example of a composite node.
+
+## Workflow 3: watch a run
+
+The Runs tab shows the pipeline graph with each node coloured by status (running /
+done / cached ⟲ / failed) and a checkpoint badge. Click a node to open its **outputs**
+(the nipype work dir: NIfTIs render inline, reports and JSON open in place, crash files
+are shown). **Inner DAG** opens the fmriprep node's own nipype workflow — recon-all,
+BOLD preprocessing, field-map estimation — with live node status, because the node
+streams fmriprep's log into the same event stream.
+
+**Checkpoints** are the filmstrip under the graph. As recon-all writes each file the
+fmriprep node measures it — `orig/nu/T1.mgz` intensity statistics (unique values, modal
+fraction), `wm.mgz` volume, `?h.white` Euler numbers, `?h.thickness` mean and
+zero-thickness fraction, `aseg.stats` — and judges it against a norms table:
+**ok**, **suspicious**, **bad** (with the reasons), or **unknown**. A bad `nu.mgz` is
+visible ~20 minutes into a 10-hour run instead of after it. Every node also gets generic
+output checks (file exists, non-empty, 4D where a BOLD is expected). Tick **abort on bad
+checkpoint** in the Run panel to have a `bad` verdict terminate the run.
+
+Runs are detached processes; a server restart cannot kill them. A run whose process is
+gone shows as **lost**, and **Resume / Restart…** asks what you want: *Resume* launches
+the same job and nipype skips every node whose inputs are unchanged; *Restart* ignores
+the cache. Nothing resumes silently. **Rerun from** in the Run panel re-executes from a
+named node onwards after you change a parameter downstream.
+
+## Workflow 4: your own nodes and pipelines
+
+**Library → New node** opens a Monaco editor with a scaffold for each kind:
+
+- **node** (`interface`) — a class with `INPUTS` / `OUTPUTS` / `PARAM_SCHEMA` and a
+  plain `run(inputs, out_dir, params)` returning output paths. No nipype knowledge
+  needed; the adapter wraps it.
+- **workflow** (`composite`) — `build(config)` returns a nipype `Workflow`; its
+  `inputnode` / `outputnode` fields are the ports.
+- **app** (`container_app`) — `build_command(...)` and `collect(...)` for a command-line
+  or containerised tool.
+
+Files are saved to `$FMRIFLOW_HOME/addons/nodes/` and the library rescans. Addon files
+written for the earlier registries (`@register_preproc_workflow`, `@register_transform`,
+`@nipype_node`) still load — the decorators are aliases now.
+
+**Library → Import nipype pipeline** takes a path to a `.py` that defines
+`build(config)` (or `create_workflow` / `make_workflow`) returning a nipype `Workflow`, or
+exposes a module-level `Workflow`. It becomes a composite node with the workflow's
+`inputnode` / `outputnode` fields as ports, usable in any pipeline.
+
+## Workflow 5: register outputs produced elsewhere
+
+If fmriprep (or anything else) already ran, build the manifest without re-running:
+
+```bash
 fmriflow preproc collect \
   --backend fmriprep \
   --output-dir /data/derivatives/fmriprep/ \
@@ -80,12 +172,11 @@ fmriflow preproc collect \
   --task reading \
   --run-map '{"run-01": "story01", "run-02": "story02"}'
 
-# Inspect and validate
-fmriflow preproc info manifest.json
-fmriflow preproc validate manifest.json
+fmriflow preproc info     /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
+fmriflow preproc validate /data/derivatives/fmriprep/sub-sub01/preproc_manifest.json
 ```
 
-Then point your analysis config at the manifest:
+The same lives under **Outputs → Collect**. Then point an analysis config at it:
 
 ```yaml
 response:
@@ -94,163 +185,11 @@ response:
   mask_type: thick
 ```
 
-## Workflow 2: Run preprocessing from a YAML config
-
-The same YAML drives three equivalent entry points: CLI, HTTP API, and the
-dashboard's **Configs** tab. Put the file anywhere for CLI use, or under
-`./experiments/preproc/` so the dashboard and API auto-discover it.
-
-### Config format
-
-```yaml
-preproc:
-  backend: fmriprep
-  bids_dir: /data/bids/my_study/
-  output_dir: /data/derivatives/fmriprep/
-  work_dir: /data/derivatives/work/
-  subject: sub01
-  task: reading
-  sessions: [session01]
-
-  backend_params:
-    # Container
-    container: /images/fmriprep/fmriprep_25.1.3.sif
-    container_type: singularity         # also runs under Apptainer — see above
-
-    # Mode: full | anat_only | func_only | func_precomputed_anat
-    mode: func_only                     # skips FreeSurfer reconall
-
-    # FreeSurfer license (required for full / func_precomputed_anat)
-    fs_license_file: ~/.freesurfer/license.txt
-
-    # Output spaces
-    output_spaces:
-      - MNI152NLin2009cAsym:res-2
-      - T1w
-
-    # Resources
-    nthreads: 12
-    omp_nthreads: 8
-    mem_mb: 32000
-
-    # Bypass the in-container BIDS validator for datasets that intentionally
-    # deviate from strict BIDS.
-    skip_bids_validation: true
-
-  confounds:
-    strategy: motion_24
-    high_pass: 0.01
-
-  run_map:
-    run-01: story01
-    run-02: story02
-```
-
-The backend auto-creates `output_dir` and `work_dir` before launching —
-Apptainer refuses to bind-mount paths that don't exist on the host.
-
-### 2a. Run from the CLI
-
-```bash
-fmriflow preproc run --config experiments/preproc/my_config.yaml
-```
-
-### 2b. Run from the dashboard (Preprocessing → Configs)
-
-The dashboard scans `./experiments/preproc/*.yaml` for files with a top-level
-`preproc:` section and lists them in the **Configs** tab. Clicking a config
-shows its summary (subject, backend, container, mode, paths) and the raw YAML,
-with a **Run** button that starts the job and streams live fmriprep output
-into the progress panel below.
-
-### 2c. Run via HTTP API
-
-```bash
-# List discovered configs
-curl http://localhost:8000/api/preproc/configs
-
-# Get one
-curl http://localhost:8000/api/preproc/configs/my_config.yaml
-
-# Kick off a run (body is optional — any fields shallow-merge onto the YAML)
-curl -X POST http://localhost:8000/api/preproc/configs/my_config.yaml/run \
-  -H 'Content-Type: application/json' \
-  -d '{"subject": "sub02"}'
-```
-
-The response returns a `run_id` you can use to tail live events over
-`/ws/preproc/{run_id}`.
-
-## Long-running jobs — detach & reattach
-
-fmriprep runs take hours. To let you close the browser, restart the server,
-or reboot the machine without killing a job in progress, fmriprep jobs
-launched through the dashboard or `/api/preproc/configs/{file}/run` are
-detached from the server process:
-
-- The fmriprep subprocess is spawned in its own process group
-  (`start_new_session=True`), so it survives if the parent dies.
-- stdout+stderr go straight to a log file under
-  `~/.fmriflow/runs/{run_id}/stdout.log` — never to a broken pipe.
-- A sidecar `state.json` in the same directory records pid, pgid, start
-  time, config path, and current status.
-
-When the server restarts it scans `~/.fmriflow/runs/*/state.json`:
-
-- Any run marked `running` whose PID is still alive is re-registered.
-  Its progress is reconstructed by tailing the existing `stdout.log`,
-  and a `REATTACHED` tag appears next to it in the UI.
-- If the PID is dead, the run is marked `lost` so the history view
-  doesn't show an eternal "running."
-- Finished runs stay on disk for inspection; no auto-delete.
-
-### UI
-
-In the Preprocessing → Configs tab a new **In Flight** panel at the top
-lists running jobs (plus recent completions). Each row has:
-
-- `Watch` — opens the live progress panel and starts streaming from the
-  log file via WebSocket.
-- `Cancel` — `SIGTERM` the process group; `SIGKILL` after a 5-second grace
-  period.
-
-### HTTP API
-
-```bash
-# List all runs (in-memory + on-disk)
-curl http://localhost:8000/api/preproc/runs
-
-# Get summary + last 200 log lines for one
-curl http://localhost:8000/api/preproc/runs/preproc_AH_4f2b9c1a
-
-# Cancel a running job
-curl -X POST http://localhost:8000/api/preproc/runs/preproc_AH_4f2b9c1a/cancel
-```
-
-### Caveats
-
-- Only the `fmriprep` backend is detached. `custom` and `bids_app` still
-  run in-process and will be killed if the server dies.
-- The subprocess's exit code is only known to the server that spawned
-  it. Reattached runs infer outcome by checking for fmriprep's HTML
-  report in the output dir — present → `done`, missing → `failed`.
-- If you're running under Docker, bind-mount `~/.fmriflow` to the host
-  so the runs directory survives container restarts.
-
-## Workflow 3: Custom script
-
-```bash
-fmriflow preproc run \
-  --backend custom \
-  --raw-dir /data/raw/sub01/ \
-  --output-dir /data/preprocessed/sub01/ \
-  --subject sub01 \
-  --command "python my_preproc.py --subject {subject} --input {input_dir} --output {output_dir}"
-```
-
 ## Confound regression
 
-Apply confound regression when the analysis pipeline loads the data:
+Either put a `regress_confounds` node in the pipeline (it takes the confounds TSV on its
+`confounds_file` port and regresses the chosen columns out per voxel), or apply
+regression when the analysis pipeline loads the data:
 
 ```yaml
 response:
@@ -262,21 +201,26 @@ response:
     fd_threshold: 0.5      # scrub high-motion TRs
 ```
 
-Available strategies:
+## Migrating from the earlier surfaces
 
-- `motion_24` — 6 motion params + derivatives + squared + squared derivatives
-- `motion_6` — 6 motion params only
-- `acompcor` — 6 motion params + 5 anatomical CompCor components
-- `custom` — specify exact column names with `columns: [col1, col2, ...]`
+Stack presets, saved post-preproc graphs and `backend:`-style stage configs are converted
+in one go:
 
-## Backends
+```bash
+fmriflow preproc migrate --dry-run     # report
+fmriflow preproc migrate               # write pipelines, keep originals as *.migrated
+```
 
-| Backend | Use case |
-|---------|----------|
-| `fmriprep` | Wraps fmriprep (bare, Singularity, or Docker) |
-| `custom` | Runs any shell command with `{subject}`, `{input_dir}`, `{output_dir}` placeholders |
-| `bids_app` | Generic BIDS-App wrapper (any container following the standard CLI) |
+Workflow YAMLs whose `preproc` stage still uses `backend:` / `backend_params:` are refused
+with the same hint; pass `--workflows-dir` to convert those too.
 
 ## The manifest
 
-`preproc_manifest.json` records everything about preprocessing: backend, version, parameters, output space, confounds, per-run QC metrics (framewise displacement, tSNR), and file paths. The analysis pipeline validates this before loading data, catching mismatches early.
+`preproc_manifest.json` records everything about preprocessing: which node produced it,
+its version and parameters, output space, per-run QC metrics (framewise displacement,
+tSNR), file paths, and one `StepRecord` per node that ran (parameters, work dir, duration,
+nipype hash). The analysis pipeline validates this before loading data, catching
+mismatches early.
+
+See the [pipeline reference](../reference/preproc-pipeline.md) for the YAML schema, the
+run request, the node contract, the event and checkpoint records, and the HTTP API.
