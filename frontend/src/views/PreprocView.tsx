@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { usePreprocPipelineStore, isLinear } from '../stores/preproc-pipeline-store'
 import { usePreprocRunsStore } from '../stores/preproc-runs-store'
 import { usePreprocStore } from '../stores/preproc-store'
+import type { PreprocNodeInfo } from '../api/types'
 import { PipelineGraph } from '../components/preproc-graph/PipelineGraph'
 import { LinearCards } from '../components/preproc-graph/LinearCards'
 import { NodeParamPanel } from '../components/preproc-graph/NodeParamPanel'
@@ -15,7 +16,7 @@ import { NewNodeModal } from '../components/preproc-graph/NewNodeModal'
 import { ImportPipelineModal } from '../components/preproc-graph/ImportPipelineModal'
 import { ManifestBrowser } from '../components/preproc/ManifestBrowser'
 import { CollectForm } from '../components/preproc/CollectForm'
-import { KIND_LABELS } from '../components/preproc-graph/PipelineNodeCard'
+import { KIND_COLORS, KIND_LABELS } from '../components/preproc-graph/PipelineNodeCard'
 
 export type PreprocTab = 'build' | 'runs' | 'library' | 'outputs'
 
@@ -128,33 +129,25 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
         {s.view === 'simple' && linear ? (
           <LinearCards library={s.library} />
         ) : (
-          <>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, fontSize: 12 }}>
-              <span style={small}>add node:</span>
-              <select style={input} value="" onChange={(e) => { if (e.target.value) s.addNode(e.target.value) }}>
-                <option value="">choose…</option>
-                {(['source', 'container_app', 'composite', 'interface'] as const).map((k) => (
-                  <optgroup key={k} label={KIND_LABELS[k]}>
-                    {s.library.filter((n) => n.kind === k).map((n) => <option key={n.name} value={n.name}>{n.name}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-              <span style={small}>drag ports to connect · Backspace deletes the selection</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 8 }}>
+            <NodePalette library={s.library} onAdd={(t) => s.addNode(t)} />
+            <div>
+              <div style={{ ...small, marginBottom: 6 }}>click a node in the palette to add it · drag ports to connect · Backspace deletes the selection</div>
+              <PipelineGraph
+                pipeline={s.pipeline}
+                library={s.library}
+                editable
+                selectedNodeId={s.selectedNodeId}
+                onSelect={s.selectNode}
+                onMove={s.moveNode}
+                onConnectPorts={s.addEdge}
+                onRemoveNodes={(ids) => ids.forEach(s.removeNode)}
+                onRemoveEdges={(ids) => ids.forEach(s.removeEdge)}
+                height={460}
+                fitViewKey={s.pipelineName ?? s.pipeline.name}
+              />
             </div>
-            <PipelineGraph
-              pipeline={s.pipeline}
-              library={s.library}
-              editable
-              selectedNodeId={s.selectedNodeId}
-              onSelect={s.selectNode}
-              onMove={s.moveNode}
-              onConnectPorts={s.addEdge}
-              onRemoveNodes={(ids) => ids.forEach(s.removeNode)}
-              onRemoveEdges={(ids) => ids.forEach(s.removeEdge)}
-              height={460}
-              fitViewKey={s.pipelineName ?? s.pipeline.name}
-            />
-          </>
+          </div>
         )}
         <div style={{ marginTop: 10, fontSize: 11 }}>
           <span style={small}>pipeline inputs: </span>
@@ -168,6 +161,39 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
         {selected ? <NodeParamPanel node={selected} info={info ?? byName.get(selected.type)} /> : <div style={{ ...small, padding: 8 }}>Select a node to edit its parameters.</div>}
         <RunPanel onLaunched={(id) => { void runsSelect(id); onLaunched(id) }} />
       </div>
+    </div>
+  )
+}
+
+// ── Node palette (Build · Graph view) ─────────────────────────────
+
+function NodePalette({ library, onAdd }: { library: PreprocNodeInfo[]; onAdd: (type: string) => void }) {
+  const [filter, setFilter] = useState('')
+  const shown = library.filter((n) => !filter || `${n.name} ${n.description}`.toLowerCase().includes(filter.toLowerCase()))
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: 8, height: 480, overflowY: 'auto', boxSizing: 'border-box' }}>
+      <input style={{ ...input, width: '100%', boxSizing: 'border-box', marginBottom: 8 }} placeholder="find a node…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      {(['source', 'container_app', 'composite', 'interface'] as const).map((k) => {
+        const items = shown.filter((n) => n.kind === k)
+        if (items.length === 0) return null
+        return (
+          <div key={k} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: KIND_COLORS[k], marginBottom: 4 }}>{KIND_LABELS[k]}</div>
+            {items.map((n) => (
+              <div
+                key={n.name}
+                title={`${n.description}\n${Object.keys(n.inputs).join(', ') || '—'} → ${Object.keys(n.outputs).join(', ') || '—'}\nclick to add`}
+                onClick={() => onAdd(n.name)}
+                style={{ padding: '4px 6px', borderLeft: `3px solid ${KIND_COLORS[k]}`, borderRadius: 4, marginBottom: 3, cursor: 'pointer', fontSize: 12, background: 'var(--bg-primary)' }}
+              >
+                <div style={{ fontWeight: 600 }}>{n.name}{n.source === 'user' ? <span style={{ ...small, marginLeft: 4 }}>user</span> : null}</div>
+                <div style={{ ...small, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.description}</div>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+      {shown.length === 0 && <div style={small}>no node matches</div>}
     </div>
   )
 }
