@@ -39,6 +39,30 @@ import {
   deleteSavedConvertConfig,
 } from '../api/client'
 
+/** Sidecar metadata edited alongside the heuristic code (tasks as a comma list). */
+export interface HeuristicMeta {
+  description: string
+  scannerPattern: string
+  version: string
+  tasks: string
+  notes: string
+}
+
+export const EMPTY_HEURISTIC_META: HeuristicMeta = {
+  description: '', scannerPattern: '', version: '', tasks: '', notes: '',
+}
+
+function metaFromInfo(info: HeuristicInfo | undefined): HeuristicMeta {
+  if (!info) return { ...EMPTY_HEURISTIC_META }
+  return {
+    description: info.description ?? '',
+    scannerPattern: info.scanner_pattern ?? '',
+    version: info.version ?? '',
+    tasks: (info.tasks ?? []).join(', '),
+    notes: info.notes ?? '',
+  }
+}
+
 type Tab = 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
 
 
@@ -101,6 +125,7 @@ interface ConvertState {
   // Heuristic editor
   editorCode: string
   editorName: string
+  editorMeta: HeuristicMeta
   editorDirty: boolean
   editorLoading: boolean
   editorSaving: boolean
@@ -163,6 +188,7 @@ interface ConvertState {
   newHeuristic: (name: string) => Promise<void>
   setEditorCode: (code: string) => void
   setEditorName: (name: string) => void
+  setEditorMeta: (patch: Partial<HeuristicMeta>) => void
   saveHeuristic: () => Promise<void>
   deleteHeuristic: (name: string) => Promise<void>
   closeEditor: () => void
@@ -213,6 +239,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
 
   editorCode: '',
   editorName: '',
+  editorMeta: { ...EMPTY_HEURISTIC_META },
   editorDirty: false,
   editorLoading: false,
   editorSaving: false,
@@ -279,7 +306,8 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     set({ editorLoading: true, editorError: null, editorSaveSuccess: false })
     try {
       const code = await fetchHeuristicCode(name)
-      set({ editorCode: code, editorName: name, editorDirty: false, editorLoading: false })
+      const info = get().heuristics.find((h) => h.name === name)
+      set({ editorCode: code, editorName: name, editorMeta: metaFromInfo(info), editorDirty: false, editorLoading: false })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       set({ editorLoading: false, editorError: msg })
@@ -290,7 +318,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     set({ editorLoading: true, editorError: null, editorSaveSuccess: false })
     try {
       const result = await fetchHeuristicTemplate(name)
-      set({ editorCode: result.code, editorName: name, editorDirty: true, editorLoading: false })
+      set({ editorCode: result.code, editorName: name, editorMeta: { ...EMPTY_HEURISTIC_META }, editorDirty: true, editorLoading: false })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       set({ editorLoading: false, editorError: msg })
@@ -305,15 +333,27 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     set({ editorName: name, editorDirty: true })
   },
 
+  setEditorMeta: (patch) => {
+    set({ editorMeta: { ...get().editorMeta, ...patch }, editorDirty: true, editorSaveSuccess: false })
+  },
+
   saveHeuristic: async () => {
-    const { editorCode, editorName } = get()
+    const { editorCode, editorName, editorMeta } = get()
     set({ editorSaving: true, editorError: null, editorSaveSuccess: false })
     if (!editorName.trim()) {
       set({ editorSaving: false, editorError: 'Heuristic name is required' })
       return
     }
     try {
-      await saveHeuristic({ name: editorName, code: editorCode })
+      await saveHeuristic({
+        name: editorName,
+        code: editorCode,
+        description: editorMeta.description,
+        scanner_pattern: editorMeta.scannerPattern,
+        version: editorMeta.version,
+        tasks: editorMeta.tasks.split(',').map((t) => t.trim()).filter(Boolean),
+        notes: editorMeta.notes,
+      })
       set({ editorSaving: false, editorDirty: false, editorSaveSuccess: true })
       get().loadHeuristics()
     } catch (e: unknown) {
@@ -327,7 +367,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
       await deleteHeuristic(name)
       const { editorName } = get()
       if (editorName === name) {
-        set({ editorCode: '', editorName: '', editorDirty: false, editorError: null, editorSaveSuccess: false })
+        set({ editorCode: '', editorName: '', editorMeta: { ...EMPTY_HEURISTIC_META }, editorDirty: false, editorError: null, editorSaveSuccess: false })
       }
       get().loadHeuristics()
     } catch (e: unknown) {
@@ -337,7 +377,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   },
 
   closeEditor: () => {
-    set({ editorCode: '', editorName: '', editorDirty: false, editorError: null, editorSaveSuccess: false })
+    set({ editorCode: '', editorName: '', editorMeta: { ...EMPTY_HEURISTIC_META }, editorDirty: false, editorError: null, editorSaveSuccess: false })
   },
 
   loadManifests: async () => {

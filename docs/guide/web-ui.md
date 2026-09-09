@@ -26,7 +26,7 @@ End-to-end orchestration across all four stages (convert, preproc, autoflatten, 
 
 Convert raw DICOM images to BIDS format. Six tabs cover the full workflow. The conversion tools themselves (heudiconv, dcm2niix, bids-validator) ship in the Docker images; see the [external tools reference](../reference/external-tools.md) for what each image provides and how to check a bare install.
 
-**Heuristics** — Browse and search available heuristic files. Each card shows the heuristic name, scanner pattern, and description.
+**Heuristics** — Browse and search available heuristic files. Each card shows the heuristic name, version, and description; opening one shows its code with a metadata strip (description, version, scanner pattern, tasks, notes) that is saved to the heuristic's YAML sidecar alongside the code. See [DICOM → BIDS → Metadata sidecar](dicom-to-bids.md#metadata-sidecar).
 
 **Scan** — Point at a DICOM directory to see what series it contains before converting. The scan runs in the background with a live file count and a **Cancel** button, and the series table shows each series' own scanner (manufacturer, model, field strength), station and study date, so a directory mixing sessions from different scanners is read correctly.
 

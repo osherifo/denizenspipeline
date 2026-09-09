@@ -82,6 +82,28 @@ fmriflow convert heuristics add my_heuristic.py
 fmriflow convert heuristics info my_study
 ```
 
+### Metadata sidecar
+
+The description, version, scanner pattern, task list and notes shown for a
+heuristic do not come from the Python file. They live in a YAML sidecar
+with the same stem, `my_study.yaml` next to `my_study.py`:
+
+```yaml
+name: my_study
+description: Story listening sessions (anat, fmap, func)
+scanner_pattern: null
+version: "1.1"
+tasks: [story, rest]
+notes: >
+  Longer free text — series naming quirks, changelog.
+```
+
+A heuristic without a sidecar lists with its name only. The Web UI's
+Heuristics editor has a metadata strip above the code that reads and
+writes this file on **Save**; the sidecar is created if missing. Bundled
+heuristics are read-only, so editing one saves a shadowing copy plus
+sidecar into your own `$FMRIFLOW_HOME/addons/heuristics/`.
+
 ### Writing a heuristic
 
 A heuristic file must define `infotodict(seqinfo)` which maps DICOM series info to BIDS path templates:

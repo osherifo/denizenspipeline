@@ -5,7 +5,8 @@ export const convertHandlers = [
   http.get('/api/convert/heuristics', () =>
     HttpResponse.json({
       heuristics: [
-        { name: 'reading_heuristic', path: '/tmp/h.py', is_default: true, registered: true },
+        { name: 'reading_heuristic', path: '/tmp/h.py', is_default: true, registered: true,
+          description: 'Reads stories', scanner_pattern: null, version: '2.1', tasks: ['story', 'rest'], notes: null },
       ],
     }),
   ),

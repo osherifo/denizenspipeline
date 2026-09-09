@@ -219,6 +219,7 @@ class ConvertManager:
                 "scanner_pattern": info.scanner_pattern,
                 "version": info.version,
                 "tasks": info.tasks,
+                "notes": info.notes,
                 "path": str(info.path),
             })
         return results

@@ -538,6 +538,7 @@ export interface HeuristicInfo {
   scanner_pattern: string | null
   version: string | null
   tasks: string[] | null
+  notes?: string | null
   path: string
 }
 
@@ -546,7 +547,9 @@ export interface SaveHeuristicParams {
   code: string
   description?: string
   scanner_pattern?: string
+  version?: string
   tasks?: string[]
+  notes?: string
 }
 
 export interface ConvertManifestSummary {

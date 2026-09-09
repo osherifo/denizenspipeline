@@ -46,11 +46,16 @@ class RegisterHeuristicBody(BaseModel):
 
 
 class SaveHeuristicBody(BaseModel):
+    """Heuristic code plus its sidecar metadata. A metadata field left as
+    ``None`` is untouched; an empty string clears it."""
+
     name: str
     code: str
     description: str | None = None
     scanner_pattern: str | None = None
+    version: str | None = None
     tasks: list[str] | None = None
+    notes: str | None = None
 
 
 class HeuristicTemplateBody(BaseModel):
@@ -323,26 +328,20 @@ async def register_heuristic(request: Request, body: RegisterHeuristicBody):
 @router.post("/convert/heuristics/save")
 async def save_heuristic(request: Request, body: SaveHeuristicBody):
     """Save heuristic code to disk (create or overwrite)."""
-    from fmriflow.convert.heuristics import save_heuristic_code
+    from fmriflow.convert.heuristics import save_heuristic_code, write_heuristic_sidecar
 
     try:
         info = save_heuristic_code(body.name, body.code)
 
-        # Update YAML sidecar metadata if provided
-        if body.description or body.scanner_pattern or body.tasks:
-            import yaml
-            sidecar_path = info.path.with_suffix(".yaml")
-            sidecar_data: dict = {}
-            if sidecar_path.is_file():
-                sidecar_data = yaml.safe_load(sidecar_path.read_text()) or {}
-            sidecar_data["name"] = body.name
-            if body.description is not None:
-                sidecar_data["description"] = body.description
-            if body.scanner_pattern is not None:
-                sidecar_data["scanner_pattern"] = body.scanner_pattern
-            if body.tasks is not None:
-                sidecar_data["tasks"] = body.tasks
-            sidecar_path.write_text(yaml.dump(sidecar_data, default_flow_style=False))
+        # Sidecar metadata (description, version, …) lives in <name>.yaml
+        # next to the file; merge whatever the client sent.
+        meta = {
+            k: getattr(body, k)
+            for k in ("description", "scanner_pattern", "version", "tasks", "notes")
+            if getattr(body, k) is not None
+        }
+        if meta:
+            info = write_heuristic_sidecar(body.name, **meta)
 
         return {
             "saved": True,

@@ -62,6 +62,30 @@ describe('useConvertStore', () => {
       expect(useConvertStore.getState().editorDirty).toBe(false)
     })
 
+    it('openHeuristic fills the metadata strip from the listing', async () => {
+      await useConvertStore.getState().loadHeuristics()
+      await useConvertStore.getState().openHeuristic('reading_heuristic')
+      const m = useConvertStore.getState().editorMeta
+      expect(m.description).toBe('Reads stories')
+      expect(m.version).toBe('2.1')
+      expect(m.tasks).toBe('story, rest')
+    })
+
+    it('saveHeuristic sends sidecar metadata with tasks split into a list', async () => {
+      let sent: Record<string, unknown> | null = null
+      server.use(
+        http.post('/api/convert/heuristics/save', async ({ request }) => {
+          sent = (await request.json()) as Record<string, unknown>
+          return HttpResponse.json({ saved: true, name: 'h', path: '/tmp/h.py' })
+        }),
+      )
+      useConvertStore.getState().setEditorName('h')
+      useConvertStore.getState().setEditorCode('# x')
+      useConvertStore.getState().setEditorMeta({ description: 'd', version: '3', tasks: 'a, b,, c' })
+      await useConvertStore.getState().saveHeuristic()
+      expect(sent).toMatchObject({ name: 'h', description: 'd', version: '3', tasks: ['a', 'b', 'c'] })
+    })
+
     it('deleteHeuristic clears editor when current heuristic is deleted', async () => {
       useConvertStore.getState().setEditorName('h')
       useConvertStore.getState().setEditorCode('# x')

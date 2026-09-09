@@ -263,6 +263,46 @@ def save_heuristic_code(name: str, code: str) -> HeuristicInfo:
     return _load_heuristic_info(dest)
 
 
+SIDECAR_FIELDS = ("description", "scanner_pattern", "version", "tasks",
+                  "site", "author", "notes")
+
+
+def write_heuristic_sidecar(name: str, **fields: Any) -> HeuristicInfo:
+    """Merge *fields* into the YAML sidecar next to the user-tier heuristic.
+
+    Only keys in ``SIDECAR_FIELDS`` are accepted; a ``None`` value leaves the
+    existing entry alone, an empty string / empty list clears it. The sidecar
+    is created if the heuristic has none yet. Returns the refreshed info.
+    """
+    _validate_heuristic_name(name)
+    py_path = _heuristics_dir() / f"{name}.py"
+    if not py_path.is_file():
+        raise HeuristicError(
+            f"Heuristic '{name}' is not in the user tier; save its code first",
+            subject="",
+        )
+    unknown = set(fields) - set(SIDECAR_FIELDS)
+    if unknown:
+        raise ValueError(f"Unknown sidecar fields: {sorted(unknown)}")
+
+    sidecar = py_path.with_suffix(".yaml")
+    data: dict[str, Any] = {}
+    if sidecar.is_file():
+        data = yaml.safe_load(sidecar.read_text()) or {}
+    data["name"] = name
+    for key, value in fields.items():
+        if value is None:
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+        if key == "tasks" and isinstance(value, list):
+            value = [str(t).strip() for t in value if str(t).strip()]
+        data[key] = value or None
+    sidecar.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+    logger.info("Wrote sidecar for heuristic '%s' at %s", name, sidecar)
+    return _load_heuristic_info(py_path)
+
+
 def get_heuristic_template(name: str = "my_study") -> str:
     """Return the skeleton heudiconv template source code."""
     from fmriflow.convert.heuristic_template import render_template
