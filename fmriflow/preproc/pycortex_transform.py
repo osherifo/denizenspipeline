@@ -49,7 +49,7 @@ DEFAULT_XFMNAME = "fmriflow"
 class PycortexTransformConfig:
     """Configuration for creating a pycortex transform."""
 
-    cx_subject: str               # pycortex subject name, e.g. "ANfs"
+    cx_subject: str               # pycortex subject name, e.g. "sub01fs"
     reference: str                # path to the functional reference volume (NIfTI)
     xfmname: str = DEFAULT_XFMNAME
     method: str = "automatic"     # "automatic" | "manual"
