@@ -48,3 +48,22 @@ def test_exists_reports_the_servers_view(client):
     c, home, _ = client
     assert c.get("/api/fs/exists", params={"path": str(home / "data" / "bids")}).json()["is_dir"]
     assert c.get("/api/fs/exists", params={"path": "/mnt/definitely/not/here"}).json()["exists"] is False
+
+
+def test_symlink_inside_a_root_is_browsable_and_dangling_links_are_shown(client, tmp_path):
+    c, home, extra = client
+    outside = tmp_path / "elsewhere" / "raw"
+    (outside / "ses1").mkdir(parents=True)
+    (home / "data" / "dicoms" / "raw_link").symlink_to(outside)
+    (home / "data" / "dicoms" / "gone_link").symlink_to(tmp_path / "does-not-exist")
+
+    listing = c.get("/api/fs/list", params={"path": str(home / "data" / "dicoms")}).json()
+    by_name = {e["name"]: e for e in listing["entries"]}
+    assert by_name["raw_link"]["is_dir"] and by_name["raw_link"]["is_symlink"]
+    assert by_name["gone_link"]["dangling"] and by_name["gone_link"]["link_target"].endswith("does-not-exist")
+
+    # Opening the link works even though its target is outside every root.
+    r = c.get("/api/fs/list", params={"path": str(home / "data" / "dicoms" / "raw_link")})
+    assert r.status_code == 200 and [e["name"] for e in r.json()["entries"]] == ["ses1"]
+    # But the target itself, addressed directly, is still off limits.
+    assert c.get("/api/fs/list", params={"path": str(outside)}).status_code == 403

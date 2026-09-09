@@ -83,14 +83,17 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
           {entries.map((e) => (
             <div
               key={e.path}
-              style={row(selected === e.path)}
-              onClick={() => setSelected(e.path)}
-              onDoubleClick={() => (e.is_dir ? open(e.path) : onPick(e.path))}
-              title={e.is_dir ? 'double-click to open' : e.path}
+              style={{ ...row(selected === e.path), opacity: e.dangling ? 0.7 : 1 }}
+              onClick={() => { if (!e.dangling) setSelected(e.path) }}
+              onDoubleClick={() => { if (e.dangling) return; e.is_dir ? open(e.path) : onPick(e.path) }}
+              title={e.dangling ? `broken link → ${e.link_target ?? '?'} (not visible to the server; inside Docker the target must be mounted)` : e.is_dir ? 'double-click to open' : e.path}
             >
-              <span style={{ width: 16, textAlign: 'center' }}>{e.is_dir ? '📁' : '·'}</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-              {!e.is_dir && <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>{fmtSize(e.size)}</span>}
+              <span style={{ width: 16, textAlign: 'center' }}>{e.dangling ? '⚠' : e.is_dir ? '📁' : '·'}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {e.name}{e.is_symlink && !e.dangling ? <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}> ↪</span> : null}
+              </span>
+              {e.dangling && <span style={{ color: '#f59e0b', fontSize: 10 }}>link target not visible to the server: {e.link_target}</span>}
+              {!e.is_dir && !e.dangling && <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>{fmtSize(e.size)}</span>}
               {e.is_dir && <button style={btn} onClick={(ev) => { ev.stopPropagation(); open(e.path) }}>open</button>}
             </div>
           ))}

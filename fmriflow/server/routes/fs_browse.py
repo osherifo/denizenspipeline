@@ -62,24 +62,29 @@ def browse_roots() -> list[dict]:
     return roots
 
 
+def _under(target: Path, root: Path) -> bool:
+    return target == root or root in target.parents
+
+
 def _allowed(target: Path) -> bool:
+    """Under a root either lexically (a symlink placed inside a root counts —
+    that is a deliberate choice by whoever manages the data dir) or once resolved."""
+    lexical = Path(os.path.normpath(str(target.expanduser().absolute())))
+    try:
+        resolved = target.expanduser().resolve()
+    except OSError:
+        resolved = lexical
     for r in browse_roots():
         root = Path(r["path"])
-        try:
-            if target == root or root in target.parents:
-                return True
-        except Exception:
-            continue
+        if _under(lexical, root) or _under(resolved, root):
+            return True
     return False
 
 
 def _resolve(path: str) -> Path:
     if not path:
         raise HTTPException(400, "path is required")
-    try:
-        target = Path(path).expanduser().resolve()
-    except OSError as e:
-        raise HTTPException(400, f"bad path: {e}")
+    target = Path(os.path.normpath(str(Path(path).expanduser().absolute())))
     if not _allowed(target):
         raise HTTPException(403, "path is outside the browsable roots")
     return target
@@ -106,8 +111,14 @@ async def list_dir(path: str = Query(...), show_files: bool = Query(True)):
                 if entry.name.startswith("."):
                     continue
                 try:
-                    if entry.is_dir(follow_symlinks=True):
-                        dirs.append({"name": entry.name, "path": str(target / entry.name), "is_dir": True})
+                    if entry.is_symlink() and not (target / entry.name).exists():
+                        # Dangling here — typically a link to a host path that is not
+                        # mounted into the container. Show it, say why it cannot open.
+                        files.append({"name": entry.name, "path": str(target / entry.name), "is_dir": False,
+                                      "size": 0, "dangling": True, "link_target": os.readlink(entry.path)})
+                    elif entry.is_dir(follow_symlinks=True):
+                        dirs.append({"name": entry.name, "path": str(target / entry.name), "is_dir": True,
+                                     "is_symlink": entry.is_symlink()})
                     elif show_files:
                         st = entry.stat(follow_symlinks=True)
                         files.append({"name": entry.name, "path": str(target / entry.name), "is_dir": False, "size": st.st_size})
@@ -119,6 +130,8 @@ async def list_dir(path: str = Query(...), show_files: bool = Query(True)):
         raise HTTPException(403, f"permission denied: {target}")
     dirs.sort(key=lambda e: e["name"].lower())
     files.sort(key=lambda e: e["name"].lower())
+    if not show_files:
+        files = [f for f in files if f.get("dangling")]
     parent = str(target.parent) if _allowed(target.parent) else None
     return {"path": str(target), "parent": parent, "entries": dirs + files, "truncated": len(dirs) + len(files) >= MAX_ENTRIES}
 

@@ -1,6 +1,6 @@
 /** Server-side directory browsing — paths as the server (container) sees them. */
 export interface FsRoot { label: string; path: string; kind: 'data' | 'home' | 'extra' }
-export interface FsEntry { name: string; path: string; is_dir: boolean; size?: number }
+export interface FsEntry { name: string; path: string; is_dir: boolean; size?: number; is_symlink?: boolean; dangling?: boolean; link_target?: string }
 export interface FsListing { path: string; parent: string | null; entries: FsEntry[]; truncated: boolean }
 
 const BASE = '/api'
