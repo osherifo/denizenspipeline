@@ -1499,6 +1499,10 @@ export interface PipelineRunSummary {
   resumed_from: string | null
   config_path: string | null
   result: { status: string; duration_s: number; errors: string[]; nodes: PipelineNodeRunRecord[] } | null
+  /** Full error texts (nipype tracebacks); `cause` is their innermost message. */
+  errors: string[]
+  cause: string | null
+  crashes: { name: string; size: number; node: string | null }[]
   checkpoints: CheckpointSummary
 }
 

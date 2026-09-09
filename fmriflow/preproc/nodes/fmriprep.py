@@ -177,7 +177,13 @@ class FmriprepNode:
 
     def validate(self, inputs: dict[str, Any], params: dict[str, Any]) -> list[str]:
         p = fmriprep_params(self._clean(params))
+        # The FreeSurfer subjects dir may arrive on the input port instead of
+        # the param; build_command merges it the same way.
+        if not p.fs_subjects_dir and inputs.get("fs_subjects_dir"):
+            p = dataclasses.replace(p, fs_subjects_dir=str(inputs["fs_subjects_dir"]))
         errors = list(p.validate())
+        if p.fs_subjects_dir and not Path(p.fs_subjects_dir).is_dir():
+            errors.append(f"fs_subjects_dir not found: {p.fs_subjects_dir}")
         if not inputs.get("bids_dir") or not Path(inputs["bids_dir"]).is_dir():
             errors.append(f"BIDS directory not found: {inputs.get('bids_dir')}")
         if not inputs.get("subject"):

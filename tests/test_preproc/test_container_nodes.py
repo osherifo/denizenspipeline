@@ -150,3 +150,15 @@ def test_registry_lists_the_three_container_apps():
     reg = NodeRegistry(user_dirs=[]).discover()
     assert {"fmriprep", "bids_app", "custom_shell"} <= set(reg.names())
     assert all(reg.kind(n) == "container_app" for n in ("fmriprep", "bids_app", "custom_shell"))
+
+
+def test_fmriprep_validate_accepts_fs_subjects_dir_on_the_input_port(tmp_path):
+    """func_precomputed_anat takes the FreeSurfer dir from the port when the param is empty."""
+    from fmriflow.preproc.nodes.fmriprep import FmriprepNode
+    bids = tmp_path / "bids"; bids.mkdir()
+    fs = tmp_path / "fs"; fs.mkdir()
+    params = {"mode": "func_precomputed_anat", "container_type": "bare", "container": ""}
+    errs = FmriprepNode().validate({"bids_dir": str(bids), "subject": "01", "fs_subjects_dir": str(fs)}, params)
+    assert not any("requires fs_subjects_dir" in e for e in errs), errs
+    errs = FmriprepNode().validate({"bids_dir": str(bids), "subject": "01", "fs_subjects_dir": str(tmp_path / "missing")}, params)
+    assert any("fs_subjects_dir not found" in e for e in errs), errs

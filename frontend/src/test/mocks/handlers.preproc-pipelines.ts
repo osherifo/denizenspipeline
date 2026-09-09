@@ -44,6 +44,7 @@ export function buildRunDetail(overrides: Partial<PipelineRunDetail> = {}): Pipe
     nodes: [{ id: 'source', type: 'derivatives_source', kind: 'source' }, { id: 'smooth', type: 'smooth', kind: 'interface' }],
     n_nodes: 2, work_dir: '/w', workflow: 'derivatives_smooth__sub_01', output_dir: '/o', use_cache: true, resumed_from: null,
     config_path: null, result: null, checkpoints: { n: 0, counts: {}, worst: null },
+    errors: [], cause: null, crashes: [],
     nipype_status: { counts: { running: 0, ok: 0, failed: 0, completed_assumed: 0, total_seen: 0 }, recent_nodes: [] },
     job: { pipeline: TEMPLATE_PIPELINE, request: { subject: '01', output_dir: '/o' } },
     ...overrides,

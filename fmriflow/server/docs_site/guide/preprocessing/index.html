@@ -704,6 +704,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Workflow 1: the easy path — fmriprep from a template">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-a-run-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a run fails
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1302,6 +1319,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Workflow 1: the easy path — fmriprep from a template">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-a-run-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a run fails
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1485,6 +1519,15 @@ the server at its binary:</p>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--param<span class="w"> </span>fmriprep.container<span class="o">=</span>nipreps/fmriprep:24.1.1<span class="w"> </span>--param<span class="w"> </span>fmriprep.container_type<span class="o">=</span>docker
 </code></pre></div>
 <p>Save the pipeline under a name to reuse it (it lands in <code>$FMRIFLOW_HOME/configs/preproc/</code>).</p>
+<h3 id="when-a-run-fails">When a run fails<a class="headerlink" href="#when-a-run-fails" title="Permanent link">&para;</a></h3>
+<p>The run header shows the <strong>cause</strong> — the innermost exception message, e.g.
+<code>ValueError: fmriprep: mode 'func_precomputed_anat' requires fs_subjects_dir …</code> —
+above a <strong>Traceback</strong> button with the full nipype error text, one button per
+<strong>crash file</strong> nipype wrote (its node inputs and traceback), and the runner's
+<code>stdout.log</code>, which opens by itself for failed and lost runs. Selecting the failed
+node on the graph opens its work directory, where a container app's own output is
+<code>stdout.log</code>. The same data is at <code>GET /api/preproc/runs/{id}</code> (<code>cause</code>, <code>errors</code>,
+<code>crashes</code>), <code>…/crashes/{name}</code> and <code>…/log?tail=N</code>.</p>
 <h2 id="workflow-2-build-a-pipeline">Workflow 2: build a pipeline<a class="headerlink" href="#workflow-2-build-a-pipeline" title="Permanent link">&para;</a></h2>
 <p>The editor is the graph: click a node in the palette to add it, drag from an output
 port to an input port to connect, Backspace deletes the selection. A plain chain such as

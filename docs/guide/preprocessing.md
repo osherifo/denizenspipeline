@@ -89,6 +89,17 @@ fmriflow preproc run fmriprep_anat_only --subject 01 \
 
 Save the pipeline under a name to reuse it (it lands in `$FMRIFLOW_HOME/configs/preproc/`).
 
+### When a run fails
+
+The run header shows the **cause** — the innermost exception message, e.g.
+`ValueError: fmriprep: mode 'func_precomputed_anat' requires fs_subjects_dir …` —
+above a **Traceback** button with the full nipype error text, one button per
+**crash file** nipype wrote (its node inputs and traceback), and the runner's
+`stdout.log`, which opens by itself for failed and lost runs. Selecting the failed
+node on the graph opens its work directory, where a container app's own output is
+`stdout.log`. The same data is at `GET /api/preproc/runs/{id}` (`cause`, `errors`,
+`crashes`), `…/crashes/{name}` and `…/log?tail=N`.
+
 ## Workflow 2: build a pipeline
 
 The editor is the graph: click a node in the palette to add it, drag from an output

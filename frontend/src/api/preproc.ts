@@ -125,6 +125,10 @@ export async function fetchPipelineRunLog(runId: string, tail = 200): Promise<{ 
   return json(`${BASE}/preproc/runs/${enc(runId)}/log?tail=${tail}`)
 }
 
+export async function fetchRunCrash(runId: string, name: string): Promise<{ name: string; text: string }> {
+  return json(`${BASE}/preproc/runs/${enc(runId)}/crashes/${enc(name)}`)
+}
+
 export async function fetchRunCheckpoints(runId: string): Promise<{ checkpoints: CheckpointRecord[]; summary: CheckpointSummary }> {
   return json(`${BASE}/preproc/runs/${enc(runId)}/checkpoints`)
 }

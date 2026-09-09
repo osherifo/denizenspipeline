@@ -68,6 +68,22 @@ async def run_log(request: Request, run_id: str, tail: int = Query(200, ge=1, le
     return {"lines": lines[-tail:], "total": len(lines)}
 
 
+@router.get("/preproc/runs/{run_id}/crashes")
+async def run_crashes(request: Request, run_id: str):
+    """nipype crash dumps written for this run."""
+    _get(request, run_id)
+    return {"crashes": _manager(request).crash_files(run_id)}
+
+
+@router.get("/preproc/runs/{run_id}/crashes/{name}")
+async def run_crash(request: Request, run_id: str, name: str):
+    _get(request, run_id)
+    text = _manager(request).read_crash(run_id, name)
+    if text is None:
+        raise HTTPException(status_code=404, detail=f"no crash file {name!r} for run {run_id}")
+    return {"name": name, "text": text}
+
+
 @router.get("/preproc/runs/{run_id}/checkpoints")
 async def run_checkpoints(request: Request, run_id: str):
     _get(request, run_id)

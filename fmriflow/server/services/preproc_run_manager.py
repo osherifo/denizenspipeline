@@ -36,6 +36,20 @@ from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
 
 logger = logging.getLogger(__name__)
 
+
+def _cause(errors: list[str]) -> str | None:
+    """The one line worth reading first: the innermost exception message.
+
+    nipype wraps a node's exception in a NodeExecutionError whose text ends
+    with the original traceback, so the last non-empty line is the actual
+    ``ValueError: …`` / ``RuntimeError: …`` the node raised.
+    """
+    for text in errors:
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        if lines:
+            return lines[-1]
+    return None
+
 _CLI_MODULE = "fmriflow.preproc.pipeline_runner_cli"
 RUN_KIND = "preproc"
 
@@ -258,6 +272,10 @@ class PreprocRunManager:
 
     def _summary(self, state: RunStateFile) -> dict:
         params = state.params or {}
+        result = state.result if isinstance(state.result, dict) else {}
+        errors = [str(e) for e in (result.get("errors") or []) if e]
+        if not errors and state.error:
+            errors = [str(state.error)]
         return {
             "run_id": state.run_id,
             "kind": state.kind,
@@ -280,7 +298,41 @@ class PreprocRunManager:
             "config_path": state.config_path,
             "result": state.result,
             "checkpoints": self.checkpoint_summary(state.run_id),
+            "errors": errors,
+            "cause": _cause(errors),
+            "crashes": self.crash_files(state.run_id),
         }
+
+    def crash_dir(self, run_id: str) -> Path:
+        return self.registry.run_dir(run_id) / "crash"
+
+    def crash_files(self, run_id: str) -> list[dict]:
+        """nipype crash dumps for this run (text files, newest last)."""
+        d = self.crash_dir(run_id)
+        if not d.is_dir():
+            return []
+        out = []
+        for f in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime):
+            if not f.is_file():
+                continue
+            node = None
+            try:
+                first = f.read_text(errors="replace").splitlines()[0]
+                if first.startswith("Node:"):
+                    node = first.split(":", 1)[1].strip()
+            except (OSError, IndexError):
+                pass
+            out.append({"name": f.name, "size": f.stat().st_size, "node": node})
+        return out
+
+    def read_crash(self, run_id: str, name: str) -> str | None:
+        """Contents of one crash file; ``None`` when it is not a file of this run."""
+        if "/" in name or name.startswith(".") or name != Path(name).name:
+            return None
+        f = self.crash_dir(run_id) / name
+        if not f.is_file():
+            return None
+        return f.read_text(errors="replace")
 
     # ── cancel / delete / reconcile ───────────────────────────────
 

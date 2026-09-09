@@ -7,7 +7,7 @@ import { PipelineGraph, type NodeCheckpointStatus, type NodeRunStatus } from './
 import { CheckpointFilmstrip, VERDICT_COLORS } from './CheckpointFilmstrip'
 import { NodeOutputsPanel } from '../workflow/NodeOutputsPanel'
 import { NipypeGraphModal } from '../workflow/NipypeGraphModal'
-import { fetchPipelineRunLog } from '../../api/preproc'
+import { fetchPipelineRunLog, fetchRunCrash } from '../../api/preproc'
 import { formatDuration } from '../../utils/format'
 import type { CheckpointRecord, PipelineEvent, PipelineRunDetail } from '../../api/types'
 
@@ -75,17 +75,25 @@ export function RunDetail({ compact = false }: Props) {
   const [showInner, setShowInner] = useState(false)
   const [showLog, setShowLog] = useState(false)
   const [log, setLog] = useState<string[]>([])
+  const [logTotal, setLogTotal] = useState<number | null>(null)
+  const [showTrace, setShowTrace] = useState(false)
+  const [crash, setCrash] = useState<{ name: string; text: string } | null>(null)
   const [askRecover, setAskRecover] = useState(false)
 
   useEffect(() => { if (library.length === 0) void loadLibrary() }, [library.length, loadLibrary])
   useEffect(() => {
     if (!showLog || !detail) return
     let cancelled = false
-    const load = () => fetchPipelineRunLog(detail.run_id, 300).then((r) => { if (!cancelled) setLog(r.lines) }).catch(() => {})
+    const load = () => fetchPipelineRunLog(detail.run_id, 500).then((r) => { if (!cancelled) { setLog(r.lines); setLogTotal(r.total ?? null) } }).catch(() => {})
     void load()
     const id = setInterval(load, 2000)
     return () => { cancelled = true; clearInterval(id) }
   }, [showLog, detail])
+  // A run that did not finish cleanly opens its log by itself; the reason is in there.
+  useEffect(() => {
+    setShowTrace(false); setCrash(null)
+    if (detail && (detail.status === 'failed' || detail.status === 'lost')) setShowLog(true)
+  }, [detail?.run_id, detail?.status])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const statusByNode = useMemo(() => statusOverlay(detail, events), [detail, events])
   const checkpointsByNode = useMemo(() => checkpointOverlay(checkpoints, detail?.workflow ?? null), [checkpoints, detail?.workflow])
@@ -116,7 +124,32 @@ export function RunDetail({ compact = false }: Props) {
         {running && <button style={{ ...btn, color: '#ef4444' }} onClick={() => cancel(detail.run_id)}>Cancel</button>}
         {recoverable && <button style={btn} onClick={() => setAskRecover(true)}>Resume / Restart…</button>}
       </div>
-      {detail.error && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 8, whiteSpace: 'pre-wrap' }}>{detail.error}</div>}
+      {(detail.cause || detail.error) && (
+        <div style={{ border: '1px solid #ef4444', borderRadius: 6, padding: 10, marginBottom: 10, fontSize: 12, background: 'var(--bg-card)' }}>
+          <div style={{ color: '#ef4444', fontWeight: 700, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{detail.cause ?? detail.error}</div>
+          {detail.cause && detail.error && detail.cause !== detail.error && (
+            <div style={{ color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'pre-wrap' }}>{detail.error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {(detail.errors?.length ?? 0) > 0 && (
+              <button style={btn} onClick={() => setShowTrace(!showTrace)}>{showTrace ? 'Hide traceback' : 'Traceback'}</button>
+            )}
+            {(detail.crashes?.length ?? 0) > 0 && <span style={{ color: 'var(--text-secondary)' }}>crash files:</span>}
+            {detail.crashes?.map((c) => (
+              <button key={c.name} style={{ ...btn, color: crash?.name === c.name ? 'var(--accent-cyan)' : undefined }} title={`${c.name} · ${c.size} bytes`}
+                onClick={() => crash?.name === c.name ? setCrash(null) : fetchRunCrash(detail.run_id, c.name).then(setCrash).catch(() => {})}>
+                {c.node ?? c.name}
+              </button>
+            ))}
+          </div>
+          {showTrace && (
+            <pre style={{ maxHeight: 320, overflow: 'auto', fontSize: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, marginTop: 8, marginBottom: 0, whiteSpace: 'pre-wrap' }}>{detail.errors.join('\n\n')}</pre>
+          )}
+          {crash && (
+            <pre style={{ maxHeight: 320, overflow: 'auto', fontSize: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, marginTop: 8, marginBottom: 0, whiteSpace: 'pre-wrap' }}>{crash.text}</pre>
+          )}
+        </div>
+      )}
       {askRecover && (
         <div style={{ border: '1px solid var(--accent-cyan)', borderRadius: 6, padding: 10, fontSize: 12, marginBottom: 10, background: 'var(--bg-card)' }}>
           <div style={{ marginBottom: 8 }}>
@@ -158,8 +191,8 @@ export function RunDetail({ compact = false }: Props) {
 
       {showLog && (
         <>
-          <div style={section}>Log</div>
-          <pre style={{ maxHeight: 260, overflow: 'auto', fontSize: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, margin: 0 }}>{log.join('\n')}</pre>
+          <div style={section}>Log <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· stdout.log{logTotal != null ? ` · last ${Math.min(log.length, 500)} of ${logTotal} lines` : ''}</span></div>
+          <pre style={{ maxHeight: 360, overflow: 'auto', fontSize: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, margin: 0, whiteSpace: 'pre-wrap' }}>{log.length ? log.join('\n') : '(empty — the runner wrote nothing to stdout.log yet)'}</pre>
         </>
       )}
 
