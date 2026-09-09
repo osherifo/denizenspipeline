@@ -26,6 +26,15 @@ describe('PathPickerModal', () => {
   })
 })
 
+describe('PathPickerModal roots', () => {
+  it('shows no data/home chips, only extra roots', async () => {
+    render(<PathPickerModal onPick={vi.fn()} onClose={() => {}} />)
+    await waitFor(() => expect(screen.getByText('dicoms')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'data' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'home' })).toBeNull()
+  })
+})
+
 describe('PathField', () => {
   it('warns when the server cannot see a typed path', async () => {
     const onChange = vi.fn()

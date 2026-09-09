@@ -68,7 +68,10 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
           <b>Choose a {mode === 'dir' ? 'directory' : 'file'}</b>
           <span style={{ flex: 1 }} />
-          {roots.map((r) => (
+          {/* Only extra roots (FMRIFLOW_BROWSE_ROOTS) get a shortcut: the data root is
+              where the picker opens and ↑ up walks it, but an extra root lives elsewhere
+              and would otherwise be unreachable. */}
+          {roots.filter((r) => r.kind === 'extra').map((r) => (
             <button key={r.path} style={chip(path === r.path)} title={r.path} onClick={() => open(r.path)}>{r.label}</button>
           ))}
         </div>

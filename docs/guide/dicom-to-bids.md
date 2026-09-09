@@ -12,7 +12,7 @@ Convert raw DICOM data to BIDS format using heudiconv with a heuristic registry 
     Every path field in the Convert and Batch forms has a **Browse…** button. It lists
     directories *as the server sees them* — inside Docker that is the container's view
     (`/workspace/data/…`), which is exactly what conversion can open. Browsing is limited to
-    the data dir and the home dir; a typed
+    the data dir and the home dir (the picker opens in the data dir; **↑ up** walks towards a root); a typed
     path the server cannot see gets a warning under the field. To browse another location,
     such as a read-only mount of a lab share, list it in `FMRIFLOW_BROWSE_ROOTS`
     (colon-separated) — see [Docker → Browsing other locations](docker.md#browsing-other-locations).
