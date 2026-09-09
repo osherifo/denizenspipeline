@@ -4,8 +4,7 @@ Paths in the UI are only useful if the *server* can open them — inside
 Docker that is the container's view, not the host's. These endpoints list
 directories as the server sees them, restricted to a few roots:
 
-- ``$FMRIFLOW_DATA`` (default ``$FMRIFLOW_HOME/data``), and its usual
-  subdirs (``dicoms``, ``bids``, ``derivatives``) as shortcuts;
+- ``$FMRIFLOW_DATA`` (default ``$FMRIFLOW_HOME/data``);
 - ``$FMRIFLOW_HOME``;
 - any extra roots listed in ``$FMRIFLOW_BROWSE_ROOTS`` (``:``-separated),
   e.g. a read-only bind mount of a lab data share.
@@ -47,11 +46,7 @@ def browse_roots() -> list[dict]:
         roots.append({"label": label, "path": str(rp), "kind": kind})
 
     try:
-        data = paths.data()
-        for sub in ("dicoms", "bids", "derivatives"):
-            if (data / sub).is_dir():
-                add(sub, data / sub)
-        add("data", data)
+        add("data", paths.data())
     except Exception:
         pass
     try:

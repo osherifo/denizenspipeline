@@ -7,13 +7,19 @@ export const fsHandlers = [
   }),
   http.get('/api/fs/roots', () => HttpResponse.json({
     roots: [
-      { label: 'dicoms', path: '/workspace/data/dicoms', kind: 'data' },
-      { label: 'bids', path: '/workspace/data/bids', kind: 'data' },
+      { label: 'data', path: '/workspace/data', kind: 'data' },
+      { label: 'home', path: '/workspace', kind: 'home' },
     ],
     extra_roots_env: 'FMRIFLOW_BROWSE_ROOTS',
   })),
   http.get('/api/fs/list', ({ request }) => {
     const p = new URL(request.url).searchParams.get('path') ?? ''
+    if (p === '/workspace/data') {
+      return HttpResponse.json({ path: p, parent: '/workspace', entries: [
+        { name: 'dicoms', path: '/workspace/data/dicoms', is_dir: true },
+        { name: 'bids', path: '/workspace/data/bids', is_dir: true },
+      ], truncated: false })
+    }
     if (p === '/workspace/data/dicoms') {
       return HttpResponse.json({ path: p, parent: '/workspace/data', entries: [
         { name: 'sub01', path: '/workspace/data/dicoms/sub01', is_dir: true },

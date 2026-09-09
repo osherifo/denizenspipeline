@@ -1494,7 +1494,7 @@ to download the same file — the batch form has always had these.</p>
 <p>Every path field in the Convert and Batch forms has a <strong>Browse…</strong> button. It lists
 directories <em>as the server sees them</em> — inside Docker that is the container's view
 (<code>/workspace/data/…</code>), which is exactly what conversion can open. Browsing is limited to
-the data roots (<code>dicoms</code>, <code>bids</code>, <code>derivatives</code>, the data dir, the home dir); a typed
+the data dir and the home dir; a typed
 path the server cannot see gets a warning under the field. To browse another location,
 such as a read-only mount of a lab share, list it in <code>FMRIFLOW_BROWSE_ROOTS</code>
 (colon-separated) — see <a href="../docker/#browsing-other-locations">Docker → Browsing other locations</a>.

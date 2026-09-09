@@ -25,7 +25,8 @@ def test_roots_and_listing(client):
     c, home, extra = client
     roots = c.get("/api/fs/roots").json()["roots"]
     labels = [r["label"] for r in roots]
-    assert labels[:2] == ["dicoms", "bids"] and "data" in labels and "home" in labels
+    assert labels[0] == "data" and "home" in labels
+    assert "dicoms" not in labels and "bids" not in labels
     assert any(r["path"] == str(extra.resolve()) and r["kind"] == "extra" for r in roots)
 
     r = c.get("/api/fs/list", params={"path": str(home / "data" / "dicoms" / "sub01")}).json()

@@ -6,6 +6,8 @@ describe('PathPickerModal', () => {
   it('opens at the first root, navigates into a directory and picks it', async () => {
     const onPick = vi.fn()
     render(<PathPickerModal onPick={onPick} onClose={() => {}} />)
+    await waitFor(() => expect(screen.getByText('dicoms')).toBeInTheDocument())
+    fireEvent.doubleClick(screen.getByText('dicoms'))
     await waitFor(() => expect(screen.getByText('sub01')).toBeInTheDocument())
     expect(screen.getByText('README.txt')).toBeInTheDocument()
     fireEvent.doubleClick(screen.getByText('sub01'))
@@ -17,7 +19,7 @@ describe('PathPickerModal', () => {
 
   it('uses the current directory when nothing is selected', async () => {
     const onPick = vi.fn()
-    render(<PathPickerModal onPick={onPick} onClose={() => {}} />)
+    render(<PathPickerModal initialPath="/workspace/data/dicoms" onPick={onPick} onClose={() => {}} />)
     await waitFor(() => expect(screen.getByText('sub01')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Use this directory'))
     expect(onPick).toHaveBeenCalledWith('/workspace/data/dicoms')
