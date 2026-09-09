@@ -84,9 +84,25 @@ describe('useConvertStore', () => {
   })
 
   describe('scan + collect + run', () => {
-    it('scanDicom populates scanResult', async () => {
+    it('scanDicom starts a job, polls it and populates scanResult', async () => {
       await useConvertStore.getState().scanDicom('/tmp/dicom')
-      expect(useConvertStore.getState().scanResult?.series.length).toBe(1)
+      const st = useConvertStore.getState()
+      expect(st.scanResult?.series.length).toBe(1)
+      expect(st.scanResult?.series[0].manufacturer).toBe('Siemens')
+      expect(st.scanProgress?.files_seen).toBe(10)
+      expect(st.scanning).toBe(false)
+    })
+
+    it('a cancelled scan reports how far it got', async () => {
+      server.use(
+        http.get('/api/convert/scan/:id', () => HttpResponse.json({
+          scan_id: 'scan_1', source_dir: '/tmp/dicom', status: 'cancelled', started_at: 0, finished_at: 1,
+          progress: { files_seen: 42, dicoms_seen: 40, series_found: 2, current_dir: '' }, result: null, error: null,
+        })),
+      )
+      await useConvertStore.getState().scanDicom('/tmp/dicom')
+      expect(useConvertStore.getState().scanError).toMatch(/cancelled after 42 files/)
+      expect(useConvertStore.getState().scanResult).toBeNull()
     })
 
     it('collect populates collectResult', async () => {

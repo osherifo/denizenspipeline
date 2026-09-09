@@ -522,12 +522,20 @@ export async function validateConvertManifest(subject: string): Promise<{ errors
   return json<{ errors: string[] }>(`${BASE}/convert/manifests/${encodeURIComponent(subject)}/validate`, { method: 'POST' })
 }
 
-export async function scanDicomDirectory(sourceDir: string): Promise<DicomScanResult> {
-  return json<DicomScanResult>(`${BASE}/convert/scan`, {
+export async function startDicomScan(sourceDir: string): Promise<import('./types').DicomScanJob> {
+  return json(`${BASE}/convert/scan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ source_dir: sourceDir }),
   })
+}
+
+export async function fetchDicomScan(scanId: string): Promise<import('./types').DicomScanJob> {
+  return json(`${BASE}/convert/scan/${encodeURIComponent(scanId)}`)
+}
+
+export async function cancelDicomScan(scanId: string): Promise<{ cancelled: boolean; reason?: string }> {
+  return json(`${BASE}/convert/scan/${encodeURIComponent(scanId)}/cancel`, { method: 'POST' })
 }
 
 export async function collectConvertOutputs(params: {

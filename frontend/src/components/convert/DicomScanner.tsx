@@ -135,7 +135,7 @@ const tdStyle: CSSProperties = {
 }
 
 export function DicomScanner() {
-  const { scanResult, scanning, scanError, scanDicom, clearScan } = useConvertStore()
+  const { scanResult, scanning, scanError, scanDicom, clearScan, cancelScan, scanProgress } = useConvertStore()
   const [sourceDir, setSourceDir] = useState('')
 
   const handleScan = () => {
@@ -169,6 +169,15 @@ export function DicomScanner() {
         <button style={primaryBtn} onClick={handleScan} disabled={!sourceDir.trim() || scanning}>
           {scanning ? 'Scanning...' : 'Scan'}
         </button>
+        {scanning && (
+          <button style={secondaryBtn} onClick={() => void cancelScan()}>Cancel</button>
+        )}
+        {scanning && scanProgress && (
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', alignSelf: 'center' }}>
+            {scanProgress.files_seen} files · {scanProgress.dicoms_seen} DICOMs · {scanProgress.series_found} series
+            {scanProgress.current_dir ? ` · ${scanProgress.current_dir.split('/').slice(-2).join('/')}` : ''}
+          </span>
+        )}
         {scanResult && (
           <button style={secondaryBtn} onClick={clearScan}>
             Clear
@@ -183,66 +192,20 @@ export function DicomScanner() {
         </div>
       )}
 
-      {/* Scanner info */}
-      {scanResult && scanResult.scanner && (
-        <>
-          <div style={sectionLabel}>Scanner Info</div>
-          <div style={gridStyle}>
-            {scanResult.scanner.manufacturer && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Manufacturer</div>
-                <div style={fieldCardValue}>{scanResult.scanner.manufacturer}</div>
-              </div>
-            )}
-            {scanResult.scanner.model && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Model</div>
-                <div style={fieldCardValue}>{scanResult.scanner.model}</div>
-              </div>
-            )}
-            {scanResult.scanner.field_strength != null && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Field Strength</div>
-                <div style={fieldCardValue}>{scanResult.scanner.field_strength}T</div>
-              </div>
-            )}
-            {scanResult.scanner.institution && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Institution</div>
-                <div style={fieldCardValue}>{scanResult.scanner.institution}</div>
-              </div>
-            )}
-            {scanResult.scanner.station_name && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Station</div>
-                <div style={fieldCardValue}>{scanResult.scanner.station_name}</div>
-              </div>
-            )}
-            {scanResult.scanner.software_version && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Software</div>
-                <div style={fieldCardValue}>{scanResult.scanner.software_version}</div>
-              </div>
-            )}
+      {/* Scanner summary (per-series detail is in the table) */}
+      {scanResult && scanResult.series.length > 0 && (() => {
+        const names = new Map<string, number>()
+        for (const sr of scanResult.series) {
+          const k = [sr.manufacturer, sr.model, sr.field_strength ? `${sr.field_strength}T` : null].filter(Boolean).join(' ') || 'unknown scanner'
+          names.set(k, (names.get(k) ?? 0) + 1)
+        }
+        return (
+          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
+            {names.size > 1 ? `${names.size} different scanners in this directory: ` : 'Scanner: '}
+            {[...names.entries()].map(([k, n]) => `${k} (${n} series)`).join(' · ')}
           </div>
-        </>
-      )}
-
-      {/* Matching heuristic */}
-      {scanResult && scanResult.matching_heuristic && (
-        <div style={{
-          backgroundColor: 'rgba(0, 230, 118, 0.08)',
-          border: '1px solid rgba(0, 230, 118, 0.3)',
-          borderRadius: 6,
-          padding: '10px 14px',
-          marginBottom: 16,
-          fontSize: 12,
-        }}>
-          <span style={{ fontWeight: 700, color: 'var(--accent-green)' }}>{'\u2713'} Matching heuristic: </span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{scanResult.matching_heuristic}</span>
-        </div>
-      )}
-
+        )
+      })()}
       {/* Series table */}
       {scanResult && scanResult.series.length > 0 && (
         <>
@@ -255,6 +218,9 @@ export function DicomScanner() {
                   <th style={thStyle}>Description</th>
                   <th style={thStyle}>Images</th>
                   <th style={thStyle}>Modality</th>
+                  <th style={thStyle}>Scanner</th>
+                  <th style={thStyle}>Station</th>
+                  <th style={thStyle}>Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,6 +242,11 @@ export function DicomScanner() {
                         {s.modality_guess}
                       </span>
                     </td>
+                    <td style={tdStyle} title={[s.software_version, s.institution, s.protocol_name].filter(Boolean).join(' · ')}>
+                      {[s.manufacturer, s.model].filter(Boolean).join(' ') || '—'}{s.field_strength ? ` · ${s.field_strength}T` : ''}
+                    </td>
+                    <td style={tdStyle}>{s.station_name || '—'}</td>
+                    <td style={tdStyle}>{s.study_date ? `${s.study_date.slice(0, 4)}-${s.study_date.slice(4, 6)}-${s.study_date.slice(6, 8)}` : '—'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -36,13 +36,23 @@ export const convertHandlers = [
   ),
   http.post('/api/convert/scan', () =>
     HttpResponse.json({
-      scanner: null,
-      series: [
-        { number: 1, description: 'T1w', n_images: 10, modality_guess: 'anat' },
-      ],
-      matching_heuristic: null,
+      scan_id: 'scan_1', source_dir: '/tmp/dicom', status: 'running', started_at: 0, finished_at: null,
+      progress: { files_seen: 0, dicoms_seen: 0, series_found: 0, current_dir: '' }, result: null, error: null,
     }),
   ),
+  http.get('/api/convert/scan/:id', () =>
+    HttpResponse.json({
+      scan_id: 'scan_1', source_dir: '/tmp/dicom', status: 'done', started_at: 0, finished_at: 1,
+      progress: { files_seen: 10, dicoms_seen: 10, series_found: 1, current_dir: '/tmp/dicom' },
+      result: {
+        scanner: null,
+        series: [{ number: 1, description: 'T1w', n_images: 10, modality_guess: 'anat', manufacturer: 'Siemens', model: 'Prisma', field_strength: 3, station_name: 'MR1', study_date: '20260101' }],
+        matching_heuristic: null,
+      },
+      error: null,
+    }),
+  ),
+  http.post('/api/convert/scan/:id/cancel', () => HttpResponse.json({ cancelled: true })),
   http.post('/api/convert/collect', () =>
     HttpResponse.json({ manifest: {}, manifest_path: '/tmp/m.json' }),
   ),

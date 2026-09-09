@@ -602,6 +602,32 @@ export interface DicomSeriesInfo {
   description: string
   n_images: number
   modality_guess: string
+  manufacturer?: string | null
+  model?: string | null
+  field_strength?: number | null
+  software_version?: string | null
+  station_name?: string | null
+  institution?: string | null
+  study_date?: string | null
+  protocol_name?: string | null
+}
+
+export interface DicomScanProgress {
+  files_seen: number
+  dicoms_seen: number
+  series_found: number
+  current_dir: string
+}
+
+export interface DicomScanJob {
+  scan_id: string
+  source_dir: string
+  status: 'running' | 'done' | 'failed' | 'cancelled'
+  started_at: number
+  finished_at: number | null
+  progress: DicomScanProgress
+  result: DicomScanResult | null
+  error: string | null
 }
 
 export interface DicomScanResult {

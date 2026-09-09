@@ -1,6 +1,10 @@
 import { http, HttpResponse } from 'msw'
 
 export const fsHandlers = [
+  http.post('/api/fs/mkdir', async ({ request }) => {
+    const b = (await request.json()) as { parent: string; name: string }
+    return HttpResponse.json({ created: true, path: `${b.parent}/${b.name}` })
+  }),
   http.get('/api/fs/roots', () => HttpResponse.json({
     roots: [
       { label: 'dicoms', path: '/workspace/data/dicoms', kind: 'data' },

@@ -18,7 +18,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import re
+
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from fmriflow.core import paths
 
@@ -134,6 +137,32 @@ async def list_dir(path: str = Query(...), show_files: bool = Query(True)):
         files = [f for f in files if f.get("dangling")]
     parent = str(target.parent) if _allowed(target.parent) else None
     return {"path": str(target), "parent": parent, "entries": dirs + files, "truncated": len(dirs) + len(files) >= MAX_ENTRIES}
+
+
+class MkdirBody(BaseModel):
+    parent: str
+    name: str
+
+
+_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+@router.post("/fs/mkdir")
+async def make_dir(body: MkdirBody):
+    """Create one new directory under a browsable root (e.g. a fresh BIDS output dir)."""
+    parent = _resolve(body.parent)
+    if not parent.is_dir():
+        raise HTTPException(400, f"not a directory: {parent}")
+    if not _NAME_RE.match(body.name):
+        raise HTTPException(400, "folder name: letters, digits, '.', '_' and '-' only")
+    target = parent / body.name
+    if target.exists():
+        raise HTTPException(409, f"already exists: {target}")
+    try:
+        target.mkdir()
+    except PermissionError:
+        raise HTTPException(403, f"permission denied: {parent}")
+    return {"created": True, "path": str(target)}
 
 
 @router.get("/fs/exists")

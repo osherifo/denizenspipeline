@@ -67,3 +67,12 @@ def test_symlink_inside_a_root_is_browsable_and_dangling_links_are_shown(client,
     assert r.status_code == 200 and [e["name"] for e in r.json()["entries"]] == ["ses1"]
     # But the target itself, addressed directly, is still off limits.
     assert c.get("/api/fs/list", params={"path": str(outside)}).status_code == 403
+
+
+def test_mkdir_inside_roots_only(client):
+    c, home, _ = client
+    r = c.post("/api/fs/mkdir", json={"parent": str(home / "data" / "bids"), "name": "new_study"})
+    assert r.status_code == 200 and (home / "data" / "bids" / "new_study").is_dir()
+    assert c.post("/api/fs/mkdir", json={"parent": str(home / "data" / "bids"), "name": "new_study"}).status_code == 409
+    assert c.post("/api/fs/mkdir", json={"parent": str(home / "data" / "bids"), "name": "../x"}).status_code == 400
+    assert c.post("/api/fs/mkdir", json={"parent": "/", "name": "x"}).status_code == 403

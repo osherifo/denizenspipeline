@@ -16,6 +16,7 @@ Convert raw DICOM data to BIDS format using heudiconv with a heuristic registry 
     path the server cannot see gets a warning under the field. To browse another location,
     such as a read-only mount of a lab share, list it in `FMRIFLOW_BROWSE_ROOTS`
     (colon-separated) — see [Docker → Browsing other locations](docker.md#browsing-other-locations).
+    The picker's **New folder** button creates a directory in place, handy for a fresh BIDS output dir.
 
 ## Single conversion
 

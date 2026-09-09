@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+import os
 from pathlib import Path
+from typing import Callable
 
 from fmriflow.convert.manifest import ScannerInfo
 
@@ -17,15 +19,35 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SeriesInfo:
-    """Summary of a single DICOM series."""
+    """Summary of a single DICOM series.
+
+    Scanner fields come from the series' own first file, so a directory
+    holding sessions from different scanners reports each correctly.
+    """
 
     number: int
     description: str
     n_images: int
     modality_guess: str  # "bold", "T1w", "T2w", "fmap", "localizer", "unknown"
+    manufacturer: str | None = None
+    model: str | None = None
+    field_strength: float | None = None
+    software_version: str | None = None
+    station_name: str | None = None
+    institution: str | None = None
+    study_date: str | None = None
+    protocol_name: str | None = None
 
 
-def extract_scanner_info(dicom_dir: str | Path) -> ScannerInfo | None:
+StopCheck = Callable[[], bool]
+ProgressCallback = Callable[[dict], None]
+
+
+class ScanCancelled(Exception):
+    """Raised inside a scan when its stop check turns true."""
+
+
+def extract_scanner_info(dicom_dir: str | Path, *, should_stop: StopCheck | None = None) -> ScannerInfo | None:
     """Read DICOM headers from the first file in a directory to extract
     scanner metadata.
 
@@ -37,7 +59,7 @@ def extract_scanner_info(dicom_dir: str | Path) -> ScannerInfo | None:
         logger.debug("pydicom not available — skipping scanner info extraction")
         return None
 
-    dcm_path = _find_first_dicom(Path(dicom_dir))
+    dcm_path = _find_first_dicom(Path(dicom_dir), should_stop=should_stop)
     if dcm_path is None:
         return None
 
@@ -56,11 +78,20 @@ def extract_scanner_info(dicom_dir: str | Path) -> ScannerInfo | None:
         return None
 
 
-def list_series(dicom_dir: str | Path) -> list[SeriesInfo]:
+def list_series(
+    dicom_dir: str | Path,
+    *,
+    should_stop: StopCheck | None = None,
+    on_progress: ProgressCallback | None = None,
+) -> list[SeriesInfo]:
     """List DICOM series in a directory with descriptions, image counts,
     and modality guesses.
 
-    Returns an empty list if pydicom is not available or no DICOMs found.
+    Streams the directory tree, so ``should_stop`` (checked every file)
+    ends a long scan promptly with :class:`ScanCancelled`; ``on_progress``
+    gets ``{"files_seen", "dicoms_seen", "series_found", "current_dir"}``
+    every 50 files. Returns an empty list if pydicom is not available or
+    no DICOMs found.
     """
     try:
         import pydicom
@@ -71,23 +102,54 @@ def list_series(dicom_dir: str | Path) -> list[SeriesInfo]:
     root = Path(dicom_dir)
     series: dict[int, dict] = {}  # series_number → {description, count}
 
-    # Tags we need: SeriesNumber (0020,0011), SeriesDescription (0008,103E)
-    SERIES_NUMBER_TAG = pydicom.tag.Tag(0x0020, 0x0011)
-    SERIES_DESC_TAG = pydicom.tag.Tag(0x0008, 0x103E)
+    # Tags we need: SeriesNumber (0020,0011), SeriesDescription (0008,103E),
+    # plus the scanner identity for the first file of each series.
+    T = pydicom.tag.Tag
+    SERIES_NUMBER_TAG = T(0x0020, 0x0011)
+    SERIES_DESC_TAG = T(0x0008, 0x103E)
+    SCANNER_TAGS = [
+        T(0x0008, 0x0070),  # Manufacturer
+        T(0x0008, 0x1090),  # ManufacturerModelName
+        T(0x0018, 0x0087),  # MagneticFieldStrength
+        T(0x0018, 0x1020),  # SoftwareVersions
+        T(0x0008, 0x1010),  # StationName
+        T(0x0008, 0x0080),  # InstitutionName
+        T(0x0008, 0x0020),  # StudyDate
+        T(0x0018, 0x1030),  # ProtocolName
+    ]
 
-    for dcm_path in _iter_dicoms(root):
+    files_seen = 0
+    dicoms_seen = 0
+    for dcm_path in _iter_dicoms(root, should_stop=should_stop):
+        files_seen += 1
+        if on_progress is not None and files_seen % 50 == 0:
+            on_progress({"files_seen": files_seen, "dicoms_seen": dicoms_seen, "series_found": len(series),
+                         "current_dir": str(dcm_path.parent)})
         try:
             ds = pydicom.dcmread(
                 dcm_path, stop_before_pixels=True,
-                specific_tags=[SERIES_NUMBER_TAG, SERIES_DESC_TAG],
+                specific_tags=[SERIES_NUMBER_TAG, SERIES_DESC_TAG, *SCANNER_TAGS],
             )
             num = int(getattr(ds, "SeriesNumber", 0))
             desc = getattr(ds, "SeriesDescription", "unknown")
             if num not in series:
-                series[num] = {"description": str(desc), "count": 0}
+                series[num] = {
+                    "description": str(desc), "count": 0,
+                    "manufacturer": _as_str(getattr(ds, "Manufacturer", None)),
+                    "model": _as_str(getattr(ds, "ManufacturerModelName", None)),
+                    "field_strength": _safe_float(getattr(ds, "MagneticFieldStrength", None)),
+                    "software_version": _as_str(getattr(ds, "SoftwareVersions", None)),
+                    "station_name": _as_str(getattr(ds, "StationName", None)),
+                    "institution": _as_str(getattr(ds, "InstitutionName", None)),
+                    "study_date": _as_str(getattr(ds, "StudyDate", None)),
+                    "protocol_name": _as_str(getattr(ds, "ProtocolName", None)),
+                }
             series[num]["count"] += 1
+            dicoms_seen += 1
         except Exception:
             continue
+    if on_progress is not None:
+        on_progress({"files_seen": files_seen, "dicoms_seen": dicoms_seen, "series_found": len(series), "current_dir": str(root)})
 
     results = []
     for num in sorted(series):
@@ -97,6 +159,10 @@ def list_series(dicom_dir: str | Path) -> list[SeriesInfo]:
             description=info["description"],
             n_images=info["count"],
             modality_guess=_guess_modality(info["description"]),
+            manufacturer=info.get("manufacturer"), model=info.get("model"),
+            field_strength=info.get("field_strength"), software_version=info.get("software_version"),
+            station_name=info.get("station_name"), institution=info.get("institution"),
+            study_date=info.get("study_date"), protocol_name=info.get("protocol_name"),
         ))
 
     return results
@@ -104,19 +170,30 @@ def list_series(dicom_dir: str | Path) -> list[SeriesInfo]:
 
 # ── Internal helpers ─────────────────────────────────────────────────────
 
-def _find_first_dicom(root: Path) -> Path | None:
+def _find_first_dicom(root: Path, *, should_stop: StopCheck | None = None) -> Path | None:
     """Find the first DICOM file in a directory tree."""
-    for p in sorted(root.rglob("*")):
-        if p.is_file() and _is_dicom(p):
-            return p
+    for p in _iter_dicoms(root, should_stop=should_stop):
+        return p
     return None
 
 
-def _iter_dicoms(root: Path):
-    """Yield DICOM file paths from a directory tree."""
-    for p in sorted(root.rglob("*")):
-        if p.is_file() and _is_dicom(p):
-            yield p
+def _iter_dicoms(root: Path, *, should_stop: StopCheck | None = None):
+    """Yield DICOM file paths from a directory tree, streaming.
+
+    ``os.walk`` with per-directory sorting keeps the old deterministic
+    order without listing the whole tree up front, so a stop check can
+    end the scan within one file's worth of work.
+    """
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
+        if should_stop is not None and should_stop():
+            raise ScanCancelled()
+        dirnames.sort()
+        for name in sorted(filenames):
+            if should_stop is not None and should_stop():
+                raise ScanCancelled()
+            p = Path(dirpath) / name
+            if p.is_file() and _is_dicom(p):
+                yield p
 
 
 def _is_dicom(path: Path) -> bool:

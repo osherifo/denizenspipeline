@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -267,13 +269,29 @@ async def start_run(request: Request, body: RunBody):
 
 @router.post("/convert/scan")
 async def scan_dicom(request: Request, body: ScanBody):
-    """Scan a DICOM directory for scanner info and series listing."""
+    """Start a DICOM directory scan on a thread; poll ``GET /convert/scan/{scan_id}``.
+
+    Scanning a large tree used to block the event loop for the whole server;
+    now it runs in the background and can be cancelled.
+    """
     mgr = request.app.state.convert_manager
-    try:
-        result = mgr.scan_dicom(body.source_dir)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    if not body.source_dir or not Path(body.source_dir).expanduser().is_dir():
+        raise HTTPException(status_code=400, detail=f"not a directory: {body.source_dir}")
+    scan_id = mgr.start_scan(body.source_dir)
+    return mgr.get_scan(scan_id)
+
+
+@router.get("/convert/scan/{scan_id}")
+async def get_scan(request: Request, scan_id: str):
+    job = request.app.state.convert_manager.get_scan(scan_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"unknown scan {scan_id!r}")
+    return job
+
+
+@router.post("/convert/scan/{scan_id}/cancel")
+async def cancel_scan(request: Request, scan_id: str):
+    return request.app.state.convert_manager.cancel_scan(scan_id)
 
 
 @router.post("/convert/heuristics/register")

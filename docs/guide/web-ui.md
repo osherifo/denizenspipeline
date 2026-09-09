@@ -30,13 +30,13 @@ Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
 
 **Heuristics** — Browse and search available heuristic files. Each card shows the heuristic name, scanner pattern, and description.
 
-**Scan** — Point at a DICOM directory to see what series it contains before converting.
+**Scan** — Point at a DICOM directory to see what series it contains before converting. The scan runs in the background with a live file count and a **Cancel** button, and the series table shows each series' own scanner (manufacturer, model, field strength), station and study date, so a directory mixing sessions from different scanners is read correctly.
 
 **Manifests** — Browse previously generated conversion manifests. Validate them against configs to check compatibility.
 
 **Configs** — Browse YAML conversion configs saved under `./experiments/convert/` (pre-migration configs at `~/.fmriflow/convert_configs/` are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a **Run** button that dispatches either a single or batch conversion based on the file's shape. See [DICOM → BIDS → Saved configs](dicom-to-bids.md#saved-configs) for the schema.
 
-**Convert** — Single-subject conversion form (path fields have a **Browse…** button that lists directories as the server sees them). Next to **Run** are **Save Config** (writes a `convert:` YAML under `$FMRIFLOW_HOME/configs/convert/`), **Saved Configs** (load a saved single-run config back into the form, or delete it) and **Export YAML** (download the form as a config file). The **Scan** tab's path field browses too:
+**Convert** — Single-subject conversion form (path fields have a **Browse…** button that lists directories as the server sees them). Next to **Run** are **Save Config** (writes a `convert:` YAML under `$FMRIFLOW_HOME/configs/convert/`), **Saved Configs** (load a saved single-run config back into the form, or delete it) and **Export YAML** (download the form as a config file). The **Scan** tab's path field browses too. The picker can also create a **New folder**, for a fresh BIDS output directory:
 
 - Select a heuristic from the dropdown
 - Set the BIDS output directory and source DICOM directory

@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { fetchFsExists, fetchFsListing, fetchFsRoots, type FsEntry, type FsRoot } from '../../api/fs'
+import { createFsDir, fetchFsExists, fetchFsListing, fetchFsRoots, type FsEntry, type FsRoot } from '../../api/fs'
 
 const backdrop: CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const card: CSSProperties = { width: 'min(760px, 94vw)', height: 'min(560px, 88vh)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: 12 }
@@ -67,7 +67,6 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
       <div style={card} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
           <b>Choose a {mode === 'dir' ? 'directory' : 'file'}</b>
-          <span style={{ color: 'var(--text-secondary)' }}>· as the server sees it</span>
           <span style={{ flex: 1 }} />
           {roots.map((r) => (
             <button key={r.path} style={chip(path === r.path)} title={r.path} onClick={() => open(r.path)}>{r.label}</button>
@@ -76,6 +75,23 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
           <button style={btn} disabled={!parent} onClick={() => parent && open(parent)}>↑ up</button>
           <code style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{path ?? ''}</code>
+          {mode === 'dir' && path && (
+            <button
+              style={btn}
+              title="create a new folder here"
+              onClick={async () => {
+                const name = prompt('New folder name', '')
+                if (!name || !path) return
+                try {
+                  const r = await createFsDir(path, name.trim())
+                  await open(path)
+                  setSelected(r.path)
+                } catch (e) {
+                  setError((e as Error).message)
+                }
+              }}
+            >+ New folder</button>
+          )}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
           {error && <div style={{ color: '#ef4444', padding: 8 }}>{error}</div>}
@@ -100,7 +116,7 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 10, borderTop: '1px solid var(--border)' }}>
           <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>
-            Only the data roots are browsable. Add more with <code>{extraEnv}</code> (a read-only bind mount inside Docker).
+            Browsing covers the data roots. Add more with <code>{extraEnv}</code> (inside Docker: a read-only bind mount).
           </span>
           <span style={{ flex: 1 }} />
           <button style={btn} onClick={onClose}>Cancel</button>

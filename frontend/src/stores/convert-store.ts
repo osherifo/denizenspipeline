@@ -7,6 +7,7 @@ import type {
   ConvertManifestDetail,
   ConvertEvent,
   DicomScanResult,
+  DicomScanProgress,
   BatchJobConfig,
   BatchRunParams,
   BatchJobStatus,
@@ -24,7 +25,9 @@ import {
   rescanConvertManifests,
   fetchConvertManifestDetail,
   validateConvertManifest,
-  scanDicomDirectory,
+  startDicomScan,
+  fetchDicomScan,
+  cancelDicomScan,
   collectConvertOutputs,
   startConvertRun,
   connectConvertWs,
@@ -122,6 +125,9 @@ interface ConvertState {
   scanResult: DicomScanResult | null
   scanning: boolean
   scanError: string | null
+  scanId: string | null
+  scanProgress: DicomScanProgress | null
+  cancelScan: () => Promise<void>
 
   // Collect
   collectResult: { manifest: ConvertManifestDetail; manifest_path: string } | null
@@ -233,6 +239,8 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   scanResult: null,
   scanning: false,
   scanError: null,
+  scanId: null,
+  scanProgress: null,
 
   collectResult: null,
   collecting: false,
@@ -395,12 +403,35 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   },
 
   scanDicom: async (sourceDir) => {
-    set({ scanning: true, scanError: null, scanResult: null })
+    set({ scanning: true, scanError: null, scanResult: null, scanProgress: null, scanId: null })
     try {
-      const result = await scanDicomDirectory(sourceDir)
-      set({ scanResult: result, scanning: false })
+      let job = await startDicomScan(sourceDir)
+      set({ scanId: job.scan_id, scanProgress: job.progress })
+      while (job.status === 'running') {
+        await new Promise((r) => setTimeout(r, 500))
+        if (get().scanId !== job.scan_id) return       // superseded by a newer scan / cleared
+        job = await fetchDicomScan(job.scan_id)
+        set({ scanProgress: job.progress })
+      }
+      if (job.status === 'done') {
+        set({ scanResult: job.result, scanning: false })
+      } else if (job.status === 'cancelled') {
+        set({ scanning: false, scanError: `Scan cancelled after ${job.progress.files_seen} files.` })
+      } else {
+        set({ scanning: false, scanError: job.error || 'Scan failed' })
+      }
     } catch (e) {
       set({ scanError: String(e), scanning: false })
+    }
+  },
+
+  cancelScan: async () => {
+    const id = get().scanId
+    if (!id) return
+    try {
+      await cancelDicomScan(id)
+    } catch (e) {
+      set({ scanError: String(e) })
     }
   },
 
@@ -446,7 +477,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
 
   clearCollect: () => set({ collectResult: null, collectError: null }),
 
-  clearScan: () => set({ scanResult: null, scanError: null }),
+  clearScan: () => set({ scanResult: null, scanError: null, scanId: null, scanProgress: null }),
 
   // ── Batch actions ──────────────────────────────────────────────
 
