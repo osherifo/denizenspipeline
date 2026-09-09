@@ -10,8 +10,7 @@ describe('useConvertStore', () => {
 
   it('initial state', () => {
     const s = useConvertStore.getState()
-    expect(s.tab).toBe('tools')
-    expect(s.tools).toEqual([])
+    expect(s.tab).toBe('heuristics')
     expect(s.batchJobs).toHaveLength(1)
     expect(s.batchShared.maxWorkers).toBe(2)
   })
@@ -19,11 +18,6 @@ describe('useConvertStore', () => {
   it('setTab changes tab', () => {
     useConvertStore.getState().setTab('heuristics')
     expect(useConvertStore.getState().tab).toBe('heuristics')
-  })
-
-  it('loadTools populates list', async () => {
-    await useConvertStore.getState().loadTools()
-    expect(useConvertStore.getState().tools.length).toBe(1)
   })
 
   it('loadHeuristics populates list', async () => {

@@ -1428,6 +1428,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/external-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1822,8 +1850,7 @@
 <hr />
 <h2 id="preprocessing">Preprocessing<a class="headerlink" href="#preprocessing" title="Permanent link">&para;</a></h2>
 <h3 id="dicom-to-bids">DICOM to BIDS<a class="headerlink" href="#dicom-to-bids" title="Permanent link">&para;</a></h3>
-<p>Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:</p>
-<p><strong>Tools</strong> — Shows installed conversion tools (heudiconv, dcm2niix) and their status.</p>
+<p>Convert raw DICOM images to BIDS format. Six tabs cover the full workflow. The conversion tools themselves (heudiconv, dcm2niix, bids-validator) ship in the Docker images; see the <a href="../../reference/external-tools/">external tools reference</a> for what each image provides and how to check a bare install.</p>
 <p><strong>Heuristics</strong> — Browse and search available heuristic files. Each card shows the heuristic name, scanner pattern, and description.</p>
 <p><strong>Scan</strong> — Point at a DICOM directory to see what series it contains before converting. The scan runs in the background with a live file count and a <strong>Cancel</strong> button, and the series table shows each series' own scanner (manufacturer, model, field strength), station and study date, so a directory mixing sessions from different scanners is read correctly.</p>
 <p><strong>Manifests</strong> — Browse previously generated conversion manifests. Validate them against configs to check compatibility.</p>

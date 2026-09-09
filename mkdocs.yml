@@ -66,3 +66,4 @@ nav:
     - Defaults: reference/defaults.md
     - Hub Store Schema: reference/hub-store-schema.md
     - Preprocessing pipeline: reference/preproc-pipeline.md
+    - External tools: reference/external-tools.md

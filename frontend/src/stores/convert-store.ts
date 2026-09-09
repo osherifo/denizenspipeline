@@ -1,7 +1,6 @@
 /** DICOM-to-BIDS conversion manager store. */
 import { create } from 'zustand'
 import type {
-  ToolStatus,
   HeuristicInfo,
   ConvertManifestSummary,
   ConvertManifestDetail,
@@ -15,7 +14,6 @@ import type {
   SavedConvertConfig,
 } from '../api/types'
 import {
-  fetchConvertTools,
   fetchConvertHeuristics,
   fetchHeuristicCode,
   saveHeuristic,
@@ -41,7 +39,7 @@ import {
   deleteSavedConvertConfig,
 } from '../api/client'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
+type Tab = 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
 
 
 export interface RunForm {
@@ -95,10 +93,6 @@ export function runFormYaml(f: RunForm): string {
 
 interface ConvertState {
   tab: Tab
-
-  // Tools
-  tools: ToolStatus[]
-  toolsLoading: boolean
 
   // Heuristics
   heuristics: HeuristicInfo[]
@@ -164,7 +158,6 @@ interface ConvertState {
 
   // Actions
   setTab: (tab: Tab) => void
-  loadTools: () => Promise<void>
   loadHeuristics: () => Promise<void>
   openHeuristic: (name: string) => Promise<void>
   newHeuristic: (name: string) => Promise<void>
@@ -209,14 +202,11 @@ interface ConvertState {
 }
 
 export const useConvertStore = create<ConvertState>((set, get) => ({
-  tab: 'tools',
+  tab: 'heuristics',
   runForm: { ...EMPTY_RUN_FORM },
   runFormError: null,
   updateRunForm: (patch) => set({ runForm: { ...get().runForm, ...patch } }),
   resetRunForm: () => set({ runForm: { ...EMPTY_RUN_FORM }, runFormError: null }),
-
-  tools: [],
-  toolsLoading: false,
 
   heuristics: [],
   heuristicsLoading: false,
@@ -274,16 +264,6 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   batchStartTime: null,
 
   setTab: (tab) => set({ tab }),
-
-  loadTools: async () => {
-    set({ toolsLoading: true })
-    try {
-      const tools = await fetchConvertTools()
-      set({ tools, toolsLoading: false })
-    } catch {
-      set({ toolsLoading: false })
-    }
-  },
 
   loadHeuristics: async () => {
     set({ heuristicsLoading: true })

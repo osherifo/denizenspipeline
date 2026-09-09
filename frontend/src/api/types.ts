@@ -549,13 +549,6 @@ export interface SaveHeuristicParams {
   tasks?: string[]
 }
 
-export interface ToolStatus {
-  name: string
-  available: boolean
-  version: string | null
-  detail: string
-}
-
 export interface ConvertManifestSummary {
   subject: string
   path: string

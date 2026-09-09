@@ -21,7 +21,6 @@ import type {
   ErrorEntry,
   HeuristicInfo,
   SaveHeuristicParams,
-  ToolStatus,
   ConvertManifestSummary,
   ConvertManifestDetail,
   DicomScanResult,
@@ -497,11 +496,6 @@ export async function fetchHeuristicTemplate(name: string = 'my_study'): Promise
 
 export async function deleteHeuristic(name: string): Promise<{ deleted: boolean; name: string }> {
   return json(`${BASE}/convert/heuristics/${encodeURIComponent(name)}`, { method: 'DELETE' })
-}
-
-export async function fetchConvertTools(): Promise<ToolStatus[]> {
-  const r = await json<{ tools: ToolStatus[] }>(`${BASE}/convert/tools`)
-  return r.tools
 }
 
 export async function fetchConvertManifests(): Promise<ConvertManifestSummary[]> {

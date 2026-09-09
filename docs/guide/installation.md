@@ -5,6 +5,11 @@
 - Python >= 3.10
 - pip
 
+The conversion, preprocessing and flattening stages shell out to external
+programs (heudiconv, dcm2niix, fmriprep, FreeSurfer, …). The Docker images
+bundle them; for a bare install see the
+[external tools reference](../reference/external-tools.md).
+
 ## Basic install
 
 ```bash

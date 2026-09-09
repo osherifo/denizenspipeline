@@ -21,11 +21,6 @@ export const convertHandlers = [
   http.delete('/api/convert/heuristics/:name', ({ params }) =>
     HttpResponse.json({ deleted: true, name: params.name }),
   ),
-  http.get('/api/convert/tools', () =>
-    HttpResponse.json({
-      tools: [{ name: 'heudiconv', available: true, detail: '0.13.0' }],
-    }),
-  ),
   http.get('/api/convert/manifests', () => HttpResponse.json({ manifests: [] })),
   http.post('/api/convert/manifests/rescan', () => HttpResponse.json({ manifests: [] })),
   http.get('/api/convert/manifests/:subject', ({ params }) =>

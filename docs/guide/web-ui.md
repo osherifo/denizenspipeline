@@ -24,9 +24,7 @@ End-to-end orchestration across all four stages (convert, preproc, autoflatten, 
 
 ### DICOM to BIDS
 
-Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
-
-**Tools** — Shows installed conversion tools (heudiconv, dcm2niix) and their status.
+Convert raw DICOM images to BIDS format. Six tabs cover the full workflow. The conversion tools themselves (heudiconv, dcm2niix, bids-validator) ship in the Docker images; see the [external tools reference](../reference/external-tools.md) for what each image provides and how to check a bare install.
 
 **Heuristics** — Browse and search available heuristic files. Each card shows the heuristic name, scanner pattern, and description.
 
