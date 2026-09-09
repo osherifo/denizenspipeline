@@ -23,8 +23,10 @@ type Route =
   | 'preproc' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
   | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs' | 'hub'
 
-function getRoute(): Route {
-  const hash = window.location.hash.replace('#', '').replace('/', '')
+export function getRoute(): Route {
+  // "#preproc/runs" -> section "preproc", sub-path "runs" (the page reads the sub-path itself).
+  const raw = window.location.hash.replace(/^#\/?/, '')
+  const hash = raw.split('/')[0]
   if (hash === 'modules') return 'modules'
   // Legacy aliases — both `composer` and `graph` now point at the
   // unified analysis composer.
@@ -33,7 +35,7 @@ function getRoute(): Route {
   if (hash === 'editor') return 'editor'
   if (hash === 'dashboard') return 'dashboard'
   // #preproc and #preproc/<tab> (build | runs | library | outputs)
-  if (hash === 'preproc' || hash.startsWith('preproc/')) return 'preproc'
+  if (hash === 'preproc') return 'preproc'
   // Retired tabs fold into the unified Preprocessing page.
   if (hash === 'preproc-stack' || hash === 'post-preproc') return 'preproc'
   if (hash === 'convert') return 'convert'
