@@ -1489,6 +1489,14 @@ the server at its binary:</p>
 <p>The editor is the graph: click a node in the palette to add it, drag from an output
 port to an input port to connect, Backspace deletes the selection. A plain chain such as
 <em>fmriprep → smooth → regress confounds</em> is just a graph with one edge per node.</p>
+<p>Every path you type in the Build tab has a <strong>…</strong> button next to it that opens the
+server-side directory browser: the Run panel's <code>output_dir</code>, <code>bids_dir</code>,
+<code>derivatives_dir</code> and <code>work_dir</code>, any node input port that names a directory or
+file, and node parameters typed <code>dir</code>, <code>file</code> or <code>path</code> (fmriprep's
+<code>fs_subjects_dir</code> and <code>fs_license_file</code>, for instance). The browser can create a
+<strong>New folder</strong>, which is the usual way to make a fresh output directory. A typed
+path the server cannot see gets a warning under the field; bindings such as
+<code>$inputs.bids_dir</code> are left alone.</p>
 <p>For each node the side panel shows:</p>
 <ul>
 <li><strong>Inputs</strong> — each input port is either connected (an edge), bound to a pipeline input

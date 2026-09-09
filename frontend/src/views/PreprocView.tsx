@@ -109,11 +109,6 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
               <button title="delete" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete pipeline ${p.name}?`)) void s.remove(p.name) }} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
             </div>
           ))}
-          {s.legacy.length > 0 && (
-            <div style={{ ...small, marginTop: 6, overflowWrap: 'anywhere' }}>
-              {s.legacy.length} old-style config(s) in this folder — run <code>fmriflow preproc migrate</code> to convert: {s.legacy.map((l) => l.name).join(', ')}
-            </div>
-          )}
           <button style={{ ...btn, marginTop: 6, width: '100%' }} onClick={() => s.newPipeline()}>+ New empty pipeline</button>
         </div>
       </div>

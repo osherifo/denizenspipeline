@@ -95,6 +95,15 @@ The editor is the graph: click a node in the palette to add it, drag from an out
 port to an input port to connect, Backspace deletes the selection. A plain chain such as
 *fmriprep → smooth → regress confounds* is just a graph with one edge per node.
 
+Every path you type in the Build tab has a **…** button next to it that opens the
+server-side directory browser: the Run panel's `output_dir`, `bids_dir`,
+`derivatives_dir` and `work_dir`, any node input port that names a directory or
+file, and node parameters typed `dir`, `file` or `path` (fmriprep's
+`fs_subjects_dir` and `fs_license_file`, for instance). The browser can create a
+**New folder**, which is the usual way to make a fresh output directory. A typed
+path the server cannot see gets a warning under the field; bindings such as
+`$inputs.bids_dir` are left alone.
+
 For each node the side panel shows:
 
 - **Inputs** — each input port is either connected (an edge), bound to a pipeline input

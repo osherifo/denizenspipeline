@@ -146,6 +146,8 @@ interface FieldProps {
    *  (e.g. a batch job's source dir under the shared Source Root). */
   baseDir?: string
   compact?: boolean
+  /** id of a <datalist> the caller renders (typed suggestions such as $inputs.<name>). */
+  list?: string
 }
 
 function joinBase(baseDir: string | undefined, value: string): string {
@@ -161,7 +163,7 @@ function relativeTo(baseDir: string | undefined, picked: string): string {
   return picked.startsWith(`${base}/`) ? picked.slice(base.length + 1) : picked
 }
 
-export function PathField({ value, onChange, placeholder, mode = 'dir', style, checkExists = true, onKeyDown, baseDir, compact = false }: FieldProps) {
+export function PathField({ value, onChange, placeholder, mode = 'dir', style, checkExists = true, onKeyDown, baseDir, compact = false, list }: FieldProps) {
   const [open, setOpen] = useState(false)
   const [seen, setSeen] = useState<boolean | null>(null)
 
@@ -178,7 +180,7 @@ export function PathField({ value, onChange, placeholder, mode = 'dir', style, c
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        <input style={{ ...style, flex: 1, minWidth: 0 }} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} />
+        <input style={{ ...style, flex: 1, minWidth: 0 }} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} list={list} />
         <button type="button" style={{ ...btn, ...(compact ? { padding: '2px 6px', fontSize: 10 } : {}) }} onClick={() => setOpen(true)} title={baseDir ? `browse under ${baseDir}` : 'browse the data roots'}>{compact ? '…' : 'Browse…'}</button>
       </div>
       {seen === false && (

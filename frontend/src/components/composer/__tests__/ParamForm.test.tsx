@@ -21,6 +21,17 @@ describe('<ParamForm />', () => {
     expect(screen.getByText('No configurable parameters')).toBeInTheDocument()
   })
 
+  it('renders dir / file / path params with a Browse button', () => {
+    const schema: ParamSchema = {
+      fs_subjects_dir: { type: 'dir', default: '' },
+      fs_license_file: { type: 'file', default: '' },
+      mapper_path: { type: 'path', default: '' },
+      label: { type: 'str', default: '' },
+    }
+    renderWithProviders(<ParamForm schema={schema} values={{}} onChange={vi.fn()} />)
+    expect(screen.getAllByRole('button', { name: '…' })).toHaveLength(3)
+  })
+
   it('renders boolean as checkbox', () => {
     const schema: ParamSchema = { use_zscore: { type: 'bool', default: true } }
     renderWithProviders(

@@ -109,7 +109,7 @@ class FmriprepNode:
         "skull_strip": {"type": "str", "default": "auto", "enum": list(VALID_SKULL_STRIP), "group": "Anatomical"},
         "skull_strip_template": {"type": "str", "default": "", "group": "Anatomical"},
         "no_submm_recon": {"type": "bool", "default": False, "group": "Anatomical"},
-        "fs_subjects_dir": {"type": "str", "default": "", "group": "Anatomical",
+        "fs_subjects_dir": {"type": "dir", "default": "", "group": "Anatomical",
                             "description": "Reuse recon-all outputs from here (also an input port)."},
         # ── Functional ──
         "bold2t1w_init": {"type": "str", "default": "", "enum": ["", "register", "header"], "group": "Functional"},
@@ -136,7 +136,7 @@ class FmriprepNode:
         "mem_mb": {"type": "int", "default": None, "min": 1024, "group": "Resources"},
         "low_mem": {"type": "bool", "default": False, "group": "Resources"},
         "stop_on_first_crash": {"type": "bool", "default": False, "group": "Resources"},
-        "fs_license_file": {"type": "str", "default": "", "group": "Resources",
+        "fs_license_file": {"type": "file", "default": "", "group": "Resources",
                             "description": "FreeSurfer license; the full Docker image sets FS_LICENSE itself."},
         "extra_args": {"type": "list[string]", "default": [], "group": "Resources",
                        "description": "Raw extra fmriprep CLI arguments."},

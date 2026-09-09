@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { ParamSchema, ParamField } from '../../api/types'
+import { PathField } from '../common/PathPicker'
 
 interface ParamFormProps {
   schema: ParamSchema
@@ -265,15 +266,17 @@ function FieldInput({
     )
   }
 
-  // Path
-  if (type === 'path' || type === 'filepath') {
+  // Paths: `dir` opens the browser on directories (with New folder); `file` /
+  // `filepath` pick a file; plain `path` may be either, so it lists both.
+  if (type === 'path' || type === 'filepath' || type === 'dir' || type === 'file') {
     return (
       <>
-        <input
-          type="text"
+        <PathField
           value={String(value ?? '')}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(v) => onChange(v)}
           style={pathInputStyle}
+          compact
+          mode={type === 'dir' ? 'dir' : 'file'}
           placeholder="/path/to/..."
           list={listId}
         />

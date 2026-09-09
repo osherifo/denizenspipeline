@@ -1,6 +1,7 @@
 /** Subject / path bindings + execution options + the Run button. */
 import type { CSSProperties } from 'react'
 import { usePreprocPipelineStore } from '../../stores/preproc-pipeline-store'
+import { PathField } from '../common/PathPicker'
 
 const panel: CSSProperties = { border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: 12, fontSize: 12 }
 const row: CSSProperties = { display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, alignItems: 'center', marginBottom: 6 }
@@ -32,15 +33,19 @@ export function RunPanel({ onLaunched }: Props) {
   const text = (key: keyof typeof binding, placeholder: string) => (
     <input style={input} placeholder={placeholder} value={String(binding[key] ?? '')} onChange={(e) => setBinding({ [key]: e.target.value } as never)} />
   )
+  // Directory bindings get the server-side browser (with "New folder" for a fresh output dir).
+  const dir = (key: keyof typeof binding, placeholder: string) => (
+    <PathField style={input} compact placeholder={placeholder} value={String(binding[key] ?? '')} onChange={(v) => setBinding({ [key]: v } as never)} />
+  )
 
   return (
     <div style={panel}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>Run</div>
       <div style={row}><label>subject *</label>{text('subject', 'participant label, e.g. 01')}</div>
-      <div style={row}><label>output_dir *</label>{text('output_dir', 'where derivatives + work go')}</div>
-      {wants('bids_dir') && <div style={row}><label>bids_dir</label>{text('bids_dir', 'BIDS root')}</div>}
-      {wants('derivatives_dir') && <div style={row}><label>derivatives_dir</label>{text('derivatives_dir', 'existing preprocessed data')}</div>}
-      <div style={row}><label>work_dir</label>{text('work_dir', 'default: <output_dir>/work')}</div>
+      <div style={row}><label>output_dir *</label>{dir('output_dir', 'where derivatives + work go')}</div>
+      {wants('bids_dir') && <div style={row}><label>bids_dir</label>{dir('bids_dir', 'BIDS root')}</div>}
+      {wants('derivatives_dir') && <div style={row}><label>derivatives_dir</label>{dir('derivatives_dir', 'existing preprocessed data')}</div>}
+      <div style={row}><label>work_dir</label>{dir('work_dir', 'default: <output_dir>/work')}</div>
       <div style={row}><label>dataset</label>{text('dataset', 'label for the manifest')}</div>
       <div style={row}>
         <label>plugin</label>

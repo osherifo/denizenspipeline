@@ -3,9 +3,13 @@
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ParamForm } from '../composer/ParamForm'
+import { PathField } from '../common/PathPicker'
 import { usePreprocPipelineStore } from '../../stores/preproc-pipeline-store'
 import type { ParamSchema, PipelineNodeDoc, PreprocNodeInfo } from '../../api/types'
 import { KIND_COLORS, KIND_LABELS } from './PipelineNodeCard'
+
+/** Port kinds that name something on disk (everything but scalars and `any`). */
+const isPathKind = (kind: string) => !['str', 'int', 'float', 'bool', 'any', 'list'].includes(kind)
 
 const panel: CSSProperties = {
   border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: 12,
@@ -95,13 +99,26 @@ export function NodeParamPanel({ node, info }: Props) {
                   <span style={{ color: 'var(--text-secondary)' }}>← connected</span>
                 ) : (
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <input
-                      list={`inputs-${node.id}-${port}`}
-                      style={input}
-                      placeholder={spec.kind === 'dir' || spec.kind === 'file' ? 'path, or $inputs.<name>' : `${spec.kind}, or $inputs.<name>`}
-                      value={String(value)}
-                      onChange={(e) => setBinding(port, e.target.value)}
-                    />
+                    {isPathKind(spec.kind) ? (
+                      <PathField
+                        list={`inputs-${node.id}-${port}`}
+                        style={input}
+                        compact
+                        mode={spec.kind === 'dir' ? 'dir' : 'file'}
+                        checkExists={!String(value).startsWith('$inputs.')}
+                        placeholder="path, or $inputs.<name>"
+                        value={String(value)}
+                        onChange={(v) => setBinding(port, v)}
+                      />
+                    ) : (
+                      <input
+                        list={`inputs-${node.id}-${port}`}
+                        style={input}
+                        placeholder={`${spec.kind}, or $inputs.<name>`}
+                        value={String(value)}
+                        onChange={(e) => setBinding(port, e.target.value)}
+                      />
+                    )}
                     <datalist id={`inputs-${node.id}-${port}`}>
                       {pipelineInputs.map((n) => <option key={n} value={`$inputs.${n}`} />)}
                     </datalist>
