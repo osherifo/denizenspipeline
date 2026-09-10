@@ -23,7 +23,7 @@ def _recon(root: Path, name: str) -> Path:
     return d
 
 
-def test_precomputed_subject_is_staged_as_a_copy(tmp_path):
+def test_precomputed_subject_is_linked_under_the_expected_name(tmp_path):
     root = tmp_path / "fs"; _recon(root, "sub01fs"); (root / "fsaverage").mkdir()
     bids = tmp_path / "bids"; bids.mkdir()
     work = tmp_path / "work"
@@ -34,20 +34,28 @@ def test_precomputed_subject_is_staged_as_a_copy(tmp_path):
     cmd = node.build_command(inputs, params, tmp_path / "node")
     staged = work / "fs_subjects"
     assert cmd[cmd.index("--fs-subjects-dir") + 1] == str(staged)
-    assert (staged / "sub-01" / "surf" / "lh.white").is_file() and not (staged / "sub-01").is_symlink()
-    assert not (staged / "sub-01" / "scripts" / "IsRunning.lh+rh").exists()      # stale lock dropped
+    link = staged / "sub-01"
+    assert link.is_symlink() and link.resolve() == (root / "sub01fs").resolve()
+    assert (link / "surf" / "lh.white").is_file()
     assert (staged / "fsaverage").is_symlink()
-    assert (staged / "sub-01" / ".fmriflow_staged_from").read_text() == str((root / "sub01fs").resolve())
-    # writing into the copy leaves the original alone
-    (staged / "sub-01" / "surf" / "lh.thickness").write_bytes(b"new")
-    assert not (root / "sub01fs" / "surf" / "lh.thickness").exists()
-    # a second build reuses the staged copy instead of re-copying
-    (staged / "sub-01" / "marker").write_text("keep")
+    # fmriprep works in place: a write through the link lands in the original
+    (link / "surf" / "lh.thickness").write_bytes(b"new")
+    assert (root / "sub01fs" / "surf" / "lh.thickness").read_bytes() == b"new"
+    # a second build is idempotent
     node.build_command(inputs, params, tmp_path / "node")
-    assert (staged / "sub-01" / "marker").exists()
-    # the checkpoint context points at the staged subject
+    assert link.is_symlink()
+    # the checkpoint context points at the linked subject
     ctx = node.checkpoint_context(inputs, params, tmp_path / "node")
     assert ctx["fs_subject_dir"] == str(staged / "sub-01")
+
+
+def test_subject_already_named_sub_label_needs_no_staging(tmp_path):
+    root = tmp_path / "fs"; _recon(root, "sub-01")
+    bids = tmp_path / "bids"; bids.mkdir()
+    inputs = {"bids_dir": str(bids), "subject": "01", "work_dir": str(tmp_path / "work"), "fs_subjects_dir": str(root)}
+    cmd = FmriprepNode().build_command(inputs, {"mode": "func_precomputed_anat"}, tmp_path / "node")
+    assert cmd[cmd.index("--fs-subjects-dir") + 1] == str(root)
+    assert not (tmp_path / "work" / "fs_subjects").exists()
 
 
 def test_missing_or_incomplete_precomputed_subject_fails_fast(tmp_path):

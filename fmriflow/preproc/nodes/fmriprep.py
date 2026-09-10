@@ -130,9 +130,8 @@ class FmriprepNode:
         "skull_strip_template": {"type": "str", "default": "", "group": "Anatomical"},
         "no_submm_recon": {"type": "bool", "default": False, "group": "Anatomical"},
         "fs_subjects_dir": {"type": "dir", "default": "", "group": "Anatomical",
-                            "description": "Reuse recon-all outputs from here (also an input port). The subject is "
-                                           "copied into the run's work dir first: fmriprep completes older "
-                                           "reconstructions in place, and that must not touch the original."},
+                            "description": "Reuse recon-all outputs from here (also an input port). fmriprep completes "
+                                           "an older reconstruction in place — point this at a copy you can let it modernise."},
         "fs_subject": {"type": "str", "default": "", "group": "Anatomical",
                        "description": "Name of the precomputed subject inside fs_subjects_dir when it is not "
                                       "sub-<label> (e.g. a pycortex-style name)."},
@@ -265,30 +264,27 @@ class FmriprepNode:
         return Path(work_dir) / "fs_subjects"
 
     def _stage_fs(self, inputs: dict[str, Any], params: dict[str, Any], work_dir: str) -> str | None:
-        """Copy the precomputed subject into ``<work_dir>/fs_subjects/sub-<label>`` and
-        link ``fsaverage`` beside it; return that subjects dir.
+        """The subjects dir to hand fmriprep.
 
-        fmriprep "completes" any reconstruction it is handed — older FreeSurfer
-        versions get missing volumes, transforms and surface measures written
-        into the subject directory — so it must never be pointed at the
-        original. The copy is skipped when a complete one is already staged.
+        When the precomputed subject is already named ``sub-<label>`` that is the
+        given directory itself. Otherwise (``fs_subject`` names it) a small
+        subjects dir under the run's work dir links ``sub-<label>`` to it and
+        ``fsaverage`` beside it, so nothing in the user's directory is renamed.
+        Either way fmriprep works on the reconstruction **in place**: an older
+        FreeSurfer version gets completed to the current one on first use.
         """
         root, src, err = self._fs_source(inputs, params)
         if err or src is None or root is None:
             return None
-        staged_root = self._staged_fs_dir(work_dir)
         label = self._label(str(inputs.get("subject") or ""))
-        dst = staged_root / label
+        if src.name == label:
+            return str(root)
+        staged_root = self._staged_fs_dir(work_dir)
         staged_root.mkdir(parents=True, exist_ok=True)
-        marker = dst / ".fmriflow_staged_from"
-        if not (dst.is_dir() and marker.is_file() and marker.read_text().strip() == str(src.resolve())):
-            if dst.exists() or dst.is_symlink():
-                shutil.rmtree(dst) if dst.is_dir() and not dst.is_symlink() else dst.unlink()
-            logger.info("staging precomputed FreeSurfer subject %s -> %s", src, dst)
-            shutil.copytree(src, dst, symlinks=True)
-            for stale in ("IsRunning.lh+rh", "IsRunning.lh", "IsRunning.rh"):
-                (dst / "scripts" / stale).unlink(missing_ok=True)
-            marker.write_text(str(src.resolve()))
+        link = staged_root / label
+        if link.is_symlink() or link.exists():
+            link.unlink() if link.is_symlink() or link.is_file() else shutil.rmtree(link)
+        link.symlink_to(src.resolve())
         fsavg = staged_root / "fsaverage"
         if not fsavg.exists() and (root / "fsaverage").is_dir():
             fsavg.symlink_to((root / "fsaverage").resolve())
