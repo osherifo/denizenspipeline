@@ -177,6 +177,7 @@ def clean(
     x, y, z, _ = data.shape
     out_data = np.empty_like(data)
     removed_map = np.zeros((x, y, z), dtype=np.float32)      # per-voxel fraction of variance removed
+    live_map = np.zeros((x, y, z), dtype=bool)                # which voxels are real signal (sd > 0), not background
     var_before = 0.0
     var_after = 0.0
     for k in range(z):
@@ -196,6 +197,7 @@ def clean(
         with np.errstate(divide="ignore", invalid="ignore"):
             frac = np.where(live & (vb > 0), 1.0 - va / vb, 0.0)
         removed_map[:, :, k] = frac.reshape(x, y).astype(np.float32)
+        live_map[:, :, k] = live.reshape(x, y)
         cleaned = _zscore(residual, axis=0) + mean
         cleaned[:, ~live] = mean[~live]
         out_data[:, :, k, :] = cleaned.T.reshape(x, y, n_trs).astype(np.float32)
@@ -208,7 +210,10 @@ def clean(
         vm.set_data_dtype(np.float32)
         vm.to_filename(str(variance_map_file))
     removed = 1.0 - var_after / var_before if var_before > 0 else 0.0
-    live_frac = removed_map[removed_map > 0]
+    # Every live voxel, including one the correction did nothing for or made
+    # worse (frac <= 0) — `removed_map > 0` would silently drop those and
+    # bias the percentiles toward looking better than the fit actually is.
+    live_frac = removed_map[live_map]
     return {"n_trs": int(n_trs), "n_regressors": int(X.shape[1]),
             "variance_removed_fraction": round(float(removed), 6),
             "variance_removed_p50": round(float(np.median(live_frac)), 6) if live_frac.size else 0.0,
