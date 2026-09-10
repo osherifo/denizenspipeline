@@ -8,9 +8,13 @@ export const VERDICT_COLORS: Record<string, string> = {
   ok: '#10b981', suspicious: '#f59e0b', bad: '#ef4444', unknown: '#9ca3af',
 }
 
+// The strip scrolls inside its host instead of widening it: the host gets
+// minWidth 0 (a grid/flex child otherwise sizes to the cards' total width)
+// and the cards refuse to shrink so they stay readable.
+const host: CSSProperties = { minWidth: 0, maxWidth: '100%' }
 const strip: CSSProperties = { display: 'flex', gap: 8, overflowX: 'auto', padding: '6px 2px' }
 const frame = (verdict: string, open: boolean): CSSProperties => ({
-  minWidth: 150, border: `1px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`, borderTop: `4px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`,
+  minWidth: 150, flexShrink: 0, border: `1px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`, borderTop: `4px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`,
   borderRadius: 6, background: 'var(--bg-card)', padding: 8, fontSize: 11, cursor: 'pointer',
   boxShadow: open ? `0 0 8px ${VERDICT_COLORS[verdict]}66` : undefined,
 })
@@ -42,7 +46,7 @@ export function CheckpointFilmstrip({ runId, checkpoints, nodeFilter }: Props) {
   }
   const openRow = open !== null ? rows.find((r) => r.i === open) : null
   return (
-    <div>
+    <div style={host}>
       <div style={strip}>
         {rows.map(({ cp, i }) => (
           <div key={i} style={frame(cp.verdict, open === i)} onClick={() => setOpen(open === i ? null : i)} title={cp.reasons.join('\n')}>

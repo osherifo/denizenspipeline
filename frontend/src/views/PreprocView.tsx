@@ -256,7 +256,7 @@ function RunsTab() {
       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', maxHeight: 'calc(100vh - 140px)', overflow: 'auto' }}>
         <RunsList />
       </div>
-      <div><RunDetail /></div>
+      <div style={{ minWidth: 0 }}><RunDetail /></div>
     </div>
   )
 }

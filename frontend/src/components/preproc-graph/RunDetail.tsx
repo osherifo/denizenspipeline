@@ -108,7 +108,7 @@ export function RunDetail({ compact = false }: Props) {
   const innerNodePath = selectedNode && detail.workflow ? `${detail.workflow}.${selectedNode}` : selectedNode
 
   return (
-    <div>
+    <div style={{ minWidth: 0 }}>
       <div style={bar}>
         <span style={{ fontWeight: 700, fontSize: 13 }}>{detail.pipeline ?? detail.run_id}</span>
         <span style={{ color: 'var(--text-secondary)' }}>sub-{detail.subject}</span>
