@@ -1473,7 +1473,25 @@ export interface BuiltinCheckInfo {
   thumbnail: string | null
 }
 
-export interface MetricInfo { name: string; description: string; builtin: boolean }
+export interface MetricInfo {
+  name: string
+  description: string
+  builtin: boolean
+  /** builtin = shipped with the package (read-only); user = $FMRIFLOW_HOME/addons/checks/<name>.py */
+  tier: 'builtin' | 'user'
+  path?: string | null
+  /** set when a user file failed to import */
+  error?: string
+}
+export interface MetricDetail extends MetricInfo { source: string }
+export interface MetricRunResult {
+  name: string
+  path: string
+  ok: boolean
+  error?: string
+  metrics?: Record<string, unknown>
+  detail?: Record<string, unknown>
+}
 
 export interface NormsRow {
   step: string

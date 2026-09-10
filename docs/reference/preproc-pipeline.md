@@ -239,7 +239,9 @@ the confounds TSV), `fieldmap_stats`, `phasediff_delta_te` (from a GRE fieldmap 
 `physio_clean_summary` (the physio nodes' block split, regressor TSV and cleaning summary), and the
 all-purpose `nifti_stats` (shape, voxel size,
 non-zero fraction, mean/std, percentiles, `n_unique`, `tsnr_median` for 4-D). Your own
-metric is a decorated function in `$FMRIFLOW_HOME/addons/checks/*.py`:
+metric is a decorated function in `$FMRIFLOW_HOME/addons/checks/*.py`, written by hand or
+from **Library → Checkpoint metrics** (new from a scaffold, duplicate a built-in, edit, try
+on a file, delete; one file per metric, named after it; built-ins are read-only):
 
 ```python
 from fmriflow.preproc.checkpoints import checkpoint_metric
@@ -270,5 +272,6 @@ a check against a finished run's node before you commit to it
 | GET | `/api/preproc/runs/{id}/work_tree[?prefix=]` · `/node/{path}/files` · `/file` · `/pickle` | node outputs |
 | GET | `/api/preproc/runs/{id}/nodes/{node_id}` · `/log` · `/inner` · `/manifest` · `/report/{rest}` · `/fs-file?rel=` · `/freeview-command` | one node of one run (the popup); `POST …/drawing` |
 | GET/PUT | `/api/preproc/checks/norms` · GET `/checks/metrics` · GET `/nodes/{name}/checks` · POST `/checks/evaluate` | editable checkpoints |
+| GET/PUT/DELETE | `/api/preproc/checks/metrics/{name}` · GET `/checks/metrics/scaffold` · POST `/checks/metrics/{name}/run` | user metrics: source, save (`{code}`, must register the name), delete, try on a file (`{path}`) |
 | GET/POST | `/api/preproc/manifests…` · `/api/preproc/collect` · `/api/preproc/label-map` | outputs |
 | WS | `/ws/preproc/{run_id}` | event stream |

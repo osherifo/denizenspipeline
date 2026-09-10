@@ -6,7 +6,9 @@ import type {
   CheckDef,
   CheckEvaluation,
   ManifestDetail,
+  MetricDetail,
   MetricInfo,
+  MetricRunResult,
   NodeInnerStatus,
   NormsRow,
   RunNodeRecord,
@@ -152,8 +154,34 @@ export async function fetchRunCrash(runId: string, name: string): Promise<{ name
 
 // ── checkpoints from the UI ──
 
-export async function fetchCheckMetrics(): Promise<{ metrics: MetricInfo[] }> {
+export async function fetchCheckMetrics(): Promise<{ metrics: MetricInfo[]; addons_dir?: string }> {
   return json(`${BASE}/preproc/checks/metrics`)
+}
+
+export async function fetchMetricScaffold(): Promise<{ code: string }> {
+  return json(`${BASE}/preproc/checks/metrics/scaffold`)
+}
+
+export async function fetchMetric(name: string): Promise<MetricDetail> {
+  return json(`${BASE}/preproc/checks/metrics/${enc(name)}`)
+}
+
+/** Create or update a user metric: writes $FMRIFLOW_HOME/addons/checks/<name>.py and reloads. */
+export async function saveMetric(name: string, code: string): Promise<{ saved: boolean; name: string; path: string; metrics: MetricInfo[] }> {
+  return json(`${BASE}/preproc/checks/metrics/${enc(name)}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+  })
+}
+
+export async function deleteMetric(name: string): Promise<{ deleted: boolean; metrics: MetricInfo[] }> {
+  return json(`${BASE}/preproc/checks/metrics/${enc(name)}`, { method: 'DELETE' })
+}
+
+/** Apply a metric to one file without recording anything (the editor's try-it). */
+export async function runMetric(name: string, path: string): Promise<MetricRunResult> {
+  return json(`${BASE}/preproc/checks/metrics/${enc(name)}/run`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }),
+  })
 }
 
 export async function fetchNorms(): Promise<{ rows: NormsRow[]; user: Record<string, unknown>; path: string }> {

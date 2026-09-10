@@ -1695,6 +1695,13 @@ node right there, so you see the metrics and verdict before a ten-hour run tells
 template was wrong. Checks save with the pipeline. See the
 <a href="../../reference/preproc-pipeline/#events-and-checkpoints">reference</a> for the YAML and
 for writing your own metric.</p>
+<p>Metrics themselves are editable too: <strong>Library → Checkpoint metrics</strong> lists every metric
+with its tier. Built-ins are read-only, and <strong>Duplicate</strong> copies one into your addons dir
+under a new name; <strong>+ New metric</strong> starts from a scaffold. The editor saves to
+<code>$FMRIFLOW_HOME/addons/checks/&lt;name&gt;.py</code>, reloads the registry, and refuses code that does
+not register the metric under that name, so the picker and the norms table always agree
+with what is on disk. <strong>Try it on a file</strong> runs the saved metric on any artifact and shows
+the numbers it returns, which is how you find out what to put bounds on.</p>
 <p>Runs are detached processes; a server restart cannot kill them. A run whose process is
 gone shows as <strong>lost</strong>, and <strong>Resume / Restart…</strong> asks what you want: <em>Resume</em> launches
 the same job and nipype skips every node whose inputs are unchanged; <em>Restart</em> ignores

@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { NodeUiCapabilities, PipelineDoc, PipelineRunDetail, PipelineTemplateSummary, PreprocNodeInfo, RunNodeRecord } from '../../api/types'
+import type { MetricInfo, NodeUiCapabilities, PipelineDoc, PipelineRunDetail, PipelineTemplateSummary, PreprocNodeInfo, RunNodeRecord } from '../../api/types'
 
 const NO_UI: NodeUiCapabilities = { inner_dag: false, checkpoints: false, log: false, report: null, structural_qc: null, summary: null, label_map: null, views: [] }
 
@@ -72,11 +72,43 @@ export const FMRIPREP_RUN_NODE: RunNodeRecord = buildRunNode({
 /** User-tier templates, mutated by the POST/DELETE template handlers below. */
 export const userTemplates: PipelineTemplateSummary[] = []
 
+const BUILTIN_METRICS: MetricInfo[] = [
+  { name: 'nifti_stats', description: 'Shape, non-zero fraction, percentiles of any NIfTI', builtin: true, tier: 'builtin' },
+  { name: 'volume_intensity', description: 'n_unique, modal fraction', builtin: true, tier: 'builtin' },
+]
+/** User metrics by name → code; mutated by the PUT/DELETE metric handlers. */
+export const userMetricCode: Record<string, string> = {}
+const allMetrics = (): MetricInfo[] => [
+  ...BUILTIN_METRICS,
+  ...Object.keys(userMetricCode).map((name) => ({ name, description: 'user metric', builtin: false, tier: 'user' as const, path: `/home/x/addons/checks/${name}.py` })),
+]
+
 export const preprocPipelinesHandlers = [
-  http.get('/api/preproc/checks/metrics', () => HttpResponse.json({ metrics: [
-    { name: 'nifti_stats', description: 'Shape, non-zero fraction, percentiles of any NIfTI', builtin: true },
-    { name: 'volume_intensity', description: 'n_unique, modal fraction', builtin: true },
-  ] })),
+  http.get('/api/preproc/checks/metrics', () => HttpResponse.json({ metrics: allMetrics(), addons_dir: '/home/x/addons/checks' })),
+  http.get('/api/preproc/checks/metrics/scaffold', () => HttpResponse.json({ code: '@checkpoint_metric("my_metric")\ndef my_metric(path): ...' })),
+  http.get('/api/preproc/checks/metrics/:name', ({ params }) => {
+    const m = allMetrics().find((x) => x.name === params.name)
+    if (!m) return HttpResponse.json({ detail: 'unknown' }, { status: 404 })
+    return HttpResponse.json({ ...m, source: userMetricCode[m.name] ?? `@checkpoint_metric("${m.name}")\ndef ${m.name}_metrics(path):\n    return {}, {}\n` })
+  }),
+  http.put('/api/preproc/checks/metrics/:name', async ({ params, request }) => {
+    const { code } = (await request.json()) as { code: string }
+    const name = String(params.name)
+    if (BUILTIN_METRICS.some((m) => m.name === name)) return HttpResponse.json({ detail: `'${name}' is a built-in metric; duplicate it under another name` }, { status: 400 })
+    if (!code.includes(`checkpoint_metric("${name}")`)) return HttpResponse.json({ detail: `the code must register @checkpoint_metric('${name}')` }, { status: 400 })
+    userMetricCode[name] = code
+    return HttpResponse.json({ saved: true, name, path: `/home/x/addons/checks/${name}.py`, metrics: allMetrics() })
+  }),
+  http.delete('/api/preproc/checks/metrics/:name', ({ params }) => {
+    const name = String(params.name)
+    if (!(name in userMetricCode)) return HttpResponse.json({ detail: 'no user metric' }, { status: 404 })
+    delete userMetricCode[name]
+    return HttpResponse.json({ deleted: true, metrics: allMetrics() })
+  }),
+  http.post('/api/preproc/checks/metrics/:name/run', async ({ params, request }) => {
+    const { path } = (await request.json()) as { path: string }
+    return HttpResponse.json({ name: params.name, path, ok: !path.includes('missing'), metrics: { size_bytes: 5 }, detail: {}, error: path.includes('missing') ? 'no such file' : undefined })
+  }),
   http.get('/api/preproc/checks/norms', () => HttpResponse.json({ path: '/home/x/configs/norms.yaml', user: {}, rows: [
     { step: 'nu.mgz', kind: 'hard', metric: 'n_unique', op: '>', value: 100, source: 'builtin', builtin: ['>', 100] },
     { step: 'nu.mgz', kind: 'soft', metric: 'modal_fraction', op: '<', value: 0.3, source: 'builtin', builtin: ['<', 0.3] },

@@ -146,3 +146,109 @@ def test_checks_routes(tmp_path, monkeypatch):
     assert c.post("/api/preproc/checks/evaluate", json=body).status_code == 400
     body["check"] = {"step": "t", "artifact": "{out_file}", "metric": "does_not_exist"}
     assert c.post("/api/preproc/checks/evaluate", json=body).status_code == 400
+
+
+# ── user metrics: CRUD from the UI ──────────────────────────────────
+
+
+GOOD = """
+from pathlib import Path
+from fmriflow.preproc.checkpoints import checkpoint_metric
+
+@checkpoint_metric("file_size")
+def file_size(path: Path):
+    \"\"\"Size of the file in bytes.\"\"\"
+    return {"size_bytes": Path(path).stat().st_size}, {"name": Path(path).name}
+"""
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    ck.load_addon_metrics(reload=True)
+    yield tmp_path / "home"
+    ck.load_addon_metrics(reload=True)
+
+
+def test_user_metric_lifecycle(home, tmp_path):
+    n_builtin = len(ck.metric_catalog())
+    assert all(m["tier"] == "builtin" for m in ck.metric_catalog())
+
+    path = ck.save_user_metric("file_size", GOOD)
+    assert path == home / "addons" / "checks" / "file_size.py"
+    rows = {m["name"]: m for m in ck.metric_catalog()}
+    assert len(rows) == n_builtin + 1
+    assert rows["file_size"]["tier"] == "user" and rows["file_size"]["path"] == str(path)
+    assert rows["file_size"]["description"] == "Size of the file in bytes."
+    assert ck.metric_source("file_size") == GOOD
+    assert "def nifti_stats_metrics" in ck.metric_source("nifti_stats")
+
+    f = tmp_path / "x.txt"; f.write_text("hello")
+    r = ck.run_metric("file_size", f)
+    assert r == {"ok": True, "metrics": {"size_bytes": 5}, "detail": {"name": "x.txt"}}
+    assert ck.run_metric("file_size", tmp_path / "nope")["ok"] is False
+    assert ck.Check.from_dict({"step": "s", "artifact": "{node_dir}/x", "metric": "file_size"}).metrics is ck.get_metric("file_size")
+
+    # update in place: the new code replaces the old registration
+    ck.save_user_metric("file_size", GOOD.replace('{"size_bytes": Path(path).stat().st_size}', '{"size_kb": Path(path).stat().st_size / 1024}'))
+    assert "size_kb" in ck.run_metric("file_size", f)["metrics"]
+
+    assert ck.delete_user_metric("file_size") == path and not path.exists()
+    assert "file_size" not in {m["name"] for m in ck.metric_catalog()}
+    with pytest.raises(KeyError):
+        ck.delete_user_metric("file_size")
+
+
+def test_user_metric_refusals(home):
+    with pytest.raises(ValueError, match="built-in"):
+        ck.save_user_metric("nifti_stats", GOOD)
+    with pytest.raises(ValueError, match="built-in"):
+        ck.delete_user_metric("nifti_stats")
+    with pytest.raises(ValueError, match="letters"):
+        ck.save_user_metric("bad name", GOOD)
+    with pytest.raises(ValueError, match="syntax"):
+        ck.save_user_metric("broken", "def (:")
+    with pytest.raises(ValueError, match="fails to run"):
+        ck.save_user_metric("boom", "raise RuntimeError('no')")
+    with pytest.raises(ValueError, match=r"must register @checkpoint_metric\('other'\)"):
+        ck.save_user_metric("other", GOOD)
+    with pytest.raises(ValueError, match="override built-in"):
+        ck.save_user_metric("mine", GOOD + "\n@checkpoint_metric('nifti_stats')\ndef m(p): return {}, {}\n@checkpoint_metric('mine')\ndef mm(p): return {}, {}\n")
+    # a refused save registers nothing and writes nothing
+    assert "nifti_stats" in {m["name"] for m in ck.metric_catalog() if m["tier"] == "builtin"}
+    assert not (home / "addons" / "checks" / "mine.py").exists()
+
+
+def test_broken_addon_file_is_reported_not_fatal(home):
+    d = home / "addons" / "checks"; d.mkdir(parents=True, exist_ok=True)
+    (d / "bad.py").write_text("import nothing_like_this\n")
+    ck.load_addon_metrics(reload=True)
+    row = next(m for m in ck.metric_catalog() if m["name"] == "bad")
+    assert row["tier"] == "user" and "ModuleNotFoundError" in row["error"]
+    assert "nothing_like_this" in ck.metric_source("bad")
+
+
+def test_metric_routes(home, tmp_path):
+    from fmriflow.server.app import create_app
+    c = TestClient(create_app(derivatives_dir=str(tmp_path / "d")))
+    assert "checkpoint_metric" in c.get("/api/preproc/checks/metrics/scaffold").json()["code"]
+    assert c.get("/api/preproc/checks/metrics/nifti_stats").json()["builtin"] is True
+    assert c.get("/api/preproc/checks/metrics/nope").status_code == 404
+
+    r = c.put("/api/preproc/checks/metrics/file_size", json={"code": GOOD})
+    assert r.status_code == 200 and r.json()["path"].endswith("addons/checks/file_size.py")
+    assert {m["name"]: m["tier"] for m in r.json()["metrics"]}["file_size"] == "user"
+    assert c.get("/api/preproc/checks/metrics").json()["addons_dir"].endswith("addons/checks")
+    assert c.get("/api/preproc/checks/metrics/file_size").json()["source"] == GOOD
+    assert c.put("/api/preproc/checks/metrics/nifti_stats", json={"code": GOOD}).status_code == 400
+    assert c.put("/api/preproc/checks/metrics/x", json={"code": "def (:"}).status_code == 400
+
+    f = tmp_path / "y.txt"; f.write_text("abc")
+    r = c.post("/api/preproc/checks/metrics/file_size/run", json={"path": str(f)}).json()
+    assert r["ok"] and r["metrics"] == {"size_bytes": 3}
+    assert c.post("/api/preproc/checks/metrics/nope/run", json={"path": str(f)}).status_code == 404
+
+    assert c.delete("/api/preproc/checks/metrics/nifti_stats").status_code == 403
+    assert c.delete("/api/preproc/checks/metrics/file_size").json()["deleted"]
+    assert c.delete("/api/preproc/checks/metrics/file_size").status_code == 404
+

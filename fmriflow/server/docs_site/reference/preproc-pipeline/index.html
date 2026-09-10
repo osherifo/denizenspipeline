@@ -1765,7 +1765,9 @@ the confounds TSV), <code>fieldmap_stats</code>, <code>phasediff_delta_te</code>
 <code>physio_clean_summary</code> (the physio nodes' block split, regressor TSV and cleaning summary), and the
 all-purpose <code>nifti_stats</code> (shape, voxel size,
 non-zero fraction, mean/std, percentiles, <code>n_unique</code>, <code>tsnr_median</code> for 4-D). Your own
-metric is a decorated function in <code>$FMRIFLOW_HOME/addons/checks/*.py</code>:</p>
+metric is a decorated function in <code>$FMRIFLOW_HOME/addons/checks/*.py</code>, written by hand or
+from <strong>Library → Checkpoint metrics</strong> (new from a scaffold, duplicate a built-in, edit, try
+on a file, delete; one file per metric, named after it; built-ins are read-only):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fmriflow.preproc.checkpoints</span><span class="w"> </span><span class="kn">import</span> <span class="n">checkpoint_metric</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nd">@checkpoint_metric</span><span class="p">(</span><span class="s2">&quot;my_metric&quot;</span><span class="p">)</span>
@@ -1845,6 +1847,11 @@ a check against a finished run's node before you commit to it
 <td>GET/PUT</td>
 <td><code>/api/preproc/checks/norms</code> · GET <code>/checks/metrics</code> · GET <code>/nodes/{name}/checks</code> · POST <code>/checks/evaluate</code></td>
 <td>editable checkpoints</td>
+</tr>
+<tr>
+<td>GET/PUT/DELETE</td>
+<td><code>/api/preproc/checks/metrics/{name}</code> · GET <code>/checks/metrics/scaffold</code> · POST <code>/checks/metrics/{name}/run</code></td>
+<td>user metrics: source, save (<code>{code}</code>, must register the name), delete, try on a file (<code>{path}</code>)</td>
 </tr>
 <tr>
 <td>GET/POST</td>

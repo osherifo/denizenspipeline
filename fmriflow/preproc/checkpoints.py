@@ -145,7 +145,10 @@ def _bound_from_json(b: Any) -> Bound:
 # ── metric registry ───────────────────────────────────────────────
 
 _METRICS: dict[str, MetricFn] = {}
+_METRIC_FILES: dict[str, Path] = {}       # user metric name -> the addon file that registered it
+_ADDON_ERRORS: dict[str, str] = {}        # addon file name -> why it failed to load
 _ADDONS_LOADED = False
+_METRIC_SLUG = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
 def checkpoint_metric(name: str):
@@ -162,20 +165,50 @@ def _metric_name(fn: MetricFn) -> str | None:
     return next((n for n, f in _METRICS.items() if f is fn), None)
 
 
-def load_addon_metrics(dirs: list[Path] | None = None) -> None:
+def is_builtin_metric(name: str) -> bool:
+    fn = _METRICS.get(name)
+    return fn is not None and name not in _METRIC_FILES and (fn.__module__ or "").startswith("fmriflow.")
+
+
+def addon_checks_dir() -> Path:
+    from fmriflow.core.paths import addons_dir
+    return addons_dir("checks")
+
+
+def _load_file(f: Path) -> list[str]:
+    """Exec one addon file; return the metric names it registered."""
+    import importlib.util
+    before = set(_METRICS)
+    replaced = {n: _METRICS[n] for n in before}
+    spec = importlib.util.spec_from_file_location(f"fmriflow_addon_checks_{f.stem}", f)
+    if not (spec and spec.loader):
+        raise ImportError(f"cannot load {f}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    names = [n for n, fn in _METRICS.items() if n not in before or replaced.get(n) is not fn]
+    for n in names:
+        _METRIC_FILES[n] = f
+    return names
+
+
+def load_addon_metrics(dirs: list[Path] | None = None, *, reload: bool = False) -> None:
     """Import every ``.py`` under the addon checks dir(s) so their
-    ``@checkpoint_metric`` decorators run. Idempotent."""
+    ``@checkpoint_metric`` decorators run. Idempotent unless ``reload``,
+    which drops every user metric first and re-imports the files."""
     global _ADDONS_LOADED
     if dirs is None:
-        if _ADDONS_LOADED:
+        if _ADDONS_LOADED and not reload:
             return
         _ADDONS_LOADED = True
         try:
-            from fmriflow.core.paths import addons_dir
-            dirs = [addons_dir("checks")]  # type: ignore[arg-type]
+            dirs = [addon_checks_dir()]
         except Exception:
             return
-    import importlib.util
+    if reload:
+        for n in list(_METRIC_FILES):
+            _METRICS.pop(n, None)
+        _METRIC_FILES.clear()
+        _ADDON_ERRORS.clear()
     for d in dirs:
         if not d.is_dir():
             continue
@@ -183,12 +216,10 @@ def load_addon_metrics(dirs: list[Path] | None = None) -> None:
             if f.name.startswith("_"):
                 continue
             try:
-                spec = importlib.util.spec_from_file_location(f"fmriflow_addon_checks_{f.stem}", f)
-                if spec and spec.loader:
-                    mod = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(mod)
-            except Exception:
+                _load_file(f)
+            except Exception as e:
                 logger.exception("could not load addon checks file %s", f)
+                _ADDON_ERRORS[f.name] = f"{type(e).__name__}: {e}"
 
 
 def get_metric(name: str) -> MetricFn:
@@ -200,13 +231,158 @@ def get_metric(name: str) -> MetricFn:
 
 
 def metric_catalog() -> list[dict[str, Any]]:
-    """``[{name, description, builtin}]`` for the UI's metric picker."""
+    """``[{name, description, builtin, tier, path}]`` for the UI's metric picker and editor."""
     load_addon_metrics()
     out = []
     for name, fn in sorted(_METRICS.items()):
         doc = (fn.__doc__ or "").strip().splitlines()
-        out.append({"name": name, "description": doc[0] if doc else "", "builtin": (fn.__module__ or "").startswith("fmriflow.")})
+        builtin = is_builtin_metric(name)
+        out.append({
+            "name": name, "description": doc[0] if doc else "", "builtin": builtin,
+            "tier": "builtin" if builtin else "user",
+            "path": str(_METRIC_FILES[name]) if name in _METRIC_FILES else None,
+        })
+    for fname, err in sorted(_ADDON_ERRORS.items()):
+        out.append({"name": fname[:-3], "description": "", "builtin": False, "tier": "user",
+                    "path": str(addon_checks_dir() / fname), "error": err})
     return out
+
+
+def metric_source(name: str) -> str:
+    """The Python source behind a metric: its addon file, or the built-in function."""
+    import inspect
+    load_addon_metrics()
+    if name in _METRIC_FILES:
+        return _METRIC_FILES[name].read_text()
+    err_file = addon_checks_dir() / f"{name}.py"
+    if name in {f[:-3] for f in _ADDON_ERRORS} and err_file.is_file():
+        return err_file.read_text()
+    fn = get_metric(name)
+    try:
+        return inspect.getsource(fn)
+    except (OSError, TypeError):
+        return f"# source of {name!r} is not available\n"
+
+
+METRIC_SCAFFOLD = '''"""A checkpoint metric: a function from an artifact path to numbers.
+
+Register it with @checkpoint_metric("<name>"); it then appears in the metric
+picker of a node's Checks and can carry norms (bounds) in Library → Checkpoint
+norms. Return (metrics, detail): `metrics` is a flat dict of numbers / bools /
+short strings the norms compare against; `detail` is anything extra the
+checkpoint card shows.
+"""
+from pathlib import Path
+
+from fmriflow.preproc.checkpoints import checkpoint_metric
+
+
+@checkpoint_metric("my_metric")
+def my_metric(path: Path) -> tuple[dict, dict]:
+    """One line on what this measures — shown in the picker."""
+    import nibabel as nib
+    import numpy as np
+
+    data = np.asarray(nib.load(str(path)).dataobj, dtype="float32")
+    nonzero = data[data != 0]
+    metrics = {
+        "n_voxels": int(data.size),
+        "nonzero_fraction": float(nonzero.size / max(data.size, 1)),
+        "mean": float(nonzero.mean()) if nonzero.size else 0.0,
+    }
+    return metrics, {}
+'''
+
+
+def probe_metric_code(code: str, filename: str) -> list[str]:
+    """Compile + exec ``code`` against a scratch registry; return the metric
+    names it registers. Raises SyntaxError / the exec error. Nothing is
+    registered for real."""
+    global _METRICS
+    compile(code, filename, "exec")
+    import types
+    real = _METRICS
+    scratch: dict[str, MetricFn] = dict(real)
+    _METRICS = scratch
+    try:
+        mod = types.ModuleType(f"fmriflow_addon_probe_{Path(filename).stem}")
+        mod.__file__ = filename
+        exec(compile(code, filename, "exec"), mod.__dict__)
+        return [n for n, fn in scratch.items() if real.get(n) is not fn]
+    finally:
+        _METRICS = real
+
+
+def save_user_metric(name: str, code: str) -> Path:
+    """Write ``code`` as ``addons/checks/<name>.py`` and (re)load the addons.
+
+    The code must register ``@checkpoint_metric("<name>")``; built-in names
+    are refused. ``ValueError`` explains any refusal.
+    """
+    if not _METRIC_SLUG.match(name or ""):
+        raise ValueError("metric name must start with a letter and use letters / digits / underscores")
+    load_addon_metrics()
+    if is_builtin_metric(name):
+        raise ValueError(f"{name!r} is a built-in metric; duplicate it under another name")
+    if not code.strip():
+        raise ValueError("code is empty")
+    try:
+        registered = probe_metric_code(code, f"<checks/{name}.py>")
+    except SyntaxError as e:
+        raise ValueError(f"Python syntax error: {e}")
+    except Exception as e:
+        raise ValueError(f"the code fails to run: {type(e).__name__}: {e}")
+    if name not in registered:
+        raise ValueError(
+            f"the code must register @checkpoint_metric({name!r}) (it registers: {registered or 'nothing'})"
+        )
+    clashes = [n for n in registered if n != name and is_builtin_metric(n)]
+    if clashes:
+        raise ValueError(f"the code would override built-in metric(s) {clashes}; rename them")
+    target = addon_checks_dir() / f"{name}.py"
+    target.write_text(code)
+    load_addon_metrics(reload=True)
+    return target
+
+
+def delete_user_metric(name: str) -> Path:
+    """Remove the addon file behind a user metric; ``KeyError`` when unknown, ``ValueError`` for built-ins."""
+    load_addon_metrics()
+    if is_builtin_metric(name):
+        raise ValueError(f"{name!r} is a built-in metric and cannot be deleted")
+    path = _METRIC_FILES.get(name) or (addon_checks_dir() / f"{name}.py")
+    if not path.is_file():
+        raise KeyError(f"no user metric {name!r}")
+    path.unlink()
+    load_addon_metrics(reload=True)
+    return path
+
+
+def run_metric(name: str, path: Path) -> dict[str, Any]:
+    """Apply a metric to one file — the editor's try-it. Errors are returned, not raised."""
+    fn = get_metric(name)
+    if not Path(path).exists():
+        return {"ok": False, "error": f"no such file: {path}"}
+    try:
+        metrics, detail = fn(Path(path))
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    return {"ok": True, "metrics": _jsonable(metrics), "detail": _jsonable(detail)}
+
+
+def _jsonable(v: Any) -> Any:
+    import numpy as np
+    if isinstance(v, dict):
+        return {str(k): _jsonable(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_jsonable(x) for x in v]
+    if isinstance(v, np.generic):
+        return v.item()
+    if isinstance(v, np.ndarray):
+        return v.tolist()
+    if isinstance(v, Path):
+        return str(v)
+    return v
 
 
 def resolve_checks(cls: type, node_checks: list[dict[str, Any]] | None, params: dict[str, Any] | None = None) -> list[Check]:

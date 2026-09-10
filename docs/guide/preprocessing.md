@@ -195,6 +195,14 @@ template was wrong. Checks save with the pipeline. See the
 [reference](../reference/preproc-pipeline.md#events-and-checkpoints) for the YAML and
 for writing your own metric.
 
+Metrics themselves are editable too: **Library → Checkpoint metrics** lists every metric
+with its tier. Built-ins are read-only, and **Duplicate** copies one into your addons dir
+under a new name; **+ New metric** starts from a scaffold. The editor saves to
+`$FMRIFLOW_HOME/addons/checks/<name>.py`, reloads the registry, and refuses code that does
+not register the metric under that name, so the picker and the norms table always agree
+with what is on disk. **Try it on a file** runs the saved metric on any artifact and shows
+the numbers it returns, which is how you find out what to put bounds on.
+
 Runs are detached processes; a server restart cannot kill them. A run whose process is
 gone shows as **lost**, and **Resume / Restart…** asks what you want: *Resume* launches
 the same job and nipype skips every node whose inputs are unchanged; *Restart* ignores

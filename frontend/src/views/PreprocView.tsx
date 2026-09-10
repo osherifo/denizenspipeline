@@ -12,6 +12,7 @@ import { RunsList } from '../components/preproc-graph/RunsList'
 import { RunDetail } from '../components/preproc-graph/RunDetail'
 import { NodeLibrary } from '../components/preproc-graph/NodeLibrary'
 import { NormsPanel } from '../components/preproc-graph/checks/NormsPanel'
+import { MetricsPanel } from '../components/preproc-graph/checks/MetricsPanel'
 import { NewNodeModal } from '../components/preproc-graph/NewNodeModal'
 import { ImportPipelineModal } from '../components/preproc-graph/ImportPipelineModal'
 import { ManifestBrowser } from '../components/preproc/ManifestBrowser'
@@ -280,6 +281,7 @@ function LibraryTab({ onUse }: { onUse: (type: string) => void }) {
         <button style={btn} onClick={() => void loadLibrary()}>Rescan</button>
       </div>
       <NodeLibrary onUseInPipeline={(t) => { addNode(t); onUse(t) }} />
+      <div style={{ marginTop: 14 }}><MetricsPanel /></div>
       <div style={{ marginTop: 14 }}><NormsPanel /></div>
       {newNode && <NewNodeModal onClose={() => setNewNode(false)} />}
       {importing && <ImportPipelineModal onClose={() => setImporting(false)} />}
