@@ -70,6 +70,26 @@ export const FMRIPREP_RUN_NODE: RunNodeRecord = buildRunNode({
 })
 
 export const preprocPipelinesHandlers = [
+  http.get('/api/preproc/checks/metrics', () => HttpResponse.json({ metrics: [
+    { name: 'nifti_stats', description: 'Shape, non-zero fraction, percentiles of any NIfTI', builtin: true },
+    { name: 'volume_intensity', description: 'n_unique, modal fraction', builtin: true },
+  ] })),
+  http.get('/api/preproc/checks/norms', () => HttpResponse.json({ path: '/home/x/configs/norms.yaml', user: {}, rows: [
+    { step: 'nu.mgz', kind: 'hard', metric: 'n_unique', op: '>', value: 100, source: 'builtin', builtin: ['>', 100] },
+    { step: 'nu.mgz', kind: 'soft', metric: 'modal_fraction', op: '<', value: 0.3, source: 'builtin', builtin: ['<', 0.3] },
+    { step: 'wm.mgz', kind: 'hard', metric: 'wm_volume_cm3', op: 'between', value: [200, 1000], source: 'user', builtin: ['between', [250, 900]] },
+  ] })),
+  http.put('/api/preproc/checks/norms', async ({ request }) => {
+    const b = (await request.json()) as { norms: Record<string, unknown> }
+    return HttpResponse.json({ saved: true, rows: Object.keys(b.norms).map((step) => ({ step, kind: 'hard', metric: 'x', op: '>', value: 1, source: 'user', builtin: null })) })
+  }),
+  http.get('/api/preproc/nodes/:name/checks', ({ params }) => HttpResponse.json({ checks: params.name === 'fmriprep'
+    ? [{ step: 'nu.mgz', artifact: '{fs_subject_dir}/mri/nu.mgz', metric: 'volume_intensity', norms_key: null, live: true, thumbnail: 'volume' }]
+    : [] })),
+  http.post('/api/preproc/checks/evaluate', async ({ request }) => {
+    const b = (await request.json()) as { check: { step: string; artifact: string } }
+    return HttpResponse.json({ artifact: '/o/x.nii.gz', exists: true, context: {}, checkpoint: { stage: 'preproc', run_id: 'pp_abc', node: 'smooth', step: b.check.step, subject: '01', metrics: { n_trs: 6 }, expectations: {}, soft_expectations: {}, verdict: 'suspicious', thumbnail: null, detail: {}, t: 0, artifact: '/o/x.nii.gz', reasons: ['n_trs=6 outside > 10'] } })
+  }),
   http.get('/api/preproc/runs/:id/nodes/:node/log', () => HttpResponse.json({ lines: ['a', 'b'], total: 2 })),
   http.get('/api/preproc/runs/:id/nodes/:node/inner', () => HttpResponse.json({ prefix: 'p.fp.', nipype_status: { counts: { running: 0, ok: 1, failed: 0, completed_assumed: 0, total_seen: 1 }, recent_nodes: [{ node: 'fmriprep_wf.a.n1', leaf: 'n1', workflow: 'fmriprep_wf.a', status: 'ok', started_at: 1, finished_at: 2, elapsed: 1, crash_file: null, level: 'INFO' }] } })),
   http.get('/api/preproc/runs/:id/nodes/:node/manifest', () => HttpResponse.json({ subject: '01', dataset: 'ds', backend: 'fmriprep', backend_version: '24.1.1', space: 'T1w', resolution: '', output_format: 'nifti', runs: [], confounds_applied: [], created: '2026-01-01T00:00:00Z', output_dir: '/o', sessions: [], additional_steps: [], freesurfer_subjects_dir: null })),

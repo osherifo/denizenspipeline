@@ -2,8 +2,13 @@
 import type {
   CheckpointRecord,
   CheckpointSummary,
+  BuiltinCheckInfo,
+  CheckDef,
+  CheckEvaluation,
   ManifestDetail,
+  MetricInfo,
   NodeInnerStatus,
+  NormsRow,
   RunNodeRecord,
   PipelineDoc,
   PipelineEvent,
@@ -130,6 +135,31 @@ export async function fetchPipelineRunLog(runId: string, tail = 200): Promise<{ 
 
 export async function fetchRunCrash(runId: string, name: string): Promise<{ name: string; text: string }> {
   return json(`${BASE}/preproc/runs/${enc(runId)}/crashes/${enc(name)}`)
+}
+
+// ── checkpoints from the UI ──
+
+export async function fetchCheckMetrics(): Promise<{ metrics: MetricInfo[] }> {
+  return json(`${BASE}/preproc/checks/metrics`)
+}
+
+export async function fetchNorms(): Promise<{ rows: NormsRow[]; user: Record<string, unknown>; path: string }> {
+  return json(`${BASE}/preproc/checks/norms`)
+}
+
+export async function saveNorms(norms: Record<string, unknown>): Promise<{ saved: boolean; rows: NormsRow[] }> {
+  return json(`${BASE}/preproc/checks/norms`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ norms }) })
+}
+
+export async function fetchNodeChecks(nodeType: string): Promise<{ checks: BuiltinCheckInfo[] }> {
+  return json(`${BASE}/preproc/nodes/${encodeURIComponent(nodeType)}/checks`)
+}
+
+export async function evaluateCheck(check: CheckDef, runId: string, nodeId: string, sequence?: string): Promise<CheckEvaluation> {
+  return json(`${BASE}/preproc/checks/evaluate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ check, run_id: runId, node_id: nodeId, sequence: sequence ?? null }),
+  })
 }
 
 // ── one node of one run (the node popup) ──

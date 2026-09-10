@@ -286,6 +286,8 @@ class PipelineRunner:
                 iface.inputs.run_id = self.run_id
                 iface.inputs.subject = request.subject
                 iface.inputs.abort_on_bad = bool(request.abort_on_bad)
+                if node.checks:
+                    iface.inputs.checks = [dict(c) for c in node.checks]
                 fp_inputs = list(getattr(cls, "FINGERPRINT_INPUTS", []) or [])
                 parts = []
                 for port in fp_inputs:
@@ -366,7 +368,7 @@ class PipelineRunner:
     def _output_checkpoints(self, node: Any, rec: NodeRunRecord, full: str) -> None:
         """Generic per-output checks for a finished interface/source node."""
         from fmriflow.preproc.checkpoints import (
-            CheckpointSink, evaluate, generic_output_checks, worst_verdict,
+            Checkpoint, CheckpointSink, evaluate, generic_output_checks, resolve_artifact, resolve_checks, worst_verdict,
         )
 
         if self.checkpoints_path is None or self._request is None:
@@ -376,12 +378,31 @@ class PipelineRunner:
         except KeyError:
             return
         checks = generic_output_checks(cls)
-        if not checks:
+        pnode = self._pipeline.node(rec.node_id) if self._pipeline is not None else None
+        user_checks = [c for c in resolve_checks(cls, pnode.checks if pnode is not None else []) if c.source == "pipeline"]
+        if not checks and not user_checks:
             return
         outputs = _result_outputs(node)
         sink = CheckpointSink(self.checkpoints_path, self.events_path)
         verdicts: list[str] = []
         bad_reasons: list[str] = []
+        # Pipeline-level checks: artifact templates see {node_dir}, {subject} and every output port.
+        if user_checks:
+            context = {"subject": self._request.subject, "node_dir": str(getattr(node, "output_dir", lambda: "")() or "")}
+            for port, value in outputs.items():
+                context[port] = str(value[0] if isinstance(value, list) and value else value or "")
+            for check in user_checks:
+                artifact = resolve_artifact(check.artifact, context)
+                if artifact is None or not artifact.exists():
+                    cp = Checkpoint(stage="preproc", run_id=self.run_id, node=full, step=check.step, subject=self._request.subject,
+                                    metrics={}, expectations={}, verdict="unknown", artifact=str(artifact) if artifact else check.artifact,
+                                    reasons=[f"artifact not found: {artifact or check.artifact}"], t=time.time())
+                else:
+                    cp = evaluate(check, artifact, run_id=self.run_id, node=full, subject=self._request.subject)
+                sink.write(cp)
+                verdicts.append(cp.verdict)
+                if cp.verdict == "bad":
+                    bad_reasons.append(f"{check.step}: {', '.join(cp.reasons)}")
         for port, check in checks:
             value = outputs.get(port)
             files = value if isinstance(value, list) else [value] if value else []
@@ -403,6 +424,7 @@ class PipelineRunner:
 
     def run(self, pipeline: Pipeline, request: PipelineRunRequest) -> PipelineRunResult:
         t0 = time.time()
+        self._pipeline = pipeline
         errors = self.validate(pipeline, request)
         if errors:
             self._emit({"event": "failed", "errors": errors})

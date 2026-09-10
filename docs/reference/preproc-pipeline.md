@@ -178,9 +178,64 @@ composite node.
 ```
 
 Verdicts: `ok` (all bounds hold), `suspicious` (a soft bound fails), `bad` (a hard
-bound fails), `unknown` (a metric could not be computed). The norms table lives in
-`fmriflow/preproc/norms.py`; a `sequence` parameter on the fmriprep node selects
-sequence-specific overrides.
+bound fails), `unknown` (a metric could not be computed). A `sequence` parameter on the
+fmriprep node selects sequence-specific overrides (`<step>@<sequence>` keys).
+
+### Editing thresholds: `norms.yaml`
+
+The built-in norms table (`fmriflow/preproc/norms.py`) is overlaid, metric by metric, by
+`$FMRIFLOW_HOME/configs/norms.yaml`, which the **Library → Checkpoint norms** table edits
+for you. A bound is `[op, value]`; `op` is one of `<`, `<=`, `>`, `>=`, `==`, `!=`,
+`between` (value `[lo, hi]`). Only what you write changes; everything else stays built-in,
+and the file is re-read on change.
+
+```yaml
+lh.thickness:
+  soft: {mean_mm: [between, [2.0, 3.2]]}
+wm.mgz:
+  hard: {wm_volume_cm3: [between, [200, 1000]]}
+```
+
+### Adding checks: `checks:` on a pipeline node
+
+Any node in a pipeline may carry `checks:` next to its `params:`. An entry names a
+**metric** from the registry, an **artifact** path template, and optional bounds that
+overlay the norms for that step. Placeholders: `{node_dir}`, `{subject}`, every output
+port of the node (`{out_file}`), and for apps `{fs_subject_dir}`, `{derivatives_dir}`,
+`{work_dir}`. A container app evaluates its pipeline checks live, like its built-ins;
+other nodes evaluate them when they finish.
+
+```yaml
+- id: fmriprep
+  type: fmriprep
+  data:
+    params: {mode: anat_only}
+    checks:
+      - {step: T1.mgz, enabled: false}                       # skip a built-in
+      - {step: nu.mgz, norms: {hard: {n_unique: [">", 150]}}}  # re-bound a built-in
+      - step: aseg
+        artifact: "{fs_subject_dir}/mri/aseg.mgz"
+        metric: nifti_stats
+        norms: {soft: {n_unique: [">", 30]}}
+```
+
+Metrics: `volume_intensity`, `brain_volume`, `wm_volume`, `surface`, `thickness`,
+`aseg_stats`, `output_file`, and the all-purpose `nifti_stats` (shape, voxel size,
+non-zero fraction, mean/std, percentiles, `n_unique`, `tsnr_median` for 4-D). Your own
+metric is a decorated function in `$FMRIFLOW_HOME/addons/checks/*.py`:
+
+```python
+from fmriflow.preproc.checkpoints import checkpoint_metric
+
+@checkpoint_metric("my_metric")
+def my_metric(path):
+    """One line shown in the metric picker."""
+    return {"value": 1.0}, {}          # (metrics, detail)
+```
+
+The node panel's **Checks** section edits all of this, and its **Try** button evaluates
+a check against a finished run's node before you commit to it
+(`POST /api/preproc/checks/evaluate`).
 
 ## HTTP API
 
@@ -196,5 +251,6 @@ sequence-specific overrides.
 | DELETE | `/api/preproc/runs/{id}` | remove a run record |
 | GET | `/api/preproc/runs/{id}/work_tree[?prefix=]` · `/node/{path}/files` · `/file` · `/pickle` | node outputs |
 | GET | `/api/preproc/runs/{id}/nodes/{node_id}` · `/log` · `/inner` · `/manifest` · `/report/{rest}` · `/fs-file?rel=` · `/freeview-command` | one node of one run (the popup); `POST …/drawing` |
+| GET/PUT | `/api/preproc/checks/norms` · GET `/checks/metrics` · GET `/nodes/{name}/checks` · POST `/checks/evaluate` | editable checkpoints |
 | GET/POST | `/api/preproc/manifests…` · `/api/preproc/collect` · `/api/preproc/label-map` | outputs |
 | WS | `/ws/preproc/{run_id}` | event stream |

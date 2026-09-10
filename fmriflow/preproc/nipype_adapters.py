@@ -202,6 +202,7 @@ class ContainerAppInputSpec(DynamicTraitedSpec, BaseInterfaceInputSpec):
     run_id = traits.Str(desc="run id (checkpoint records)", nohash=True)
     subject = traits.Str(desc="subject label (checkpoint records)", nohash=True)
     abort_on_bad = traits.Bool(False, usedefault=True, desc="terminate the app on a bad checkpoint", nohash=True)
+    checks = traits.List(traits.Dict, usedefault=True, desc="pipeline-level checkpoint entries", nohash=True)
     # Content fingerprint of input directories (BIDS edits invalidate the node).
     content_fingerprint = traits.Str(desc="hash of fingerprinted inputs")
 
@@ -281,7 +282,8 @@ class ContainerAppInterface(BaseInterface):
         # Live checkpoints: poll the node's declared artefacts while it runs.
         watcher = None
         abort_event = threading.Event()
-        checks = list(getattr(cls, "CHECKS", []) or [])
+        from fmriflow.preproc.checkpoints import resolve_checks
+        checks = resolve_checks(cls, list(self.inputs.checks) if isdefined(self.inputs.checks) else [])
         if checks and isdefined(self.inputs.checkpoints_path) and self.inputs.checkpoints_path:
             from fmriflow.preproc.checkpoints import CheckpointSink, CheckpointWatcher
 

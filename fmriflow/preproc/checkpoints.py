@@ -90,6 +90,10 @@ class Check:
     metric dict from the file; ``norms_key`` selects the norms row
     (defaults to ``step``). ``live`` checks are evaluated while the node
     is still running.
+
+    A check is also plain data (:meth:`to_dict` / :meth:`from_dict`): a
+    pipeline node may carry ``checks:`` entries naming a registered metric
+    and, optionally, its own ``norms`` bounds that overlay the table.
     """
 
     step: str
@@ -98,10 +102,136 @@ class Check:
     norms_key: str | None = None
     live: bool = True
     thumbnail: str | None = None       # "volume" | None
+    metric: str | None = None          # registry name (None for a bare function)
+    norms: dict[str, dict[str, Any]] | None = None   # inline {"hard": {...}, "soft": {...}}
+    source: str = "builtin"            # "builtin" | "pipeline"
 
     @property
     def key(self) -> str:
         return self.norms_key or self.step
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "step": self.step, "artifact": self.artifact, "metric": self.metric or _metric_name(self.metrics),
+            "norms_key": self.norms_key, "live": self.live, "thumbnail": self.thumbnail,
+            "norms": self.norms, "source": self.source,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any], *, source: str = "pipeline") -> Check:
+        name = str(d.get("metric") or "nifti_stats")
+        fn = get_metric(name)
+        norms = d.get("norms") or None
+        if norms:
+            norms = {k: {m: _bound_from_json(b) for m, b in (v or {}).items()} for k, v in norms.items() if k in ("hard", "soft")}
+        return cls(
+            step=str(d.get("step") or name), artifact=str(d.get("artifact") or ""), metrics=fn,
+            norms_key=d.get("norms_key") or None, live=bool(d.get("live", True)),
+            thumbnail=d.get("thumbnail") or None, metric=name, norms=norms, source=source,
+        )
+
+
+def _bound_from_json(b: Any) -> Bound:
+    """``["<", 0.5]`` / ``["between", [lo, hi]]`` (JSON / YAML) → ``(op, value)``."""
+    if isinstance(b, (list, tuple)) and len(b) == 2:
+        op, val = b
+        if op == "between" and isinstance(val, (list, tuple)):
+            val = (float(val[0]), float(val[1]))
+        return (str(op), val)
+    raise ValueError(f"bad bound {b!r}: expected [op, value]")
+
+
+# ── metric registry ───────────────────────────────────────────────
+
+_METRICS: dict[str, MetricFn] = {}
+_ADDONS_LOADED = False
+
+
+def checkpoint_metric(name: str):
+    """Register a metric function ``fn(path) -> (metrics, detail)`` under ``name``,
+    so pipeline-level checks (and the UI) can refer to it. Files under
+    ``$FMRIFLOW_HOME/addons/checks/`` are imported on first use."""
+    def wrap(fn: MetricFn) -> MetricFn:
+        _METRICS[name] = fn
+        return fn
+    return wrap
+
+
+def _metric_name(fn: MetricFn) -> str | None:
+    return next((n for n, f in _METRICS.items() if f is fn), None)
+
+
+def load_addon_metrics(dirs: list[Path] | None = None) -> None:
+    """Import every ``.py`` under the addon checks dir(s) so their
+    ``@checkpoint_metric`` decorators run. Idempotent."""
+    global _ADDONS_LOADED
+    if dirs is None:
+        if _ADDONS_LOADED:
+            return
+        _ADDONS_LOADED = True
+        try:
+            from fmriflow.core.paths import addons_dir
+            dirs = [addons_dir("checks")]  # type: ignore[arg-type]
+        except Exception:
+            return
+    import importlib.util
+    for d in dirs:
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.py")):
+            if f.name.startswith("_"):
+                continue
+            try:
+                spec = importlib.util.spec_from_file_location(f"fmriflow_addon_checks_{f.stem}", f)
+                if spec and spec.loader:
+                    mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(mod)
+            except Exception:
+                logger.exception("could not load addon checks file %s", f)
+
+
+def get_metric(name: str) -> MetricFn:
+    load_addon_metrics()
+    try:
+        return _METRICS[name]
+    except KeyError:
+        raise KeyError(f"unknown checkpoint metric {name!r}; known: {sorted(_METRICS)}") from None
+
+
+def metric_catalog() -> list[dict[str, Any]]:
+    """``[{name, description, builtin}]`` for the UI's metric picker."""
+    load_addon_metrics()
+    out = []
+    for name, fn in sorted(_METRICS.items()):
+        doc = (fn.__doc__ or "").strip().splitlines()
+        out.append({"name": name, "description": doc[0] if doc else "", "builtin": (fn.__module__ or "").startswith("fmriflow.")})
+    return out
+
+
+def resolve_checks(cls: type, node_checks: list[dict[str, Any]] | None) -> list[Check]:
+    """The checks to run for a node: its class ``CHECKS`` minus the ones a
+    pipeline entry disables (``{"step": ..., "enabled": false}``), plus the
+    pipeline's own entries (a pipeline entry with a built-in's ``step`` and
+    ``norms`` only re-bounds that built-in)."""
+    builtin = {c.step: c for c in (getattr(cls, "CHECKS", []) or [])}
+    out: dict[str, Check] = dict(builtin)
+    for entry in node_checks or []:
+        step = str(entry.get("step") or "")
+        if not step:
+            continue
+        if entry.get("enabled") is False:
+            out.pop(step, None)
+            continue
+        base = builtin.get(step)
+        if base is not None and not entry.get("artifact") and not entry.get("metric"):
+            # re-bound a built-in
+            norms = entry.get("norms") or None
+            if norms:
+                norms = {k: {m: _bound_from_json(b) for m, b in (v or {}).items()} for k, v in norms.items() if k in ("hard", "soft")}
+            out[step] = Check(**{**base.__dict__, "norms": norms, "source": "pipeline"})
+            continue
+        out[step] = Check.from_dict({**entry, "step": step})
+    return list(out.values())
 
 
 # ── verdicts ──────────────────────────────────────────────────────
@@ -175,6 +305,7 @@ def _load_volume(path: Path):
     return data, tuple(float(z) for z in zooms)
 
 
+@checkpoint_metric("volume_intensity")
 def volume_intensity_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """n_unique, modal value + fraction and quartiles over the non-zero voxels."""
     import numpy as np
@@ -218,14 +349,17 @@ def _mask_volume_metrics(path: Path, name: str) -> tuple[dict[str, Any], dict[st
     return metrics, {"zooms": list(zooms)}
 
 
+@checkpoint_metric("wm_volume")
 def wm_volume_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return _mask_volume_metrics(path, "wm")
 
 
+@checkpoint_metric("brain_volume")
 def brain_volume_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return _mask_volume_metrics(path, "brain")
 
 
+@checkpoint_metric("surface")
 def surface_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """Vertex / face counts and the Euler number of a FreeSurfer surface.
 
@@ -240,6 +374,7 @@ def surface_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return {"n_vertices": n_v, "n_faces": n_f, "euler": int(euler), "n_defects": int(max(0, (2 - euler) // 2))}, {}
 
 
+@checkpoint_metric("thickness")
 def thickness_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     import numpy as np
     from nibabel.freesurfer import read_morph_data
@@ -256,6 +391,7 @@ def thickness_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     }, {"histogram": [int(h) for h in hist], "edges": [float(e) for e in edges]}
 
 
+@checkpoint_metric("aseg_stats")
 def aseg_stats_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """Global measures from recon-all's ``aseg.stats`` header."""
     metrics: dict[str, Any] = {}
@@ -280,6 +416,7 @@ def aseg_stats_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return metrics, {}
 
 
+@checkpoint_metric("output_file")
 def output_file_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """Generic: existence, size and, for NIfTI, shape / 4D-ness / non-zero fraction."""
     metrics: dict[str, Any] = {"exists": path.exists()}
@@ -301,6 +438,34 @@ def output_file_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return metrics, {}
 
 
+@checkpoint_metric("nifti_stats")
+def nifti_stats_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Shape, voxel size, non-zero fraction, mean/std and percentiles of any NIfTI/MGZ — the
+    all-purpose metric for a check written in the UI."""
+    import numpy as np
+    data, zooms = _load_volume(path)
+    arr = np.asarray(data, dtype="float64")
+    nz = arr[arr != 0]
+    metrics: dict[str, Any] = {
+        "shape": [int(x) for x in arr.shape], "ndim": int(arr.ndim), "is_4d": arr.ndim == 4,
+        "n_trs": int(arr.shape[3]) if arr.ndim == 4 else 1,
+        "voxel_mm": [round(float(z), 3) for z in zooms],
+        "nonzero_fraction": float(nz.size / max(arr.size, 1)),
+        "n_unique": int(np.unique(np.round(nz, 3)).size) if nz.size else 0,
+    }
+    if nz.size:
+        p1, p50, p99 = (float(x) for x in np.percentile(nz, [1, 50, 99]))
+        metrics.update({"mean": float(nz.mean()), "std": float(nz.std()), "p01": p1, "p50": p50, "p99": p99,
+                        "min": float(nz.min()), "max": float(nz.max())})
+    if arr.ndim == 4 and arr.shape[3] > 1:
+        ts = arr.reshape(-1, arr.shape[3])
+        m = ts.mean(axis=1); sd = ts.std(axis=1)
+        keep = (m != 0) & (sd > 0)
+        if keep.any():
+            metrics["tsnr_median"] = float(np.median(m[keep] / sd[keep]))
+    return metrics, {}
+
+
 # ── evaluation ────────────────────────────────────────────────────
 
 def evaluate(
@@ -314,6 +479,10 @@ def evaluate(
     stage: str = "preproc",
 ) -> Checkpoint:
     norms = norms_for(check.key, sequence)
+    if check.norms:
+        # a pipeline entry's own bounds overlay the table, metric by metric
+        for kind in ("hard", "soft"):
+            norms[kind].update(check.norms.get(kind) or {})
     try:
         metrics, detail = check.metrics(artifact)
     except Exception as e:

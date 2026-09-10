@@ -66,6 +66,8 @@ class PipelineNode:
     literal_inputs: dict[str, Any] = field(default_factory=dict)
     bindings: dict[str, str] = field(default_factory=dict)   # port -> "$inputs.<name>"
     iter: dict[str, Any] | None = None    # {"handle": "<port>"} or {"handles": [...]} (+ optional literal "values")
+    # Pipeline-level checkpoint entries: {step, artifact, metric, norms?, live?, enabled?}
+    checks: list[dict[str, Any]] = field(default_factory=list)
     position: dict[str, float] = field(default_factory=dict)
 
     def to_reactflow(self) -> dict[str, Any]:
@@ -76,6 +78,8 @@ class PipelineNode:
             data["bindings"] = dict(self.bindings)
         if self.iter is not None:
             data["iter"] = dict(self.iter)
+        if self.checks:
+            data["checks"] = [dict(c) for c in self.checks]
         return {
             "id": self.id,
             "type": self.type,
@@ -96,6 +100,7 @@ class PipelineNode:
             literal_inputs=dict(d.get("literal_inputs") or {}),
             bindings=dict(d.get("bindings") or {}),
             iter=dict(it) if isinstance(it, dict) else None,
+            checks=[dict(c) for c in (d.get("checks") or []) if isinstance(c, dict)],
             position=dict(n.get("position") or {}),
         )
 

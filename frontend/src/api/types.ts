@@ -1443,8 +1443,53 @@ export interface PipelineNodeDoc {
     literal_inputs?: Record<string, unknown>
     bindings?: Record<string, string>
     iter?: { handle?: string; handles?: string[]; values?: unknown[] } | null
+    /** Pipeline-level checkpoint entries (see CheckDef). */
+    checks?: CheckDef[]
   }
   position: { x: number; y: number }
+}
+
+/** A bound as JSON: [op, value] or ['between', [lo, hi]]. */
+export type BoundJson = [string, unknown]
+
+/** One checkpoint entry on a pipeline node. A built-in check is referenced by `step`
+ *  alone (with `enabled: false` to drop it, or `norms` to re-bound it). */
+export interface CheckDef {
+  step: string
+  artifact?: string
+  metric?: string
+  norms?: { hard?: Record<string, BoundJson>; soft?: Record<string, BoundJson> }
+  live?: boolean
+  thumbnail?: string | null
+  enabled?: boolean
+}
+
+export interface BuiltinCheckInfo {
+  step: string
+  artifact: string
+  metric: string | null
+  norms_key: string | null
+  live: boolean
+  thumbnail: string | null
+}
+
+export interface MetricInfo { name: string; description: string; builtin: boolean }
+
+export interface NormsRow {
+  step: string
+  kind: 'hard' | 'soft'
+  metric: string
+  op: string
+  value: unknown
+  source: 'builtin' | 'user'
+  builtin: BoundJson | null
+}
+
+export interface CheckEvaluation {
+  artifact: string
+  exists: boolean
+  checkpoint: CheckpointRecord | null
+  context: Record<string, string>
 }
 
 export interface PipelineEdgeDoc {

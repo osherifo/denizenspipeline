@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ParamForm } from '../composer/ParamForm'
 import { PathField } from '../common/PathPicker'
+import { NodeChecksSection } from './checks/NodeChecksSection'
 import { usePreprocPipelineStore } from '../../stores/preproc-pipeline-store'
 import type { ParamSchema, PipelineNodeDoc, PreprocNodeInfo } from '../../api/types'
 import { KIND_COLORS, KIND_LABELS } from './PipelineNodeCard'
@@ -162,6 +163,8 @@ export function NodeParamPanel({ node, info }: Props) {
           })}
         </div>
       )}
+
+      <NodeChecksSection node={node} />
 
       <div>
         <div style={h}>Manifest role</div>

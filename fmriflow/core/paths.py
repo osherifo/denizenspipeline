@@ -100,7 +100,7 @@ LEGACY_DERIVATIVES = Path("./derivatives")
 
 
 AddonKind = Literal[
-    "heuristics", "workflows", "modules", "transforms", "pipelines", "nodes",
+    "heuristics", "workflows", "modules", "transforms", "pipelines", "nodes", "checks",
 ]
 BuiltinKind = Literal[
     "heuristics", "workflows", "modules", "text", "transforms", "pipelines",

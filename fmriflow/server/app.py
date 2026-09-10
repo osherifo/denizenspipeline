@@ -177,6 +177,8 @@ def create_app(
     app.include_router(preproc_pipelines_router, prefix="/api")
     app.include_router(preproc_runs_router, prefix="/api")
     app.include_router(preproc_run_nodes_router, prefix="/api")
+    from fmriflow.server.routes.preproc_checks import router as preproc_checks_router
+    app.include_router(preproc_checks_router, prefix="/api")
     app.include_router(preproc_nodes_router, prefix="/api")
     app.include_router(preproc_outputs_router, prefix="/api")
     app.include_router(convert_router, prefix="/api")

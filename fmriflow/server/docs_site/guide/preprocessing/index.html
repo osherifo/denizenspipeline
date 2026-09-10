@@ -1574,6 +1574,16 @@ zero-thickness fraction, <code>aseg.stats</code> — and judges it against a nor
 visible ~20 minutes into a 10-hour run instead of after it. Every node also gets generic
 output checks (file exists, non-empty, 4D where a BOLD is expected). Tick <strong>abort on bad
 checkpoint</strong> in the Run panel to have a <code>bad</code> verdict terminate the run.</p>
+<p>Both halves of a checkpoint are editable without touching Python. <strong>Library →
+Checkpoint norms</strong> is the threshold table: change a bound, blank it to go back to the
+built-in, Save — it lands in <code>configs/norms.yaml</code> in your fMRIflow home. A node's panel has
+a <strong>Checks</strong> section: untick a built-in check to skip it, or <strong>Add check</strong> with an artifact
+path, a metric from the registry (the all-purpose <code>nifti_stats</code> covers most files) and
+bounds typed one per line (<code>n_trs &gt; 100</code>). <strong>Try</strong> evaluates it against a finished run's
+node right there, so you see the metrics and verdict before a ten-hour run tells you the
+template was wrong. Checks save with the pipeline. See the
+<a href="../../reference/preproc-pipeline/#events-and-checkpoints">reference</a> for the YAML and
+for writing your own metric.</p>
 <p>Runs are detached processes; a server restart cannot kill them. A run whose process is
 gone shows as <strong>lost</strong>, and <strong>Resume / Restart…</strong> asks what you want: <em>Resume</em> launches
 the same job and nipype skips every node whose inputs are unchanged; <em>Restart</em> ignores

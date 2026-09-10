@@ -1161,6 +1161,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Events and checkpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-thresholds-normsyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing thresholds: norms.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-checks-checks-on-a-pipeline-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding checks: checks: on a pipeline node
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1313,6 +1341,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Events and checkpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-thresholds-normsyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing thresholds: norms.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-checks-checks-on-a-pipeline-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding checks: checks: on a pipeline node
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1658,9 +1714,52 @@ composite node.</p>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w"> </span><span class="nt">&quot;artifact&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;…/sub-01/mri/nu.mgz&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;t&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1757430000.0</span><span class="p">}</span>
 </code></pre></div>
 <p>Verdicts: <code>ok</code> (all bounds hold), <code>suspicious</code> (a soft bound fails), <code>bad</code> (a hard
-bound fails), <code>unknown</code> (a metric could not be computed). The norms table lives in
-<code>fmriflow/preproc/norms.py</code>; a <code>sequence</code> parameter on the fmriprep node selects
-sequence-specific overrides.</p>
+bound fails), <code>unknown</code> (a metric could not be computed). A <code>sequence</code> parameter on the
+fmriprep node selects sequence-specific overrides (<code>&lt;step&gt;@&lt;sequence&gt;</code> keys).</p>
+<h3 id="editing-thresholds-normsyaml">Editing thresholds: <code>norms.yaml</code><a class="headerlink" href="#editing-thresholds-normsyaml" title="Permanent link">&para;</a></h3>
+<p>The built-in norms table (<code>fmriflow/preproc/norms.py</code>) is overlaid, metric by metric, by
+<code>$FMRIFLOW_HOME/configs/norms.yaml</code>, which the <strong>Library → Checkpoint norms</strong> table edits
+for you. A bound is <code>[op, value]</code>; <code>op</code> is one of <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>==</code>, <code>!=</code>,
+<code>between</code> (value <code>[lo, hi]</code>). Only what you write changes; everything else stays built-in,
+and the file is re-read on change.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">lh.thickness</span><span class="p">:</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">soft</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">mean_mm</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">between</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3.2</span><span class="p p-Indicator">]]}</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nt">wm.mgz</span><span class="p">:</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">hard</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">wm_volume_cm3</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">between</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1000</span><span class="p p-Indicator">]]}</span>
+</code></pre></div>
+<h3 id="adding-checks-checks-on-a-pipeline-node">Adding checks: <code>checks:</code> on a pipeline node<a class="headerlink" href="#adding-checks-checks-on-a-pipeline-node" title="Permanent link">&para;</a></h3>
+<p>Any node in a pipeline may carry <code>checks:</code> next to its <code>params:</code>. An entry names a
+<strong>metric</strong> from the registry, an <strong>artifact</strong> path template, and optional bounds that
+overlay the norms for that step. Placeholders: <code>{node_dir}</code>, <code>{subject}</code>, every output
+port of the node (<code>{out_file}</code>), and for apps <code>{fs_subject_dir}</code>, <code>{derivatives_dir}</code>,
+<code>{work_dir}</code>. A container app evaluates its pipeline checks live, like its built-ins;
+other nodes evaluate them when they finish.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fmriprep</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">data</span><span class="p">:</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">params</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="nv">anat_only</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">checks</span><span class="p">:</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">step</span><span class="p">:</span><span class="w"> </span><span class="nv">T1.mgz</span><span class="p p-Indicator">,</span><span class="nt"> enabled</span><span class="p">:</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">}</span><span class="w">                       </span><span class="c1"># skip a built-in</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">step</span><span class="p">:</span><span class="w"> </span><span class="nv">nu.mgz</span><span class="p p-Indicator">,</span><span class="nt"> norms</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">hard</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">n_unique</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;&gt;&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">150</span><span class="p p-Indicator">]}}}</span><span class="w">  </span><span class="c1"># re-bound a built-in</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aseg</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">        </span><span class="nt">artifact</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{fs_subject_dir}/mri/aseg.mgz&quot;</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">        </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nifti_stats</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">        </span><span class="nt">norms</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">soft</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">n_unique</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;&gt;&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]}}</span>
+</code></pre></div>
+<p>Metrics: <code>volume_intensity</code>, <code>brain_volume</code>, <code>wm_volume</code>, <code>surface</code>, <code>thickness</code>,
+<code>aseg_stats</code>, <code>output_file</code>, and the all-purpose <code>nifti_stats</code> (shape, voxel size,
+non-zero fraction, mean/std, percentiles, <code>n_unique</code>, <code>tsnr_median</code> for 4-D). Your own
+metric is a decorated function in <code>$FMRIFLOW_HOME/addons/checks/*.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fmriflow.preproc.checkpoints</span><span class="w"> </span><span class="kn">import</span> <span class="n">checkpoint_metric</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nd">@checkpoint_metric</span><span class="p">(</span><span class="s2">&quot;my_metric&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_metric</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;One line shown in the metric picker.&quot;&quot;&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span> <span class="p">{}</span>          <span class="c1"># (metrics, detail)</span>
+</code></pre></div>
+<p>The node panel's <strong>Checks</strong> section edits all of this, and its <strong>Try</strong> button evaluates
+a check against a finished run's node before you commit to it
+(<code>POST /api/preproc/checks/evaluate</code>).</p>
 <h2 id="http-api">HTTP API<a class="headerlink" href="#http-api" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1720,6 +1819,11 @@ sequence-specific overrides.</p>
 <td>GET</td>
 <td><code>/api/preproc/runs/{id}/nodes/{node_id}</code> · <code>/log</code> · <code>/inner</code> · <code>/manifest</code> · <code>/report/{rest}</code> · <code>/fs-file?rel=</code> · <code>/freeview-command</code></td>
 <td>one node of one run (the popup); <code>POST …/drawing</code></td>
+</tr>
+<tr>
+<td>GET/PUT</td>
+<td><code>/api/preproc/checks/norms</code> · GET <code>/checks/metrics</code> · GET <code>/nodes/{name}/checks</code> · POST <code>/checks/evaluate</code></td>
+<td>editable checkpoints</td>
 </tr>
 <tr>
 <td>GET/POST</td>
