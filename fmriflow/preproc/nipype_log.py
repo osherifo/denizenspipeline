@@ -268,7 +268,10 @@ def parse_nipype_events_file(
     carried bare-leaf names) still aggregate cleanly without rewrite:
     a leaf-only terminal event pops the oldest queued ``node_start`` of
     that leaf and applies the terminal status to that full path. Truly
-    unmatched bare-leaf events are kept as their own nodes.
+    unmatched bare-leaf events are kept as their own nodes. This pass
+    runs against the raw (unfiltered) event stream, ahead of the
+    ``prefix`` subtree filter, since a legacy bare-leaf event carries no
+    prefix to filter on.
     """
     p = Path(path)
     if not p.is_file():
@@ -289,21 +292,17 @@ def parse_nipype_events_file(
             continue
         kind = ev.get("event")
         node = ev.get("node")
-        if prefix:
-            if not node or not node.startswith(prefix):
-                continue
-            node = node[len(prefix):]
-            wf = ev.get("workflow")
-            if isinstance(wf, str) and wf.startswith(prefix):
-                ev = {**ev, "workflow": wf[len(prefix):]}
-            elif wf == prefix.rstrip("."):
-                ev = {**ev, "workflow": ""}
         leaf = ev.get("leaf") or (node.rsplit(".", 1)[-1] if node else None)
         if not node or not leaf:
             continue
 
-        # Reconciliation: rewrite leaf-only terminal events to their
-        # matching node_start's full path (FIFO).
+        # Reconciliation runs on the raw node/leaf, before the subtree filter
+        # below. A legacy bare-leaf terminal event carries no prefix at all
+        # (its "node" is just the leaf name), so filtering on `prefix` first
+        # would drop it outright and leave the matching inner node stuck
+        # "running" forever; queuing node_start paths pre-filter too keeps
+        # the FIFO in the same (raw) namespace the terminal events resolve
+        # against.
         if (
             kind in ("node_done", "node_fail")
             and "." not in node
@@ -318,6 +317,16 @@ def parse_nipype_events_file(
 
         if kind == "node_start" and "." in node:
             starts_by_leaf.setdefault(leaf, deque()).append(node)
+
+        if prefix:
+            if not node.startswith(prefix):
+                continue
+            node = node[len(prefix):]
+            wf = ev.get("workflow")
+            if isinstance(wf, str) and wf.startswith(prefix):
+                ev = {**ev, "workflow": wf[len(prefix):]}
+            elif wf == prefix.rstrip("."):
+                ev = {**ev, "workflow": ""}
 
         if node not in by_node:
             by_node[node] = NipypeNodeStatus(

@@ -88,6 +88,33 @@ def test_aggregator_reconciles_legacy_jsonl_with_leaf_only_dones(tmp_path):
     assert by_node == {"wf.a.smooth": "ok", "wf.b.smooth": "ok"}
 
 
+def test_aggregator_reconciles_legacy_dones_within_a_prefixed_subtree(tmp_path):
+    """A legacy bare-leaf ``node_done`` carries no prefix at all (it is just the
+    leaf name), so it must still resolve against a ``node_start`` queued from the
+    *raw* event stream before the ``prefix`` subtree filter runs — otherwise the
+    terminal event is dropped outright and the inner node is stuck "running"
+    forever when parsed through a run-scoped node popup (``prefix=`` set).
+    """
+    p = tmp_path / "events.jsonl"
+    wf = "fmriprepanatan__sub_01"
+    # Both starts carry full raw paths under the fp subtree; both terminal
+    # events are bare leaves, the pre-fix on-disk shape.
+    append_jsonl(p, {"event": "node_start", "node": f"{wf}.fp.inner.smooth", "leaf": "smooth",
+                     "workflow": f"{wf}.fp.inner", "t": 100.0, "level": "INFO"})
+    append_jsonl(p, {"event": "node_start", "node": f"{wf}.fp.inner.other", "leaf": "other",
+                     "workflow": f"{wf}.fp.inner", "t": 101.0, "level": "INFO"})
+    append_jsonl(p, {"event": "node_done", "node": "smooth", "leaf": "smooth",
+                     "workflow": "", "t": 105.0, "level": "INFO"})
+    append_jsonl(p, {"event": "node_fail", "node": "other", "leaf": "other",
+                     "workflow": "", "t": 106.0, "level": "INFO"})
+
+    block = parse_nipype_events_file(p, prefix=f"{wf}.fp.")
+    by_node = {n.node: n.status for n in block.recent_nodes}
+    # Prefix-stripped, and neither is left "running".
+    assert by_node == {"inner.smooth": "ok", "inner.other": "failed"}
+    assert block.counts["running"] == 0
+
+
 def test_aggregator_handles_one_done_and_one_orphan_start(tmp_path):
     """One bare-leaf done pops the oldest start; the other start stays
     open and surfaces as ``running``."""
