@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import { server } from '../../../../test/mocks/server'
+import { buildRunDetail } from '../../../../test/mocks/handlers.preproc-pipelines'
 import { NodeChecksSection } from '../NodeChecksSection'
 import { usePreprocPipelineStore } from '../../../../stores/preproc-pipeline-store'
 import type { PipelineNodeDoc } from '../../../../api/types'
@@ -21,9 +24,10 @@ describe('<NodeChecksSection />', () => {
     n = usePreprocPipelineStore.getState().pipeline.nodes.find((x) => x.id === 'smooth')!
     expect(n.data.checks?.[0]).toMatchObject({ artifact: '{out_file}', norms: { hard: { n_trs: ['>', 10] } } })
     rerender(<NodeChecksSection node={n} />)
+    server.use(http.get('/api/preproc/runs', () => HttpResponse.json({ runs: [buildRunDetail({ status: 'done', pipeline: 'p' })] })))
     const select = screen.getByLabelText('run to try on')
     fireEvent.focus(select)
-    await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(1))
+    await waitFor(() => expect(within(select).getAllByRole('option').length).toBe(2))
     fireEvent.change(select, { target: { value: 'pp_abc' } })
     fireEvent.click(screen.getByText('Try'))
     await waitFor(() => expect(screen.getByText('suspicious')).toBeInTheDocument())
