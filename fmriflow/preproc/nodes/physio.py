@@ -34,6 +34,7 @@ REGRESSORS_NAME = "physio_regressors.tsv"
 BLOCKS_NAME = "physio_blocks.json"
 WEIGHTS_NAME = "physio_weights.nii.gz"
 CLEAN_SUMMARY_NAME = "physio_clean.json"
+VARIANCE_MAP_NAME = "physio_variance_removed.nii.gz"
 
 _TRIM_PARAMS: dict[str, Any] = {
     "zscore_image": {"type": "bool", "default": True, "group": "Model",
@@ -412,6 +413,7 @@ class PhysioCleanNode:
     OUTPUTS = {
         "out_file": {"kind": "nifti", "description": "cleaned BOLD"},
         "weights_file": {"kind": "nifti", "description": "the weights used"},
+        "variance_map": {"kind": "nifti", "description": "per-voxel fraction of variance the physio model removed"},
         "summary_file": {"kind": "json", "description": "variance removed, TR counts"},
     }
     PARAM_SCHEMA: dict[str, Any] = dict(_TRIM_PARAMS)
@@ -435,7 +437,10 @@ class PhysioCleanNode:
             weights = out_dir / WEIGHTS_NAME
             estimate_weights(in_file, inputs["regressors_file"], weights, **kw)
         out = out_dir / f"{_stem(in_file)}_desc-physioclean_bold.nii.gz"
-        summary = clean(in_file, inputs["regressors_file"], weights, out, **kw)
+        vmap = out_dir / VARIANCE_MAP_NAME
+        summary = clean(in_file, inputs["regressors_file"], weights, out, variance_map_file=vmap, **kw)
+        summary["bold_file"] = str(in_file)
+        summary["out_file"] = str(out)
         summary_file = out_dir / CLEAN_SUMMARY_NAME
         summary_file.write_text(json.dumps(summary, indent=2))
-        return {"out_file": out, "weights_file": Path(weights), "summary_file": summary_file}
+        return {"out_file": out, "weights_file": Path(weights), "variance_map": vmap, "summary_file": summary_file}

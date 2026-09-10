@@ -16,6 +16,7 @@ import { SummaryTab } from './SummaryTab'
 import { ReportTab } from './ReportTab'
 import { StructuralQCTab } from './StructuralQCTab'
 import { FmriprepSummaryTab } from './FmriprepSummaryTab'
+import { PhysioTab } from './PhysioTab'
 
 export interface NodePopupContext {
   runId: string
@@ -51,6 +52,12 @@ export const CAPABILITY_TABS: NodeTabDef[] = [
 export const APP_TABS: Record<string, NodeTabDef[]> = {
   fmriprep: [
     { id: 'summary', label: 'Summary', when: (ctx) => Boolean(ctx.record.ui.summary), render: (ctx) => <FmriprepSummaryTab ctx={ctx} /> },
+  ],
+  physio_regressors: [
+    { id: 'physio', label: 'Pairing', render: (ctx) => <PhysioTab ctx={ctx} /> },
+  ],
+  physio_clean: [
+    { id: 'physio', label: 'Cleaning', render: (ctx) => <PhysioTab ctx={ctx} /> },
   ],
 }
 

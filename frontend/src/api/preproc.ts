@@ -9,6 +9,7 @@ import type {
   MetricDetail,
   MetricInfo,
   MetricRunResult,
+  PhysioNodeView,
   NodeInnerStatus,
   NormsRow,
   RunNodeRecord,
@@ -222,6 +223,10 @@ export async function fetchRunNodeManifest(runId: string, nodeId: string): Promi
 }
 
 /** Ends with `/report/` so the report's relative asset URLs resolve under it. */
+export async function fetchRunNodePhysio(runId: string, nodeId: string): Promise<PhysioNodeView> {
+  return json(`${BASE}/preproc/runs/${enc(runId)}/nodes/${enc(nodeId)}/physio`)
+}
+
 export function runNodeReportUrl(runId: string, nodeId: string): string {
   return `${BASE}/preproc/runs/${enc(runId)}/nodes/${enc(nodeId)}/report/`
 }

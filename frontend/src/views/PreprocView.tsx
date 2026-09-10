@@ -1,4 +1,4 @@
-/** Preprocessing — one page, four tabs: Build · Runs · Library · Outputs. */
+/** Preprocessing — one page, three tabs: Build · Runs · Library (Outputs is parked, reachable by hash). */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { usePreprocPipelineStore } from '../stores/preproc-pipeline-store'
@@ -22,11 +22,11 @@ import { useDialog } from '../components/common/Dialog'
 
 export type PreprocTab = 'build' | 'runs' | 'library' | 'outputs'
 
+// Outputs (the manifest browser) is parked: not in the bar, still served at #preproc/outputs.
 const TABS: { key: PreprocTab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'runs', label: 'Runs' },
   { key: 'library', label: 'Library' },
-  { key: 'outputs', label: 'Outputs' },
 ]
 
 const page: CSSProperties = { padding: 20, height: 'calc(100vh - 48px)', boxSizing: 'border-box', overflow: 'auto' }

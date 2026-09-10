@@ -200,3 +200,33 @@ async def post_run_node_drawing(
 ):
     fs = _fs_dir(_record(request, run_id, node_id))
     return save_drawing(fs, await file.read(), (ras_x, ras_y, ras_z))
+
+
+# ── physio nodes: per-run pairing / cleaning view ────────────────────
+
+
+@router.get("/preproc/runs/{run_id}/nodes/{node_id}/physio")
+async def get_run_node_physio(request: Request, run_id: str, node_id: str):
+    """Per-run rows for a physio_regressors (pairing) or physio_clean (variance removed) node."""
+    from fmriflow.server.services.physio_views import scan_physio_node
+    rec = _record(request, run_id, node_id)
+    if not rec.get("work_dir"):
+        return {"kind": None, "items": [], "work_dir": None}
+    view = scan_physio_node(Path(rec["work_dir"]))
+    for it in view["items"]:
+        if it.get("has_image"):
+            it["image_url"] = f"/api/preproc/runs/{run_id}/nodes/{node_id}/physio/{it['index']}/image.png"
+    return {**view, "work_dir": rec["work_dir"]}
+
+
+@router.get("/preproc/runs/{run_id}/nodes/{node_id}/physio/{index}/image.png")
+async def get_run_node_physio_image(request: Request, run_id: str, node_id: str, index: int):
+    from fmriflow.server.services.physio_views import image_for
+    rec = _record(request, run_id, node_id)
+    if not rec.get("work_dir"):
+        raise HTTPException(404, "node has no work dir yet")
+    png = image_for(Path(rec["work_dir"]), index)
+    if png is None:
+        raise HTTPException(404, "no image for this item")
+    return FileResponse(png, media_type="image/png")
+

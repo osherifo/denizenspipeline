@@ -1671,3 +1671,34 @@ export interface PipelineEvent {
   status?: string
   [key: string]: unknown
 }
+
+/** One run's row in a physio node's view (pairing for physio_regressors, cleaning for physio_clean). */
+export interface PhysioViewItem {
+  index: number
+  run?: string
+  error?: string
+  image_url?: string
+  has_image?: boolean
+  // pairing
+  session?: string | null
+  block?: number | null
+  n_blocks?: number | null
+  block_durations_s?: number[]
+  triggers?: number | null
+  bold_n_trs?: number | null
+  tr_s?: number | null
+  order?: string | null
+  acquisition_time_s?: number | null
+  n_regressors?: number | null
+  regressors?: string[]
+  skipped_runs?: string[]
+  recording?: string
+  // cleaning
+  n_trs?: number | null
+  variance_removed_fraction?: number | null
+  variance_removed_p50?: number | null
+  variance_removed_p95?: number | null
+  n_nan_inf?: number | null
+}
+export interface PhysioNodeView { kind: 'regressors' | 'clean' | null; items: PhysioViewItem[]; work_dir?: string | null }
+

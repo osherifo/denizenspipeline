@@ -22,4 +22,8 @@ describe('tabsFor', () => {
   it('a node with a log on disk gets the Log tab even without declaring it', () => {
     expect(tabsFor(ctx({ record: buildRunNode({ has_log: true }) })).map((t) => t.id)).toContain('log')
   })
+  it('the physio nodes get their own tab', () => {
+    expect(tabsFor(ctx({ nodeId: 'physio_regressors', record: buildRunNode({ node_id: 'physio_regressors', node_type: 'physio_regressors' }) })).map((t) => t.label)).toContain('Pairing')
+    expect(tabsFor(ctx({ nodeId: 'physio_clean', record: buildRunNode({ node_id: 'physio_clean', node_type: 'physio_clean' }) })).map((t) => t.label)).toContain('Cleaning')
+  })
 })

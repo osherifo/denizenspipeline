@@ -126,6 +126,14 @@ export const preprocPipelinesHandlers = [
   }),
   http.get('/api/preproc/runs/:id/nodes/:node/log', () => HttpResponse.json({ lines: ['a', 'b'], total: 2 })),
   http.get('/api/preproc/runs/:id/nodes/:node/inner', () => HttpResponse.json({ prefix: 'p.fp.', nipype_status: { counts: { running: 0, ok: 1, failed: 0, completed_assumed: 0, total_seen: 1 }, recent_nodes: [{ node: 'fmriprep_wf.a.n1', leaf: 'n1', workflow: 'fmriprep_wf.a', status: 'ok', started_at: 1, finished_at: 2, elapsed: 1, crash_file: null, level: 'INFO' }] } })),
+  http.get('/api/preproc/runs/:id/nodes/:node/physio', ({ params }) => HttpResponse.json(
+    params.node === 'physio_clean'
+      ? { kind: 'clean', items: [{ index: 0, run: 'sub-01_task-x_run-1_desc-preproc_bold.nii.gz', n_trs: 60, n_regressors: 10, variance_removed_fraction: 0.12, variance_removed_p50: 0.08, variance_removed_p95: 0.31, n_nan_inf: 0, has_image: true, image_url: '/api/preproc/runs/pp_abc/nodes/physio_clean/physio/0/image.png' }] }
+      : { kind: 'regressors', items: [
+          { index: 0, run: 'sub-01_ses-01_task-a_bold.nii.gz', session: '01', block: 1, n_blocks: 2, triggers: 311, bold_n_trs: 310, order: 'acquisition_time', acquisition_time_s: 62032, n_regressors: 10, has_image: true, image_url: '/api/preproc/runs/pp_abc/nodes/physio_regressors/physio/0/image.png', skipped_runs: ['sub-01_ses-00_task-test_bold.nii.gz'] },
+          { index: 1, run: 'sub-01_ses-01_task-b_bold.nii.gz', session: '01', block: 0, n_blocks: 2, triggers: 363, bold_n_trs: 363, order: 'acquisition_time', acquisition_time_s: 61080, n_regressors: 10, has_image: true, image_url: '/api/preproc/runs/pp_abc/nodes/physio_regressors/physio/1/image.png', skipped_runs: ['sub-01_ses-00_task-test_bold.nii.gz'] },
+        ] },
+  )),
   http.get('/api/preproc/runs/:id/nodes/:node/manifest', () => HttpResponse.json({ subject: '01', dataset: 'ds', backend: 'fmriprep', backend_version: '24.1.1', space: 'T1w', resolution: '', output_format: 'nifti', runs: [], confounds_applied: [], created: '2026-01-01T00:00:00Z', output_dir: '/o', sessions: [], additional_steps: [], freesurfer_subjects_dir: null })),
   http.get('/api/preproc/runs/:id/nodes/:node', ({ params }) => HttpResponse.json(params.node === 'fp' ? FMRIPREP_RUN_NODE : buildRunNode({ node_id: String(params.node), run_id: String(params.id) }))),
 

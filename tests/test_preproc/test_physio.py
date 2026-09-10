@@ -469,3 +469,55 @@ def test_regressors_node_sessions_and_bids_dir(acq_file, tmp_path, registry):
     d = [json.loads(p.read_text()) for p in res["blocks_file"]]
     assert [(x["selected"]["index"], x["session"], x["order"]) for x in d] == [(1, "01", "acquisition_time"), (0, "01", "acquisition_time")]
     assert d[0]["skipped_runs"] == ["sub-01_ses-00_task-test_desc-preproc_bold.nii.gz"]
+
+
+# ── the node popup's physio view ────────────────────────────────────
+
+
+def test_physio_view_routes(acq_file, tmp_path, monkeypatch, registry):
+    """Run both nodes for real, register a run around their dirs, read them back through the API with images."""
+    from fastapi.testclient import TestClient
+    from fmriflow.server.services.physio_views import scan_physio_node
+    from fmriflow.server.services.run_registry import RunStateFile
+
+    monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    rng = np.random.default_rng(9)
+    bolds = [_bold(tmp_path, "sub-01_task-x_run-1_desc-preproc_bold.nii.gz", N_TRS[0], rng, "16:00:00"),
+             _bold(tmp_path, "sub-01_task-x_run-2_desc-preproc_bold.nii.gz", N_TRS[1], rng, "16:30:00")]
+    wf = "p__sub_01"; work = tmp_path / "work"
+    reg_dir = work / wf / "physio_regressors"; clean_dir = work / wf / "physio_clean"
+    res = registry.get("physio_regressors").run({"physio_file": str(acq_file), "in_file": bolds}, reg_dir, {"tr": 0})
+    for i, (b, r) in enumerate(zip(res["bold_files"], res["regressors_file"])):
+        registry.get("physio_clean").run({"in_file": str(b), "regressors_file": str(r)}, clean_dir / "mapflow" / f"_physio_clean{i}", {"auto_trim": True})
+
+    view = scan_physio_node(reg_dir)
+    assert view["kind"] == "regressors" and [it["block"] for it in view["items"]] == [0, 1]
+    assert view["items"][0]["triggers"] == N_TRS[0] and view["items"][0]["order"] == "acquisition_time"
+    view = scan_physio_node(clean_dir)
+    assert view["kind"] == "clean" and len(view["items"]) == 2 and all(it["has_image"] for it in view["items"])
+    assert 0 <= view["items"][0]["variance_removed_p50"] <= 1
+
+    from fmriflow.server.app import create_app
+    app = create_app(derivatives_dir=str(tmp_path / "derivatives"))
+    mgr = app.state.preproc_run_manager
+    state = RunStateFile(
+        run_id="run1", kind="preproc", backend="pipeline", subject="01", status="done",
+        params={"pipeline": "p", "workflow": wf, "work_dir": str(work), "output_dir": str(tmp_path / "out"),
+                "nodes": [{"id": "physio_regressors", "type": "physio_regressors", "kind": "interface"},
+                          {"id": "physio_clean", "type": "physio_clean", "kind": "interface"}], "n_nodes": 2},
+        result={"status": "completed", "duration_s": 1.0, "errors": [], "nodes": [
+            {"node_id": "physio_regressors", "node_type": "physio_regressors", "kind": "interface", "status": "ok", "duration_s": 1.0, "work_dir": str(reg_dir), "error": None, "outputs": {}},
+            {"node_id": "physio_clean", "node_type": "physio_clean", "kind": "interface", "status": "ok", "duration_s": 1.0, "work_dir": str(clean_dir), "error": None, "outputs": {}},
+        ]},
+    )
+    mgr.registry.register(state); mgr.registry.update(state)
+    c = TestClient(app)
+    r = c.get("/api/preproc/runs/run1/nodes/physio_regressors/physio").json()
+    assert r["kind"] == "regressors" and [it["run"] for it in r["items"]] == [Path(b).name for b in bolds]
+    assert r["items"][0]["image_url"].endswith("/physio/0/image.png")
+    png = c.get(r["items"][0]["image_url"])
+    assert png.status_code == 200 and png.headers["content-type"] == "image/png" and png.content[:4] == b"\x89PNG"
+    r = c.get("/api/preproc/runs/run1/nodes/physio_clean/physio").json()
+    assert r["kind"] == "clean" and [it["n_trs"] for it in r["items"]] == list(N_TRS)
+    assert c.get(r["items"][1]["image_url"]).headers["content-type"] == "image/png"
+    assert c.get("/api/preproc/runs/run1/nodes/physio_clean/physio/9/image.png").status_code == 404

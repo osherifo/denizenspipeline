@@ -815,6 +815,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Physiological noise correction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#physio_regressors-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        physio_regressors parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#physio_clean-and-physio_estimate-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        physio_clean (and physio_estimate) parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1469,6 +1497,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Physiological noise correction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#physio_regressors-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        physio_regressors parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#physio_clean-and-physio_estimate-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        physio_clean (and physio_estimate) parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1809,6 +1865,134 @@ lists. The manifest's BOLD files point at the cleaned runs. On <code>physio_regr
 <code>block</code> in lockstep. The TR is read from the BOLD header when <code>tr</code> is 0 (a value above
 10 is taken as milliseconds). Physio and BOLD TR counts must agree after trimming:
 <code>auto_trim</code> drops the surplus at the end, or set <code>trim_begin</code> / <code>trim_end</code>.</p>
+<h4 id="physio_regressors-parameters"><code>physio_regressors</code> parameters<a class="headerlink" href="#physio_regressors-parameters" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Parameter</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Block</td>
+<td><code>block</code></td>
+<td>0</td>
+<td>For a single <code>in_file</code>: which block of the recording it is (0-based). Ignored when <code>in_file</code> is a list.</td>
+</tr>
+<tr>
+<td>Block</td>
+<td><code>blocks</code></td>
+<td>empty</td>
+<td>For a list: explicit block index per covered run, in list order. Empty = run <em>i</em> in scan order is block <em>i</em>.</td>
+</tr>
+<tr>
+<td>Block</td>
+<td><code>sessions</code></td>
+<td>empty</td>
+<td>Which session each recording in <code>physio_file</code> covers, in order (<code>01, 02</code>). Runs from other sessions are left out. Empty = match <code>ses-</code> in the recording names, else sorted order.</td>
+</tr>
+<tr>
+<td>Block</td>
+<td><code>max_tr_mismatch</code></td>
+<td>5</td>
+<td>A block whose trigger count differs from its run's TR count by more than this stops the node.</td>
+</tr>
+<tr>
+<td>Block</td>
+<td><code>tr</code></td>
+<td>0</td>
+<td>TR in seconds; 0 reads it from the BOLD header. A value above 10 is taken as milliseconds.</td>
+</tr>
+<tr>
+<td>Model</td>
+<td><code>model</code></td>
+<td>RETROICOR, Rate, RVHR</td>
+<td>Which regressor families to build (see below).</td>
+</tr>
+<tr>
+<td>Model</td>
+<td><code>ppg_peak_rise</code></td>
+<td>0.1</td>
+<td>A pulse-ox peak counts as a beat when it rises by this fraction of the 20th-highest peak. Raise it if noise is counted as beats, lower it if beats are missed.</td>
+</tr>
+<tr>
+<td>Model</td>
+<td><code>resp_peak_rise</code></td>
+<td>0.2</td>
+<td>The same threshold for breaths on the respiration trace.</td>
+</tr>
+<tr>
+<td>Acquisition</td>
+<td><code>ppg_channel</code>, <code>resp_channel</code>, <code>ttl_channel</code></td>
+<td>0, 2, 3</td>
+<td>Which channel of the <code>.acq</code> file holds the pulse-ox, respiration and scanner trigger.</td>
+</tr>
+<tr>
+<td>Acquisition</td>
+<td><code>run_gap_s</code></td>
+<td>10</td>
+<td>A gap between triggers longer than this (seconds) starts a new block.</td>
+</tr>
+<tr>
+<td>Acquisition</td>
+<td><code>ttl_threshold</code></td>
+<td>−1.1</td>
+<td>A drop steeper than this between consecutive trigger samples counts as a pulse.</td>
+</tr>
+</tbody>
+</table>
+<p>What the model families are: <strong>RETROICOR</strong> takes the phase of the cardiac and
+respiratory cycle at each TR (where in the beat, where in the breath) and adds its sine
+and cosine, orders 1 and 2 for the pulse and 1 for breathing, six columns. <strong>Rate</strong> counts
+beats and breaths per TR, two columns. <strong>RVHR</strong> is respiration volume per time (the
+spread of the respiration trace over three TRs) and heart-rate variation over the same
+window, each z-scored and convolved with its canonical response function, two columns.</p>
+<h4 id="physio_clean-and-physio_estimate-parameters"><code>physio_clean</code> (and <code>physio_estimate</code>) parameters<a class="headerlink" href="#physio_clean-and-physio_estimate-parameters" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Parameter</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model</td>
+<td><code>zscore_image</code></td>
+<td>on</td>
+<td>Z-score each voxel's time series before fitting and before subtracting the fit.</td>
+</tr>
+<tr>
+<td>Model</td>
+<td><code>zscore_physio</code></td>
+<td>on</td>
+<td>Z-score each regressor column before fitting. A constant column is an error.</td>
+</tr>
+<tr>
+<td>Alignment</td>
+<td><code>auto_trim</code></td>
+<td>off</td>
+<td>Drop surplus regressor rows at the end so the count matches the BOLD (a block has one trigger per TR and often one extra).</td>
+</tr>
+<tr>
+<td>Alignment</td>
+<td><code>trim_begin</code>, <code>trim_end</code></td>
+<td>0, 0</td>
+<td>Rows to drop at the start and end of the regressors instead; ignored with <code>auto_trim</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>The node fits every regressor to every voxel by least squares, subtracts the fitted
+part, z-scores what is left and adds the voxel's mean back. It writes the cleaned run
+(<code>desc-physioclean</code>), the weights image, a per-voxel map of the fraction of variance
+removed, and a summary. The node popup's <strong>Cleaning</strong> tab lists those numbers per run
+and shows the map; <strong>Pairing</strong> on <code>physio_regressors</code> shows which block each run got,
+with its trigger count against the run's TR count, and the regressors as a strip.</p>
 <p>Checkpoints: <code>physio_blocks</code> (how many blocks, and the chosen block's TR surplus over
 the BOLD), <code>physio_regressors</code> (NaNs, constant columns, collinearity),
 <code>physio_weights</code>, <code>physio_clean</code> (variance removed, NaNs). The node needs the

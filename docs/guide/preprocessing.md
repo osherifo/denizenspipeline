@@ -304,6 +304,45 @@ For one run at a time, give a single `in_file` and `block`, or iterate `in_file`
 10 is taken as milliseconds). Physio and BOLD TR counts must agree after trimming:
 `auto_trim` drops the surplus at the end, or set `trim_begin` / `trim_end`.
 
+#### `physio_regressors` parameters
+
+| Group | Parameter | Default | Meaning |
+|---|---|---|---|
+| Block | `block` | 0 | For a single `in_file`: which block of the recording it is (0-based). Ignored when `in_file` is a list. |
+| Block | `blocks` | empty | For a list: explicit block index per covered run, in list order. Empty = run *i* in scan order is block *i*. |
+| Block | `sessions` | empty | Which session each recording in `physio_file` covers, in order (`01, 02`). Runs from other sessions are left out. Empty = match `ses-` in the recording names, else sorted order. |
+| Block | `max_tr_mismatch` | 5 | A block whose trigger count differs from its run's TR count by more than this stops the node. |
+| Block | `tr` | 0 | TR in seconds; 0 reads it from the BOLD header. A value above 10 is taken as milliseconds. |
+| Model | `model` | RETROICOR, Rate, RVHR | Which regressor families to build (see below). |
+| Model | `ppg_peak_rise` | 0.1 | A pulse-ox peak counts as a beat when it rises by this fraction of the 20th-highest peak. Raise it if noise is counted as beats, lower it if beats are missed. |
+| Model | `resp_peak_rise` | 0.2 | The same threshold for breaths on the respiration trace. |
+| Acquisition | `ppg_channel`, `resp_channel`, `ttl_channel` | 0, 2, 3 | Which channel of the `.acq` file holds the pulse-ox, respiration and scanner trigger. |
+| Acquisition | `run_gap_s` | 10 | A gap between triggers longer than this (seconds) starts a new block. |
+| Acquisition | `ttl_threshold` | −1.1 | A drop steeper than this between consecutive trigger samples counts as a pulse. |
+
+What the model families are: **RETROICOR** takes the phase of the cardiac and
+respiratory cycle at each TR (where in the beat, where in the breath) and adds its sine
+and cosine, orders 1 and 2 for the pulse and 1 for breathing, six columns. **Rate** counts
+beats and breaths per TR, two columns. **RVHR** is respiration volume per time (the
+spread of the respiration trace over three TRs) and heart-rate variation over the same
+window, each z-scored and convolved with its canonical response function, two columns.
+
+#### `physio_clean` (and `physio_estimate`) parameters
+
+| Group | Parameter | Default | Meaning |
+|---|---|---|---|
+| Model | `zscore_image` | on | Z-score each voxel's time series before fitting and before subtracting the fit. |
+| Model | `zscore_physio` | on | Z-score each regressor column before fitting. A constant column is an error. |
+| Alignment | `auto_trim` | off | Drop surplus regressor rows at the end so the count matches the BOLD (a block has one trigger per TR and often one extra). |
+| Alignment | `trim_begin`, `trim_end` | 0, 0 | Rows to drop at the start and end of the regressors instead; ignored with `auto_trim`. |
+
+The node fits every regressor to every voxel by least squares, subtracts the fitted
+part, z-scores what is left and adds the voxel's mean back. It writes the cleaned run
+(`desc-physioclean`), the weights image, a per-voxel map of the fraction of variance
+removed, and a summary. The node popup's **Cleaning** tab lists those numbers per run
+and shows the map; **Pairing** on `physio_regressors` shows which block each run got,
+with its trigger count against the run's TR count, and the regressors as a strip.
+
 Checkpoints: `physio_blocks` (how many blocks, and the chosen block's TR surplus over
 the BOLD), `physio_regressors` (NaNs, constant columns, collinearity),
 `physio_weights`, `physio_clean` (variance removed, NaNs). The node needs the

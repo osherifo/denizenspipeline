@@ -152,13 +152,15 @@ def clean(
     bold_file: str | Path, regressors_file: str | Path, weights_file: str | Path, out_file: str | Path, *,
     zscore_image: bool = True, zscore_physio: bool = True,
     auto_trim: bool = False, trim_begin: int = 0, trim_end: int = 0,
+    variance_map_file: str | Path | None = None,
 ) -> dict[str, Any]:
     """Remove the fitted physio contribution from each voxel → ``out_file``.
 
     Per slice: the voxel mean is kept, the series is z-scored when the
     weights were estimated on z-scored data, ``regressors @ weights`` is
     subtracted, and the residual is z-scored and offset by the mean.
-    Returns a summary with the fraction of variance removed.
+    Returns a summary with the fraction of variance removed (overall and per-voxel
+    percentiles); ``variance_map_file`` receives the per-voxel fraction as a 3-D image.
     """
     import nibabel as nib
 
@@ -174,6 +176,7 @@ def clean(
     data = np.asarray(img.dataobj, dtype=np.float32)
     x, y, z, _ = data.shape
     out_data = np.empty_like(data)
+    removed_map = np.zeros((x, y, z), dtype=np.float32)      # per-voxel fraction of variance removed
     var_before = 0.0
     var_after = 0.0
     for k in range(z):
@@ -186,8 +189,13 @@ def clean(
             Y = _zscore(Y, axis=0)
         fitted = X @ W
         residual = Y - fitted
-        var_before += float(np.sum(Y[:, live].var(axis=0)))
-        var_after += float(np.sum(residual[:, live].var(axis=0)))
+        vb = Y.var(axis=0)
+        va = residual.var(axis=0)
+        var_before += float(np.sum(vb[live]))
+        var_after += float(np.sum(va[live]))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            frac = np.where(live & (vb > 0), 1.0 - va / vb, 0.0)
+        removed_map[:, :, k] = frac.reshape(x, y).astype(np.float32)
         cleaned = _zscore(residual, axis=0) + mean
         cleaned[:, ~live] = mean[~live]
         out_data[:, :, k, :] = cleaned.T.reshape(x, y, n_trs).astype(np.float32)
@@ -195,7 +203,14 @@ def clean(
     out = nib.Nifti1Image(out_data, img.affine, img.header)
     out.set_data_dtype(np.float32)
     out.to_filename(str(out_file))
+    if variance_map_file is not None:
+        vm = nib.Nifti1Image(removed_map, img.affine)
+        vm.set_data_dtype(np.float32)
+        vm.to_filename(str(variance_map_file))
     removed = 1.0 - var_after / var_before if var_before > 0 else 0.0
+    live_frac = removed_map[removed_map > 0]
     return {"n_trs": int(n_trs), "n_regressors": int(X.shape[1]),
             "variance_removed_fraction": round(float(removed), 6),
+            "variance_removed_p50": round(float(np.median(live_frac)), 6) if live_frac.size else 0.0,
+            "variance_removed_p95": round(float(np.percentile(live_frac, 95)), 6) if live_frac.size else 0.0,
             "n_nan_inf": int(np.sum(~np.isfinite(out_data)))}
