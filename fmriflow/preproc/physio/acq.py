@@ -103,6 +103,22 @@ def split_acq(
             raise ValueError(f"{label}_channel={ch} but {path.name} has {n_ch} channel(s)")
 
     hz = float(rec.channels[ttl_channel].samples_per_second)
+    ppg_hz = float(rec.channels[ppg_channel].samples_per_second)
+    resp_hz = float(rec.channels[resp_channel].samples_per_second)
+    # The TTL channel's sample indexes are used below to slice the PPG/RESP
+    # arrays directly — correct only when all three channels share one clock.
+    # BIOPAC recordings can sample channels at different rates; silently
+    # slicing at the wrong rate would misalign the physio traces against the
+    # scanner triggers in time and produce regressors that look fine but are
+    # wrong. Refuse rather than guess.
+    mismatched = [(label, ch_hz) for label, ch_hz in (("ppg", ppg_hz), ("resp", resp_hz)) if not np.isclose(ch_hz, hz)]
+    if mismatched:
+        detail = ", ".join(f"{label}={ch_hz:g} Hz" for label, ch_hz in mismatched)
+        raise ValueError(
+            f"{path.name}: ttl_channel={ttl_channel} is sampled at {hz:g} Hz but {detail} "
+            f"(differing sample rates would misalign the physio traces against the scanner "
+            f"triggers); pick channels that share a sampling rate"
+        )
     ttl_raw = np.asarray(rec.channels[ttl_channel].data[:], dtype=float)
     ppg_raw = np.asarray(rec.channels[ppg_channel].data[:], dtype=float)
     resp_raw = np.asarray(rec.channels[resp_channel].data[:], dtype=float)

@@ -103,6 +103,46 @@ def test_split_acq_validates_channels_and_pulses(acq_file):
         acq_mod.split_acq(acq_file.with_name("nope.acq"))
 
 
+def test_split_acq_refuses_mismatched_channel_sampling_rates(tmp_path, monkeypatch):
+    """The TTL channel's sample indexes slice the PPG/RESP arrays directly —
+    correct only when every selected channel shares one clock. A BIOPAC
+    recording where PPG/RESP were captured at a different rate than the
+    trigger channel must be refused, not silently misaligned in time."""
+    rng = np.random.default_rng(1)
+    ppg, _, resp, ttl = _synthetic_channels(rng)
+
+    class _MismatchedChannel:
+        def __init__(self, data, hz):
+            self.data = np.asarray(data, dtype=float)
+            self.samples_per_second = hz
+
+    class _MismatchedRecording:
+        def __init__(self):
+            # ttl and resp share HZ; ppg was (hypothetically) captured at
+            # twice the rate — the exact failure mode a physical BIOPAC
+            # setup with independent per-channel rates could produce.
+            self.channels = [
+                _MismatchedChannel(ppg, HZ * 2),
+                _MismatchedChannel(np.zeros_like(ttl), HZ),
+                _MismatchedChannel(resp, HZ),
+                _MismatchedChannel(ttl, HZ),
+            ]
+
+    fake = types.ModuleType("bioread")
+    fake.read_file = lambda path: _MismatchedRecording()
+    monkeypatch.setitem(sys.modules, "bioread", fake)
+    path = tmp_path / "mismatched.acq"
+    path.write_bytes(b"fake")
+
+    with pytest.raises(ValueError, match=r"ttl_channel=3 is sampled at 100 Hz but ppg=200 Hz"):
+        acq_mod.split_acq(path)
+
+    # RESP matching TTL alone is fine; only the mismatched channel is named.
+    with pytest.raises(ValueError) as exc:
+        acq_mod.split_acq(path)
+    assert "resp=" not in str(exc.value)
+
+
 # ── phlem ───────────────────────────────────────────────────────────
 
 
@@ -217,6 +257,65 @@ def test_estimate_then_clean_removes_the_physio_component(tmp_path):
     v = arr[2, 2, 1, :]
     assert abs(v.mean() - np.asarray(nib.load(str(bold)).dataobj)[2, 2, 1, :].mean()) < 1e-2
     assert abs(v.std() - 1.0) < 1e-3
+
+
+def test_clean_percentiles_include_live_voxels_the_fit_did_not_help(tmp_path):
+    """A live voxel where the applied weights are wrong (out-of-sample — the
+    weights image need not come from this same fit; physio_clean accepts one
+    connected from elsewhere) can legitimately have a *negative* variance-removed
+    fraction: the model added noise rather than removing it. The reported
+    median/95th-percentile must still be computed over every live voxel,
+    including that one — filtering on `removed_map > 0` would silently drop it
+    and any other non-improving voxel, and the summary would look far better
+    than the correction actually was.
+    """
+    rng = np.random.default_rng(11)
+    n_trs, n_reg = 60, 2
+    X = rng.standard_normal((n_trs, n_reg))
+    reg = write_regressors(tmp_path / "reg.tsv", X, ["a", "b"])
+    Z = (X - X.mean(0)) / X.std(0)
+
+    shape = (2, 1, 1)
+    # voxel 0: its signal really is driven by Z — a good fit is possible.
+    sig0 = Z @ np.array([6.0, 6.0])
+    # voxel 1: unrelated noise — any nonzero weight only adds variance to it.
+    sig1 = rng.standard_normal(n_trs) * 3.0
+    data = np.zeros((*shape, n_trs), dtype=np.float32)
+    data[0, 0, 0, :] = 1000 + 20 * sig0 + 3 * rng.standard_normal(n_trs)
+    data[1, 0, 0, :] = 1000 + sig1
+    img = nib.Nifti1Image(data, np.eye(4))
+    img.header.set_zooms((3.0, 3.0, 3.0, TR))
+    bold = tmp_path / "bold.nii.gz"
+    img.to_filename(str(bold))
+
+    # Hand-built weights: voxel 0 gets the OLS fit for its own (z-scored) signal
+    # — a good, in-sample-equivalent fit; voxel 1 gets a large, wrong weight
+    # applied to unrelated noise — guaranteed to make things worse there.
+    y0 = (data[0, 0, 0, :] - data[0, 0, 0, :].mean()) / data[0, 0, 0, :].std()
+    w0 = np.linalg.pinv(Z) @ y0
+    W = np.zeros((*shape, n_reg), dtype=np.float32)
+    W[0, 0, 0] = w0
+    W[1, 0, 0] = [15.0, 15.0]
+    w_path = tmp_path / "w.nii.gz"
+    nib.Nifti1Image(W, np.eye(4)).to_filename(str(w_path))
+
+    out = tmp_path / "out.nii.gz"
+    vmap = tmp_path / "vmap.nii.gz"
+    s = clean(bold, reg, w_path, out, variance_map_file=vmap)
+
+    removed = np.asarray(nib.load(str(vmap)).dataobj).flatten()
+    assert removed[0] > 0.9                    # voxel 0: genuinely helped
+    assert removed[1] < 0                       # voxel 1: genuinely made worse
+
+    # The reported median must reflect BOTH voxels (their average), not silently
+    # keep only the one the `removed_map > 0` filter would have let through.
+    assert s["variance_removed_p50"] == pytest.approx(float(np.median(removed)))
+    assert s["variance_removed_p50"] < 0
+    # What the pre-fix `removed_map > 0` filter would have reported instead —
+    # the bug this guards against: dropping voxel 1 makes the fit look perfect.
+    old_buggy_p50 = np.median(removed[removed > 0])
+    assert old_buggy_p50 > 0.9
+    assert s["variance_removed_p50"] < old_buggy_p50 - 100   # a very large, deliberate gap
 
 
 def test_clean_rejects_mismatched_weights(tmp_path):
