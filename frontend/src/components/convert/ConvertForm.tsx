@@ -1,8 +1,9 @@
 /** Tab 5: Run DICOM-to-BIDS conversion — form + live progress. */
 import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
-import { useConvertStore } from '../../stores/convert-store'
+import { useConvertStore, runFormParams, runFormYaml } from '../../stores/convert-store'
 import { ConvertProgress } from './ConvertProgress'
+import { PathField } from '../common/PathPicker'
 
 const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -100,6 +101,12 @@ const primaryBtn: CSSProperties = {
   color: 'var(--on-accent)',
 }
 
+const secondaryBtn: CSSProperties = {
+  ...btnStyle,
+  border: '1px solid var(--border)',
+  backgroundColor: 'var(--bg-input)',
+  color: 'var(--text-secondary)',
+}
 const sectionLabelBorder: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
@@ -116,61 +123,58 @@ export function ConvertForm() {
   const {
     running, runEvents, runStartTime, runError,
     heuristics, heuristicsLoading, loadHeuristics,
-    collectResult, collecting, collectError, collect, clearCollect,
     startRun, clearRun,
+    runForm, updateRunForm, runFormError,
+    savedConfigs, savedConfigsLoading, loadSavedConfigs, saveCurrentRunConfig, loadSavedConfig, deleteSavedConfig,
   } = useConvertStore()
 
-  // Form state
-  const [sourceDir, setSourceDir] = useState('')
-  const [bidsDir, setBidsDir] = useState('')
-  const [subject, setSubject] = useState('')
-  const [heuristic, setHeuristic] = useState('')
-  const [session, setSession] = useState('')
-  const [datasetName, setDatasetName] = useState('')
-  const [grouping, setGrouping] = useState('')
-  const [minmeta, setMinmeta] = useState(false)
-  const [overwrite, setOverwrite] = useState(false)
-  const [validateBids, setValidateBids] = useState(true)
+  // Form state lives in the store (a saved config can load back into it).
+  const { sourceDir, bidsDir, subject, heuristic, session, datasetName, grouping, minmeta, overwrite, validateBids } = runForm
+  const setSourceDir = (v: string) => updateRunForm({ sourceDir: v })
+  const setBidsDir = (v: string) => updateRunForm({ bidsDir: v })
+  const setSubject = (v: string) => updateRunForm({ subject: v })
+  const setHeuristic = (v: string) => updateRunForm({ heuristic: v })
+  const setSession = (v: string) => updateRunForm({ session: v })
+  const setDatasetName = (v: string) => updateRunForm({ datasetName: v })
+  const setGrouping = (v: string) => updateRunForm({ grouping: v })
+  const setMinmeta = (v: boolean) => updateRunForm({ minmeta: v })
+  const setOverwrite = (v: boolean) => updateRunForm({ overwrite: v })
+  const setValidateBids = (v: boolean) => updateRunForm({ validateBids: v })
+  const [showSave, setShowSave] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [saveDesc, setSaveDesc] = useState('')
+  const [showSaved, setShowSaved] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<string | null>(null)
+
+  const handleSave = async () => {
+    const name = saveName.trim() || `convert_${subject || 'subject'}_${heuristic || 'heuristic'}`
+    try {
+      await saveCurrentRunConfig(name, saveDesc.trim() || undefined)
+      setSaveStatus(`Saved as ${name}`)
+      setShowSave(false); setSaveName(''); setSaveDesc('')
+    } catch (e) {
+      setSaveStatus(String(e))
+    }
+  }
+
+  const handleExportYaml = () => {
+    const blob = new Blob([runFormYaml(runForm)], { type: 'text/yaml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `convert_${subject || 'subject'}.yaml`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   // Load heuristics for dropdown
   useEffect(() => { loadHeuristics() }, [])
 
   const handleRun = () => {
-    const params: Record<string, unknown> = {
-      source_dir: sourceDir.trim(),
-      bids_dir: bidsDir,
-      subject,
-      heuristic,
-    }
-    if (session.trim()) {
-      params.sessions = [session.trim()]
-    }
-    if (datasetName.trim()) params.dataset_name = datasetName.trim()
-    if (grouping.trim()) params.grouping = grouping.trim()
-    if (minmeta) params.minmeta = true
-    if (overwrite) params.overwrite = true
-    if (!validateBids) params.validate_bids = false
-
-    startRun(params as any)
-  }
-
-  const handleCollect = () => {
-    const params: Record<string, unknown> = {
-      bids_dir: bidsDir,
-      subject,
-    }
-    if (sourceDir.trim()) params.source_dir = sourceDir.trim()
-    if (heuristic) params.heuristic = heuristic
-    if (session.trim()) {
-      params.sessions = [session.trim()]
-    }
-    if (datasetName.trim()) params.dataset_name = datasetName.trim()
-
-    collect(params as any)
+    startRun(runFormParams(runForm) as any)
   }
 
   const canRun = sourceDir.trim() && bidsDir && subject && heuristic && !running
-  const canCollect = bidsDir && subject && !collecting
 
   const hasProgress = runEvents.length > 0 || running || runError
 
@@ -182,13 +186,13 @@ export function ConvertForm() {
         {/* Required fields */}
         <div style={fieldRow}>
           <span style={labelStyle}>Source Dir</span>
-          <input style={inputStyle} value={sourceDir} onChange={(e) => setSourceDir(e.target.value)}
+          <PathField style={inputStyle} value={sourceDir} onChange={setSourceDir}
             placeholder="/data/dicom/sub-01/session1/" />
         </div>
 
         <div style={fieldRow}>
           <span style={labelStyle}>BIDS Dir</span>
-          <input style={inputStyle} value={bidsDir} onChange={(e) => setBidsDir(e.target.value)}
+          <PathField style={inputStyle} value={bidsDir} onChange={setBidsDir}
             placeholder="/data/bids/" />
         </div>
 
@@ -275,49 +279,50 @@ export function ConvertForm() {
           <button style={primaryBtn} onClick={handleRun} disabled={!canRun}>
             {running ? 'Running...' : 'Run Conversion'}
           </button>
-          <button
-            style={{ ...btnStyle, border: '1px solid var(--border)', backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)' }}
-            onClick={handleCollect}
-            disabled={!canCollect}
-          >
-            {collecting ? 'Collecting...' : 'Collect Existing'}
-          </button>
+          <button style={secondaryBtn} onClick={() => { setShowSave(!showSave); setSaveStatus(null) }}>Save Config</button>
+          <button style={secondaryBtn} onClick={() => { setShowSaved(!showSaved); if (!showSaved) loadSavedConfigs() }}>Saved Configs</button>
+          <button style={secondaryBtn} onClick={handleExportYaml} disabled={!bidsDir && !sourceDir}>Export YAML</button>
         </div>
-
-        {/* Collect error */}
-        {collectError && (
-          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--accent-red)' }}>
-            {collectError}
+        {saveStatus && <div style={{ marginTop: 8, fontSize: 12, color: runFormError ? 'var(--accent-red)' : 'var(--accent-green)' }}>{saveStatus}</div>}
+        {showSave && (
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              style={{ ...inputStyle, maxWidth: 240 }}
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder={`convert_${subject || 'subject'}_${heuristic || 'heuristic'}`}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleSave() }}
+            />
+            <input
+              style={{ ...inputStyle, maxWidth: 320 }}
+              value={saveDesc}
+              onChange={(e) => setSaveDesc(e.target.value)}
+              placeholder="description (optional)"
+            />
+            <button style={secondaryBtn} onClick={() => void handleSave()}>Save</button>
+            <button style={secondaryBtn} onClick={() => setShowSave(false)}>Cancel</button>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>→ $FMRIFLOW_HOME/configs/convert/</span>
+          </div>
+        )}
+        {showSaved && (
+          <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 6, padding: 12, backgroundColor: 'var(--bg-secondary)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Saved single-run configs {savedConfigsLoading && '(loading...)'}
+            </div>
+            {savedConfigs.filter((c) => c.type === 'single').length === 0 && !savedConfigsLoading && (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>No saved configs yet.</div>
+            )}
+            {savedConfigs.filter((c) => c.type === 'single').map((c) => (
+              <div key={c.filename} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 }}>
+                <button style={{ ...secondaryBtn, fontSize: 11, padding: '4px 12px' }} onClick={() => { loadSavedConfig(c.filename); setShowSaved(false) }}>Load</button>
+                <span style={{ flex: 1 }}>{c.name}{c.description ? <span style={{ color: 'var(--text-secondary)' }}> — {c.description}</span> : null}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{c.subject ? `sub-${c.subject} · ` : ''}{c.heuristic}</span>
+                <button style={{ ...secondaryBtn, fontSize: 11, padding: '4px 8px' }} onClick={() => { if (confirm(`Delete ${c.name}?`)) deleteSavedConfig(c.filename) }}>✕</button>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Collect result */}
-        {collectResult && (
-          <>
-            <div style={sectionLabelBorder}>Collect Result</div>
-            <div style={{ fontSize: 12, color: 'var(--accent-green)', fontWeight: 600, marginBottom: 8 }}>
-              {'\u2713'} Manifest created: {collectResult.manifest.runs.length} runs found
-            </div>
-            {collectResult.manifest.runs.map((run) => (
-              <div key={run.run_name} style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>
-                {run.run_name} &middot; {run.modality} &middot; {run.n_volumes} volumes
-                {run.tr != null && <> &middot; TR={run.tr}s</>}
-              </div>
-            ))}
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
-              Saved to: {collectResult.manifest_path}
-            </div>
-            <button
-              style={{ ...btnStyle, backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', border: '1px solid var(--border)', marginTop: 12, fontSize: 11 }}
-              onClick={() => {
-                useConvertStore.setState({ tab: 'manifests' })
-                clearCollect()
-              }}
-            >
-              View in Manifests tab
-            </button>
-          </>
-        )}
       </div>
 
       {/* Live progress */}

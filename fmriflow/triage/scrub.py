@@ -5,8 +5,8 @@ proposed error YAML gets run through :func:`scrub_text` first.
 
 What counts as sensitive here:
 
-* **Subject IDs.** BIDS paths like ``sub-AN/anat/…`` or raw strings
-  like ``20150722AN`` identify a participant. Redact the id, keep the
+* **Subject IDs.** BIDS paths like ``sub-XY/anat/…`` or raw strings
+  like ``20240101XY`` identify a participant. Redact the id, keep the
   structural context (the ``sub-<...>`` prefix, the date pattern, the
   scan-session name) so the error is still diagnosable.
 * **Home directory prefixes.** ``/home/omarsh/...`` or
@@ -51,12 +51,12 @@ _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 # BIDS-style subject ids: ``sub-<label>`` where label is alnum.
 # We keep the ``sub-`` prefix so structural context survives, and
-# redact the label. Examples: sub-AN → sub-<REDACTED>, sub-sub01 →
+# redact the label. Examples: sub-XY → sub-<REDACTED>, sub-sub01 →
 # sub-<REDACTED>.
 _BIDS_SUB_RE = re.compile(r"\bsub-[A-Za-z0-9]+")
 
 # Session-folder names that encode a scan date + initials, e.g.
-# 20150722AN or 20130201AH. Pattern: 8 digits followed by 2–4 letters.
+# 20240101XY or 20240202ZW. Pattern: 8 digits followed by 2–4 letters.
 # This is lab-specific but common enough to catch.
 _DATE_INITIALS_RE = re.compile(r"\b\d{8}[A-Z]{2,5}\b")
 
@@ -64,8 +64,8 @@ _DATE_INITIALS_RE = re.compile(r"\b\d{8}[A-Z]{2,5}\b")
 # ``--subject`` / ``participant:`` etc. on a command line. This is a
 # best-effort catch; we prefer NOT to over-redact generic strings.
 # Examples of what we DO want to catch:
-#   fmriprep ... --participant-label AN …
-#   heudiconv ... -s AN ...
+#   fmriprep ... --participant-label XY …
+#   heudiconv ... -s XY ...
 _PARTICIPANT_ARG_RE = re.compile(
     r"(--participant-label|--subject|-s|-ss|-subjid|participant:?)"
     r"[\s=]+"
@@ -103,11 +103,11 @@ def scrub_text(
     # Emails.
     text = _EMAIL_RE.sub("<email>", text)
 
-    # Date-initials session folders (e.g. 20150722AN).
+    # Date-initials session folders (e.g. 20240101XY).
     text = _DATE_INITIALS_RE.sub("<session-id>", text)
 
     # Participant-label command-line args — run BEFORE the BIDS sub-
-    # pattern so `--s sub-AN` is replaced as a whole (value pattern
+    # pattern so `--s sub-XY` is replaced as a whole (value pattern
     # allows dashes) and we don't get cascading partial redactions.
     def _redact_participant_arg(m: re.Match) -> str:
         flag = m.group(1)
@@ -117,7 +117,7 @@ def scrub_text(
 
     # BIDS sub-<label> → sub-<REDACTED>. Anything on a command line
     # was already handled above; this catches bare mentions like
-    # `.../sub-AN/anat/T1w.nii.gz`.
+    # `.../sub-XY/anat/T1w.nii.gz`.
     text = _BIDS_SUB_RE.sub("sub-<REDACTED>", text)
 
     # Caller-supplied extras — literal string replacement, case-sensitive.

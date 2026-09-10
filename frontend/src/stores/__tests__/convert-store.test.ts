@@ -10,8 +10,7 @@ describe('useConvertStore', () => {
 
   it('initial state', () => {
     const s = useConvertStore.getState()
-    expect(s.tab).toBe('tools')
-    expect(s.tools).toEqual([])
+    expect(s.tab).toBe('heuristics')
     expect(s.batchJobs).toHaveLength(1)
     expect(s.batchShared.maxWorkers).toBe(2)
   })
@@ -21,14 +20,28 @@ describe('useConvertStore', () => {
     expect(useConvertStore.getState().tab).toBe('heuristics')
   })
 
-  it('loadTools populates list', async () => {
-    await useConvertStore.getState().loadTools()
-    expect(useConvertStore.getState().tools.length).toBe(1)
-  })
-
   it('loadHeuristics populates list', async () => {
     await useConvertStore.getState().loadHeuristics()
     expect(useConvertStore.getState().heuristics.length).toBe(1)
+  })
+
+  describe('manifests', () => {
+    it('deleteManifest clears the selection and reloads the list', async () => {
+      await useConvertStore.getState().selectManifest('01')
+      expect(useConvertStore.getState().selectedSubject).toBe('01')
+      await useConvertStore.getState().deleteManifest('01')
+      const s = useConvertStore.getState()
+      expect(s.selectedSubject).toBeNull()
+      expect(s.selectedManifest).toBeNull()
+      expect(s.manifests).toEqual([])
+    })
+
+    it('deleteManifest surfaces a server error', async () => {
+      server.use(http.delete('/api/convert/manifests/:subject', () =>
+        HttpResponse.json({ detail: "No manifest for subject 'zz'" }, { status: 404 })))
+      await useConvertStore.getState().deleteManifest('zz')
+      expect(useConvertStore.getState().validationErrors?.[0]).toMatch(/No manifest/)
+    })
   })
 
   describe('heuristic editor', () => {
@@ -68,6 +81,38 @@ describe('useConvertStore', () => {
       expect(useConvertStore.getState().editorDirty).toBe(false)
     })
 
+    it('openHeuristic fills the metadata strip from the listing', async () => {
+      await useConvertStore.getState().loadHeuristics()
+      await useConvertStore.getState().openHeuristic('reading_heuristic')
+      const m = useConvertStore.getState().editorMeta
+      expect(m.description).toBe('Reads stories')
+      expect(m.version).toBe('2.1')
+      expect(m.tasks).toBe('story, rest')
+    })
+
+    it('saveHeuristic sends sidecar metadata with tasks split into a list', async () => {
+      let sent: Record<string, unknown> | null = null
+      server.use(
+        http.post('/api/convert/heuristics/save', async ({ request }) => {
+          sent = (await request.json()) as Record<string, unknown>
+          return HttpResponse.json({ saved: true, name: 'h', path: '/tmp/h.py' })
+        }),
+      )
+      useConvertStore.getState().setEditorName('h')
+      useConvertStore.getState().setEditorCode('# x')
+      useConvertStore.getState().setEditorMeta({ description: 'd', version: '3', tasks: 'a, b,, c' })
+      await useConvertStore.getState().saveHeuristic()
+      expect(sent).toMatchObject({ name: 'h', description: 'd', version: '3', tasks: ['a', 'b', 'c'] })
+    })
+
+    it('copyHeuristic reloads the list and opens the copy', async () => {
+      await useConvertStore.getState().copyHeuristic('reading_heuristic', 'reading_v2')
+      const s = useConvertStore.getState()
+      expect(s.editorName).toBe('reading_v2')
+      expect(s.editorCode).toBe('# heuristic')
+      expect(s.editorError).toBeNull()
+    })
+
     it('deleteHeuristic clears editor when current heuristic is deleted', async () => {
       useConvertStore.getState().setEditorName('h')
       useConvertStore.getState().setEditorCode('# x')
@@ -83,18 +128,26 @@ describe('useConvertStore', () => {
     })
   })
 
-  describe('scan + collect + run', () => {
-    it('scanDicom populates scanResult', async () => {
+  describe('scan + run', () => {
+    it('scanDicom starts a job, polls it and populates scanResult', async () => {
       await useConvertStore.getState().scanDicom('/tmp/dicom')
-      expect(useConvertStore.getState().scanResult?.series.length).toBe(1)
+      const st = useConvertStore.getState()
+      expect(st.scanResult?.series.length).toBe(1)
+      expect(st.scanResult?.series[0].manufacturer).toBe('Siemens')
+      expect(st.scanProgress?.files_seen).toBe(10)
+      expect(st.scanning).toBe(false)
     })
 
-    it('collect populates collectResult', async () => {
-      await useConvertStore.getState().collect({
-        bids_dir: '/tmp/bids',
-        subject: 'sub-01',
-      })
-      expect(useConvertStore.getState().collectResult).not.toBeNull()
+    it('a cancelled scan reports how far it got', async () => {
+      server.use(
+        http.get('/api/convert/scan/:id', () => HttpResponse.json({
+          scan_id: 'scan_1', source_dir: '/tmp/dicom', status: 'cancelled', started_at: 0, finished_at: 1,
+          progress: { files_seen: 42, dicoms_seen: 40, series_found: 2, current_dir: '' }, result: null, error: null,
+        })),
+      )
+      await useConvertStore.getState().scanDicom('/tmp/dicom')
+      expect(useConvertStore.getState().scanError).toMatch(/cancelled after 42 files/)
+      expect(useConvertStore.getState().scanResult).toBeNull()
     })
 
     it('startRun sets runId via WS', async () => {
@@ -167,5 +220,46 @@ describe('useConvertStore', () => {
       await useConvertStore.getState().loadBatchYaml('jobs: []')
       expect(useConvertStore.getState().batchJobs[0].subject).toBe('sub-99')
     })
+  })
+})
+
+describe('single-run form in the store', () => {
+  it('builds run params and YAML from the form', async () => {
+    const { runFormParams, runFormYaml, EMPTY_RUN_FORM } = await import('../convert-store')
+    const f = { ...EMPTY_RUN_FORM, sourceDir: ' /d/sub01 ', bidsDir: '/b', subject: '01', heuristic: 'h', session: '02', minmeta: true, validateBids: false }
+    expect(runFormParams(f)).toEqual({ source_dir: '/d/sub01', bids_dir: '/b', subject: '01', heuristic: 'h', sessions: ['02'], minmeta: true, validate_bids: false })
+    const y = runFormYaml(f)
+    expect(y.startsWith('convert:\n')).toBe(true)
+    expect(y).toContain('source_dir: "/d/sub01"')
+    expect(y).toContain('sessions: ["02"]')
+    expect(y).toContain('validate_bids: false')
+    expect(y).not.toContain('overwrite')
+  })
+
+  it('saves the form and loads a saved single config back into it', async () => {
+    const { http, HttpResponse } = await import('msw')
+    const { server } = await import('../../test/mocks/server')
+    const { useConvertStore } = await import('../convert-store')
+    let saved: Record<string, unknown> | null = null
+    server.use(
+      http.post('/api/convert/configs/save-run', async ({ request }) => {
+        saved = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ filename: 'mine.yaml', name: 'mine', type: 'single', created: '', description: '', heuristic: 'h', bids_dir: '/b' })
+      }),
+      http.get('/api/convert/configs/mine.yaml', () => HttpResponse.json({
+        filename: 'mine.yaml', name: 'mine', type: 'single', created: '', description: '', heuristic: 'h', bids_dir: '/b',
+        config: { convert: { source_dir: '/d', bids_dir: '/b', subject: '01', heuristic: 'h', sessions: ['02'], overwrite: true } },
+        yaml_string: '',
+      })),
+    )
+    useConvertStore.getState().updateRunForm({ sourceDir: '/d', bidsDir: '/b', subject: '01', heuristic: 'h' })
+    await useConvertStore.getState().saveCurrentRunConfig('mine')
+    expect((saved as unknown as { params: Record<string, unknown> })?.params.subject).toBe('01')
+
+    useConvertStore.getState().resetRunForm()
+    await useConvertStore.getState().loadSavedConfig('mine.yaml')
+    const st = useConvertStore.getState()
+    expect(st.tab).toBe('convert')
+    expect(st.runForm).toMatchObject({ sourceDir: '/d', bidsDir: '/b', subject: '01', heuristic: 'h', session: '02', overwrite: true, validateBids: true })
   })
 })

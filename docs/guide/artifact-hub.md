@@ -2,7 +2,7 @@
 
 The **Artifact Hub** lets you browse and share fMRIflow artifacts — error-KB
 entries, plugin modules, stage configs (analysis, DICOM-to-BIDS, preproc,
-autoflatten and workflow), preproc-stack presets, heudiconv heuristics, and
+autoflatten and workflow), preprocessing pipelines, heudiconv heuristics, and
 precomputed feature arrays — across three tiers:
 
 - **local** — what's already on this machine (your `$FMRIFLOW_HOME` user tier +

@@ -24,19 +24,17 @@ End-to-end orchestration across all four stages (convert, preproc, autoflatten, 
 
 ### DICOM to BIDS
 
-Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
+Convert raw DICOM images to BIDS format. Six tabs cover the full workflow. The conversion tools themselves (heudiconv, dcm2niix, bids-validator) ship in the Docker images; see the [external tools reference](../reference/external-tools.md) for what each image provides and how to check a bare install.
 
-**Tools** — Shows installed conversion tools (heudiconv, dcm2niix) and their status.
+**Heuristics** — Browse and search available heuristic files. Each card shows the heuristic name, version, and description; opening one shows its code with a metadata strip (description, version, scanner pattern, tasks, notes) that is saved to the heuristic's YAML sidecar alongside the code. **Duplicate** copies the open heuristic, code and metadata, under a new name into your addons — the way to start from a bundled heuristic without editing it in place. See [DICOM → BIDS → Metadata sidecar](dicom-to-bids.md#metadata-sidecar).
 
-**Heuristics** — Browse and search available heuristic files. Each card shows the heuristic name, scanner pattern, and description.
+**Scan** — Point at a DICOM directory to see what series it contains before converting. The scan runs in the background with a live file count and a **Cancel** button, and the series table lists one row per series with the DICOM attributes read verbatim from that series' first file — `Modality`, `ImageType`, `Manufacturer`, `ManufacturerModelName`, `MagneticFieldStrength`, `SoftwareVersions`, `StationName`, `InstitutionName`, `StudyDate`, `ProtocolName` — under their DICOM keyword names, plus the file count. Nothing is inferred: what a series becomes in BIDS is decided by the heuristic, not by this table. Values are per series, so a directory mixing sessions from different scanners is read correctly, and the table scrolls sideways when it is wider than the page.
 
-**Scan** — Point at a DICOM directory to see what series it contains before converting.
+**Manifests** — Browse previously generated conversion manifests. The runs table lists every output file with its BIDS parts read verbatim from the path: the `datatype` directory, one column per entity key found in any file (`sub`, `ses`, `task`, `acq`, `run`, `inv`, …, in BIDS order), the `suffix`, the image `shape`, the sidecar's `RepetitionTime` and the file itself. Nothing is inferred; the table scrolls sideways when wide. Validate manifests against configs to check compatibility. **Delete manifest** removes the subject's `convert_manifest.json` after a confirmation; the BIDS files it describes stay on disk, and converting the subject again writes a fresh manifest.
 
-**Manifests** — Browse previously generated conversion manifests. Validate them against configs to check compatibility.
+**Configs** — Browse YAML conversion configs saved under `./experiments/convert/` (pre-migration configs at `~/.fmriflow/convert_configs/` are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a **Run** button that dispatches either a single or batch conversion based on the file's shape. The YAML is editable in place — **Save** writes it back (the file's `_meta` block is kept if you drop it), **Revert** discards the draft. **Duplicate** copies the selected config under a new name, so a per-subject variant is a copy plus one edit rather than a new form. Pre-migration (legacy) configs are read-only until duplicated. See [DICOM → BIDS → Saved configs](dicom-to-bids.md#saved-configs) for the schema.
 
-**Configs** — Browse YAML conversion configs saved under `./experiments/convert/` (pre-migration configs at `~/.fmriflow/convert_configs/` are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a **Run** button that dispatches either a single or batch conversion based on the file's shape. See [DICOM → BIDS → Saved configs](dicom-to-bids.md#saved-configs) for the schema.
-
-**Convert** — Single-subject conversion form:
+**Convert** — Single-subject conversion form (path fields have a **Browse…** button that lists directories as the server sees them). Next to **Run** are **Save Config** (writes a `convert:` YAML under `$FMRIFLOW_HOME/configs/convert/`), **Saved Configs** (load a saved single-run config back into the form, or delete it) and **Export YAML** (download the form as a config file). The **Scan** tab's path field browses too. The picker can also create a **New folder**, for a fresh BIDS output directory:
 
 - Select a heuristic from the dropdown
 - Set the BIDS output directory and source DICOM directory
@@ -53,26 +51,17 @@ Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:
 - **Saved Configs** panel lists previously saved batches with Load/Delete actions
 - Click **Run Batch** to start — progress shows per-job status badges (queued, running, done, failed), elapsed time, and expandable per-job logs
 
-### Preprocessing Manager
+### Preprocessing
 
-Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Five tabs:
+One page, four tabs, over one pipeline graph. See the [Preprocessing guide](preprocessing.md).
 
-**Backends** — Lists installed preprocessing backends with version and status.
+**Build** — Templates (`fmriprep_full`, `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`) and saved pipelines on the left; the graph editor in the middle (click a palette node to add it, drag ports to connect); the selected node's grouped parameters, input bindings and manifest role on the right, above the **Run** panel (subject, paths, plugin, cache, rerun-from, abort-on-bad-checkpoint).
 
-**Manifests** — Browse completed preprocessing outputs. Each manifest records the backend, parameters, output space, and per-run QC metrics. Validate against an analysis config to check compatibility before running the pipeline.
+**Runs** — Every pipeline run. The detail shows the graph with live node status, the checkpoint filmstrip (verdict-coloured frames with thumbnails and the metric / bound table), a node's outputs drawer (NIfTI viewer, reports, JSON, pickles, crash files), the fmriprep node's **Inner DAG**, the log, the event stream, and a **Resume / Restart** choice for lost or failed runs.
 
-**Configs** — Browse YAML preproc configs discovered under `./experiments/preproc/`. Each file must have a top-level `preproc:` section. Clicking a config shows a summary grid (subject, backend, container, mode, paths) and the raw YAML, with a **Run** button that launches the job and streams live fmriprep output into the progress panel below. An **In Flight** panel at the top lists running jobs (plus recent completions) with `Watch` and `Cancel` buttons — jobs launched here survive server restarts and reconnect automatically, with a `REATTACHED` tag. See [Preprocessing → Workflow 2](preprocessing.md#workflow-2-run-preprocessing-from-a-yaml-config) and [Long-running jobs](preprocessing.md#long-running-jobs--detach--reattach) for details.
+**Library** — Browse nodes by kind (source / node / app / workflow) and source (built-in / user), with preflight status, parameter schema and source code. **New node** opens a Monaco scaffold saved to `$FMRIFLOW_HOME/addons/nodes/`; **Import nipype pipeline** turns an existing `.py` into a composite node.
 
-**Collect** — Build a manifest from existing preprocessing outputs (e.g., from a previous fmriprep run). Specify the output directory and file pattern; the tool scans and organizes the files.
-
-**Run** — Launch a preprocessing job from an inline form (no YAML):
-
-- Select backend, set BIDS directory, output directory, work directory, subject ID
-- Toggle options like `--skip-bids-validation` in the Advanced section
-- Click **Run** for live progress with event streaming
-- Manifest auto-refreshes on completion
-
----
+**Outputs** — Manifests on disk (validate against an analysis config; structural-QC status per subject) and **Collect** existing derivatives into a manifest.
 
 ## Analysis
 

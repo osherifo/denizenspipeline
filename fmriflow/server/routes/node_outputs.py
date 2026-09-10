@@ -19,7 +19,9 @@ import pickle
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
+
+from fmriflow.server.services.qc_files import safe_join
 from fastapi.responses import FileResponse
 
 router = APIRouter(tags=["node-outputs"])
@@ -67,8 +69,7 @@ _MEDIA_TYPES = {
 
 
 def _summary(request: Request, run_id: str) -> dict:
-    mgr = request.app.state.preproc_manager
-    s = mgr.get_run(run_id)
+    s = request.app.state.preproc_run_manager.get_run(run_id)
     if s is None:
         raise HTTPException(404, f"Run '{run_id}' not found")
     return s
@@ -82,19 +83,6 @@ def _node_dir(work_dir: str | None, node_path: str) -> Path:
     if not parts:
         raise HTTPException(400, "Empty node path")
     return Path(work_dir).joinpath(*parts)
-
-
-def _safe_join(root: Path, rel: str) -> Path:
-    """Resolve ``root / rel`` and refuse to leave ``root``."""
-    target = (root / rel).resolve()
-    root_resolved = root.resolve()
-    sep = "/"
-    if (
-        not str(target).startswith(str(root_resolved) + sep)
-        and target != root_resolved
-    ):
-        raise HTTPException(403, "Path escapes root")
-    return target
 
 
 def _kind_for(suffix: str, size: int) -> str:
@@ -174,13 +162,15 @@ def _to_jsonable(obj: Any, *, depth: int = 0, max_depth: int = 6) -> Any:
 
 
 @router.get("/preproc/runs/{run_id}/work_tree")
-async def list_work_tree(request: Request, run_id: str):
+async def list_work_tree(request: Request, run_id: str, prefix: str | None = Query(None)):
     """Walk the run's work_dir and return every nipype leaf directory
     discovered on disk.
 
     A leaf is any directory containing ``_node.pklz`` (nipype writes
     this for every executed node, cached or not) or ``result_*.pklz``.
     Returned paths are dotted (``a.b.c``) relative to ``work_dir``.
+    ``prefix`` (dotted, with trailing ``.``) keeps one outer node's subtree
+    and strips it, matching the per-node inner status.
     """
     summary = _summary(request, run_id)
     work_dir = summary.get("work_dir")
@@ -211,6 +201,8 @@ async def list_work_tree(request: Request, run_id: str):
             leaves.append(".".join(parts))
 
     leaves = sorted(set(leaves))
+    if prefix:
+        leaves = [leaf[len(prefix):] for leaf in leaves if leaf.startswith(prefix)]
     return {"work_dir": str(root), "leaves": leaves}
 
 
@@ -281,7 +273,7 @@ async def get_node_file(
     suffix = Path(rel).suffix.lower()
     if suffix not in _NODE_OUTPUT_SUFFIXES:
         raise HTTPException(403, f"Suffix not allowed: {suffix}")
-    target = _safe_join(leaf, rel)
+    target = safe_join(leaf, rel)
     if not target.is_file():
         raise HTTPException(404, f"File not found: {rel}")
     media_type = _MEDIA_TYPES.get(suffix, "application/octet-stream")
@@ -300,7 +292,7 @@ async def get_node_pickle(
     suffix = Path(rel).suffix.lower()
     if suffix not in _PICKLE_SUFFIXES:
         raise HTTPException(403, f"Not a pickle: {rel}")
-    target = _safe_join(leaf, rel)
+    target = safe_join(leaf, rel)
     if not target.is_file():
         raise HTTPException(404, f"File not found: {rel}")
     try:

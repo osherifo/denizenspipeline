@@ -7,16 +7,12 @@ interesting one — an MP2RAGE protocol emits INV1, INV2 and UNI per repetition,
 and a heuristic that keeps only UNI throws away exactly the volumes needed to
 correct the image later.
 
-Three views come out of the same join, answering different questions:
+Two views come out of the same join, answering different questions:
 
 - **audit** (per subject) — one row per series, with the parameters a rule
   discriminates on (TR/TE/dims/image_type) beside the BIDS path it produced.
   This is the debugging view: you need the parameters and the outcome in one
   row to see *why* a rule fired.
-- **coverage** (per study) — subjects × BIDS keys, cell = file count. A whole
-  empty column means a rule never matched anywhere: a code bug. A single empty
-  cell means one subject is missing something the others have: a data
-  incident. Same visual, different diagnosis.
 - **flow** (per study) — aggregated protocol → datatype → suffix counts, for a
   Sankey. Aggregate only; at series granularity it is spaghetti. Its one job
   is making the dropped ribbon impossible to ignore.
@@ -152,6 +148,26 @@ def _label(subject: str) -> str:
     return subject[4:] if subject.startswith("sub-") else subject
 
 
+
+def _dicominfo(info: Path) -> Path | None:
+    """heudiconv writes ``dicominfo.tsv`` sessionless and ``dicominfo_ses-<ses>.tsv``
+    for a sessioned conversion."""
+    flat = info / "dicominfo.tsv"
+    if flat.is_file():
+        return flat
+    return next(iter(sorted(info.glob("dicominfo_ses-*.tsv"))), None)
+
+
+def _mapping_file(info: Path, label: str) -> Path | None:
+    """``<sub>.auto.txt`` (or a hand-edited ``.edit.txt``); sessioned runs get
+    ``<sub>_ses-<ses>.auto.txt``. The edit file wins when both exist."""
+    for pattern in (f"{label}.edit.txt", f"{label}_ses-*.edit.txt", f"{label}.auto.txt", f"{label}_ses-*.auto.txt"):
+        found = sorted(info.glob(pattern)) if "*" in pattern else ([info / pattern] if (info / pattern).is_file() else [])
+        if found:
+            return found[0]
+    return None
+
+
 def info_dir(bids_dir: Path | str, subject: str, session: str | None = None) -> Path:
     """Locate a conversion's ``info`` directory.
 
@@ -170,10 +186,10 @@ def info_dir(bids_dir: Path | str, subject: str, session: str | None = None) -> 
         return root / label / "info"
 
     flat = root / "info"
-    if (flat / "dicominfo.tsv").is_file():
+    if _dicominfo(flat) is not None:
         return flat
     for child in sorted(root.glob("ses-*")):
-        if (child / "info" / "dicominfo.tsv").is_file():
+        if _dicominfo(child / "info") is not None:
             return child / "info"
     return flat        # nothing found; caller reports the miss
 
@@ -182,18 +198,17 @@ def list_units(bids_dir: Path | str) -> list[tuple[str, str | None]]:
     """Every (subject, session) with conversion provenance, sorted.
 
     A sessioned study gets one unit per session rather than one per subject:
-    a subject missing an entire session is precisely the kind of gap the
-    coverage matrix exists to show.
+    a subject missing an entire session is a gap in its own right.
     """
     root = Path(bids_dir) / HEUDICONV_DIR
     if not root.is_dir():
         return []
     units: list[tuple[str, str | None]] = []
     for sub in sorted(p for p in root.iterdir() if p.is_dir()):
-        if (sub / "info" / "dicominfo.tsv").is_file():
+        if _dicominfo(sub / "info") is not None:
             units.append((sub.name, None))
         for ses in sorted(sub.glob("ses-*")):
-            if (ses / "info" / "dicominfo.tsv").is_file():
+            if _dicominfo(ses / "info") is not None:
                 units.append((sub.name, ses.name))
     return units
 
@@ -213,11 +228,11 @@ def unit_label(subject: str, session: str | None) -> str:
 
 
 def _read_series(info: Path) -> list[dict]:
-    path = info / "dicominfo.tsv"
-    if not path.is_file():
+    path = _dicominfo(info)
+    if path is None:
         raise DecisionTableError(
-            f"no dicominfo.tsv under {info} — this dataset was not produced by "
-            "heudiconv, or its .heudiconv directory was removed"
+            f"no dicominfo.tsv (or dicominfo_ses-*.tsv) under {info} — this dataset was not "
+            "produced by heudiconv, or its .heudiconv directory was removed"
         )
     with open(path, newline="") as f:
         return [
@@ -234,8 +249,7 @@ def _read_mapping(info: Path, subject: str) -> dict[str, list[tuple[str, int]]]:
     path actually written.
     """
     label = _label(subject)
-    candidates = [info / f"{label}.auto.txt", info / f"{label}.edit.txt"]
-    path = next((p for p in candidates if p.is_file()), None)
+    path = _mapping_file(info, label)
     if path is None:
         raise DecisionTableError(
             f"no {label}.auto.txt under {info} — the conversion left no "
@@ -260,11 +274,10 @@ def declared_templates(info: Path, subject: str) -> list[str]:
     """Every template the heuristic declared, claimed or not.
 
     A template that produced nothing anywhere is the signal for a rule that
-    never matched — the coverage matrix's "whole empty column".
+    never matched.
     """
     label = _label(subject)
-    path = next((p for p in (info / f"{label}.auto.txt", info / f"{label}.edit.txt")
-                 if p.is_file()), None)
+    path = _mapping_file(info, label)
     if path is None:
         return []
     try:
@@ -298,13 +311,12 @@ def _format_item(token: str, item: int) -> str:
 
 
 def bids_key(path: str) -> str:
-    """Collapse a BIDS path to a coverage-matrix column.
+    """Collapse a BIDS path to a per-acquisition key.
 
     Drops only the things that vary by *repetition* — the subject label and
     the run index — and keeps every other entity. ``inv-1`` and ``inv-2`` are
     different images, and a subject missing one of them is a real finding, so
-    folding them into a single column would hide exactly what the matrix is
-    for. Run indices do fold, because four runs of one acquisition is not four
+    folding them into a single key would hide exactly that. Run indices do fold, because four runs of one acquisition is not four
     different things to be missing.
     """
     parts = path.split("/")
@@ -394,14 +406,6 @@ def _warnings_for(series: list[SeriesDecision]) -> list[str]:
                 f"repeats of one acquisition should share a geometry."
             )
 
-    substantial = [s for s in series if s.dropped and s.n_files >= 20]
-    if substantial:
-        out.append(
-            f"{len(substantial)} dropped series carry ≥20 files each and may "
-            f"hold usable data: "
-            + ", ".join(f"{s.description} ({s.n_files})" for s in substantial)
-        )
-
     if series and not any(not s.dropped for s in series):
         out.append("no series were mapped — the heuristic matched nothing")
 
@@ -415,6 +419,9 @@ def build_decision_table(
 ) -> DecisionTable:
     """Reconstruct what the heuristic did, from files heudiconv left behind."""
     info = info_dir(bids_dir, subject, session)
+    if not session and info.parent.name.startswith("ses-"):
+        session = info.parent.name  # the session the fallback picked
+
     rows = _read_series(info)
     mapping = _read_mapping(info, subject)
 
@@ -462,70 +469,7 @@ def has_provenance(
 ) -> bool:
     """True when a decision table can be built — lets the UI hide the panel."""
     info = info_dir(bids_dir, subject, session)
-    label = _label(subject)
-    return (info / "dicominfo.tsv").is_file() and (
-        (info / f"{label}.auto.txt").is_file() or (info / f"{label}.edit.txt").is_file()
-    )
-
-
-# ── view 3: coverage matrix ──────────────────────────────────────────
-
-def build_coverage(bids_dir: Path | str) -> dict:
-    """Subjects × BIDS keys, cell = number of outputs.
-
-    Columns are the union of what any subject produced *plus* every template
-    any heuristic declared. That second half is what makes the two failure
-    modes distinguishable:
-
-    - a column empty for EVERY subject — a rule that never matched anywhere,
-      i.e. a code bug;
-    - a column empty for ONE subject — that subject is missing something the
-      rest have, i.e. a data incident (aborted scan, renamed protocol).
-    """
-    bids_dir = Path(bids_dir)
-    units = list_units(bids_dir)
-
-    counts: dict[str, Counter] = {}
-    keys: set[str] = set()
-    errors: dict[str, str] = {}
-    labels: list[str] = []
-
-    for subject, session in units:
-        label = unit_label(subject, session)
-        labels.append(label)
-        try:
-            table = build_decision_table(bids_dir, subject, session)
-        except DecisionTableError as e:
-            errors[label] = str(e)
-            counts[label] = Counter()
-            continue
-        c: Counter = Counter()
-        for s in table.series:
-            for path in s.outputs:
-                c[bids_key(path)] += 1
-        counts[label] = c
-        keys.update(c)
-        # Declared-but-unclaimed templates still deserve a column.
-        for template in declared_templates(info_dir(bids_dir, subject, session), subject):
-            keys.add(bids_key(resolve_template(template, subject, 1)))
-
-    ordered = sorted(keys)
-    matrix = [
-        {"subject": label, "cells": [counts[label].get(k, 0) for k in ordered]}
-        for label in labels
-    ]
-    # A column nobody filled is a rule that never fired.
-    never = [k for i, k in enumerate(ordered)
-             if all(row["cells"][i] == 0 for row in matrix)] if matrix else []
-
-    return {
-        "bids_dir": str(bids_dir),
-        "subjects": labels,
-        "keys": ordered,
-        "matrix": matrix,
-        "never_matched": never,
-        "errors": errors,
-    }
+    return _dicominfo(info) is not None and _mapping_file(info, _label(subject)) is not None
 
 
 # ── view 2: study-level flow ─────────────────────────────────────────

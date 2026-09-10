@@ -32,16 +32,16 @@ function mockReview(subject: string, status = 'pending') {
 
 describe('<StructuralQCModal />', () => {
   it('renders the subject id in the header', async () => {
-    mockReview('AN', 'pending')
-    renderWithProviders(<StructuralQCModal subject="AN" onClose={vi.fn()} />)
-    // sub-AN appears only in the modal header; "Structural QC" also
+    mockReview('01', 'pending')
+    renderWithProviders(<StructuralQCModal subject="01" onClose={vi.fn()} />)
+    // sub-01 appears only in the modal header; "Structural QC" also
     // matches the underlying panel's section label so we don't assert it.
-    expect(screen.getByText('sub-AN')).toBeInTheDocument()
+    expect(screen.getByText('sub-01')).toBeInTheDocument()
   })
 
   it('hosts the underlying StructuralQCPanel for the subject', async () => {
-    mockReview('AN', 'approved')
-    renderWithProviders(<StructuralQCModal subject="AN" onClose={vi.fn()} />)
+    mockReview('01', 'approved')
+    renderWithProviders(<StructuralQCModal subject="01" onClose={vi.fn()} />)
     await waitFor(() => {
       // Header-line status pill from the inner panel.
       expect(screen.getByText(/●\s*Approve/)).toBeInTheDocument()
@@ -49,20 +49,20 @@ describe('<StructuralQCModal />', () => {
   })
 
   it('calls onClose when the Close button is clicked', async () => {
-    mockReview('AN')
+    mockReview('01')
     const onClose = vi.fn()
     const { user } = renderWithProviders(
-      <StructuralQCModal subject="AN" onClose={onClose} />,
+      <StructuralQCModal subject="01" onClose={onClose} />,
     )
     await user.click(screen.getByRole('button', { name: /close/i }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('calls onClose when the backdrop is clicked', async () => {
-    mockReview('AN')
+    mockReview('01')
     const onClose = vi.fn()
     const { container, user } = renderWithProviders(
-      <StructuralQCModal subject="AN" onClose={onClose} />,
+      <StructuralQCModal subject="01" onClose={onClose} />,
     )
     // First top-level child is the backdrop (z-index'd absolute).
     const backdrop = container.firstElementChild as HTMLElement

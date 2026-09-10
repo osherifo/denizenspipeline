@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -44,11 +46,20 @@ class RegisterHeuristicBody(BaseModel):
 
 
 class SaveHeuristicBody(BaseModel):
+    """Heuristic code plus its sidecar metadata. A metadata field left as
+    ``None`` is untouched; an empty string clears it."""
+
     name: str
     code: str
     description: str | None = None
     scanner_pattern: str | None = None
+    version: str | None = None
     tasks: list[str] | None = None
+    notes: str | None = None
+
+
+class CopyHeuristicBody(BaseModel):
+    new_name: str
 
 
 class HeuristicTemplateBody(BaseModel):
@@ -168,30 +179,15 @@ async def get_convert_decision_table(
     if not root.is_dir():
         raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
 
+    from fmriflow.convert.decision_table import list_units
     try:
         table = build_decision_table(root, subject, session)
     except DecisionTableError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    return table.to_dict()
-
-
-@router.get("/convert/coverage")
-async def get_convert_coverage(bids_dir: str):
-    """Subjects x BIDS keys, cell = number of outputs.
-
-    Reads the two failure modes apart at a glance: a column empty for EVERY
-    subject is a rule that never matched (a code bug), while a column empty
-    for ONE subject is that subject missing something the others have (a data
-    incident). ``never_matched`` names the former.
-    """
-    from pathlib import Path
-
-    from fmriflow.convert.decision_table import build_coverage
-
-    root = Path(bids_dir).expanduser().resolve()
-    if not root.is_dir():
-        raise HTTPException(status_code=404, detail=f"No such BIDS directory: {root}")
-    return build_coverage(root)
+    out = table.to_dict()
+    label = subject if subject.startswith("sub-") else subject
+    out["sessions"] = [ses for sub, ses in list_units(root) if sub in (subject, label, f"sub-{subject}") and ses]
+    return out
 
 
 @router.get("/convert/flow")
@@ -235,6 +231,16 @@ async def validate_manifest(request: Request, subject: str):
     return mgr.validate_manifest(subject)
 
 
+@router.delete("/convert/manifests/{subject}")
+async def delete_manifest(request: Request, subject: str):
+    """Delete a subject's manifest file. BIDS outputs are left in place."""
+    mgr = request.app.state.convert_manager
+    result = mgr.delete_manifest(subject)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No manifest for subject '{subject}'")
+    return result
+
+
 @router.post("/convert/manifests/rescan")
 async def rescan_manifests(request: Request):
     """Force rescan for convert manifests."""
@@ -267,13 +273,29 @@ async def start_run(request: Request, body: RunBody):
 
 @router.post("/convert/scan")
 async def scan_dicom(request: Request, body: ScanBody):
-    """Scan a DICOM directory for scanner info and series listing."""
+    """Start a DICOM directory scan on a thread; poll ``GET /convert/scan/{scan_id}``.
+
+    Scanning a large tree used to block the event loop for the whole server;
+    now it runs in the background and can be cancelled.
+    """
     mgr = request.app.state.convert_manager
-    try:
-        result = mgr.scan_dicom(body.source_dir)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    if not body.source_dir or not Path(body.source_dir).expanduser().is_dir():
+        raise HTTPException(status_code=400, detail=f"not a directory: {body.source_dir}")
+    scan_id = mgr.start_scan(body.source_dir)
+    return mgr.get_scan(scan_id)
+
+
+@router.get("/convert/scan/{scan_id}")
+async def get_scan(request: Request, scan_id: str):
+    job = request.app.state.convert_manager.get_scan(scan_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"unknown scan {scan_id!r}")
+    return job
+
+
+@router.post("/convert/scan/{scan_id}/cancel")
+async def cancel_scan(request: Request, scan_id: str):
+    return request.app.state.convert_manager.cancel_scan(scan_id)
 
 
 @router.post("/convert/heuristics/register")
@@ -301,26 +323,20 @@ async def register_heuristic(request: Request, body: RegisterHeuristicBody):
 @router.post("/convert/heuristics/save")
 async def save_heuristic(request: Request, body: SaveHeuristicBody):
     """Save heuristic code to disk (create or overwrite)."""
-    from fmriflow.convert.heuristics import save_heuristic_code
+    from fmriflow.convert.heuristics import save_heuristic_code, write_heuristic_sidecar
 
     try:
         info = save_heuristic_code(body.name, body.code)
 
-        # Update YAML sidecar metadata if provided
-        if body.description or body.scanner_pattern or body.tasks:
-            import yaml
-            sidecar_path = info.path.with_suffix(".yaml")
-            sidecar_data: dict = {}
-            if sidecar_path.is_file():
-                sidecar_data = yaml.safe_load(sidecar_path.read_text()) or {}
-            sidecar_data["name"] = body.name
-            if body.description is not None:
-                sidecar_data["description"] = body.description
-            if body.scanner_pattern is not None:
-                sidecar_data["scanner_pattern"] = body.scanner_pattern
-            if body.tasks is not None:
-                sidecar_data["tasks"] = body.tasks
-            sidecar_path.write_text(yaml.dump(sidecar_data, default_flow_style=False))
+        # Sidecar metadata (description, version, …) lives in <name>.yaml
+        # next to the file; merge whatever the client sent.
+        meta = {
+            k: getattr(body, k)
+            for k in ("description", "scanner_pattern", "version", "tasks", "notes")
+            if getattr(body, k) is not None
+        }
+        if meta:
+            info = write_heuristic_sidecar(body.name, **meta)
 
         return {
             "saved": True,
@@ -350,6 +366,28 @@ async def delete_heuristic(request: Request, name: str):
         return {"deleted": True, "name": name}
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/convert/heuristics/{name}/copy")
+async def copy_heuristic_route(request: Request, name: str, body: CopyHeuristicBody):
+    """Duplicate a heuristic (bundled or user) into the user tier under a new name."""
+    from fmriflow.convert.heuristics import HeuristicError, copy_heuristic
+
+    try:
+        info = copy_heuristic(name, body.new_name)
+    except HeuristicError as e:
+        status = 409 if "already exists" in str(e) else 404
+        raise HTTPException(status_code=status, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "copied": True,
+        "source": name,
+        "name": info.name,
+        "path": str(info.path),
+        "description": info.description,
+        "version": info.version,
+    }
 
 
 @router.get("/convert/heuristics/{name}/code")
@@ -509,6 +547,42 @@ async def save_batch_config(request: Request, body: SaveBatchConfigBody):
     except FileExistsError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class CopyConfigBody(BaseModel):
+    new_name: str
+
+
+class UpdateConfigBody(BaseModel):
+    yaml_string: str
+
+
+@router.put("/convert/configs/{filename}")
+async def update_saved_config(request: Request, filename: str, body: UpdateConfigBody):
+    """Overwrite a saved config with edited YAML."""
+    store = request.app.state.convert_config_store
+    try:
+        return store.update_config(filename, body.yaml_string)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/convert/configs/{filename}/copy")
+async def copy_saved_config(request: Request, filename: str, body: CopyConfigBody):
+    """Duplicate a saved convert config under a new name."""
+    store = request.app.state.convert_config_store
+    if not body.new_name.strip():
+        raise HTTPException(status_code=400, detail="new_name is required")
+    try:
+        return store.copy_config(filename, body.new_name.strip())
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 

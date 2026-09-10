@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react'
-/** DICOM-to-BIDS Converter — browse tools, heuristics, scan DICOMs, manifests, run conversion, batch. */
+/** DICOM-to-BIDS Converter — heuristics, scan DICOMs, manifests, configs, run conversion, batch. */
 import { useConvertStore } from '../stores/convert-store'
-import { ToolStatusPanel } from '../components/convert/ToolStatus'
 import { HeuristicBrowser } from '../components/convert/HeuristicBrowser'
 import { DicomScanner } from '../components/convert/DicomScanner'
 import { ConvertManifestBrowser } from '../components/convert/ConvertManifestBrowser'
@@ -10,10 +9,9 @@ import { BatchForm } from '../components/convert/BatchForm'
 import { BatchProgress } from '../components/convert/BatchProgress'
 import { ConvertConfigBrowser } from '../components/convert/ConvertConfigBrowser'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
+type Tab = 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
 
 const tabs: { key: Tab; label: string }[] = [
-  { key: 'tools', label: 'Tools' },
   { key: 'heuristics', label: 'Heuristics' },
   { key: 'scan', label: 'Scan' },
   { key: 'manifests', label: 'Manifests' },
@@ -59,7 +57,6 @@ export function DicomBidsConverter() {
         ))}
       </div>
 
-      {tab === 'tools' && <ToolStatusPanel />}
       {tab === 'heuristics' && <HeuristicBrowser />}
       {tab === 'scan' && <DicomScanner />}
       {tab === 'manifests' && <ConvertManifestBrowser />}

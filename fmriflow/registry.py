@@ -24,7 +24,6 @@ from fmriflow.modules._decorators import (
     _analyzers,
     _models,
     _reporters,
-    _nipype_nodes,
     _group_analyzers,
     _group_reporters,
     _study_analyzers,
@@ -55,7 +54,6 @@ class ModuleRegistry:
         self._analyzers = _analyzers
         self._models = _models
         self._reporters = _reporters
-        self._nipype_nodes = _nipype_nodes
         self._group_analyzers = _group_analyzers
         self._group_reporters = _group_reporters
         self._study_analyzers = _study_analyzers
@@ -85,7 +83,6 @@ class ModuleRegistry:
             'fmriflow.analyzers': self._analyzers,
             'fmriflow.models': self._models,
             'fmriflow.reporters': self._reporters,
-            'fmriflow.nipype_nodes': self._nipype_nodes,
             'fmriflow.group_analyzers': self._group_analyzers,
             'fmriflow.group_reporters': self._group_reporters,
             'fmriflow.study_analyzers': self._study_analyzers,
@@ -209,13 +206,6 @@ class ModuleRegistry:
             return cls
         return wrapper
 
-    def nipype_node(self, name: str):
-        """Decorator to register a post-fmriprep nipype node wrapper."""
-        def wrapper(cls):
-            self._nipype_nodes[name] = cls
-            return cls
-        return wrapper
-
     def group_analyzer(self, name: str):
         """Decorator to register a group-scope analyzer."""
         def wrapper(cls):
@@ -317,13 +307,6 @@ class ModuleRegistry:
                 f"Available: {list(self._reporters.keys())}")
         return self._reporters[name]()
 
-    def get_nipype_node(self, name: str):
-        if name not in self._nipype_nodes:
-            raise ModuleLookupError(
-                f"Nipype node '{name}' not found. "
-                f"Available: {list(self._nipype_nodes.keys())}")
-        return self._nipype_nodes[name]()
-
     def get_group_analyzer(self, name: str):
         if name not in self._group_analyzers:
             raise ModuleLookupError(
@@ -389,7 +372,6 @@ class ModuleRegistry:
             'analyzers': sorted(self._analyzers.keys()),
             'models': sorted(self._models.keys()),
             'reporters': sorted(self._reporters.keys()),
-            'nipype_nodes': sorted(self._nipype_nodes.keys()),
             'group_analyzers': sorted(self._group_analyzers.keys()),
             'study_analyzers': sorted(self._study_analyzers.keys()),
             'study_reporters': sorted(self._study_reporters.keys()),
@@ -409,7 +391,6 @@ class ModuleRegistry:
             'analyzers': self._analyzers,
             'models': self._models,
             'reporters': self._reporters,
-            'nipype_nodes': self._nipype_nodes,
             'group_analyzers': self._group_analyzers,
             'group_reporters': self._group_reporters,
             'study_analyzers': self._study_analyzers,
@@ -443,7 +424,6 @@ class ModuleRegistry:
             'analyzers': 'analyze',
             'models': 'model',
             'reporters': 'report',
-            'nipype_nodes': 'post_preproc',
             'group_analyzers': 'group_analyze',
             'group_reporters': 'group_report',
             'study_analyzers': 'study_analyze',

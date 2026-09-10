@@ -2,9 +2,6 @@ import { http, HttpResponse } from 'msw'
 import { buildAutoflattenRun } from '../factories'
 
 export const autoflattenHandlers = [
-  http.get('/api/autoflatten/doctor', () =>
-    HttpResponse.json({ tools: [{ name: 'mris_flatten', available: true, detail: '' }] }),
-  ),
   http.post('/api/autoflatten/status', () =>
     HttpResponse.json({
       subject: 'sub-01',

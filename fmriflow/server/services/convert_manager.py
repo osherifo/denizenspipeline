@@ -160,6 +160,29 @@ class BatchRunHandle:
         }
 
 
+@dataclass
+class ScanJob:
+    """A DICOM directory scan running on a thread."""
+
+    scan_id: str
+    source_dir: str
+    status: str = "running"            # running | done | failed | cancelled
+    started_at: float = field(default_factory=time.time)
+    finished_at: float | None = None
+    progress: dict = field(default_factory=lambda: {"files_seen": 0, "dicoms_seen": 0, "series_found": 0, "current_dir": ""})
+    result: dict | None = None
+    error: str | None = None
+    cancel: threading.Event = field(default_factory=threading.Event)
+    thread: threading.Thread | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "scan_id": self.scan_id, "source_dir": self.source_dir, "status": self.status,
+            "started_at": self.started_at, "finished_at": self.finished_at,
+            "progress": dict(self.progress), "result": self.result, "error": self.error,
+        }
+
+
 class ConvertManager:
     """Manages heuristic discovery, manifest scanning, and conversion runs."""
 
@@ -168,6 +191,7 @@ class ConvertManager:
         heuristics_dir: Path | None = None,
         registry: RunRegistry | None = None,
     ):
+        self.scan_jobs: dict[str, ScanJob] = {}
         self.heuristics_dir = heuristics_dir
         self._manifests_cache: list[dict] | None = None
         self._cache_time: float = 0
@@ -195,6 +219,7 @@ class ConvertManager:
                 "scanner_pattern": info.scanner_pattern,
                 "version": info.version,
                 "tasks": info.tasks,
+                "notes": info.notes,
                 "path": str(info.path),
             })
         return results
@@ -350,6 +375,24 @@ class ConvertManager:
                     return manifest.to_dict()
                 except Exception:
                     return None
+        return None
+
+    def delete_manifest(self, subject: str) -> dict | None:
+        """Remove a subject's ``convert_manifest.json``.
+
+        Only the provenance record goes; the BIDS files it describes are
+        untouched. Returns ``None`` when no manifest matches.
+        """
+        for m in self.scan_manifests():
+            if m["subject"] == subject:
+                path = Path(m["path"])
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+                self.invalidate_cache()
+                logger.info("Deleted convert manifest for %s at %s", subject, path)
+                return {"deleted": True, "subject": subject, "path": str(path)}
         return None
 
     def validate_manifest(self, subject: str) -> dict:
@@ -605,18 +648,66 @@ class ConvertManager:
 
     # ── DICOM scanning ───────────────────────────────────────────
 
-    def scan_dicom(self, source_dir: str) -> dict:
-        """Scan a DICOM directory for scanner info and series listing."""
+    def scan_dicom(self, source_dir: str, *, should_stop=None, on_progress=None) -> dict:
+        """Scan a DICOM directory for scanner info and series listing (blocking)."""
         from fmriflow.convert.dicom_utils import extract_scanner_info, list_series
         from dataclasses import asdict
 
-        scanner = extract_scanner_info(source_dir)
-        series = list_series(source_dir)
+        scanner = extract_scanner_info(source_dir, should_stop=should_stop)
+        series = list_series(source_dir, should_stop=should_stop, on_progress=on_progress)
 
         return {
             "scanner": asdict(scanner) if scanner else None,
             "series": [asdict(s) for s in series],
         }
+
+    # ── Cancellable scan jobs ────────────────────────────────────
+
+    def start_scan(self, source_dir: str) -> str:
+        """Run :meth:`scan_dicom` on a thread; returns a scan id to poll / cancel."""
+        from fmriflow.convert.dicom_utils import ScanCancelled
+
+        scan_id = f"scan_{uuid.uuid4().hex[:10]}"
+        job = ScanJob(scan_id=scan_id, source_dir=source_dir)
+        self.scan_jobs[scan_id] = job
+
+        def _run() -> None:
+            try:
+                result = self.scan_dicom(
+                    source_dir,
+                    should_stop=job.cancel.is_set,
+                    on_progress=lambda prog: job.progress.update(prog),
+                )
+                job.result = result
+                job.status = "cancelled" if job.cancel.is_set() else "done"
+            except ScanCancelled:
+                job.status = "cancelled"
+            except Exception as e:  # noqa: BLE001
+                job.status = "failed"
+                job.error = str(e)
+            finally:
+                job.finished_at = time.time()
+                # Keep the last few jobs around for late polls; drop older ones.
+                finished = [k for k, v in self.scan_jobs.items() if v.status != "running"]
+                for k in finished[:-20]:
+                    self.scan_jobs.pop(k, None)
+
+        job.thread = threading.Thread(target=_run, daemon=True, name=scan_id)
+        job.thread.start()
+        return scan_id
+
+    def get_scan(self, scan_id: str) -> dict | None:
+        job = self.scan_jobs.get(scan_id)
+        return job.to_dict() if job else None
+
+    def cancel_scan(self, scan_id: str) -> dict:
+        job = self.scan_jobs.get(scan_id)
+        if job is None:
+            return {"cancelled": False, "reason": "unknown scan_id"}
+        if job.status != "running":
+            return {"cancelled": False, "reason": f"status is {job.status}"}
+        job.cancel.set()
+        return {"cancelled": True}
 
     # ── Batch conversion ──────────────────────────────────────────
 

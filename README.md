@@ -63,7 +63,7 @@ splitting the data subtree onto another disk, and troubleshooting.
 
 ## Share artifacts
 
-Modules, configs, heuristics, preproc-stack presets, error-KB entries and
+Modules, configs, heuristics, preprocessing pipelines, error-KB entries and
 precomputed feature arrays can be shared through the **Artifact Hub** — a
 git-backed registry with local, within-lab, and curated community tiers. Open
 the **Hub** tab.

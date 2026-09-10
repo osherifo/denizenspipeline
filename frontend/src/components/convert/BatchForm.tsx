@@ -1,6 +1,7 @@
 /** Batch DICOM-to-BIDS conversion — form for shared settings + jobs table. */
 
 import { useEffect, useRef, useState } from 'react'
+import { PathField } from '../common/PathPicker'
 import type { CSSProperties, ChangeEvent } from 'react'
 
 import { useConvertStore } from '../../stores/convert-store'
@@ -253,20 +254,20 @@ export function BatchForm() {
 
       <div style={fieldRow}>
         <span style={labelStyle}>BIDS Dir</span>
-        <input
+        <PathField
           style={inputStyle}
           value={batchShared.bidsDir}
-          onChange={(e) => updateBatchShared({ bidsDir: e.target.value })}
+          onChange={(v) => updateBatchShared({ bidsDir: v })}
           placeholder="/data/bids/study/"
         />
       </div>
 
       <div style={fieldRow}>
         <span style={labelStyle}>Source Root</span>
-        <input
+        <PathField
           style={inputStyle}
           value={batchShared.sourceRoot}
-          onChange={(e) => updateBatchShared({ sourceRoot: e.target.value })}
+          onChange={(v) => updateBatchShared({ sourceRoot: v })}
           placeholder="/data/dicoms/ (optional, for relative source dirs)"
         />
       </div>
@@ -360,11 +361,13 @@ export function BatchForm() {
                   />
                 </td>
                 <td style={tdStyle}>
-                  <input
+                  <PathField
                     style={cellInput}
+                    compact
+                    baseDir={batchShared.sourceRoot || undefined}
                     value={job.source_dir}
-                    onChange={(e) => updateBatchJob(i, { source_dir: e.target.value })}
-                    placeholder="session01/"
+                    onChange={(v) => updateBatchJob(i, { source_dir: v })}
+                    placeholder={batchShared.sourceRoot ? 'session01/ (under Source Root)' : '/data/dicoms/sub01/session01/'}
                   />
                 </td>
                 <td style={tdStyle}>

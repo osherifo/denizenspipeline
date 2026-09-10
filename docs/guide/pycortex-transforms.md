@@ -25,16 +25,16 @@ uses the same transform name in configs — instead of a different ad-hoc name p
 
 ```bash
 # Boundary-based registration (FreeSurfer bbregister) — pycortex default
-fmriflow pycortex-transform create ANfs /path/to/mean_bold.nii.gz --xfmname fmriflow --method automatic
+fmriflow pycortex-transform create sub01fs /path/to/mean_bold.nii.gz --xfmname fmriflow --method automatic
 
 # FSL FLIRT BBR variant (uses the pycortex surfaces; no $SUBJECTS_DIR name dependency)
-fmriflow pycortex-transform create ANfs /path/to/mean_bold.nii.gz --method automatic_fsl
+fmriflow pycortex-transform create sub01fs /path/to/mean_bold.nii.gz --method automatic_fsl
 
 # Interactive manual aligner
-fmriflow pycortex-transform create ANfs /path/to/mean_bold.nii.gz --method manual
+fmriflow pycortex-transform create sub01fs /path/to/mean_bold.nii.gz --method manual
 
 # Inspect an existing transform's cortical-mask voxel count
-fmriflow pycortex-transform status ANfs --xfmname fmriflow
+fmriflow pycortex-transform status sub01fs --xfmname fmriflow
 
 # Check pycortex / FSL availability
 fmriflow pycortex-transform doctor
@@ -58,7 +58,7 @@ Set the transform name in your subject config and render with the native-space f
 
 ```yaml
 subject_config:
-  surface: ANfs
+  surface: sub01fs
   transform: fmriflow
 
 reporting:

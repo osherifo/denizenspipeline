@@ -2,6 +2,22 @@
 
 Convert raw DICOM data to BIDS format using heudiconv with a heuristic registry and batch conversion support.
 
+
+!!! tip "Save and export from the form"
+    The single-subject Convert form can **Save Config** (a reusable `convert:` YAML in
+    `$FMRIFLOW_HOME/configs/convert/`), reload it from **Saved Configs**, and **Export YAML**
+    to download the same file — the batch form has always had these.
+
+!!! tip "Browse for paths"
+    Every path field in the Convert and Batch forms has a **Browse…** button. It lists
+    directories *as the server sees them* — inside Docker that is the container's view
+    (`/workspace/data/…`), which is exactly what conversion can open. Browsing is limited to
+    the data dir and the home dir (the picker opens in the data dir; **↑ up** walks towards a root); a typed
+    path the server cannot see gets a warning under the field. To browse another location,
+    such as a read-only mount of a lab share, list it in `FMRIFLOW_BROWSE_ROOTS`
+    (colon-separated) — see [Docker → Browsing other locations](docker.md#browsing-other-locations).
+    The picker's **New folder** button creates a directory in place, handy for a fresh BIDS output dir.
+
 ## Single conversion
 
 ```bash
@@ -64,7 +80,36 @@ fmriflow convert heuristics add my_heuristic.py
 
 # Get info about a heuristic
 fmriflow convert heuristics info my_study
+
+# Duplicate one (bundled or your own) under a new name to adapt it
+fmriflow convert heuristics copy glab_general my_study
 ```
+
+A copy takes the code and the metadata sidecar and lands in your own
+`$FMRIFLOW_HOME/addons/heuristics/`, so the bundled original stays as it is.
+The Web UI's Heuristics editor has the same action as a **Duplicate** button.
+
+### Metadata sidecar
+
+The description, version, scanner pattern, task list and notes shown for a
+heuristic do not come from the Python file. They live in a YAML sidecar
+with the same stem, `my_study.yaml` next to `my_study.py`:
+
+```yaml
+name: my_study
+description: Story listening sessions (anat, fmap, func)
+scanner_pattern: null
+version: "1.1"
+tasks: [story, rest]
+notes: >
+  Longer free text — series naming quirks, changelog.
+```
+
+A heuristic without a sidecar lists with its name only. The Web UI's
+Heuristics editor has a metadata strip above the code that reads and
+writes this file on **Save**; the sidecar is created if missing. Bundled
+heuristics are read-only, so editing one saves a shadowing copy plus
+sidecar into your own `$FMRIFLOW_HOME/addons/heuristics/`.
 
 ### Writing a heuristic
 
@@ -156,19 +201,23 @@ jobs re-appear as standalone convert runs in the Recent Runs panel.
 # List active + recent convert runs
 curl http://localhost:8000/api/convert/runs
 
+# Delete a subject's manifest (BIDS outputs are left in place)
+curl -X DELETE http://localhost:8000/api/convert/manifests/sub01
+
 # Summary + last 200 log lines for one
-curl http://localhost:8000/api/convert/runs/convert_AN_4f2b9c1a
+curl http://localhost:8000/api/convert/runs/convert_sub01_4f2b9c1a
 
 # Cancel a running subprocess (SIGTERM → SIGKILL after 5s)
-curl -X POST http://localhost:8000/api/convert/runs/convert_AN_4f2b9c1a/cancel
+curl -X POST http://localhost:8000/api/convert/runs/convert_sub01_4f2b9c1a/cancel
 ```
 
 ### Outcome inference
 
 On reattach (PID-dead check), the monitor looks for
 `{bids_dir}/convert_manifest.json` — present → `done` (manifest reloaded);
-missing → `failed`. You can always re-run the manifest build from the
-Collect tab if heudiconv finished but the parent died mid-collect.
+missing → `failed`. If heudiconv finished but the server died before the
+manifest was written, rebuild it with `fmriflow convert collect --bids-dir … --subject …`
+(or `POST /api/convert/collect`) — the outputs on disk are all it needs.
 
 ## Web UI
 

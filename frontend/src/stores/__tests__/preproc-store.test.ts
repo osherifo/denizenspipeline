@@ -5,7 +5,6 @@ import { usePreprocStore } from '../preproc-store'
 import {
   installMockWebSocket,
   uninstallMockWebSocket,
-  mockWsServer,
 } from '../../test/ws'
 
 describe('usePreprocStore', () => {
@@ -14,10 +13,8 @@ describe('usePreprocStore', () => {
 
   it('initial state', () => {
     const s = usePreprocStore.getState()
-    expect(s.tab).toBe('backends')
-    expect(s.backends).toEqual([])
+    expect(usePreprocStore.getState().tab).toBe('manifests')
     expect(s.manifests).toEqual([])
-    expect(s.runId).toBeNull()
   })
 
   it('setTab changes active tab', () => {
@@ -25,11 +22,6 @@ describe('usePreprocStore', () => {
     expect(usePreprocStore.getState().tab).toBe('manifests')
   })
 
-  it('loadBackends populates list', async () => {
-    await usePreprocStore.getState().loadBackends()
-    expect(usePreprocStore.getState().backends.length).toBe(2)
-    expect(usePreprocStore.getState().backendsLoading).toBe(false)
-  })
 
   it('loadManifests populates list', async () => {
     await usePreprocStore.getState().loadManifests()
@@ -77,41 +69,9 @@ describe('usePreprocStore', () => {
   // point — same event-handling logic, exercised here so the
   // tail-progress / tail-done / tail-failed coverage isn't lost.
 
-  it('attachToRun tracks events via WS', async () => {
-    const conn = mockWsServer('ws://localhost:5173/ws/preproc/preproc-1')
-    usePreprocStore.getState().attachToRun('preproc-1')
-    await new Promise((r) => setTimeout(r, 10))
-    conn.send({ event: 'progress', message: 'half' })
-    await new Promise((r) => setTimeout(r, 10))
-    expect(usePreprocStore.getState().runEvents).toHaveLength(1)
-    expect(usePreprocStore.getState().runId).toBe('preproc-1')
-  })
 
-  it('attachToRun handles done event', async () => {
-    const conn = mockWsServer('ws://localhost:5173/ws/preproc/preproc-1')
-    usePreprocStore.getState().attachToRun('preproc-1')
-    await new Promise((r) => setTimeout(r, 10))
-    conn.send({ event: 'done' })
-    await new Promise((r) => setTimeout(r, 10))
-    expect(usePreprocStore.getState().running).toBe(false)
-  })
 
-  it('attachToRun handles failed event with error', async () => {
-    const conn = mockWsServer('ws://localhost:5173/ws/preproc/preproc-1')
-    usePreprocStore.getState().attachToRun('preproc-1')
-    await new Promise((r) => setTimeout(r, 10))
-    conn.send({ event: 'failed', error: 'oom' })
-    await new Promise((r) => setTimeout(r, 10))
-    expect(usePreprocStore.getState().runError).toBe('oom')
-  })
 
-  it('clearRun resets run state', () => {
-    usePreprocStore.setState({ runId: 'x', runEvents: [{ event: 'progress' }], running: true })
-    usePreprocStore.getState().clearRun()
-    expect(usePreprocStore.getState().runId).toBeNull()
-    expect(usePreprocStore.getState().runEvents).toEqual([])
-    expect(usePreprocStore.getState().running).toBe(false)
-  })
 
   it('clearCollect resets collect state', () => {
     usePreprocStore.setState({ collectResult: { manifest: {} } as any, collectError: 'x' })
@@ -120,8 +80,4 @@ describe('usePreprocStore', () => {
     expect(usePreprocStore.getState().collectError).toBeNull()
   })
 
-  it('loadPreprocRuns populates run list', async () => {
-    await usePreprocStore.getState().loadPreprocRuns()
-    expect(usePreprocStore.getState().preprocRuns.length).toBe(1)
-  })
 })

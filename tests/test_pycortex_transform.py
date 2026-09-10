@@ -14,7 +14,7 @@ from fmriflow.preproc.pycortex_transform import (
 
 
 def test_default_xfmname_is_fmriflow():
-    cfg = PycortexTransformConfig(cx_subject="ANfs", reference=__file__)
+    cfg = PycortexTransformConfig(cx_subject="sub01fs", reference=__file__)
     assert cfg.xfmname == "fmriflow"
     assert DEFAULT_XFMNAME == "fmriflow"
 
@@ -22,12 +22,12 @@ def test_default_xfmname_is_fmriflow():
 def test_validate_ok_with_existing_reference(tmp_path: Path):
     ref = tmp_path / "ref.nii.gz"
     ref.write_bytes(b"\x00")
-    cfg = PycortexTransformConfig(cx_subject="ANfs", reference=str(ref))
+    cfg = PycortexTransformConfig(cx_subject="sub01fs", reference=str(ref))
     assert cfg.validate() == []
 
 
 def test_validate_missing_reference():
-    cfg = PycortexTransformConfig(cx_subject="ANfs", reference="/no/such/file.nii.gz")
+    cfg = PycortexTransformConfig(cx_subject="sub01fs", reference="/no/such/file.nii.gz")
     errs = cfg.validate()
     assert any("Reference volume not found" in e for e in errs)
 
@@ -35,7 +35,7 @@ def test_validate_missing_reference():
 def test_validate_bad_method(tmp_path: Path):
     ref = tmp_path / "ref.nii.gz"
     ref.write_bytes(b"\x00")
-    cfg = PycortexTransformConfig(cx_subject="ANfs", reference=str(ref), method="bogus")
+    cfg = PycortexTransformConfig(cx_subject="sub01fs", reference=str(ref), method="bogus")
     assert any("Invalid method" in e for e in cfg.validate())
     assert set(VALID_METHODS) == {"automatic", "automatic_fsl", "manual"}
 
@@ -51,9 +51,9 @@ def test_from_dict_filters_unknown_keys(tmp_path: Path):
     ref = tmp_path / "ref.nii.gz"
     ref.write_bytes(b"\x00")
     cfg = PycortexTransformConfig.from_dict(
-        {"cx_subject": "ANfs", "reference": str(ref), "junk": 1, "method": "manual"}
+        {"cx_subject": "sub01fs", "reference": str(ref), "junk": 1, "method": "manual"}
     )
-    assert cfg.cx_subject == "ANfs"
+    assert cfg.cx_subject == "sub01fs"
     assert cfg.method == "manual"
 
 

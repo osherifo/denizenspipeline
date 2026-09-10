@@ -52,7 +52,7 @@ def locate_local(kind: str, name: str, state) -> tuple[list[Path], dict]:
     # Stage configs: one store each, all exposing get_config(filename).
     _STAGE_CONFIG_STORES = {
         "convert_config": ("convert_config_store", "convert"),
-        "preproc_config": ("preproc_config_store", "preproc"),
+        "preproc_config": ("pipeline_store", "preproc"),
         "autoflatten_config": ("autoflatten_config_store", "autoflatten"),
     }
     if kind in _STAGE_CONFIG_STORES:
@@ -66,9 +66,11 @@ def locate_local(kind: str, name: str, state) -> tuple[list[Path], dict]:
         return [Path(detail["path"])], {}
 
     if kind == "stack_preset":
-        p = _first(paths.addons_dir("pipelines"), f"{name}.yaml", f"{name}.yml")
+        # Pipelines first (the current shape), then any not-yet-migrated preset.
+        p = _first(paths.config_dir("preproc"), f"{name}.yaml", f"{name}.yml") \
+            or _first(paths.addons_dir("pipelines"), f"{name}.yaml", f"{name}.yml")
         if not p:
-            raise PublishError(f"no local stack preset '{name}'")
+            raise PublishError(f"no local pipeline '{name}'")
         return [p], {}
 
     if kind == "module":

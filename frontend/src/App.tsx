@@ -6,13 +6,11 @@ import { AnalysisComposer } from './views/AnalysisComposer'
 import { RunManager } from './views/RunManager'
 import { ModuleEditor } from './views/ModuleEditor'
 import { ExperimentDashboard } from './views/ExperimentDashboard'
-import { PreprocManager } from './views/PreprocManager'
+import { PreprocView } from './views/PreprocView'
 import { DicomBidsConverter } from './views/DicomBidsConverter'
 import { ErrorBrowser } from './views/ErrorBrowser'
 import { AutoflattenManager } from './views/AutoflattenManager'
 import { WorkflowsView } from './views/WorkflowsView'
-import { PostPreprocBuilder } from './views/PostPreprocBuilder'
-import { PreprocStackView } from './views/PreprocStackView'
 import { QCReviews } from './views/QCReviews'
 import { Settings } from './views/Settings'
 import { GroupRunsView } from './views/GroupRunsView'
@@ -22,11 +20,13 @@ import { useModuleStore } from './stores/module-store'
 
 type Route =
   | 'modules' | 'analysis' | 'runs' | 'editor' | 'dashboard'
-  | 'preproc' | 'preproc-stack' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
-  | 'post-preproc' | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs' | 'hub'
+  | 'preproc' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
+  | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs' | 'hub'
 
-function getRoute(): Route {
-  const hash = window.location.hash.replace('#', '').replace('/', '')
+export function getRoute(): Route {
+  // "#preproc/runs" -> section "preproc", sub-path "runs" (the page reads the sub-path itself).
+  const raw = window.location.hash.replace(/^#\/?/, '')
+  const hash = raw.split('/')[0]
   if (hash === 'modules') return 'modules'
   // Legacy aliases — both `composer` and `graph` now point at the
   // unified analysis composer.
@@ -34,13 +34,14 @@ function getRoute(): Route {
   if (hash === 'runs') return 'runs'
   if (hash === 'editor') return 'editor'
   if (hash === 'dashboard') return 'dashboard'
+  // #preproc and #preproc/<tab> (build | runs | library | outputs)
   if (hash === 'preproc') return 'preproc'
-  if (hash === 'preproc-stack') return 'preproc-stack'
+  // Retired tabs fold into the unified Preprocessing page.
+  if (hash === 'preproc-stack' || hash === 'post-preproc') return 'preproc'
   if (hash === 'convert') return 'convert'
   if (hash === 'autoflatten') return 'autoflatten'
   if (hash === 'errors') return 'errors'
   if (hash === 'workflows') return 'workflows'
-  if (hash === 'post-preproc') return 'post-preproc'
   if (hash === 'qc-reviews') return 'qc-reviews'
   if (hash === 'settings') return 'settings'
   if (hash === 'group-runs') return 'group-runs'
@@ -190,13 +191,11 @@ export function App() {
         {route === 'runs' && <RunManager />}
         {route === 'editor' && <ModuleEditor />}
         {route === 'dashboard' && <ExperimentDashboard />}
-        {route === 'preproc' && <PreprocManager />}
-        {route === 'preproc-stack' && <PreprocStackView />}
+        {route === 'preproc' && <PreprocView />}
         {route === 'convert' && <DicomBidsConverter />}
         {route === 'autoflatten' && <AutoflattenManager />}
         {route === 'errors' && <ErrorBrowser />}
         {route === 'workflows' && <WorkflowsView />}
-        {route === 'post-preproc' && <PostPreprocBuilder />}
         {route === 'qc-reviews' && <QCReviews />}
         {route === 'settings' && <Settings />}
         {route === 'group-runs' && <GroupRunsView />}

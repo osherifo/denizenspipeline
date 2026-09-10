@@ -1,4 +1,4 @@
-"""PreprocManager discovers manifests recorded by the run registry,
+"""PreprocOutputs discovers manifests recorded by the run registry,
 even when they live outside the configured derivatives root."""
 
 from __future__ import annotations
@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fmriflow.preproc.manifest import PreprocManifest, RunRecord
-from fmriflow.server.services.preproc_manager import PreprocManager
+from fmriflow.server.services.preproc_outputs import PreprocOutputs
 from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
 
 
@@ -40,26 +40,26 @@ def test_finds_manifests_under_derivatives_dir(tmp_path):
     derivatives.mkdir()
     _write_manifest(derivatives / "fmriprep", "01")
     registry = RunRegistry(root=tmp_path / "runs")
-    mgr = PreprocManager(derivatives, registry=registry)
+    mgr = PreprocOutputs(derivatives, registry=registry)
     summaries = mgr.scan_manifests()
     subjects = [s["subject"] for s in summaries]
     assert "01" in subjects
 
 
 def test_finds_manifests_via_registry_outside_derivatives_dir(tmp_path):
-    """Manifest at /<elsewhere>/sub-AN/preproc_manifest.json should be
+    """Manifest at /<elsewhere>/sub-02/preproc_manifest.json should be
     discovered as long as a completed preproc run on the registry
     points its output_dir at <elsewhere>."""
     elsewhere = tmp_path / "testing" / "study" / "derivatives" / "fmriprep"
     elsewhere.mkdir(parents=True)
-    manifest_path = _write_manifest(elsewhere, "AN")
+    manifest_path = _write_manifest(elsewhere, "02")
 
     registry = RunRegistry(root=tmp_path / "runs")
     state = RunStateFile(
-        run_id="preproc_AN_xyz",
+        run_id="preproc_02_xyz",
         kind="preproc",
         backend="fmriprep",
-        subject="AN",
+        subject="02",
         status="done",
         params={"output_dir": str(elsewhere)},
         manifest_path=str(manifest_path),
@@ -69,11 +69,11 @@ def test_finds_manifests_via_registry_outside_derivatives_dir(tmp_path):
 
     derivatives = tmp_path / "configured-derivatives"  # empty — manifest isn't under here
     derivatives.mkdir()
-    mgr = PreprocManager(derivatives, registry=registry)
+    mgr = PreprocOutputs(derivatives, registry=registry)
     summaries = mgr.scan_manifests()
     paths = [s["path"] for s in summaries]
     assert str(manifest_path.resolve()) in paths
-    assert summaries[0]["subject"] == "AN"
+    assert summaries[0]["subject"] == "02"
 
 
 def test_dedups_when_manifest_appears_in_both_sources(tmp_path):
@@ -95,7 +95,7 @@ def test_dedups_when_manifest_appears_in_both_sources(tmp_path):
     registry.register(state)
     registry.update(state)
 
-    mgr = PreprocManager(derivatives, registry=registry)
+    mgr = PreprocOutputs(derivatives, registry=registry)
     summaries = mgr.scan_manifests()
     assert len([s for s in summaries if s["subject"] == "01"]) == 1
 
@@ -116,7 +116,7 @@ def test_skips_runs_that_are_not_done(tmp_path):
 
     derivatives = tmp_path / "configured-derivatives"
     derivatives.mkdir()
-    mgr = PreprocManager(derivatives, registry=registry)
+    mgr = PreprocOutputs(derivatives, registry=registry)
     summaries = mgr.scan_manifests()
     assert summaries == []
 
@@ -140,7 +140,7 @@ def test_falls_back_to_output_dir_when_manifest_path_missing(tmp_path):
 
     derivatives = tmp_path / "configured-derivatives"
     derivatives.mkdir()
-    mgr = PreprocManager(derivatives, registry=registry)
+    mgr = PreprocOutputs(derivatives, registry=registry)
     summaries = mgr.scan_manifests()
     assert len(summaries) == 1
     assert summaries[0]["subject"] == "03"

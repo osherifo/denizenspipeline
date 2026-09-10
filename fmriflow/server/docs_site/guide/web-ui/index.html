@@ -642,34 +642,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../preproc-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Preprocessing (stack)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../structural-qc/" class="md-nav__link">
         
   
@@ -762,34 +734,6 @@
     
   
     Pycortex Transforms
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../post-preproc/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Post-preproc
   
 
     
@@ -977,10 +921,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#preprocessing-manager" class="md-nav__link">
+  <a href="#preprocessing_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Preprocessing Manager
+        Preprocessing
       
     </span>
   </a>
@@ -1456,6 +1400,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/preproc-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprocessing pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/external-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1541,10 +1541,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#preprocessing-manager" class="md-nav__link">
+  <a href="#preprocessing_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Preprocessing Manager
+        Preprocessing
       
     </span>
   </a>
@@ -1850,13 +1850,12 @@
 <hr />
 <h2 id="preprocessing">Preprocessing<a class="headerlink" href="#preprocessing" title="Permanent link">&para;</a></h2>
 <h3 id="dicom-to-bids">DICOM to BIDS<a class="headerlink" href="#dicom-to-bids" title="Permanent link">&para;</a></h3>
-<p>Convert raw DICOM images to BIDS format. Seven tabs cover the full workflow:</p>
-<p><strong>Tools</strong> — Shows installed conversion tools (heudiconv, dcm2niix) and their status.</p>
-<p><strong>Heuristics</strong> — Browse and search available heuristic files. Each card shows the heuristic name, scanner pattern, and description.</p>
-<p><strong>Scan</strong> — Point at a DICOM directory to see what series it contains before converting.</p>
-<p><strong>Manifests</strong> — Browse previously generated conversion manifests. Validate them against configs to check compatibility.</p>
-<p><strong>Configs</strong> — Browse YAML conversion configs saved under <code>./experiments/convert/</code> (pre-migration configs at <code>~/.fmriflow/convert_configs/</code> are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a <strong>Run</strong> button that dispatches either a single or batch conversion based on the file's shape. See <a href="../dicom-to-bids/#saved-configs">DICOM → BIDS → Saved configs</a> for the schema.</p>
-<p><strong>Convert</strong> — Single-subject conversion form:</p>
+<p>Convert raw DICOM images to BIDS format. Six tabs cover the full workflow. The conversion tools themselves (heudiconv, dcm2niix, bids-validator) ship in the Docker images; see the <a href="../../reference/external-tools/">external tools reference</a> for what each image provides and how to check a bare install.</p>
+<p><strong>Heuristics</strong> — Browse and search available heuristic files. Each card shows the heuristic name, version, and description; opening one shows its code with a metadata strip (description, version, scanner pattern, tasks, notes) that is saved to the heuristic's YAML sidecar alongside the code. <strong>Duplicate</strong> copies the open heuristic, code and metadata, under a new name into your addons — the way to start from a bundled heuristic without editing it in place. See <a href="../dicom-to-bids/#metadata-sidecar">DICOM → BIDS → Metadata sidecar</a>.</p>
+<p><strong>Scan</strong> — Point at a DICOM directory to see what series it contains before converting. The scan runs in the background with a live file count and a <strong>Cancel</strong> button, and the series table lists one row per series with the DICOM attributes read verbatim from that series' first file — <code>Modality</code>, <code>ImageType</code>, <code>Manufacturer</code>, <code>ManufacturerModelName</code>, <code>MagneticFieldStrength</code>, <code>SoftwareVersions</code>, <code>StationName</code>, <code>InstitutionName</code>, <code>StudyDate</code>, <code>ProtocolName</code> — under their DICOM keyword names, plus the file count. Nothing is inferred: what a series becomes in BIDS is decided by the heuristic, not by this table. Values are per series, so a directory mixing sessions from different scanners is read correctly, and the table scrolls sideways when it is wider than the page.</p>
+<p><strong>Manifests</strong> — Browse previously generated conversion manifests. The runs table lists every output file with its BIDS parts read verbatim from the path: the <code>datatype</code> directory, one column per entity key found in any file (<code>sub</code>, <code>ses</code>, <code>task</code>, <code>acq</code>, <code>run</code>, <code>inv</code>, …, in BIDS order), the <code>suffix</code>, the image <code>shape</code>, the sidecar's <code>RepetitionTime</code> and the file itself. Nothing is inferred; the table scrolls sideways when wide. Validate manifests against configs to check compatibility. <strong>Delete manifest</strong> removes the subject's <code>convert_manifest.json</code> after a confirmation; the BIDS files it describes stay on disk, and converting the subject again writes a fresh manifest.</p>
+<p><strong>Configs</strong> — Browse YAML conversion configs saved under <code>./experiments/convert/</code> (pre-migration configs at <code>~/.fmriflow/convert_configs/</code> are also listed read-only with a LEGACY tag). Clicking one shows a summary grid + the raw YAML, with a <strong>Run</strong> button that dispatches either a single or batch conversion based on the file's shape. The YAML is editable in place — <strong>Save</strong> writes it back (the file's <code>_meta</code> block is kept if you drop it), <strong>Revert</strong> discards the draft. <strong>Duplicate</strong> copies the selected config under a new name, so a per-subject variant is a copy plus one edit rather than a new form. Pre-migration (legacy) configs are read-only until duplicated. See <a href="../dicom-to-bids/#saved-configs">DICOM → BIDS → Saved configs</a> for the schema.</p>
+<p><strong>Convert</strong> — Single-subject conversion form (path fields have a <strong>Browse…</strong> button that lists directories as the server sees them). Next to <strong>Run</strong> are <strong>Save Config</strong> (writes a <code>convert:</code> YAML under <code>$FMRIFLOW_HOME/configs/convert/</code>), <strong>Saved Configs</strong> (load a saved single-run config back into the form, or delete it) and <strong>Export YAML</strong> (download the form as a config file). The <strong>Scan</strong> tab's path field browses too. The picker can also create a <strong>New folder</strong>, for a fresh BIDS output directory:</p>
 <ul>
 <li>Select a heuristic from the dropdown</li>
 <li>Set the BIDS output directory and source DICOM directory</li>
@@ -1873,20 +1872,12 @@
 <li><strong>Saved Configs</strong> panel lists previously saved batches with Load/Delete actions</li>
 <li>Click <strong>Run Batch</strong> to start — progress shows per-job status badges (queued, running, done, failed), elapsed time, and expandable per-job logs</li>
 </ul>
-<h3 id="preprocessing-manager">Preprocessing Manager<a class="headerlink" href="#preprocessing-manager" title="Permanent link">&para;</a></h3>
-<p>Manage fMRI preprocessing (fmriprep, custom scripts) and their outputs. Five tabs:</p>
-<p><strong>Backends</strong> — Lists installed preprocessing backends with version and status.</p>
-<p><strong>Manifests</strong> — Browse completed preprocessing outputs. Each manifest records the backend, parameters, output space, and per-run QC metrics. Validate against an analysis config to check compatibility before running the pipeline.</p>
-<p><strong>Configs</strong> — Browse YAML preproc configs discovered under <code>./experiments/preproc/</code>. Each file must have a top-level <code>preproc:</code> section. Clicking a config shows a summary grid (subject, backend, container, mode, paths) and the raw YAML, with a <strong>Run</strong> button that launches the job and streams live fmriprep output into the progress panel below. An <strong>In Flight</strong> panel at the top lists running jobs (plus recent completions) with <code>Watch</code> and <code>Cancel</code> buttons — jobs launched here survive server restarts and reconnect automatically, with a <code>REATTACHED</code> tag. See <a href="../preprocessing/#workflow-2-run-preprocessing-from-a-yaml-config">Preprocessing → Workflow 2</a> and <a href="../preprocessing/#long-running-jobs--detach--reattach">Long-running jobs</a> for details.</p>
-<p><strong>Collect</strong> — Build a manifest from existing preprocessing outputs (e.g., from a previous fmriprep run). Specify the output directory and file pattern; the tool scans and organizes the files.</p>
-<p><strong>Run</strong> — Launch a preprocessing job from an inline form (no YAML):</p>
-<ul>
-<li>Select backend, set BIDS directory, output directory, work directory, subject ID</li>
-<li>Toggle options like <code>--skip-bids-validation</code> in the Advanced section</li>
-<li>Click <strong>Run</strong> for live progress with event streaming</li>
-<li>Manifest auto-refreshes on completion</li>
-</ul>
-<hr />
+<h3 id="preprocessing_1">Preprocessing<a class="headerlink" href="#preprocessing_1" title="Permanent link">&para;</a></h3>
+<p>One page, four tabs, over one pipeline graph. See the <a href="../preprocessing/">Preprocessing guide</a>.</p>
+<p><strong>Build</strong> — Templates (<code>fmriprep_full</code>, <code>fmriprep_anat_only</code>, <code>fmriprep_func_precomputed_anat</code>) and saved pipelines on the left; the graph editor in the middle (click a palette node to add it, drag ports to connect); the selected node's grouped parameters, input bindings and manifest role on the right, above the <strong>Run</strong> panel (subject, paths, plugin, cache, rerun-from, abort-on-bad-checkpoint).</p>
+<p><strong>Runs</strong> — Every pipeline run. The detail shows the graph with live node status, the checkpoint filmstrip (verdict-coloured frames with thumbnails and the metric / bound table), a node's outputs drawer (NIfTI viewer, reports, JSON, pickles, crash files), the fmriprep node's <strong>Inner DAG</strong>, the log, the event stream, and a <strong>Resume / Restart</strong> choice for lost or failed runs.</p>
+<p><strong>Library</strong> — Browse nodes by kind (source / node / app / workflow) and source (built-in / user), with preflight status, parameter schema and source code. <strong>New node</strong> opens a Monaco scaffold saved to <code>$FMRIFLOW_HOME/addons/nodes/</code>; <strong>Import nipype pipeline</strong> turns an existing <code>.py</code> into a composite node.</p>
+<p><strong>Outputs</strong> — Manifests on disk (validate against an analysis config; structural-QC status per subject) and <strong>Collect</strong> existing derivatives into a manifest.</p>
 <h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
 <h3 id="dashboard">Dashboard<a class="headerlink" href="#dashboard" title="Permanent link">&para;</a></h3>
 <p>The main control center for running experiments.</p>

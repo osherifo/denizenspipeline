@@ -18,7 +18,6 @@ EXPECTED_CATEGORIES = {
     "analyzers",
     "models",
     "reporters",
-    "nipype_nodes",
     "group_analyzers",
     "group_reporters",
     "study_analyzers",

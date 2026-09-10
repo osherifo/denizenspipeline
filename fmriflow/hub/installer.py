@@ -171,9 +171,22 @@ def _install_convert_config(entry, files, state) -> dict:
 
 
 def _install_stack_preset(entry, files, state) -> dict:
-    # Presets are directory-scanned YAML — a plain copy is the install.
-    dest = _copy(files[0], paths.addons_dir("pipelines"))
-    return {"path": str(dest)}
+    """A shared preset is a pipeline now: convert old stack presets on the way in."""
+    import yaml as _yaml
+    from fmriflow.preproc.migrate import stack_to_pipeline
+
+    store = getattr(state, "pipeline_store", None)
+    if store is None:
+        raise InstallError("server has no pipeline_store")
+    text = files[0].read_text()
+    data = _yaml.safe_load(text) or {}
+    if "stack" in data and "nodes" not in data:
+        pipeline = stack_to_pipeline(data, str(data.get("name") or entry.name))
+        text = pipeline.to_yaml()
+    res = store.save_config(f"{entry.name}.yaml", text)
+    if not res.get("saved"):
+        raise InstallError("; ".join(res.get("errors") or ["unknown error"]))
+    return {"path": res["path"]}
 
 
 def _install_module(entry, files, state) -> dict:
@@ -224,15 +237,15 @@ _HANDLERS = {
     "analysis_config": _install_analysis_config,
     "workflow_config": _install_workflow_config,
     "convert_config": _install_convert_config,
-    "preproc_config": _install_stage_config("preproc_config_store", "preproc"),
+    "preproc_config": _install_stage_config("pipeline_store", "preproc"),
     "autoflatten_config": _install_stage_config(
         "autoflatten_config_store", "autoflatten",
     ),
     "stack_preset": _install_stack_preset,
     "module": _install_module,
     "heuristic": _install_heuristic,
-    "transform": _install_code_addon("transforms", "transform_registry"),
-    "workflow": _install_code_addon("workflows", "workflow_registry"),
+    "transform": _install_code_addon("transforms", "node_registry"),
+    "workflow": _install_code_addon("workflows", "node_registry"),
     "feature_array": _install_feature_array,
 }
 
@@ -263,7 +276,7 @@ def local_names(kind: str, state) -> set[str]:
                 if c.get("filename")
             }
         if kind == "preproc_config":
-            return {c.filename for c in state.preproc_config_store.list_configs()}
+            return {c.filename for c in state.pipeline_store.list_configs()}
         if kind == "autoflatten_config":
             return {c.filename for c in state.autoflatten_config_store.list_configs()}
         if kind == "module":

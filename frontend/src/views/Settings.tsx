@@ -39,7 +39,7 @@ const SETTINGS_FIELDS: Array<{
     description:
       'Optional override for the data subtree (BIDS / derivatives / work / results). ' +
       'Default: $FMRIFLOW_HOME/data.',
-    placeholder: '/mnt/raid/fmriflow-data',
+    placeholder: '/data/fmriflow-data',
   },
   {
     key: 'FS_LICENSE',

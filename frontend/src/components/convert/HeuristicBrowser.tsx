@@ -60,6 +60,33 @@ const btnPrimary: CSSProperties = {
   border: '1px solid var(--accent-cyan)',
 }
 
+const metaStripStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '6px 12px',
+  padding: '8px 12px',
+  borderBottom: '1px solid var(--border)',
+  backgroundColor: 'var(--bg-secondary)',
+}
+
+const metaLabelStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 3,
+  flex: '1 1 220px',
+  fontSize: 10,
+  color: 'var(--text-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+}
+
+const metaInputStyle: CSSProperties = {
+  width: '100%',
+  fontSize: 11,
+  textTransform: 'none',
+  letterSpacing: 0,
+}
+
 const listStyle: CSSProperties = {
   flex: 1,
   overflowY: 'auto',
@@ -163,10 +190,10 @@ export function HeuristicBrowser() {
   const store = useConvertStore()
   const {
     heuristics, heuristicsLoading, loadHeuristics,
-    editorCode, editorName, editorDirty, editorLoading, editorSaving,
+    editorCode, editorName, editorMeta, editorDirty, editorLoading, editorSaving,
     editorError, editorSaveSuccess,
-    openHeuristic, newHeuristic, setEditorCode, setEditorName,
-    saveHeuristic: doSave, deleteHeuristic: doDelete, closeEditor,
+    openHeuristic, newHeuristic, setEditorCode, setEditorName, setEditorMeta,
+    saveHeuristic: doSave, deleteHeuristic: doDelete, copyHeuristic: doCopy, closeEditor,
   } = store
 
   const [showNewDialog, setShowNewDialog] = useState(false)
@@ -269,6 +296,60 @@ export function HeuristicBrowser() {
               </button>
             </div>
 
+            {/* Sidecar metadata — description / version / … live in <name>.yaml */}
+            <div style={metaStripStyle}>
+              <label style={metaLabelStyle}>
+                Description
+                <input
+                  type="text"
+                  value={editorMeta.description}
+                  onChange={(e) => setEditorMeta({ description: e.target.value })}
+                  style={{ ...inputStyle, ...metaInputStyle }}
+                  placeholder="What this heuristic handles"
+                />
+              </label>
+              <label style={{ ...metaLabelStyle, flex: '0 0 90px' }}>
+                Version
+                <input
+                  type="text"
+                  value={editorMeta.version}
+                  onChange={(e) => setEditorMeta({ version: e.target.value })}
+                  style={{ ...inputStyle, ...metaInputStyle }}
+                  placeholder="1.0"
+                />
+              </label>
+              <label style={{ ...metaLabelStyle, flex: '0 0 160px' }}>
+                Scanner pattern
+                <input
+                  type="text"
+                  value={editorMeta.scannerPattern}
+                  onChange={(e) => setEditorMeta({ scannerPattern: e.target.value })}
+                  style={{ ...inputStyle, ...metaInputStyle }}
+                  placeholder="e.g. Siemens Prisma"
+                />
+              </label>
+              <label style={{ ...metaLabelStyle, flex: '0 0 200px' }}>
+                Tasks (comma-separated)
+                <input
+                  type="text"
+                  value={editorMeta.tasks}
+                  onChange={(e) => setEditorMeta({ tasks: e.target.value })}
+                  style={{ ...inputStyle, ...metaInputStyle }}
+                  placeholder="story, rest"
+                />
+              </label>
+              <label style={{ ...metaLabelStyle, flex: '1 1 100%' }}>
+                Notes
+                <textarea
+                  value={editorMeta.notes}
+                  onChange={(e) => setEditorMeta({ notes: e.target.value })}
+                  rows={2}
+                  style={{ ...inputStyle, ...metaInputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                  placeholder="Longer notes: quirks, series naming, changelog"
+                />
+              </label>
+            </div>
+
             {/* Monaco editor */}
             {editorLoading ? (
               <div style={emptyStyle}>Loading...</div>
@@ -287,6 +368,21 @@ export function HeuristicBrowser() {
                 <span style={{ color: 'var(--accent-green)', fontSize: 11 }}>Saved</span>
               )}
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                {heuristics.some((h) => h.name === editorName) && (
+                  <button
+                    style={btnSmall}
+                    title="Copy this heuristic (code + metadata) under a new name in your addons"
+                    onClick={async () => {
+                      const newName = await dlg.prompt(
+                        `Copy "${editorName}" as:`,
+                        { defaultValue: `${editorName}_copy`, placeholder: 'new_heuristic_name' },
+                      )
+                      if (newName && newName.trim()) doCopy(editorName, newName.trim())
+                    }}
+                  >
+                    Duplicate
+                  </button>
+                )}
                 {heuristics.some((h) => h.name === editorName) && (
                   <button
                     style={{ ...btnSmall, color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}

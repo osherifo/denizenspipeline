@@ -1,12 +1,12 @@
 /** DICOM-to-BIDS conversion manager store. */
 import { create } from 'zustand'
 import type {
-  ToolStatus,
   HeuristicInfo,
   ConvertManifestSummary,
   ConvertManifestDetail,
   ConvertEvent,
   DicomScanResult,
+  DicomScanProgress,
   BatchJobConfig,
   BatchRunParams,
   BatchJobStatus,
@@ -14,18 +14,20 @@ import type {
   SavedConvertConfig,
 } from '../api/types'
 import {
-  fetchConvertTools,
   fetchConvertHeuristics,
   fetchHeuristicCode,
   saveHeuristic,
   fetchHeuristicTemplate,
   deleteHeuristic,
+  copyHeuristic,
   fetchConvertManifests,
   rescanConvertManifests,
   fetchConvertManifestDetail,
   validateConvertManifest,
-  scanDicomDirectory,
-  collectConvertOutputs,
+  deleteConvertManifest,
+  startDicomScan,
+  fetchDicomScan,
+  cancelDicomScan,
   startConvertRun,
   connectConvertWs,
   startBatchConvert,
@@ -38,14 +40,84 @@ import {
   deleteSavedConvertConfig,
 } from '../api/client'
 
-type Tab = 'tools' | 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
+/** Sidecar metadata edited alongside the heuristic code (tasks as a comma list). */
+export interface HeuristicMeta {
+  description: string
+  scannerPattern: string
+  version: string
+  tasks: string
+  notes: string
+}
+
+export const EMPTY_HEURISTIC_META: HeuristicMeta = {
+  description: '', scannerPattern: '', version: '', tasks: '', notes: '',
+}
+
+function metaFromInfo(info: HeuristicInfo | undefined): HeuristicMeta {
+  if (!info) return { ...EMPTY_HEURISTIC_META }
+  return {
+    description: info.description ?? '',
+    scannerPattern: info.scanner_pattern ?? '',
+    version: info.version ?? '',
+    tasks: (info.tasks ?? []).join(', '),
+    notes: info.notes ?? '',
+  }
+}
+
+type Tab = 'heuristics' | 'scan' | 'manifests' | 'configs' | 'convert' | 'batch'
+
+
+export interface RunForm {
+  sourceDir: string
+  bidsDir: string
+  subject: string
+  heuristic: string
+  session: string
+  datasetName: string
+  grouping: string
+  minmeta: boolean
+  overwrite: boolean
+  validateBids: boolean
+}
+
+export const EMPTY_RUN_FORM: RunForm = {
+  sourceDir: '', bidsDir: '', subject: '', heuristic: '', session: '', datasetName: '', grouping: '',
+  minmeta: false, overwrite: false, validateBids: true,
+}
+
+/** The run-request params for the single form (what /convert/run and save-run take). */
+export function runFormParams(f: RunForm): Record<string, unknown> {
+  const params: Record<string, unknown> = {
+    source_dir: f.sourceDir.trim(), bids_dir: f.bidsDir, subject: f.subject, heuristic: f.heuristic,
+  }
+  if (f.session.trim()) params.sessions = [f.session.trim()]
+  if (f.datasetName.trim()) params.dataset_name = f.datasetName.trim()
+  if (f.grouping.trim()) params.grouping = f.grouping.trim()
+  if (f.minmeta) params.minmeta = true
+  if (f.overwrite) params.overwrite = true
+  if (!f.validateBids) params.validate_bids = false
+  return params
+}
+
+/** The YAML the server would save for this form (a `convert:` config). */
+export function runFormYaml(f: RunForm): string {
+  const q = (v: string) => JSON.stringify(v)
+  let y = 'convert:\n'
+  y += `  source_dir: ${q(f.sourceDir.trim())}\n`
+  y += `  bids_dir: ${q(f.bidsDir)}\n`
+  y += `  subject: ${q(f.subject)}\n`
+  y += `  heuristic: ${q(f.heuristic)}\n`
+  if (f.session.trim()) y += `  sessions: [${q(f.session.trim())}]\n`
+  if (f.datasetName.trim()) y += `  dataset_name: ${q(f.datasetName.trim())}\n`
+  if (f.grouping.trim()) y += `  grouping: ${q(f.grouping.trim())}\n`
+  if (f.minmeta) y += '  minmeta: true\n'
+  if (f.overwrite) y += '  overwrite: true\n'
+  if (!f.validateBids) y += '  validate_bids: false\n'
+  return y
+}
 
 interface ConvertState {
   tab: Tab
-
-  // Tools
-  tools: ToolStatus[]
-  toolsLoading: boolean
 
   // Heuristics
   heuristics: HeuristicInfo[]
@@ -54,6 +126,7 @@ interface ConvertState {
   // Heuristic editor
   editorCode: string
   editorName: string
+  editorMeta: HeuristicMeta
   editorDirty: boolean
   editorLoading: boolean
   editorSaving: boolean
@@ -72,11 +145,10 @@ interface ConvertState {
   scanResult: DicomScanResult | null
   scanning: boolean
   scanError: string | null
+  scanId: string | null
+  scanProgress: DicomScanProgress | null
+  cancelScan: () => Promise<void>
 
-  // Collect
-  collectResult: { manifest: ConvertManifestDetail; manifest_path: string } | null
-  collecting: boolean
-  collectError: string | null
 
   // Run
   runId: string | null
@@ -108,24 +180,26 @@ interface ConvertState {
 
   // Actions
   setTab: (tab: Tab) => void
-  loadTools: () => Promise<void>
   loadHeuristics: () => Promise<void>
   openHeuristic: (name: string) => Promise<void>
   newHeuristic: (name: string) => Promise<void>
   setEditorCode: (code: string) => void
   setEditorName: (name: string) => void
+  setEditorMeta: (patch: Partial<HeuristicMeta>) => void
   saveHeuristic: () => Promise<void>
   deleteHeuristic: (name: string) => Promise<void>
+  /** Duplicate `name` as `newName` in the user tier, then open the copy. */
+  copyHeuristic: (name: string, newName: string) => Promise<void>
   closeEditor: () => void
   loadManifests: () => Promise<void>
   rescan: () => Promise<void>
+  /** Remove the subject's manifest file (BIDS outputs stay), then refresh the list. */
+  deleteManifest: (subject: string) => Promise<void>
   selectManifest: (subject: string) => Promise<void>
   validateSelected: () => Promise<void>
   scanDicom: (sourceDir: string) => Promise<void>
-  collect: (params: Parameters<typeof collectConvertOutputs>[0]) => Promise<void>
   startRun: (params: Parameters<typeof startConvertRun>[0]) => Promise<void>
   clearRun: () => void
-  clearCollect: () => void
   clearScan: () => void
 
   // Batch actions
@@ -137,6 +211,11 @@ interface ConvertState {
   clearBatch: () => void
   loadBatchYaml: (yamlText: string) => Promise<void>
 
+  // Single-run form (kept in the store so a saved config can load back into it)
+  runForm: RunForm
+  updateRunForm: (patch: Partial<RunForm>) => void
+  resetRunForm: () => void
+  runFormError: string | null
   // Saved configs
   savedConfigs: SavedConvertConfig[]
   savedConfigsLoading: boolean
@@ -148,16 +227,18 @@ interface ConvertState {
 }
 
 export const useConvertStore = create<ConvertState>((set, get) => ({
-  tab: 'tools',
-
-  tools: [],
-  toolsLoading: false,
+  tab: 'heuristics',
+  runForm: { ...EMPTY_RUN_FORM },
+  runFormError: null,
+  updateRunForm: (patch) => set({ runForm: { ...get().runForm, ...patch } }),
+  resetRunForm: () => set({ runForm: { ...EMPTY_RUN_FORM }, runFormError: null }),
 
   heuristics: [],
   heuristicsLoading: false,
 
   editorCode: '',
   editorName: '',
+  editorMeta: { ...EMPTY_HEURISTIC_META },
   editorDirty: false,
   editorLoading: false,
   editorSaving: false,
@@ -174,10 +255,9 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   scanResult: null,
   scanning: false,
   scanError: null,
+  scanId: null,
+  scanProgress: null,
 
-  collectResult: null,
-  collecting: false,
-  collectError: null,
 
   runId: null,
   runEvents: [],
@@ -208,16 +288,6 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
 
   setTab: (tab) => set({ tab }),
 
-  loadTools: async () => {
-    set({ toolsLoading: true })
-    try {
-      const tools = await fetchConvertTools()
-      set({ tools, toolsLoading: false })
-    } catch {
-      set({ toolsLoading: false })
-    }
-  },
-
   loadHeuristics: async () => {
     set({ heuristicsLoading: true })
     try {
@@ -232,7 +302,8 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     set({ editorLoading: true, editorError: null, editorSaveSuccess: false })
     try {
       const code = await fetchHeuristicCode(name)
-      set({ editorCode: code, editorName: name, editorDirty: false, editorLoading: false })
+      const info = get().heuristics.find((h) => h.name === name)
+      set({ editorCode: code, editorName: name, editorMeta: metaFromInfo(info), editorDirty: false, editorLoading: false })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       set({ editorLoading: false, editorError: msg })
@@ -243,7 +314,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     set({ editorLoading: true, editorError: null, editorSaveSuccess: false })
     try {
       const result = await fetchHeuristicTemplate(name)
-      set({ editorCode: result.code, editorName: name, editorDirty: true, editorLoading: false })
+      set({ editorCode: result.code, editorName: name, editorMeta: { ...EMPTY_HEURISTIC_META }, editorDirty: true, editorLoading: false })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       set({ editorLoading: false, editorError: msg })
@@ -258,15 +329,27 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     set({ editorName: name, editorDirty: true })
   },
 
+  setEditorMeta: (patch) => {
+    set({ editorMeta: { ...get().editorMeta, ...patch }, editorDirty: true, editorSaveSuccess: false })
+  },
+
   saveHeuristic: async () => {
-    const { editorCode, editorName } = get()
+    const { editorCode, editorName, editorMeta } = get()
     set({ editorSaving: true, editorError: null, editorSaveSuccess: false })
     if (!editorName.trim()) {
       set({ editorSaving: false, editorError: 'Heuristic name is required' })
       return
     }
     try {
-      await saveHeuristic({ name: editorName, code: editorCode })
+      await saveHeuristic({
+        name: editorName,
+        code: editorCode,
+        description: editorMeta.description,
+        scanner_pattern: editorMeta.scannerPattern,
+        version: editorMeta.version,
+        tasks: editorMeta.tasks.split(',').map((t) => t.trim()).filter(Boolean),
+        notes: editorMeta.notes,
+      })
       set({ editorSaving: false, editorDirty: false, editorSaveSuccess: true })
       get().loadHeuristics()
     } catch (e: unknown) {
@@ -280,7 +363,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
       await deleteHeuristic(name)
       const { editorName } = get()
       if (editorName === name) {
-        set({ editorCode: '', editorName: '', editorDirty: false, editorError: null, editorSaveSuccess: false })
+        set({ editorCode: '', editorName: '', editorMeta: { ...EMPTY_HEURISTIC_META }, editorDirty: false, editorError: null, editorSaveSuccess: false })
       }
       get().loadHeuristics()
     } catch (e: unknown) {
@@ -289,8 +372,20 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     }
   },
 
+  copyHeuristic: async (name, newName) => {
+    set({ editorError: null })
+    try {
+      const r = await copyHeuristic(name, newName)
+      await get().loadHeuristics()
+      await get().openHeuristic(r.name)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ editorError: msg })
+    }
+  },
+
   closeEditor: () => {
-    set({ editorCode: '', editorName: '', editorDirty: false, editorError: null, editorSaveSuccess: false })
+    set({ editorCode: '', editorName: '', editorMeta: { ...EMPTY_HEURISTIC_META }, editorDirty: false, editorError: null, editorSaveSuccess: false })
   },
 
   loadManifests: async () => {
@@ -310,6 +405,19 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
       set({ manifests, manifestsLoading: false })
     } catch {
       set({ manifestsLoading: false })
+    }
+  },
+
+  deleteManifest: async (subject) => {
+    try {
+      await deleteConvertManifest(subject)
+      if (get().selectedSubject === subject) {
+        set({ selectedSubject: null, selectedManifest: null, validationErrors: null })
+      }
+      await get().loadManifests()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      set({ validationErrors: [msg] })
     }
   },
 
@@ -336,23 +444,35 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   },
 
   scanDicom: async (sourceDir) => {
-    set({ scanning: true, scanError: null, scanResult: null })
+    set({ scanning: true, scanError: null, scanResult: null, scanProgress: null, scanId: null })
     try {
-      const result = await scanDicomDirectory(sourceDir)
-      set({ scanResult: result, scanning: false })
+      let job = await startDicomScan(sourceDir)
+      set({ scanId: job.scan_id, scanProgress: job.progress })
+      while (job.status === 'running') {
+        await new Promise((r) => setTimeout(r, 500))
+        if (get().scanId !== job.scan_id) return       // superseded by a newer scan / cleared
+        job = await fetchDicomScan(job.scan_id)
+        set({ scanProgress: job.progress })
+      }
+      if (job.status === 'done') {
+        set({ scanResult: job.result, scanning: false })
+      } else if (job.status === 'cancelled') {
+        set({ scanning: false, scanError: `Scan cancelled after ${job.progress.files_seen} files.` })
+      } else {
+        set({ scanning: false, scanError: job.error || 'Scan failed' })
+      }
     } catch (e) {
       set({ scanError: String(e), scanning: false })
     }
   },
 
-  collect: async (params) => {
-    set({ collecting: true, collectError: null, collectResult: null })
+  cancelScan: async () => {
+    const id = get().scanId
+    if (!id) return
     try {
-      const result = await collectConvertOutputs(params)
-      set({ collectResult: result, collecting: false })
-      get().rescan()
+      await cancelDicomScan(id)
     } catch (e) {
-      set({ collectError: String(e), collecting: false })
+      set({ scanError: String(e) })
     }
   },
 
@@ -385,9 +505,8 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
 
   clearRun: () => set({ runId: null, runEvents: [], runStartTime: null, runError: null, running: false }),
 
-  clearCollect: () => set({ collectResult: null, collectError: null }),
 
-  clearScan: () => set({ scanResult: null, scanError: null }),
+  clearScan: () => set({ scanResult: null, scanError: null, scanId: null, scanProgress: null }),
 
   // ── Batch actions ──────────────────────────────────────────────
 
@@ -555,13 +674,15 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
   },
 
   saveCurrentRunConfig: async (name: string, description?: string, params?: Record<string, unknown>) => {
-    // This is called from ConvertForm with the current form values.
-    // The caller passes the params directly; avoid saving an empty config.
-    if (!params) {
-      return
+    const body = params ?? runFormParams(get().runForm)
+    set({ runFormError: null })
+    try {
+      await saveConvertRunConfig({ name, description, params: body })
+      await get().loadSavedConfigs()
+    } catch (e) {
+      set({ runFormError: String(e) })
+      throw e
     }
-    await saveConvertRunConfig({ name, description, params })
-    get().loadSavedConfigs()
   },
 
   saveCurrentBatchConfig: async (name, description) => {
@@ -616,7 +737,25 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
           })),
         })
       }
-      // Single run configs could be loaded into the convert form in the future
+      if ('convert' in config) {
+        const c = config.convert as Record<string, unknown>
+        const sessions = Array.isArray(c.sessions) ? (c.sessions as unknown[]) : []
+        set({
+          tab: 'convert',
+          runForm: {
+            sourceDir: String(c.source_dir || ''),
+            bidsDir: String(c.bids_dir || ''),
+            subject: String(c.subject || ''),
+            heuristic: String(c.heuristic || ''),
+            session: sessions.length ? String(sessions[0]) : '',
+            datasetName: String(c.dataset_name || ''),
+            grouping: String(c.grouping || ''),
+            minmeta: Boolean(c.minmeta),
+            overwrite: Boolean(c.overwrite),
+            validateBids: c.validate_bids !== false,
+          },
+        })
+      }
     } catch (e) {
       set({ batchError: String(e) })
     }

@@ -17,6 +17,7 @@ from fmriflow.convert.manifest import (
     ConvertConfig,
     ConvertManifest,
     ConvertRunRecord,
+    bids_parts,
     now_iso,
 )
 from fmriflow.convert.validation import run_bids_validator
@@ -139,7 +140,8 @@ def collect_bids(config: ConvertConfig) -> ConvertManifest:
     runs: list[ConvertRunRecord] = []
 
     for nii in sorted(bids_dir.rglob(f"sub-{config.subject}/**/*.nii.gz")):
-        entities = _parse_bids_filename(nii.name)
+        rel = str(nii.relative_to(bids_dir))
+        datatype, suffix, entities = bids_parts(rel)
         sidecar = nii.with_suffix("").with_suffix(".json")
 
         tr = None
@@ -164,14 +166,16 @@ def collect_bids(config: ConvertConfig) -> ConvertManifest:
                 pass
 
         runs.append(ConvertRunRecord(
-            run_name=entities.get("run", "01"),
+            run_name=entities.get("run", ""),
             task=entities.get("task", ""),
             session=entities.get("ses", ""),
             source_series="",
-            output_file=str(nii.relative_to(bids_dir)),
+            output_file=rel,
             sidecar_file=str(sidecar.relative_to(bids_dir)) if sidecar.exists() else "",
             n_volumes=n_volumes,
-            modality=_infer_modality(nii.name),
+            datatype=datatype,
+            suffix=suffix,
+            entities=entities,
             shape=shape,
             tr=tr,
             notes=None,
@@ -230,36 +234,6 @@ def dry_run(config: ConvertConfig) -> str:
 
 
 # ── Internal helpers ─────────────────────────────────────────────────────
-
-_BIDS_ENTITY_RE = re.compile(r"([a-zA-Z]+)-([a-zA-Z0-9]+)")
-
-
-def _parse_bids_filename(filename: str) -> dict[str, str]:
-    """Extract BIDS entities from a filename.
-
-    e.g. "sub-sub01_ses-session01_task-reading_run-01_bold.nii.gz"
-    → {"sub": "sub01", "ses": "session01", "task": "reading", "run": "01"}
-    """
-    return dict(_BIDS_ENTITY_RE.findall(filename))
-
-
-def _infer_modality(filename: str) -> str:
-    """Infer modality from a BIDS filename suffix."""
-    name = filename.lower()
-    if "_bold" in name:
-        return "bold"
-    if "_t1w" in name:
-        return "T1w"
-    if "_t2w" in name:
-        return "T2w"
-    if "_dwi" in name:
-        return "dwi"
-    if "_fmap" in name or "_phasediff" in name or "_magnitude" in name:
-        return "fmap"
-    if "_epi" in name:
-        return "epi"
-    return "unknown"
-
 
 def _detect_sessions(bids_dir: Path, subject: str) -> list[str]:
     """Detect session labels from the BIDS directory structure."""

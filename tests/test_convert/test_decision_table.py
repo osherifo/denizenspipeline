@@ -12,7 +12,6 @@ from fmriflow.convert.decision_table import (
     DecisionTableError,
     list_units,
     bids_key,
-    build_coverage,
     build_decision_table,
     build_flow,
     has_provenance,
@@ -171,18 +170,10 @@ def test_warns_when_one_output_mixes_geometries(tmp_path):
     assert any("dimensions" in w for w in build_decision_table(tmp_path, "01").warnings)
 
 
-def test_warns_about_substantial_dropped_series(tmp_path):
-    _write(tmp_path, [_row("1-a", "A"), _row("2-big", "INV2", n=176)],
-           {"tmpl": ["1-a"]})
-
-    warnings = build_decision_table(tmp_path, "01").warnings
-
-    assert any("dropped" in w and "INV2" in w for w in warnings)
-
-
-def test_a_dropped_localizer_does_not_warn(tmp_path):
-    """Small series are dropped on purpose constantly; warning on them is noise."""
-    _write(tmp_path, [_row("1-a", "A"), _row("2-loc", "localizer", n=3)],
+def test_dropped_series_do_not_warn(tmp_path):
+    """Dropping is the heuristic's decision and the table already shows it;
+    a warning on top, whatever the series size, is noise."""
+    _write(tmp_path, [_row("1-a", "A"), _row("2-big", "INV2", n=176), _row("3-loc", "localizer", n=3)],
            {"tmpl": ["1-a"]})
 
     assert build_decision_table(tmp_path, "01").warnings == []
@@ -258,7 +249,7 @@ def test_item_indexes_from_one_within_each_rule(tmp_path):
     assert outs == ["sub-01/anat/sub-01_run-01_T1w", "sub-01/anat/sub-01_run-02_T1w"]
 
 
-# ── coverage matrix ─────────────────────────────────────────────────
+# ── bids_key ─────────────────────────────────────────────────
 
 
 def test_bids_key_folds_runs_but_keeps_distinct_images(tmp_path):
@@ -267,60 +258,6 @@ def test_bids_key_folds_runs_but_keeps_distinct_images(tmp_path):
            bids_key("sub-01/anat/sub-01_run-04_T1w")
     assert bids_key("sub-01/anat/sub-01_inv-1_MP2RAGE") != \
            bids_key("sub-01/anat/sub-01_inv-2_MP2RAGE")
-
-
-def test_coverage_counts_outputs_per_subject_and_key(tmp_path):
-    for sub, rows, mapping in (
-        ("01", [_row("1-a", "A"), _row("2-b", "B")],
-         {"sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w": ["1-a", "2-b"]}),
-        ("02", [_row("1-a", "A")],
-         {"sub-{subject}/anat/sub-{subject}_run-{item:02d}_T1w": ["1-a"]}),
-    ):
-        _write(tmp_path, rows, mapping, subject=sub)
-
-    cov = build_coverage(tmp_path)
-
-    assert cov["subjects"] == ["sub-01", "sub-02"]
-    assert cov["keys"] == ["anat/T1w"]
-    assert cov["matrix"][0]["cells"] == [2]
-    assert cov["matrix"][1]["cells"] == [1]
-
-
-def test_coverage_distinguishes_a_missing_subject_from_a_dead_rule(tmp_path):
-    """The two failure modes the matrix exists to tell apart.
-
-    sub-02 is missing T2w that sub-01 has — a data incident, one empty cell.
-    `sbref` is declared by both heuristics and produced by neither — a code
-    bug, an empty column.
-    """
-    _write(tmp_path, [_row("1-a", "A"), _row("2-t2", "T2")],
-           {"sub-{subject}/anat/sub-{subject}_T1w": ["1-a"],
-            "sub-{subject}/anat/sub-{subject}_T2w": ["2-t2"],
-            "sub-{subject}/func/sub-{subject}_sbref": []},
-           subject="01")
-    _write(tmp_path, [_row("1-a", "A")],
-           {"sub-{subject}/anat/sub-{subject}_T1w": ["1-a"],
-            "sub-{subject}/anat/sub-{subject}_T2w": [],
-            "sub-{subject}/func/sub-{subject}_sbref": []},
-           subject="02")
-
-    cov = build_coverage(tmp_path)
-    col = {k: i for i, k in enumerate(cov["keys"])}
-    cells = {r["subject"]: r["cells"] for r in cov["matrix"]}
-
-    # data incident: present for one subject, absent for the other
-    assert cells["sub-01"][col["anat/T2w"]] == 1
-    assert cells["sub-02"][col["anat/T2w"]] == 0
-    assert "anat/T2w" not in cov["never_matched"]
-
-    # code bug: declared everywhere, produced nowhere
-    assert "func/sbref" in cov["never_matched"]
-    assert all(r["cells"][col["func/sbref"]] == 0 for r in cov["matrix"])
-
-
-def test_coverage_is_empty_without_provenance(tmp_path):
-    cov = build_coverage(tmp_path)
-    assert cov["subjects"] == [] and cov["matrix"] == []
 
 
 # ── flow ────────────────────────────────────────────────────────────
@@ -385,8 +322,6 @@ def test_units_list_every_session_separately(tmp_path):
         ("01", "ses-01"), ("01", "ses-02"), ("02", "ses-01"),
     ]
 
-    cov = build_coverage(tmp_path)
-    assert cov["subjects"] == ["sub-01/ses-01", "sub-01/ses-02", "sub-02/ses-01"]
 
 
 # ── subject normalisation ───────────────────────────────────────────
@@ -400,3 +335,29 @@ def test_subject_is_returned_as_a_bare_label(tmp_path):
     assert build_decision_table(tmp_path, "01").subject == "01"
     assert build_decision_table(tmp_path, "sub-01").subject == "01"
     assert build_decision_table(tmp_path, "sub-01").to_dict()["subject"] == "01"
+
+
+def _write_sessioned(tmp_path, rows, mapping, subject="01", ses="ses-01"):
+    """heudiconv's layout for a sessioned run: dicominfo_ses-01.tsv + 01_ses-01.auto.txt."""
+    info = tmp_path / ".heudiconv" / subject / ses / "info"
+    info.mkdir(parents=True)
+    (info / f"dicominfo_{ses}.tsv").write_text("\n".join([SERIES_HEADER, *rows]) + "\n")
+    entries = ",\n ".join(
+        f"({template!r}, ('nii.gz',), None): {sids!r}"
+        for template, sids in mapping.items()
+    )
+    (info / f"{subject}_{ses}.auto.txt").write_text("{" + entries + "}")
+    return tmp_path
+
+
+def test_sessioned_heudiconv_layout_is_found(tmp_path):
+    from fmriflow.convert.decision_table import build_flow, has_provenance, list_units
+    _write_sessioned(tmp_path, [_row("1", "t1"), _row("2", "bold")], {"anat": ["1"], "func": ["2"]}, ses="ses-01")
+    _write_sessioned(tmp_path, [_row("3", "t1")], {"anat": ["3"]}, ses="ses-02")
+    assert list_units(tmp_path) == [("01", "ses-01"), ("01", "ses-02")]
+    assert has_provenance(tmp_path, "01")
+    # No session named -> the first session found.
+    table = build_decision_table(tmp_path, "01").to_dict()
+    assert table["session"] == "ses-01" and table["n_series"] == 2 and table["n_mapped"] == 2
+    assert build_decision_table(tmp_path, "01", "02").to_dict()["n_series"] == 1
+    assert build_flow(tmp_path)["n_series"] == 3

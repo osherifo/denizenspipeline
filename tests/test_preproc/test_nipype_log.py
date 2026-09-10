@@ -153,3 +153,26 @@ def test_aggregator_skips_malformed_lines(tmp_path):
     }) + "\n")
     block = parse_nipype_events_file(p)
     assert block.counts["ok"] == 1
+
+
+def test_parse_with_prefix_keeps_only_the_subtree_and_strips_it(tmp_path):
+    import json
+    from fmriflow.preproc.nipype_log import parse_nipype_events_file
+    wf = "p__sub_01"
+    ev = [
+        {"event": "node_start", "node": f"{wf}.fp", "leaf": "fp", "workflow": wf, "t": 1.0},
+        {"event": "node_start", "node": f"{wf}.fp.fmriprep_wf.a.n1", "leaf": "n1", "workflow": f"{wf}.fp.fmriprep_wf.a", "t": 2.0},
+        {"event": "node_done", "node": f"{wf}.fp.fmriprep_wf.a.n1", "leaf": "n1", "workflow": f"{wf}.fp.fmriprep_wf.a", "t": 3.0},
+        {"event": "node_start", "node": f"{wf}.fp.fmriprep_wf.a.n2", "leaf": "n2", "workflow": f"{wf}.fp.fmriprep_wf.a", "t": 4.0},
+        {"event": "node_start", "node": f"{wf}.other", "leaf": "other", "workflow": wf, "t": 5.0},
+    ]
+    p = tmp_path / "events.jsonl"
+    p.write_text("\n".join(json.dumps(e) for e in ev) + "\n")
+    block = parse_nipype_events_file(p, prefix=f"{wf}.fp.")
+    assert [n.node for n in block.recent_nodes] == ["fmriprep_wf.a.n1", "fmriprep_wf.a.n2"]
+    assert block.recent_nodes[0].workflow == "fmriprep_wf.a" and block.recent_nodes[0].status == "ok"
+    assert block.counts == {"running": 1, "ok": 1, "failed": 0, "completed_assumed": 0, "total_seen": 2}
+    # cap applies after the filter
+    assert [n.node for n in parse_nipype_events_file(p, prefix=f"{wf}.fp.", cap=1).recent_nodes] == ["fmriprep_wf.a.n2"]
+    # no prefix: everything, untouched
+    assert len(parse_nipype_events_file(p).recent_nodes) == 4

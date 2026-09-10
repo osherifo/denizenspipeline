@@ -251,17 +251,27 @@ def _recompute_counts(nodes: list[NipypeNodeStatus]) -> dict:
     }
 
 
-def parse_nipype_events_file(path: str | Path, *, cap: int = 200) -> NipypeStatusBlock:
+def parse_nipype_events_file(
+    path: str | Path, *, cap: int = 200, prefix: str | None = None,
+) -> NipypeStatusBlock:
     """Collapse the JSONL events file into a NipypeStatusBlock.
 
     Cap limits the number of nodes returned (most recent N).
+
+    ``prefix`` (with its trailing ``.``) restricts the block to one outer
+    node's inner subtree and strips the prefix from every path, so the
+    subtree's own root (``fmriprep_wf`` for fmriprep) is what the lanes
+    and label tables see, and the cap applies to that subtree alone.
 
     Performs a read-time **FIFO leaf-matching pass** so JSONLs written
     before the parser's same-leaf fix (where Finished/Error lines
     carried bare-leaf names) still aggregate cleanly without rewrite:
     a leaf-only terminal event pops the oldest queued ``node_start`` of
     that leaf and applies the terminal status to that full path. Truly
-    unmatched bare-leaf events are kept as their own nodes.
+    unmatched bare-leaf events are kept as their own nodes. This pass
+    runs against the raw (unfiltered) event stream, ahead of the
+    ``prefix`` subtree filter, since a legacy bare-leaf event carries no
+    prefix to filter on.
     """
     p = Path(path)
     if not p.is_file():
@@ -286,8 +296,13 @@ def parse_nipype_events_file(path: str | Path, *, cap: int = 200) -> NipypeStatu
         if not node or not leaf:
             continue
 
-        # Reconciliation: rewrite leaf-only terminal events to their
-        # matching node_start's full path (FIFO).
+        # Reconciliation runs on the raw node/leaf, before the subtree filter
+        # below. A legacy bare-leaf terminal event carries no prefix at all
+        # (its "node" is just the leaf name), so filtering on `prefix` first
+        # would drop it outright and leave the matching inner node stuck
+        # "running" forever; queuing node_start paths pre-filter too keeps
+        # the FIFO in the same (raw) namespace the terminal events resolve
+        # against.
         if (
             kind in ("node_done", "node_fail")
             and "." not in node
@@ -302,6 +317,16 @@ def parse_nipype_events_file(path: str | Path, *, cap: int = 200) -> NipypeStatu
 
         if kind == "node_start" and "." in node:
             starts_by_leaf.setdefault(leaf, deque()).append(node)
+
+        if prefix:
+            if not node.startswith(prefix):
+                continue
+            node = node[len(prefix):]
+            wf = ev.get("workflow")
+            if isinstance(wf, str) and wf.startswith(prefix):
+                ev = {**ev, "workflow": wf[len(prefix):]}
+            elif wf == prefix.rstrip("."):
+                ev = {**ev, "workflow": ""}
 
         if node not in by_node:
             by_node[node] = NipypeNodeStatus(

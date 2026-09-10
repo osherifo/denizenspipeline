@@ -122,6 +122,13 @@ def add_convert_subcommands(subparsers: argparse._SubParsersAction) -> None:
     heur_info.add_argument("--code", action="store_true",
                            help="Print the heuristic Python source code")
 
+    # heuristics copy
+    heur_copy = heur_subs.add_parser(
+        "copy", help="Duplicate a heuristic (bundled or user) under a new name",
+    )
+    heur_copy.add_argument("source", help="Existing heuristic name")
+    heur_copy.add_argument("new_name", help="Name for the copy")
+
     # heuristics create
     heur_create = heur_subs.add_parser(
         "create", help="Create a new heuristic from template",
@@ -196,7 +203,7 @@ def _convert_run(args) -> int:
         print(f"  Runs:       {len(manifest.runs)}")
         for run in manifest.runs:
             tr_str = f"  TR={run.tr}s" if run.tr else ""
-            print(f"    {run.modality:6s} {run.output_file}{tr_str}")
+            print(f"    {run.datatype}/{run.suffix:10s} {run.output_file}{tr_str}")
         if manifest.bids_valid is not None:
             status = "PASSED" if manifest.bids_valid else "FAILED"
             print(f"  BIDS valid: {status}")
@@ -236,7 +243,7 @@ def _convert_collect(args) -> int:
         print(f"  Runs:     {len(manifest.runs)}")
         for run in manifest.runs:
             tr_str = f"  TR={run.tr}s" if run.tr else ""
-            print(f"    {run.modality:6s} {run.output_file}{tr_str}")
+            print(f"    {run.datatype}/{run.suffix:10s} {run.output_file}{tr_str}")
         print(f"  Manifest: {manifest_path}")
         return 0
     except Exception as e:
@@ -316,7 +323,7 @@ def _convert_scan(args) -> int:
     if series:
         print(f"\nSeries:")
         for s in series:
-            print(f"  {s.number:03d}  {s.description:40s} {s.n_images:5d} images  {s.modality_guess}")
+            print(f"  {s.number:03d}  {s.description:40s} {s.n_images:5d} images  {s.modality or ''}")
     else:
         print("\nNo DICOM series found.")
 
@@ -499,6 +506,16 @@ def _convert_heuristics(args) -> int:
             return 0
         except Exception as e:
             print(f"\nFailed to register: {e}", file=sys.stderr)
+            return 1
+
+    elif heur_cmd == "copy":
+        from fmriflow.convert.heuristics import copy_heuristic
+        try:
+            info = copy_heuristic(args.source, args.new_name)
+            print(f"Copied '{args.source}' -> '{info.name}' at {info.path}")
+            return 0
+        except Exception as e:
+            print(f"\n{e}", file=sys.stderr)
             return 1
 
     elif heur_cmd == "info":

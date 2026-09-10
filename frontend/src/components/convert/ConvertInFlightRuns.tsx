@@ -237,13 +237,17 @@ export function ConvertInFlightRuns() {
   const [logError, setLogError] = useState<string | null>(null)
   const dlg = useDialog()
 
-  async function reload() {
-    setLoading(true)
+  // `silent` is the background poll: it must not flip the Refresh button to
+  // "…" every few seconds while a run is live.
+  async function reload(silent = false) {
+    if (!silent) setLoading(true)
     try {
       const list = await fetchConvertRuns(true)
       setRuns(list)
+    } catch {
+      /* keep the last list; the next poll or a manual refresh retries */
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -286,20 +290,20 @@ export function ConvertInFlightRuns() {
     }
   }
 
-  useEffect(() => { reload() }, [])
+  useEffect(() => { void reload() }, [])
 
+  const hasLive = runs.some((r) => r.status === 'running')
   useEffect(() => {
-    const hasLive = runs.some((r) => r.status === 'running')
     if (!hasLive) return
-    const id = setInterval(reload, 5000)
+    const id = setInterval(() => { void reload(true) }, 5000)
     return () => clearInterval(id)
-  }, [runs])
+  }, [hasLive])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
         <span style={titleStyle}>Recent Runs ({runs.length})</span>
-        <button style={refreshBtn} onClick={reload}>{loading ? '...' : 'Refresh'}</button>
+        <button style={refreshBtn} onClick={() => void reload()}>{loading ? '...' : 'Refresh'}</button>
       </div>
       {runs.length === 0 && (
         <div style={emptyStyle}>No convert runs yet.</div>

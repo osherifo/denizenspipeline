@@ -10,10 +10,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from fmriflow.server.services.preproc_manager import (
-    PreprocManager,
-    PreprocRunHandle,
-)
 from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
 
 
@@ -22,7 +18,7 @@ from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
 
 @pytest.fixture
 def app_with_run(tmp_path, monkeypatch):
-    """An app whose preproc_manager has a single completed run with a
+    """An app whose run registry has a single completed pipeline run with a
     real on-disk work_dir + a couple of node leaves prepared for us."""
     from fmriflow.server.app import create_app
 
@@ -44,16 +40,15 @@ def app_with_run(tmp_path, monkeypatch):
     bad.write_bytes(b"not actually a pickle")
 
     app = create_app(derivatives_dir=str(tmp_path / "derivatives"))
-    mgr: PreprocManager = app.state.preproc_manager
-    handle = PreprocRunHandle(
-        run_id="run_demo",
-        subject="01",
-        backend="fmriprep",
-        status="done",
-        params={"work_dir": str(work_dir), "output_dir": str(output_dir)},
+    mgr = app.state.preproc_run_manager
+    state = RunStateFile(
+        run_id="run_demo", kind="preproc", backend="fmriprep", subject="01", status="done",
+        params={"work_dir": str(work_dir), "output_dir": str(output_dir), "pipeline": "demo",
+                "nodes": [], "n_nodes": 0},
     )
-    mgr.active_runs["run_demo"] = handle
-    return app, handle
+    mgr.registry.register(state)
+    mgr.registry.update(state)
+    return app, state
 
 
 def test_files_lists_whitelisted_artefacts(app_with_run):
@@ -169,11 +164,10 @@ def test_404_when_run_unknown(tmp_path):
 def test_409_when_run_has_no_work_dir(tmp_path):
     from fmriflow.server.app import create_app
     app = create_app(derivatives_dir=str(tmp_path))
-    mgr: PreprocManager = app.state.preproc_manager
-    mgr.active_runs["r"] = PreprocRunHandle(
-        run_id="r", subject="01", backend="fmriprep", status="done",
-        params={},  # no work_dir
-    )
+    state = RunStateFile(run_id="r", kind="preproc", backend="fmriprep", subject="01", status="done",
+                         params={})
+    app.state.preproc_run_manager.registry.register(state)
+    app.state.preproc_run_manager.registry.update(state)
     c = TestClient(app)
     r = c.get("/api/preproc/runs/r/node/wf.x/files")
     assert r.status_code == 409
@@ -193,11 +187,10 @@ def test_finds_matching_crash_files(tmp_path):
     (log_dir / "crash-20260505-other-abc.txt").write_text("unrelated")
 
     app = create_app(derivatives_dir=str(tmp_path))
-    mgr: PreprocManager = app.state.preproc_manager
-    mgr.active_runs["r"] = PreprocRunHandle(
-        run_id="r", subject="01", backend="fmriprep", status="failed",
-        params={"work_dir": str(work_dir), "output_dir": str(output_dir)},
-    )
+    state = RunStateFile(run_id="r", kind="preproc", backend="fmriprep", subject="01", status="failed",
+                         params={"work_dir": str(work_dir), "output_dir": str(output_dir)})
+    app.state.preproc_run_manager.registry.register(state)
+    app.state.preproc_run_manager.registry.update(state)
     c = TestClient(app)
     r = c.get("/api/preproc/runs/r/node/fmriprep_wf.boom/files")
     assert r.status_code == 200

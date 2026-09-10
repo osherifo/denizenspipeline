@@ -17,7 +17,7 @@ def add_pycortex_transform_subcommands(subparsers: argparse._SubParsersAction) -
     sub = px.add_subparsers(dest="pycortex_transform_command")
 
     create_p = sub.add_parser("create", help="Create/align a pycortex transform")
-    create_p.add_argument("cx_subject", help="Pycortex subject name (e.g. ANfs)")
+    create_p.add_argument("cx_subject", help="Pycortex subject name (e.g. sub01fs)")
     create_p.add_argument("reference", help="Path to the functional reference volume (NIfTI)")
     create_p.add_argument("--xfmname", default="fmriflow", help="Transform name (default: fmriflow)")
     create_p.add_argument(

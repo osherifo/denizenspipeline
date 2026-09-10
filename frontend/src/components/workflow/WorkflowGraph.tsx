@@ -46,7 +46,7 @@ type StageNodeData = WorkflowStageStatus & {
   isFirst: boolean
   isLast: boolean
   onOpenNipypeDag?: () => void
-  onOpenStructuralQC?: () => void
+  onOpenBackendNode?: () => void
   onOpenConvertDecisions?: () => void
 }
 
@@ -225,18 +225,18 @@ function WorkflowStageNodeInner({ data }: NodeProps & { data: StageNodeData }) {
           </div>
         )}
 
-      {data.stage === 'preproc' && data.status === 'done' &&
-        data.onOpenStructuralQC && (
+      {data.stage === 'preproc' && (data.status === 'done' || data.status === 'running' || data.status === 'failed') &&
+        data.onOpenBackendNode && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                data.onOpenStructuralQC?.()
+                data.onOpenBackendNode?.()
               }}
               style={stageActionButton(meta.color)}
             >
-              Structural QC →
+              Backend node →
             </button>
           </div>
         )}
@@ -361,7 +361,7 @@ const NODE_Y = 40
 function buildGraph(
   stages: WorkflowStageStatus[],
   onOpenNipypeDag?: (stage: WorkflowStageStatus) => void,
-  onOpenStructuralQC?: (stage: WorkflowStageStatus) => void,
+  onOpenBackendNode?: (stage: WorkflowStageStatus) => void,
   onOpenConvertDecisions?: (stage: WorkflowStageStatus) => void,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = stages.map((s, i) => ({
@@ -377,9 +377,9 @@ function buildGraph(
         s.stage === 'preproc' && onOpenNipypeDag
           ? () => onOpenNipypeDag(s)
           : undefined,
-      onOpenStructuralQC:
-        s.stage === 'preproc' && onOpenStructuralQC
-          ? () => onOpenStructuralQC(s)
+      onOpenBackendNode:
+        s.stage === 'preproc' && onOpenBackendNode
+          ? () => onOpenBackendNode(s)
           : undefined,
       onOpenConvertDecisions:
         s.stage === 'convert' && onOpenConvertDecisions
@@ -422,7 +422,7 @@ interface WorkflowGraphProps {
   onStageClick?: (stage: WorkflowStageStatus) => void
   onStageDoubleClick?: (stage: WorkflowStageStatus) => void
   onOpenNipypeDag?: (stage: WorkflowStageStatus) => void
-  onOpenStructuralQC?: (stage: WorkflowStageStatus) => void
+  onOpenBackendNode?: (stage: WorkflowStageStatus) => void
   onOpenConvertDecisions?: (stage: WorkflowStageStatus) => void
 }
 
@@ -433,7 +433,7 @@ export function WorkflowGraph(
     onStageClick,
     onStageDoubleClick,
     onOpenNipypeDag,
-    onOpenStructuralQC,
+    onOpenBackendNode,
     onOpenConvertDecisions,
   }: WorkflowGraphProps,
 ) {
@@ -441,8 +441,8 @@ export function WorkflowGraph(
   // via STATUS() below (this component is memoised).
   useThemeStore((s) => s.mode)
   const { nodes, edges } = useMemo(
-    () => buildGraph(stages, onOpenNipypeDag, onOpenStructuralQC, onOpenConvertDecisions),
-    [stages, onOpenNipypeDag, onOpenStructuralQC, onOpenConvertDecisions],
+    () => buildGraph(stages, onOpenNipypeDag, onOpenBackendNode, onOpenConvertDecisions),
+    [stages, onOpenNipypeDag, onOpenBackendNode, onOpenConvertDecisions],
   )
   if (!stages.length) return null
 

@@ -18,14 +18,14 @@ import {
   deleteWorkflowRun,
   fetchInFlightRun,
   fetchPreprocRunLive,
-  fetchPreprocRun,
   fetchConvertRun,
 } from '../api/client'
 import type { AnalysisInnerStage, NipypeStatusBlock } from '../api/types'
 import { WorkflowGraph } from '../components/workflow/WorkflowGraph'
 import { StageLogModal } from '../components/workflow/StageLogModal'
-import { NipypeGraphModal } from '../components/workflow/NipypeGraphModal'
-import { StructuralQCModal } from '../components/workflow/StructuralQCModal'
+import { RunDetailModal } from '../components/preproc-graph/RunDetailModal'
+import { fetchPipelineRun } from '../api/preproc'
+import { NodePopup } from '../components/preproc-graph/NodePopup'
 import { ConvertDecisionsModal } from '../components/workflow/ConvertDecisionsModal'
 import { LiveStageLog } from '../components/workflow/LiveStageLog'
 import { useDialog } from '../components/common/Dialog'
@@ -282,7 +282,7 @@ export function WorkflowsView() {
   const [analysisInner, setAnalysisInner] = useState<{ runId: string; stages: AnalysisInnerStage[] } | null>(null)
   const [preprocNipype, setPreprocNipype] = useState<{ runId: string; block: NipypeStatusBlock } | null>(null)
   const [nipypeGraph, setNipypeGraph] = useState<{ runId: string; isRunning: boolean } | null>(null)
-  const [structuralQC, setStructuralQC] = useState<{ subject: string } | null>(null)
+  const [nodePopup, setNodePopup] = useState<{ runId: string; nodeId: string; initialTab?: string } | null>(null)
   const [convertDecisions, setConvertDecisions] =
     useState<{ bidsDir: string; subject: string } | null>(null)
   const [editing, setEditing] = useState(false)
@@ -598,11 +598,16 @@ export function WorkflowsView() {
                 alert(`Could not load convert run: ${e}`)
               }
             }}
-            onOpenStructuralQC={async (s) => {
+            onOpenBackendNode={async (s) => {
               if (s.stage !== 'preproc' || !s.run_id) return
               try {
-                const detail = await fetchPreprocRun(s.run_id)
-                setStructuralQC({ subject: detail.subject })
+                const detail = await fetchPipelineRun(s.run_id, false)
+                // The node whose outputs define the manifest (fmriprep in the templates),
+                // else the first app node; else fall back to the whole-run view.
+                const nodeId = detail.job?.pipeline.manifest?.backend_node
+                  ?? detail.nodes.find((n) => n.kind === 'container_app')?.id
+                if (!nodeId) { setNipypeGraph({ runId: s.run_id, isRunning: s.status === 'running' }); return }
+                setNodePopup({ runId: s.run_id, nodeId, initialTab: 'structural_qc' })
               } catch (e) {
                 alert(`Could not load preproc run: ${e}`)
               }
@@ -625,9 +630,8 @@ export function WorkflowsView() {
       )}
 
       {nipypeGraph && (
-        <NipypeGraphModal
+        <RunDetailModal
           runId={nipypeGraph.runId}
-          isRunning={nipypeGraph.isRunning}
           onClose={() => setNipypeGraph(null)}
         />
       )}
@@ -640,10 +644,12 @@ export function WorkflowsView() {
         />
       )}
 
-      {structuralQC && (
-        <StructuralQCModal
-          subject={structuralQC.subject}
-          onClose={() => setStructuralQC(null)}
+      {nodePopup && (
+        <NodePopup
+          runId={nodePopup.runId}
+          nodeId={nodePopup.nodeId}
+          initialTab={nodePopup.initialTab}
+          onClose={() => setNodePopup(null)}
         />
       )}
 

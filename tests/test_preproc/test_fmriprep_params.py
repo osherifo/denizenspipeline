@@ -428,3 +428,21 @@ class TestSerialization:
         assert p2.bold2t1w_dof == p.bold2t1w_dof
         assert p2.output_spaces == p.output_spaces
         assert p2.nthreads == p.nthreads
+
+
+class TestFsNoResume:
+    def test_default_on_with_precomputed_subjects(self):
+        args = FmriprepParams(mode="func_precomputed_anat", fs_subjects_dir="/data/fs").to_command_args()
+        assert "--fs-no-resume" in args and args.index("--fs-no-resume") > args.index("--fs-subjects-dir")
+        args = FmriprepParams(mode="full", fs_subjects_dir="/data/fs").to_command_args()
+        assert "--fs-no-resume" in args
+
+    def test_off_or_no_subjects_dir_emits_nothing(self):
+        assert "--fs-no-resume" not in FmriprepParams(mode="func_precomputed_anat", fs_subjects_dir="/data/fs", fs_no_resume=False).to_command_args()
+        assert "--fs-no-resume" not in FmriprepParams(mode="full").to_command_args()
+        assert "--fs-no-resume" not in FmriprepParams(mode="func_only", fs_subjects_dir="/data/fs").to_command_args()
+
+    def test_from_dict_reads_the_flag(self):
+        p = FmriprepParams.from_dict({"mode": "func_precomputed_anat", "fs_subjects_dir": "/data/fs", "fs_no_resume": False})
+        assert p.fs_no_resume is False
+

@@ -20,44 +20,17 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from fmriflow.qc.structural_review import StructuralQCReview, QC_STATUSES
+from fmriflow.server.services.qc_files import (
+    FS_ALLOWED_SUFFIXES,
+    OUT_ALLOWED_SUFFIXES,
+    build_freeview_command,
+    find_fs_subject_dir,
+    save_drawing,
+    serve_file,
+)
 
 router = APIRouter(tags=["structural-qc"])
 logger = logging.getLogger(__name__)
-
-
-# Files we'll serve from the FS subject dir for in-browser viewing.
-_FS_ALLOWED_SUFFIXES = {
-    ".nii", ".gz", ".mgz",
-    ".pial", ".white", ".inflated", ".smoothwm",
-    # Per-vertex scalar overlays for niivue mesh layers
-    # (curvature shading on white/inflated, plus future toggles
-    # for cortical thickness / surface area).
-    ".curv", ".thickness", ".area",
-    ".png", ".svg",
-}
-
-# Files we'll serve from the fmriprep output dir to satisfy the
-# report HTML's relative URLs (figures, embedded svg, etc.).
-_OUT_ALLOWED_SUFFIXES = {
-    ".svg", ".png", ".jpg", ".jpeg", ".gif",
-    ".html", ".htm", ".css", ".js", ".json",
-    ".tsv", ".txt", ".nii", ".gz",
-}
-
-_MEDIA_TYPES = {
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".html": "text/html",
-    ".htm": "text/html",
-    ".css": "text/css",
-    ".js": "application/javascript",
-    ".json": "application/json",
-    ".tsv": "text/tab-separated-values",
-    ".txt": "text/plain",
-}
 
 
 class ReviewBody(BaseModel):
@@ -71,86 +44,27 @@ class ReviewBody(BaseModel):
 
 
 def _manifest_for(request: Request, subject: str) -> dict[str, Any]:
-    mgr = request.app.state.preproc_manager
+    mgr = request.app.state.preproc_outputs
     m = mgr.get_manifest(subject)
     if m is None:
         raise HTTPException(404, f"No manifest for subject '{subject}'")
     return m
 
 
-def _safe_join(root: Path, rel: str) -> Path:
-    """Resolve `root / rel` and refuse to leave `root`."""
-    target = (root / rel).resolve()
-    root_resolved = root.resolve()
-    if not str(target).startswith(str(root_resolved) + "/") and target != root_resolved:
-        raise HTTPException(403, "Path escapes root")
-    return target
-
-
 def _fs_subject_dir(manifest: dict[str, Any]) -> Path | None:
-    """Locate the FreeSurfer subject directory for the manifest, if any."""
-    fs_dir = manifest.get("freesurfer_subjects_dir")
-    subject = manifest["subject"]
-    if fs_dir:
-        cand = Path(fs_dir) / f"sub-{subject}"
-        if cand.is_dir():
-            return cand
-        cand2 = Path(fs_dir) / subject
-        if cand2.is_dir():
-            return cand2
-    # Fallback: common fmriprep layouts under output_dir
-    out = Path(manifest.get("output_dir", ""))
-    for base in (
-        out / "sourcedata" / "freesurfer",
-        out / "freesurfer",
-        out.parent / "freesurfer",
-    ):
-        for name in (f"sub-{subject}", subject):
-            cand = base / name
-            if cand.is_dir():
-                return cand
-    return None
+    return find_fs_subject_dir(manifest.get("freesurfer_subjects_dir"), manifest["subject"], manifest.get("output_dir"))
 
 
-def _build_freeview_command(
-    fs_subject_dir: Path,
-    *,
-    drawing_path: Path | None = None,
-    ras: tuple[float, float, float] | None = None,
-) -> str:
-    """Build a freeview command using the files that actually exist."""
-    parts: list[str] = ["freeview"]
-    mri = fs_subject_dir / "mri"
-    surf = fs_subject_dir / "surf"
-
-    volumes = [
-        ("T1.mgz", ""),
-        ("brainmask.mgz", ":colormap=heat:opacity=0.3"),
-        ("aseg.mgz", ":colormap=lut:opacity=0.3"),
-    ]
-    for name, opts in volumes:
-        p = mri / name
-        if p.is_file():
-            parts.append(f"-v {p}{opts}")
-
-    if drawing_path and drawing_path.is_file():
-        parts.append(f"-v {drawing_path}:colormap=lut:opacity=0.5")
-
-    surfaces = [
-        ("lh.pial", ":edgecolor=red"),
-        ("rh.pial", ":edgecolor=red"),
-        ("lh.white", ":edgecolor=yellow"),
-        ("rh.white", ":edgecolor=yellow"),
-    ]
-    for name, opts in surfaces:
-        p = surf / name
-        if p.is_file():
-            parts.append(f"-f {p}{opts}")
-
-    if ras:
-        parts.append(f"-c {ras[0]:.1f} {ras[1]:.1f} {ras[2]:.1f}")
-
-    return " \\\n  ".join(parts)
+def _dataset_for(request: Request, subject: str, dataset: str | None) -> str:
+    """The dataset a review is filed under: the subject's manifest when the
+    outputs scanner knows one, else the caller's ``?dataset=`` (a run-scoped
+    view whose derivatives sit outside the scanned roots)."""
+    m = request.app.state.preproc_outputs.get_manifest(subject)
+    if m is not None:
+        return str(m["dataset"])
+    if dataset:
+        return dataset
+    raise HTTPException(404, f"No manifest for subject '{subject}'")
 
 
 # ── review CRUD ─────────────────────────────────────────────────────────
@@ -173,25 +87,23 @@ async def list_reviews(request: Request, dataset: str | None = None):
 
 
 @router.get("/preproc/subjects/{subject}/structural-qc")
-async def get_review(request: Request, subject: str):
-    manifest = _manifest_for(request, subject)
+async def get_review(request: Request, subject: str, dataset: str | None = Query(None)):
+    ds = _dataset_for(request, subject, dataset)
     store = request.app.state.structural_qc_store
-    review = store.get(manifest["dataset"], subject)
+    review = store.get(ds, subject)
     if review is None:
         # Default "pending" record (not persisted)
-        review = StructuralQCReview(
-            dataset=manifest["dataset"], subject=subject, status="pending"
-        )
+        review = StructuralQCReview(dataset=ds, subject=subject, status="pending")
     return review.to_dict()
 
 
 @router.post("/preproc/subjects/{subject}/structural-qc")
-async def save_review(request: Request, subject: str, body: ReviewBody):
+async def save_review(request: Request, subject: str, body: ReviewBody, dataset: str | None = Query(None)):
     if body.status not in QC_STATUSES:
         raise HTTPException(400, f"status must be one of {QC_STATUSES}")
-    manifest = _manifest_for(request, subject)
+    ds = _dataset_for(request, subject, dataset)
     review = StructuralQCReview(
-        dataset=manifest["dataset"],
+        dataset=ds,
         subject=subject,
         status=body.status,
         reviewer=body.reviewer,
@@ -215,7 +127,7 @@ async def freeview_command(request: Request, subject: str):
             404,
             "Could not locate a FreeSurfer subject directory for this manifest.",
         )
-    return {"command": _build_freeview_command(fs_dir), "fs_subject_dir": str(fs_dir)}
+    return {"command": build_freeview_command(fs_dir), "fs_subject_dir": str(fs_dir)}
 
 
 @router.post("/preproc/subjects/{subject}/structural-qc/drawing")
@@ -233,14 +145,7 @@ async def upload_drawing(
     fs_dir = _fs_subject_dir(manifest)
     if fs_dir is None:
         raise HTTPException(404, "No FreeSurfer subject directory")
-    dest = fs_dir / "mri" / "qc_drawing.nii"
-    data = await file.read()
-    dest.write_bytes(data)
-    logger.info("Saved QC drawing for %s (%d bytes) → %s", subject, len(data), dest)
-
-    ras = (ras_x, ras_y, ras_z) if any(v != 0 for v in (ras_x, ras_y, ras_z)) else None
-    cmd = _build_freeview_command(fs_dir, drawing_path=dest, ras=ras)
-    return {"saved": True, "path": str(dest), "command": cmd}
+    return save_drawing(fs_dir, await file.read(), (ras_x, ras_y, ras_z))
 
 
 # ── file serving (fmriprep report + FS files for niivue) ────────────────
@@ -268,21 +173,11 @@ async def get_fs_file(request: Request, subject: str, rel: str):
     if fs_dir is None:
         raise HTTPException(404, "No FreeSurfer subject directory")
 
-    # Validate the suffix from the *requested* rel — the caller controls
-    # this, and we want to allow symlinked targets like
-    # `lh.pial → lh.pial.T1` whose resolved suffix wouldn't pass.
-    rel_suffix = Path(rel).suffix.lower()
-    if rel_suffix not in _FS_ALLOWED_SUFFIXES:
-        raise HTTPException(403, f"Suffix not allowed: {rel_suffix}")
-
-    target = _safe_join(fs_dir, rel)
-    if not target.is_file():
-        raise HTTPException(404, f"File not found: {rel}")
-    return FileResponse(target, media_type="application/octet-stream")
+    return serve_file(fs_dir, rel, FS_ALLOWED_SUFFIXES, media_types={})
 
 
 # Declared LAST on purpose: this catch-all serves the fmriprep report's
-# relative asset URLs (e.g. `sub-AN/figures/foo.svg`). FastAPI matches
+# relative asset URLs (e.g. `sub-01/figures/foo.svg`). FastAPI matches
 # routes in declaration order, so the dedicated `/report`,
 # `/freeview-command`, and `/fs-file` endpoints above win first.
 @router.get("/preproc/subjects/{subject}/structural-qc/{rest:path}")
@@ -292,8 +187,8 @@ async def get_report_asset(request: Request, subject: str, rest: str):
 
     The report iframe sits at
     ``/api/preproc/subjects/{subject}/structural-qc/report`` so the
-    browser resolves ``sub-AN/figures/foo.svg`` against
-    ``/api/preproc/subjects/AN/structural-qc/sub-AN/figures/foo.svg`` —
+    browser resolves ``sub-01/figures/foo.svg`` against
+    ``/api/preproc/subjects/01/structural-qc/sub-01/figures/foo.svg`` —
     that path lands here. Suffix-whitelisted, with a safe-join check
     against ``output_dir``.
     """
@@ -302,13 +197,4 @@ async def get_report_asset(request: Request, subject: str, rest: str):
     if not out.is_dir():
         raise HTTPException(404, "Manifest output_dir does not exist")
 
-    suffix = Path(rest).suffix.lower()
-    if suffix not in _OUT_ALLOWED_SUFFIXES:
-        raise HTTPException(403, f"Suffix not allowed: {suffix}")
-
-    target = _safe_join(out, rest)
-    if not target.is_file():
-        raise HTTPException(404, f"File not found: {rest}")
-
-    media_type = _MEDIA_TYPES.get(suffix, "application/octet-stream")
-    return FileResponse(target, media_type=media_type)
+    return serve_file(out, rest, OUT_ALLOWED_SUFFIXES)

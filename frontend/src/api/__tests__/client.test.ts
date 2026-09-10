@@ -26,12 +26,10 @@ import {
   deleteUserModule,
   fetchTemplate,
   fetchTemplateCategories,
-  fetchPreprocBackends,
   fetchManifests,
   fetchManifestDetail,
   fetchErrors,
   connectRunWs,
-  connectPreprocWs,
   fetchTriage,
 } from '../client'
 import { buildPipelineConfig } from '../../test/factories'
@@ -219,11 +217,6 @@ describe('API client', () => {
   })
 
   describe('preprocessing', () => {
-    it('fetchPreprocBackends returns backend list', async () => {
-      const r = await fetchPreprocBackends()
-      expect(r.length).toBe(2)
-      expect(r[0].name).toBe('fmriprep')
-    })
 
     it('fetchManifests returns manifest list', async () => {
       const r = await fetchManifests()
@@ -256,10 +249,5 @@ describe('API client', () => {
       ws.close()
     })
 
-    it('connectPreprocWs uses ws scheme on http page', () => {
-      const ws = connectPreprocWs('xyz')
-      expect(ws.url.startsWith('ws://')).toBe(true)
-      ws.close()
-    })
   })
 })

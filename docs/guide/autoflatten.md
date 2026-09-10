@@ -72,12 +72,12 @@ Schema (minimal):
 ```yaml
 autoflatten:
   subjects_dir: /data/derivatives/freesurfer
-  subject: sub-AN
+  subject: sub-sub01
   hemispheres: both         # both | lh | rh
   backend: pyflatten        # pyflatten | freesurfer
   overwrite: false
   import_to_pycortex: true
-  pycortex_surface_name: ANfs   # optional
+  pycortex_surface_name: sub01fs   # optional
 ```
 
 ### HTTP API
@@ -87,10 +87,10 @@ autoflatten:
 curl http://localhost:8000/api/autoflatten/configs
 
 # Get one
-curl http://localhost:8000/api/autoflatten/configs/ANfs.yaml
+curl http://localhost:8000/api/autoflatten/configs/sub01fs.yaml
 
 # Kick off (body is optional — fields shallow-merge onto the YAML)
-curl -X POST http://localhost:8000/api/autoflatten/configs/ANfs.yaml/run
+curl -X POST http://localhost:8000/api/autoflatten/configs/sub01fs.yaml/run
 ```
 
 ## Long-running runs — detach & reattach

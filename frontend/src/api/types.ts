@@ -538,6 +538,7 @@ export interface HeuristicInfo {
   scanner_pattern: string | null
   version: string | null
   tasks: string[] | null
+  notes?: string | null
   path: string
 }
 
@@ -546,14 +547,9 @@ export interface SaveHeuristicParams {
   code: string
   description?: string
   scanner_pattern?: string
+  version?: string
   tasks?: string[]
-}
-
-export interface ToolStatus {
-  name: string
-  available: boolean
-  version: string | null
-  detail: string
+  notes?: string
 }
 
 export interface ConvertManifestSummary {
@@ -591,7 +587,10 @@ export interface ConvertRunRecord {
   output_file: string
   sidecar_file: string
   n_volumes: number
-  modality: string
+  /** BIDS parts of output_file, verbatim: parent dir, suffix, key-value entities. */
+  datatype: string
+  suffix: string
+  entities: Record<string, string>
   shape: number[]
   tr: number | null
   notes: string | null
@@ -599,9 +598,38 @@ export interface ConvertRunRecord {
 
 export interface DicomSeriesInfo {
   number: number
+  /** SeriesInstanceUID — the real identity; `number` alone repeats across studies/sessions. */
+  series_instance_uid: string
   description: string
   n_images: number
-  modality_guess: string
+  modality?: string | null
+  image_type?: string | null
+  manufacturer?: string | null
+  model?: string | null
+  field_strength?: number | null
+  software_version?: string | null
+  station_name?: string | null
+  institution?: string | null
+  study_date?: string | null
+  protocol_name?: string | null
+}
+
+export interface DicomScanProgress {
+  files_seen: number
+  dicoms_seen: number
+  series_found: number
+  current_dir: string
+}
+
+export interface DicomScanJob {
+  scan_id: string
+  source_dir: string
+  status: 'running' | 'done' | 'failed' | 'cancelled'
+  started_at: number
+  finished_at: number | null
+  progress: DicomScanProgress
+  result: DicomScanResult | null
+  error: string | null
 }
 
 export interface DicomScanResult {
@@ -1304,22 +1332,6 @@ export interface ConvertSeriesDecision {
   status: string
 }
 
-export interface ConvertCoverageRow {
-  subject: string
-  /** Output count per key, parallel to ConvertCoverage.keys. */
-  cells: number[]
-}
-
-export interface ConvertCoverage {
-  bids_dir: string
-  subjects: string[]
-  keys: string[]
-  matrix: ConvertCoverageRow[]
-  /** Keys declared by a heuristic but produced for no subject — rule bugs. */
-  never_matched: string[]
-  errors: Record<string, string>
-}
-
 export interface ConvertFlowLink {
   source: string
   target: string
@@ -1334,6 +1346,7 @@ export interface ConvertFlow {
 }
 
 export interface ConvertDecisionTable {
+  sessions?: string[]          // sessions with provenance for this subject
   /** Bare label, without the `sub-` prefix. */
   subject: string
   session: string | null
@@ -1344,3 +1357,350 @@ export interface ConvertDecisionTable {
   series: ConvertSeriesDecision[]
   warnings: string[]
 }
+
+// ── Preprocessing pipelines (unified node graph) ─────────────────
+
+export type PreprocNodeKind = 'interface' | 'container_app' | 'composite' | 'source'
+
+export interface PortSpec {
+  kind: string
+  required?: boolean
+  description?: string
+  exists?: boolean
+}
+
+export interface PreprocNodeInfo {
+  name: string
+  kind: PreprocNodeKind
+  version: string
+  description: string
+  source: string
+  container_bound: boolean
+  inputs: Record<string, PortSpec>
+  outputs: Record<string, PortSpec>
+  required_python: string[]
+  required_tools: string[]
+  required_env: string[]
+  params_schema: Record<string, ParamField & { group?: string }>
+  checks: string[]
+  /** What the run UI may show for this node (derived from the contract, overridable by `UI`). */
+  ui: NodeUiCapabilities
+}
+
+/** Run-view capabilities a node declares or derives. File-backed ones name an output port. */
+export interface NodeUiCapabilities {
+  inner_dag: boolean
+  checkpoints: boolean
+  log: boolean
+  report: string | null
+  structural_qc: string | null
+  summary: string | null
+  label_map: string | null
+  views: string[]
+}
+
+/** One node of one run, as served by /preproc/runs/{id}/nodes/{node_id}. */
+export interface RunNodeRecord {
+  run_id: string
+  node_id: string
+  node_type: string
+  kind: PreprocNodeKind | ''
+  status: string
+  duration_s: number | null
+  work_dir: string | null
+  outputs: Record<string, unknown>
+  error: string | null
+  params: Record<string, unknown>
+  ui: Partial<NodeUiCapabilities>
+  output_ports: Record<string, PortSpec>
+  params_schema: Record<string, ParamField & { group?: string }>
+  has_log: boolean
+  subject: string
+  dataset: string | null
+  workflow: string | null
+  run_status: string | null
+}
+
+export interface NodeInnerStatus {
+  prefix: string
+  nipype_status: NipypeStatusBlock
+}
+
+/** Where the structural-QC files for a subject come from: the subject's manifest, or one run's node. */
+export type StructuralQCSource =
+  | { kind: 'subject'; subject: string }
+  | { kind: 'run'; runId: string; nodeId: string; subject: string; dataset?: string | null }
+
+export interface PreprocNodeDetail extends PreprocNodeInfo {
+  source_code: string | null
+  module: string | null
+}
+
+export interface PipelineNodeDoc {
+  id: string
+  type: string
+  kind: PreprocNodeKind
+  data: {
+    params: Record<string, unknown>
+    literal_inputs?: Record<string, unknown>
+    bindings?: Record<string, string>
+    iter?: { handle?: string; handles?: string[]; values?: unknown[] } | null
+    /** Pipeline-level checkpoint entries (see CheckDef). */
+    checks?: CheckDef[]
+  }
+  position: { x: number; y: number }
+}
+
+/** A bound as JSON: [op, value] or ['between', [lo, hi]]. */
+export type BoundJson = [string, unknown]
+
+/** One checkpoint entry on a pipeline node. A built-in check is referenced by `step`
+ *  alone (with `enabled: false` to drop it, or `norms` to re-bound it). */
+export interface CheckDef {
+  step: string
+  artifact?: string
+  metric?: string
+  norms?: { hard?: Record<string, BoundJson>; soft?: Record<string, BoundJson> }
+  live?: boolean
+  thumbnail?: string | null
+  enabled?: boolean
+}
+
+export interface BuiltinCheckInfo {
+  step: string
+  artifact: string
+  metric: string | null
+  norms_key: string | null
+  live: boolean
+  thumbnail: string | null
+}
+
+export interface MetricInfo {
+  name: string
+  description: string
+  builtin: boolean
+  /** builtin = shipped with the package (read-only); user = $FMRIFLOW_HOME/addons/checks/<name>.py */
+  tier: 'builtin' | 'user'
+  path?: string | null
+  /** set when a user file failed to import */
+  error?: string
+}
+export interface MetricDetail extends MetricInfo { source: string }
+export interface MetricRunResult {
+  name: string
+  path: string
+  ok: boolean
+  error?: string
+  metrics?: Record<string, unknown>
+  detail?: Record<string, unknown>
+}
+
+export interface NormsRow {
+  step: string
+  kind: 'hard' | 'soft'
+  metric: string
+  op: string
+  value: unknown
+  source: 'builtin' | 'user'
+  builtin: BoundJson | null
+}
+
+export interface CheckEvaluation {
+  artifact: string
+  exists: boolean
+  checkpoint: CheckpointRecord | null
+  context: Record<string, string>
+}
+
+export interface PipelineEdgeDoc {
+  id: string
+  source: string
+  target: string
+  sourceHandle: string
+  targetHandle: string
+}
+
+export interface PipelineDoc {
+  schema_version?: number
+  name: string
+  description?: string
+  inputs: Record<string, { kind: string; description?: string; required?: boolean }>
+  outputs?: Record<string, { from: string }>
+  nodes: PipelineNodeDoc[]
+  edges: PipelineEdgeDoc[]
+  manifest: { backend_node?: string; bold_from?: string; confounds_from?: string }
+  /** Run-panel values saved with the pipeline; absent on templates. */
+  run_defaults?: Partial<PipelineRunDefaults>
+}
+
+export interface PipelineRunDefaults {
+  subject: string
+  output_dir: string
+  bids_dir: string
+  derivatives_dir: string
+  work_dir: string
+  dataset: string
+  plugin: 'Linear' | 'MultiProc'
+  n_procs: number | null
+  use_cache: boolean
+  abort_on_bad: boolean
+}
+
+export interface PipelineSummary {
+  name: string
+  path: string
+  description: string
+  n_nodes: number
+  node_types: string[]
+  inputs: Record<string, { kind: string; description?: string }>
+  mtime: number
+  error: string | null
+}
+
+export interface PipelineTemplateSummary {
+  name: string
+  /** bundled = ships with the package (read-only); user = $FMRIFLOW_HOME/addons/pipelines/ */
+  tier: 'bundled' | 'user'
+  description: string
+  n_nodes: number
+  node_types: string[]
+  inputs: Record<string, { kind: string; description?: string }>
+  error?: string | null
+}
+
+export interface PipelineRunRequestBody {
+  pipeline?: PipelineDoc
+  pipeline_name?: string
+  subject: string
+  output_dir: string
+  bids_dir?: string | null
+  derivatives_dir?: string | null
+  work_dir?: string | null
+  dataset?: string
+  task?: string | null
+  sessions?: string[]
+  inputs?: Record<string, unknown>
+  plugin?: 'Linear' | 'MultiProc'
+  n_procs?: number | null
+  use_cache?: boolean
+  rerun_from?: string[]
+  abort_on_bad?: boolean
+  params_override?: Record<string, Record<string, unknown>>
+}
+
+export type PipelineRunStatus = 'running' | 'done' | 'failed' | 'cancelled' | 'lost'
+
+export interface CheckpointSummary {
+  n: number
+  counts: Record<string, number>
+  worst: 'ok' | 'suspicious' | 'bad' | 'unknown' | null
+}
+
+export interface PipelineNodeRunRecord {
+  node_id: string
+  node_type: string
+  kind: PreprocNodeKind
+  status: 'ok' | 'failed' | 'cached' | 'skipped' | 'pending'
+  duration_s: number
+  work_dir: string
+  outputs: Record<string, unknown>
+  error: string | null
+}
+
+export interface PipelineRunSummary {
+  run_id: string
+  kind: string
+  backend: string
+  subject: string
+  status: PipelineRunStatus
+  pid: number | null
+  started_at: number
+  finished_at: number
+  manifest_path: string | null
+  error: string | null
+  pipeline: string | null
+  nodes: { id: string; type: string; kind: PreprocNodeKind }[]
+  n_nodes: number
+  work_dir: string | null
+  workflow: string | null
+  output_dir: string | null
+  use_cache: boolean
+  resumed_from: string | null
+  config_path: string | null
+  result: { status: string; duration_s: number; errors: string[]; nodes: PipelineNodeRunRecord[] } | null
+  /** Full error texts (nipype tracebacks); `cause` is their innermost message. */
+  errors: string[]
+  cause: string | null
+  crashes: { name: string; size: number; node: string | null }[]
+  checkpoints: CheckpointSummary
+}
+
+export interface PipelineRunDetail extends PipelineRunSummary {
+  nipype_status?: NipypeStatusBlock
+  job?: { pipeline: PipelineDoc; request: PipelineRunRequestBody } | null
+}
+
+export interface CheckpointRecord {
+  stage: string
+  run_id: string
+  node: string
+  step: string
+  subject: string
+  metrics: Record<string, unknown>
+  expectations: Record<string, [string, unknown]>
+  soft_expectations: Record<string, [string, unknown]>
+  verdict: 'ok' | 'suspicious' | 'bad' | 'unknown'
+  thumbnail: string | null
+  detail: Record<string, unknown>
+  t: number
+  artifact: string | null
+  reasons: string[]
+}
+
+export interface PipelineEvent {
+  event: string
+  timestamp?: number
+  t?: number
+  node?: string
+  leaf?: string
+  workflow?: string
+  cached?: boolean
+  duration_s?: number
+  verdict?: string
+  step?: string
+  reasons?: string[]
+  errors?: string[]
+  status?: string
+  [key: string]: unknown
+}
+
+/** One run's row in a physio node's view (pairing for physio_regressors, cleaning for physio_clean). */
+export interface PhysioViewItem {
+  index: number
+  run?: string
+  error?: string
+  image_url?: string
+  has_image?: boolean
+  // pairing
+  session?: string | null
+  block?: number | null
+  n_blocks?: number | null
+  block_durations_s?: number[]
+  triggers?: number | null
+  bold_n_trs?: number | null
+  tr_s?: number | null
+  order?: string | null
+  acquisition_time_s?: number | null
+  n_regressors?: number | null
+  regressors?: string[]
+  skipped_runs?: string[]
+  recording?: string
+  // cleaning
+  n_trs?: number | null
+  variance_removed_fraction?: number | null
+  variance_removed_p50?: number | null
+  variance_removed_p95?: number | null
+  n_nan_inf?: number | null
+}
+export interface PhysioNodeView { kind: 'regressors' | 'clean' | null; items: PhysioViewItem[]; work_dir?: string | null }
+

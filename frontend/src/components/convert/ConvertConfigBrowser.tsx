@@ -4,12 +4,15 @@ import type { CSSProperties } from 'react'
 import type { SavedConvertConfig, SavedConvertConfigDetail } from '../../api/types'
 import {
   fetchSavedConvertConfigs,
+  copySavedConvertConfig,
+  updateSavedConvertConfig,
   fetchSavedConvertConfig,
   runSavedConvertConfig,
   deleteSavedConvertConfig,
 } from '../../api/client'
 import { ConvertInFlightRuns } from './ConvertInFlightRuns'
 import { useDialog } from '../common/Dialog'
+import { CodeEditor } from '../editor/CodeEditor'
 
 const containerStyle: CSSProperties = {
   display: 'flex',
@@ -195,11 +198,14 @@ export function ConvertConfigBrowser() {
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<SavedConvertConfigDetail | null>(null)
   const [selectedLoading, setSelectedLoading] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [lastResult, setLastResult] = useState<
     { ok: boolean; message: string } | null
   >(null)
   const dlg = useDialog()
+  const currentMeta = configs.find((c) => c.filename === selected?.filename)
 
   async function reload() {
     setLoading(true)
@@ -224,10 +230,46 @@ export function ConvertConfigBrowser() {
     try {
       const detail = await fetchSavedConvertConfig(filename)
       setSelected(detail)
+      setDraft(detail.yaml_string)
     } catch (e) {
       setLastResult({ ok: false, message: String(e) })
     } finally {
       setSelectedLoading(false)
+    }
+  }
+
+  const dirty = selected != null && draft !== selected.yaml_string
+  const isLegacy = currentMeta?.legacy === true
+
+  async function saveEdits() {
+    if (!selected || !dirty) return
+    setSaving(true)
+    setLastResult(null)
+    try {
+      await updateSavedConvertConfig(selected.filename, draft)
+      await reload()
+      await select(selected.filename)
+      setLastResult({ ok: true, message: `Saved ${selected.filename}.` })
+    } catch (e) {
+      setLastResult({ ok: false, message: String(e) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function duplicate() {
+    if (!selected) return
+    const base = selected.filename.replace(/\.yaml$/, '')
+    const name = await dlg.prompt(`Duplicate "${selected.filename}" as:`, { defaultValue: `${base}_copy`, placeholder: 'new_config_name' })
+    if (!name || !name.trim()) return
+    setLastResult(null)
+    try {
+      const created = await copySavedConvertConfig(selected.filename, name.trim())
+      await reload()
+      await select(created.filename)
+      setLastResult({ ok: true, message: `Saved a copy as ${created.filename}. Load it from the Convert or Batch tab to edit.` })
+    } catch (e) {
+      setLastResult({ ok: false, message: String(e) })
     }
   }
 
@@ -262,8 +304,6 @@ export function ConvertConfigBrowser() {
   }
 
   useEffect(() => { reload() }, [])
-
-  const currentMeta = configs.find((c) => c.filename === selected?.filename)
 
   return (
     <>
@@ -325,6 +365,7 @@ export function ConvertConfigBrowser() {
                 <button style={btn('primary', running)} disabled={running} onClick={runNow}>
                   {running ? 'Starting…' : 'Run'}
                 </button>
+                <button style={btn('muted')} title="Copy this config under a new name (then edit the copy)" onClick={duplicate}>Duplicate</button>
                 <button style={btn('danger')} onClick={() => remove(selected.filename)}>Delete</button>
               </div>
             </div>
@@ -360,8 +401,25 @@ export function ConvertConfigBrowser() {
               </div>
             )}
 
-            <div style={sectionLabel}>YAML</div>
-            <pre style={yamlPre}>{selected.yaml_string}</pre>
+            <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>YAML</span>
+              {isLegacy && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· legacy config, read-only — Duplicate it to edit</span>}
+              {!isLegacy && dirty && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--accent-cyan)' }}>· unsaved changes</span>}
+              <span style={{ flex: 1 }} />
+              {!isLegacy && (
+                <>
+                  <button style={btn('muted', !dirty)} disabled={!dirty} onClick={() => setDraft(selected.yaml_string)}>Revert</button>
+                  <button style={btn('primary', !dirty || saving)} disabled={!dirty || saving} onClick={saveEdits}>{saving ? 'Saving…' : 'Save'}</button>
+                </>
+              )}
+            </div>
+            {isLegacy ? (
+              <pre style={yamlPre}>{selected.yaml_string}</pre>
+            ) : (
+              <div style={{ height: 360, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+                <CodeEditor code={draft} onChange={setDraft} />
+              </div>
+            )}
           </>
         )}
       </div>

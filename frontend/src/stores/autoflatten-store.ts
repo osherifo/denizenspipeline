@@ -1,7 +1,6 @@
 /** Autoflatten manager store. */
 import { create } from 'zustand'
 import {
-  fetchAutoflattenDoctor,
   fetchAutoflattenStatus,
   startAutoflatten,
   fetchAutoflattenRun,
@@ -9,12 +8,6 @@ import {
 } from '../api/client'
 
 type Tab = 'status' | 'run' | 'import' | 'configs'
-
-interface ToolInfo {
-  name: string
-  available: boolean
-  detail: string
-}
 
 interface SubjectStatus {
   subject: string
@@ -51,8 +44,6 @@ interface AutoflattenState {
   tab: Tab
 
   // Doctor
-  tools: ToolInfo[]
-  toolsLoading: boolean
 
   // Status
   subjectStatus: SubjectStatus | null
@@ -69,7 +60,6 @@ interface AutoflattenState {
 
   // Actions
   setTab: (tab: Tab) => void
-  loadTools: () => Promise<void>
   checkStatus: (subjectsDir: string, subject: string) => Promise<void>
   startRun: (params: Parameters<typeof startAutoflatten>[0]) => Promise<void>
   attachToRun: (runId: string) => void
@@ -80,8 +70,6 @@ interface AutoflattenState {
 export const useAutoflattenStore = create<AutoflattenState>((set, get) => ({
   tab: 'status',
 
-  tools: [],
-  toolsLoading: false,
 
   subjectStatus: null,
   statusLoading: false,
@@ -95,16 +83,6 @@ export const useAutoflattenStore = create<AutoflattenState>((set, get) => ({
   runStartTime: null,
 
   setTab: (tab) => set({ tab }),
-
-  loadTools: async () => {
-    set({ toolsLoading: true })
-    try {
-      const data = await fetchAutoflattenDoctor()
-      set({ tools: data.tools, toolsLoading: false })
-    } catch {
-      set({ toolsLoading: false })
-    }
-  },
 
   checkStatus: async (subjectsDir, subject) => {
     set({ statusLoading: true, statusError: null, subjectStatus: null })

@@ -22,7 +22,7 @@ VALID_IGNORE = ("fieldmaps", "slicetiming", "sbref")
 # "apptainer" is an accepted spelling of "singularity" — the docs and
 # the Settings UI have long told users to write it, and the runner
 # already prefers the apptainer binary when resolving one.
-VALID_CONTAINER_TYPES = ("singularity", "apptainer", "docker", "bare")
+VALID_CONTAINER_TYPES = ("auto", "singularity", "apptainer", "docker", "bare")
 
 # container_type values that take the singularity/apptainer code path.
 SINGULARITY_CONTAINER_TYPES = ("singularity", "apptainer")
@@ -51,6 +51,12 @@ class FmriprepParams:
     skull_strip_template: str | None = None
     no_submm_recon: bool = False
     fs_subjects_dir: str | None = None
+    # Import the precomputed reconstruction as-is (``--fs-no-resume``). Off,
+    # fmriprep "resumes" recon-all to fill in whatever its FreeSurfer version
+    # expects — which rewrites files in the subjects dir and fails outright on
+    # a reconstruction from an older FreeSurfer (7.x steps read files 5.x/6.x
+    # never wrote, e.g. ``surf/?h.orig.premesh``).
+    fs_no_resume: bool = True
 
     # ── Functional ──────────────────────────────────────────────────
     bold2t1w_init: str | None = None
@@ -247,6 +253,8 @@ class FmriprepParams:
         # to reuse existing reconall outputs
         if self.fs_subjects_dir and self.mode != "func_precomputed_anat":
             args += ["--fs-subjects-dir", self.fs_subjects_dir]
+        if self.fs_subjects_dir and self.fs_no_resume and self.mode != "func_only":
+            args.append("--fs-no-resume")
 
         # Functional
         if self.bold2t1w_init:

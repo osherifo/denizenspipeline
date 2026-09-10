@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { useConvertStore } from '../../stores/convert-store'
+import { PathField } from '../common/PathPicker'
 
 const containerStyle: CSSProperties = {
   backgroundColor: 'var(--bg-card)',
@@ -123,18 +124,19 @@ const thStyle: CSSProperties = {
   color: 'var(--text-secondary)',
   fontWeight: 700,
   fontSize: 10,
-  textTransform: 'uppercase',
+  whiteSpace: 'nowrap',
   letterSpacing: 0.5,
 }
 
 const tdStyle: CSSProperties = {
   padding: '8px 10px',
+  whiteSpace: 'nowrap',
   borderBottom: '1px solid var(--border)',
   color: 'var(--text-primary)',
 }
 
 export function DicomScanner() {
-  const { scanResult, scanning, scanError, scanDicom, clearScan } = useConvertStore()
+  const { scanResult, scanning, scanError, scanDicom, clearScan, cancelScan, scanProgress } = useConvertStore()
   const [sourceDir, setSourceDir] = useState('')
 
   const handleScan = () => {
@@ -155,10 +157,10 @@ export function DicomScanner() {
 
       <div style={fieldRow}>
         <span style={labelStyle}>Source Dir</span>
-        <input
+        <PathField
           style={inputStyle}
           value={sourceDir}
-          onChange={(e) => setSourceDir(e.target.value)}
+          onChange={setSourceDir}
           onKeyDown={handleKeyDown}
           placeholder="/data/dicom/sub-01/"
         />
@@ -168,6 +170,15 @@ export function DicomScanner() {
         <button style={primaryBtn} onClick={handleScan} disabled={!sourceDir.trim() || scanning}>
           {scanning ? 'Scanning...' : 'Scan'}
         </button>
+        {scanning && (
+          <button style={secondaryBtn} onClick={() => void cancelScan()}>Cancel</button>
+        )}
+        {scanning && scanProgress && (
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', alignSelf: 'center' }}>
+            {scanProgress.files_seen} files · {scanProgress.dicoms_seen} DICOMs · {scanProgress.series_found} series
+            {scanProgress.current_dir ? ` · ${scanProgress.current_dir.split('/').slice(-2).join('/')}` : ''}
+          </span>
+        )}
         {scanResult && (
           <button style={secondaryBtn} onClick={clearScan}>
             Clear
@@ -182,99 +193,45 @@ export function DicomScanner() {
         </div>
       )}
 
-      {/* Scanner info */}
-      {scanResult && scanResult.scanner && (
-        <>
-          <div style={sectionLabel}>Scanner Info</div>
-          <div style={gridStyle}>
-            {scanResult.scanner.manufacturer && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Manufacturer</div>
-                <div style={fieldCardValue}>{scanResult.scanner.manufacturer}</div>
-              </div>
-            )}
-            {scanResult.scanner.model && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Model</div>
-                <div style={fieldCardValue}>{scanResult.scanner.model}</div>
-              </div>
-            )}
-            {scanResult.scanner.field_strength != null && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Field Strength</div>
-                <div style={fieldCardValue}>{scanResult.scanner.field_strength}T</div>
-              </div>
-            )}
-            {scanResult.scanner.institution && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Institution</div>
-                <div style={fieldCardValue}>{scanResult.scanner.institution}</div>
-              </div>
-            )}
-            {scanResult.scanner.station_name && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Station</div>
-                <div style={fieldCardValue}>{scanResult.scanner.station_name}</div>
-              </div>
-            )}
-            {scanResult.scanner.software_version && (
-              <div style={fieldCard}>
-                <div style={fieldCardLabel}>Software</div>
-                <div style={fieldCardValue}>{scanResult.scanner.software_version}</div>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Matching heuristic */}
-      {scanResult && scanResult.matching_heuristic && (
-        <div style={{
-          backgroundColor: 'rgba(0, 230, 118, 0.08)',
-          border: '1px solid rgba(0, 230, 118, 0.3)',
-          borderRadius: 6,
-          padding: '10px 14px',
-          marginBottom: 16,
-          fontSize: 12,
-        }}>
-          <span style={{ fontWeight: 700, color: 'var(--accent-green)' }}>{'\u2713'} Matching heuristic: </span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{scanResult.matching_heuristic}</span>
-        </div>
-      )}
-
       {/* Series table */}
       {scanResult && scanResult.series.length > 0 && (
         <>
           <div style={sectionLabel}>DICOM Series ({scanResult.series.length})</div>
-          <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflow: 'hidden' }}>
-            <table style={tableStyle}>
+          <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 6, overflowX: 'auto' }}>
+            <table style={{ ...tableStyle, width: 'max-content', minWidth: '100%' }}>
               <thead>
                 <tr>
-                  <th style={thStyle}>#</th>
-                  <th style={thStyle}>Description</th>
-                  <th style={thStyle}>Images</th>
+                  <th style={thStyle}>SeriesNumber</th>
+                  <th style={thStyle}>SeriesDescription</th>
+                  <th style={thStyle}>Files</th>
                   <th style={thStyle}>Modality</th>
+                  <th style={thStyle}>ImageType</th>
+                  <th style={thStyle}>Manufacturer</th>
+                  <th style={thStyle}>ManufacturerModelName</th>
+                  <th style={thStyle}>MagneticFieldStrength</th>
+                  <th style={thStyle}>SoftwareVersions</th>
+                  <th style={thStyle}>StationName</th>
+                  <th style={thStyle}>InstitutionName</th>
+                  <th style={thStyle}>StudyDate</th>
+                  <th style={thStyle}>ProtocolName</th>
                 </tr>
               </thead>
               <tbody>
                 {scanResult.series.map((s) => (
-                  <tr key={s.number}>
-                    <td style={{ ...tdStyle, fontWeight: 600, width: 50 }}>{s.number}</td>
-                    <td style={{ ...tdStyle, fontWeight: 600 }}>{s.description}</td>
-                    <td style={tdStyle}>{s.n_images}</td>
-                    <td style={tdStyle}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        borderRadius: 3,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        backgroundColor: modalityColor(s.modality_guess).bg,
-                        color: modalityColor(s.modality_guess).text,
-                      }}>
-                        {s.modality_guess}
-                      </span>
-                    </td>
+                  <tr key={s.series_instance_uid || s.number}>
+                    <td style={tdStyle}>{cell(s.number)}</td>
+                    <td style={tdStyle}>{cell(s.description)}</td>
+                    <td style={tdStyle}>{cell(s.n_images)}</td>
+                    <td style={tdStyle}>{cell(s.modality)}</td>
+                    <td style={tdStyle}>{cell(s.image_type)}</td>
+                    <td style={tdStyle}>{cell(s.manufacturer)}</td>
+                    <td style={tdStyle}>{cell(s.model)}</td>
+                    <td style={tdStyle}>{cell(s.field_strength)}</td>
+                    <td style={tdStyle}>{cell(s.software_version)}</td>
+                    <td style={tdStyle}>{cell(s.station_name)}</td>
+                    <td style={tdStyle}>{cell(s.institution)}</td>
+                    <td style={tdStyle}>{cell(s.study_date)}</td>
+                    <td style={tdStyle}>{cell(s.protocol_name)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -292,22 +249,8 @@ export function DicomScanner() {
   )
 }
 
-function modalityColor(modality: string): { bg: string; text: string } {
-  switch (modality.toLowerCase()) {
-    case 'bold':
-    case 'func':
-      return { bg: 'rgba(0, 229, 255, 0.12)', text: 'var(--accent-cyan)' }
-    case 'anat':
-    case 't1w':
-    case 't2w':
-      return { bg: 'rgba(0, 230, 118, 0.12)', text: 'var(--accent-green)' }
-    case 'dwi':
-    case 'dti':
-      return { bg: 'rgba(255, 214, 0, 0.12)', text: 'var(--accent-yellow)' }
-    case 'fmap':
-    case 'fieldmap':
-      return { bg: 'rgba(255, 23, 68, 0.12)', text: 'var(--accent-red)' }
-    default:
-      return { bg: 'rgba(136, 136, 170, 0.12)', text: 'var(--text-secondary)' }
-  }
+/** Header values verbatim; only absence is decorated. */
+function cell(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === '') return '—'
+  return String(v)
 }

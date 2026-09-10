@@ -9,7 +9,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from fmriflow.preproc.backends import register_backend
 from fmriflow.preproc.backends.fmriprep_params import (
     SINGULARITY_CONTAINER_TYPES,
     FmriprepParams,
@@ -23,7 +22,7 @@ from fmriflow.preproc.manifest import (
     RunRecord,
     now_iso,
 )
-from fmriflow.preproc.stack import StepRecord
+from fmriflow.preproc.manifest import StepRecord
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,6 @@ def _parse_params(config: PreprocConfig) -> FmriprepParams:
     return FmriprepParams.from_dict(config.backend_params)
 
 
-@register_backend("fmriprep")
 class FmriprepBackend:
     """Wraps fmriprep for preprocessing fMRI data.
 

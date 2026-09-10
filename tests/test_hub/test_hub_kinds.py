@@ -64,10 +64,11 @@ def test_every_installable_kind_is_a_known_kind():
 
 CONFIGS = {
     "preproc_config": (
-        "preproc_config_store",
-        yaml.safe_dump({"preproc": {
-            "subject": "01", "backend": "fmriprep", "output_dir": "/out",
-        }}),
+        "pipeline_store",
+        yaml.safe_dump({
+            "name": "incoming", "nodes": [{"id": "ident", "type": "identity"}],
+            "edges": [], "manifest": {"backend_node": "ident"},
+        }),
     ),
     "autoflatten_config": (
         "autoflatten_config_store",
@@ -83,14 +84,14 @@ def state(tmp_path, monkeypatch):
     from fmriflow.core import paths
     from fmriflow.server.services.autoflatten_config_store import AutoflattenConfigStore
     from fmriflow.server.services.convert_config_store import ConvertConfigStore
-    from fmriflow.server.services.preproc_config_store import PreprocConfigStore
+    from fmriflow.server.services.pipeline_store import PipelineStore
 
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path))
     monkeypatch.setattr(paths, "RUNTIME_CONFIG_PATH", tmp_path / "settings.json")
 
     return SimpleNamespace(
         convert_config_store=ConvertConfigStore(paths.config_dir("convert")),
-        preproc_config_store=PreprocConfigStore(paths.config_dir("preproc")),
+        pipeline_store=PipelineStore(paths.config_dir("preproc")),
         autoflatten_config_store=AutoflattenConfigStore(paths.config_dir("autoflatten")),
     )
 

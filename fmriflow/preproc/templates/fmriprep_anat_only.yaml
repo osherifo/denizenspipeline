@@ -1,0 +1,17 @@
+schema_version: 1
+name: fmriprep_anat_only
+description: fmriprep anatomical only (recon-all, no BOLD). Use before autoflatten or to check surfaces first.
+inputs:
+  bids_dir: {kind: dir, description: BIDS root}
+  subject: {kind: str, description: participant label}
+  output_dir: {kind: dir, description: derivatives root}
+nodes:
+  - id: fmriprep
+    type: fmriprep
+    kind: container_app
+    data:
+      params: {mode: anat_only}
+      bindings: {bids_dir: $inputs.bids_dir, subject: $inputs.subject, output_dir: $inputs.output_dir}
+    position: {x: 0, y: 0}
+edges: []
+manifest: {backend_node: fmriprep}

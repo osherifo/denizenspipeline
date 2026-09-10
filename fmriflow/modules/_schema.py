@@ -7,7 +7,7 @@ from typing import Any, TypedDict
 
 class ParamField(TypedDict, total=False):
     """Schema for a single plugin parameter."""
-    type: str           # "int" | "float" | "bool" | "string" | "path"
+    type: str           # "int" | "float" | "bool" | "string" | "path" | "dir" | "file"
                         # | "list[int]" | "list[string]" | "dict"
     default: Any        # Default value (None if required)
     required: bool      # Whether the field is required (default False)

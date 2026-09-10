@@ -33,9 +33,11 @@ export async function fetchNodePickle(
   return res.json()
 }
 
-export async function fetchWorkTree(runId: string): Promise<NipypeWorkTree> {
+/** `prefix` (dotted, trailing `.`) keeps one outer node's subtree and strips it. */
+export async function fetchWorkTree(runId: string, prefix?: string): Promise<NipypeWorkTree> {
+  const qs = prefix ? `?prefix=${encodeURIComponent(prefix)}` : ''
   const res = await fetch(
-    `${BASE}/preproc/runs/${encodeURIComponent(runId)}/work_tree`,
+    `${BASE}/preproc/runs/${encodeURIComponent(runId)}/work_tree${qs}`,
   )
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
   return res.json()
