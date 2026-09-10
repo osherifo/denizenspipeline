@@ -42,6 +42,9 @@ def test_fmriprep_physio_template_wiring():
     clean = p.node("physio_clean")
     assert clean.iter == {"handles": ["in_file", "regressors_file"]}
     assert p.node("physio_regressors").iter is None            # takes fmriprep's whole list
+    assert {(e.source, e.source_handle, e.target) for e in p.edges} == {
+        ("fmriprep", "bold_preproc", "physio_regressors"), ("physio_regressors", "bold_files", "physio_clean"),
+        ("physio_regressors", "regressors_file", "physio_clean")}
     assert p.manifest == {"backend_node": "fmriprep", "bold_from": "physio_clean.out_file", "confounds_from": "fmriprep.confounds"}
 
 

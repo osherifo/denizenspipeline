@@ -22,9 +22,11 @@ nodes:
     type: physio_regressors
     kind: interface
     data:
-      # Set physio_file on this node (browse to the .acq; one per session if you have several).
+      # Set physio_file on this node (browse to the .acq; one per session if you have several,
+      # then list the sessions they cover in the `sessions` param).
       params: {}
       literal_inputs: {}
+      bindings: {bids_dir: $inputs.bids_dir}
     position: {x: 360, y: -120}
   - id: physio_clean
     type: physio_clean
@@ -35,6 +37,6 @@ nodes:
     position: {x: 720, y: 0}
 edges:
   - {id: e1, source: fmriprep, sourceHandle: bold_preproc, target: physio_regressors, targetHandle: in_file}
-  - {id: e2, source: fmriprep, sourceHandle: bold_preproc, target: physio_clean, targetHandle: in_file}
+  - {id: e2, source: physio_regressors, sourceHandle: bold_files, target: physio_clean, targetHandle: in_file}
   - {id: e3, source: physio_regressors, sourceHandle: regressors_file, target: physio_clean, targetHandle: regressors_file}
 manifest: {backend_node: fmriprep, bold_from: physio_clean.out_file, confounds_from: fmriprep.confounds}

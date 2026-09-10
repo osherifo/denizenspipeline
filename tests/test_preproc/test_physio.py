@@ -335,7 +335,7 @@ def test_physio_chain_runs_as_a_pipeline(acq_file, tmp_path, registry):
         ],
         "edges": [
             {"id": "e1", "source": "source", "sourceHandle": "bold", "target": "physio", "targetHandle": "in_file"},
-            {"id": "e2", "source": "source", "sourceHandle": "bold", "target": "clean", "targetHandle": "in_file"},
+            {"id": "e2", "source": "physio", "sourceHandle": "bold_files", "target": "clean", "targetHandle": "in_file"},
             {"id": "e3", "source": "physio", "sourceHandle": "regressors_file", "target": "clean", "targetHandle": "regressors_file"},
         ],
         "manifest": {"backend_node": "source", "bold_from": "clean.out_file"},
@@ -371,46 +371,93 @@ def test_pair_runs_one_recording_and_per_session():
     from fmriflow.preproc.physio.pairing import pair_runs
     bolds = ["/d/sub-01_ses-01_task-a_run-1_bold.nii.gz", "/d/sub-01_ses-01_task-a_run-2_bold.nii.gz",
              "/d/sub-01_ses-02_task-a_run-1_bold.nii.gz"]
-    one = pair_runs(bolds, ["/p/all.acq"])
-    assert [(p.block, p.physio_file) for p in one] == [(0, "/p/all.acq"), (1, "/p/all.acq"), (2, "/p/all.acq")]
+    one, skipped = pair_runs(bolds, ["/p/all.acq"])
+    assert [(p.block, p.physio_file, p.order) for p in one] == [(0, "/p/all.acq", "given"), (1, "/p/all.acq", "given"), (2, "/p/all.acq", "given")]
+    assert skipped == []
 
     # matched by ses- label regardless of the order the files were given in
-    two = pair_runs(bolds, ["/p/sub-01_ses-02_physio.acq", "/p/sub-01_ses-01_physio.acq"])
+    two, _ = pair_runs(bolds, ["/p/sub-01_ses-02_physio.acq", "/p/sub-01_ses-01_physio.acq"])
     assert [(p.block, Path(p.physio_file).name, p.session) for p in two] == [
         (0, "sub-01_ses-01_physio.acq", "01"), (1, "sub-01_ses-01_physio.acq", "01"), (0, "sub-01_ses-02_physio.acq", "02")]
 
     # no ses- in the recording names: sorted order
-    by_order = pair_runs(bolds, ["/p/b.acq", "/p/a.acq"])
+    by_order, _ = pair_runs(bolds, ["/p/b.acq", "/p/a.acq"])
     assert [Path(p.physio_file).name for p in by_order] == ["a.acq", "a.acq", "b.acq"]
 
-    explicit = pair_runs(bolds, ["/p/all.acq"], blocks=[1, 2, 4])
-    assert [p.block for p in explicit] == [1, 2, 4]
+    # scan order from a key: run-2 was acquired before run-1
+    t = {bolds[0]: 200.0, bolds[1]: 100.0, bolds[2]: 50.0}
+    ordered, _ = pair_runs(bolds, ["/p/all.acq"], order_key=lambda b: t[b])
+    assert [(Path(p.bold).name[-17:-12], p.block, p.order) for p in ordered] == [("run-1", 2, "acquisition_time"), ("run-2", 1, "acquisition_time"), ("run-1", 0, "acquisition_time")]
+
+    # explicit sessions: only those runs are covered, the rest reported as skipped
+    only2, skipped = pair_runs(bolds, ["/p/x.acq"], sessions=["02"])
+    assert [p.bold for p in only2] == [bolds[2]] and skipped == bolds[:2]
+
+    explicit, _ = pair_runs(bolds, ["/p/all.acq"], blocks=[1, 2, 4])
+    assert [p.block for p in explicit] == [1, 2, 4] and explicit[0].order == "explicit"
     with pytest.raises(ValueError, match="one per run"):
         pair_runs(bolds, ["/p/all.acq"], blocks=[1])
-    with pytest.raises(ValueError, match="2 physio recording\\(s\\) for 1 session"):
+    with pytest.raises(ValueError, match="set 'sessions'"):
         pair_runs(bolds[:2], ["/p/a.acq", "/p/b.acq"])
+    with pytest.raises(ValueError, match="no BOLD runs for session"):
+        pair_runs(bolds, ["/p/a.acq"], sessions=["09"])
+
+
+def _bold(tmp_path, name, n, rng, acq_time=None):
+    img = nib.Nifti1Image((1000 + 10 * rng.standard_normal((4, 4, 3, n))).astype("float32"), np.eye(4))
+    img.header.set_zooms((3.0, 3.0, 3.0, TR))
+    f = tmp_path / name
+    img.to_filename(str(f))
+    if acq_time:
+        f.with_name(name.replace(".nii.gz", ".json")).write_text(json.dumps({"AcquisitionTime": acq_time, "RepetitionTime": TR}))
+    return str(f)
 
 
 def test_regressors_node_pairs_a_bold_list(acq_file, tmp_path, registry):
+    from fmriflow.preproc.nodes.physio import BLOCKS_NAME
     rng = np.random.default_rng(7)
-    bolds = []
-    for r, n in zip((1, 2), N_TRS):
-        img = nib.Nifti1Image((1000 + 10 * rng.standard_normal((4, 4, 3, n))).astype("float32"), np.eye(4))
-        img.header.set_zooms((3.0, 3.0, 3.0, TR))
-        f = tmp_path / f"sub-01_task-x_run-{r}_desc-preproc_bold.nii.gz"
-        img.to_filename(str(f)); bolds.append(str(f))
+    # alphabetical order (run-1, run-2) is the reverse of scan order here: run-2 has 60 TRs = block 0
+    bolds = [_bold(tmp_path, "sub-01_task-x_run-1_desc-preproc_bold.nii.gz", N_TRS[1], rng, "17:30:5.5"),
+             _bold(tmp_path, "sub-01_task-x_run-2_desc-preproc_bold.nii.gz", N_TRS[0], rng, "16:58:10")]
     node = registry.get("physio_regressors")
     out_dir = tmp_path / "node"
     res = node.run({"physio_file": str(acq_file), "in_file": bolds}, out_dir, {"tr": 0})
     assert [p.name for p in res["regressors_file"]] == [
         "physio_regressors_sub-01_task-x_run-1_desc-preproc_bold.tsv", "physio_regressors_sub-01_task-x_run-2_desc-preproc_bold.tsv"]
-    assert [read_regressors(p)[0].shape[0] for p in res["regressors_file"]] == list(N_TRS)
-    assert [json.loads(p.read_text())["selected"]["index"] for p in res["blocks_file"]] == [0, 1]
+    assert [str(p) for p in res["bold_files"]] == bolds
+    assert [read_regressors(p)[0].shape[0] for p in res["regressors_file"]] == [N_TRS[1], N_TRS[0]]
+    summaries = [json.loads(p.read_text()) for p in res["blocks_file"]]
+    assert [(d["selected"]["index"], d["order"]) for d in summaries] == [(1, "acquisition_time"), (0, "acquisition_time")]
 
-    # three runs but the recording has two blocks: refused, with both sides listed
-    with pytest.raises(ValueError, match=r"splits into 2 block\(s\) .* but 3 BOLD run\(s\) .* set 'blocks'"):
-        node.run({"physio_file": str(acq_file), "in_file": bolds + [bolds[0]]}, tmp_path / "n2", {"tr": 0})
+    # without sidecars the given order is used, and the trigger/TR check catches the wrong pairing
+    for b in bolds:
+        Path(b.replace(".nii.gz", ".json")).unlink()
+    with pytest.raises(ValueError, match=r"(?s)do not line up .*run-1.*block #0 has 60 triggers, BOLD has 45 TRs"):
+        node.run({"physio_file": str(acq_file), "in_file": bolds}, tmp_path / "n2", {"tr": 0})
     # ... unless the mapping is explicit
     res = node.run({"physio_file": str(acq_file), "in_file": bolds}, tmp_path / "n3", {"tr": 0, "blocks": [1, 0]})
     assert [json.loads(p.read_text())["selected"]["index"] for p in res["blocks_file"]] == [1, 0]
 
+    # three runs but the recording has two blocks: refused, with both sides listed
+    with pytest.raises(ValueError, match=r"splits into 2 block\(s\) .* but 3 BOLD run\(s\) .* set 'blocks'"):
+        node.run({"physio_file": str(acq_file), "in_file": bolds + [bolds[0]]}, tmp_path / "n4", {"tr": 0})
+
+
+def test_regressors_node_sessions_and_bids_dir(acq_file, tmp_path, registry):
+    """One recording for ses-01; ses-00 test scans are left out; scan order read from the raw BIDS sidecars."""
+    rng = np.random.default_rng(8)
+    raw = tmp_path / "bids" / "sub-01" / "ses-01" / "func"
+    raw.mkdir(parents=True)
+    (raw / "sub-01_ses-01_task-b_bold.json").write_text(json.dumps({"AcquisitionTime": "16:00:00"}))
+    (raw / "sub-01_ses-01_task-a_bold.json").write_text(json.dumps({"AcquisitionTime": "16:30:00"}))
+    deriv = tmp_path / "deriv"; deriv.mkdir()
+    bolds = [_bold(deriv, "sub-01_ses-00_task-test_desc-preproc_bold.nii.gz", 20, rng),
+             _bold(deriv, "sub-01_ses-01_task-a_space-T1w_desc-preproc_bold.nii.gz", N_TRS[1], rng),
+             _bold(deriv, "sub-01_ses-01_task-b_space-T1w_desc-preproc_bold.nii.gz", N_TRS[0], rng)]
+    node = registry.get("physio_regressors")
+    res = node.run({"physio_file": [str(acq_file)], "in_file": bolds, "bids_dir": str(tmp_path / "bids")},
+                   tmp_path / "node", {"tr": 0, "sessions": ["01"]})
+    assert [Path(b).name[:22] for b in res["bold_files"]] == ["sub-01_ses-01_task-a_s", "sub-01_ses-01_task-b_s"]
+    d = [json.loads(p.read_text()) for p in res["blocks_file"]]
+    assert [(x["selected"]["index"], x["session"], x["order"]) for x in d] == [(1, "01", "acquisition_time"), (0, "01", "acquisition_time")]
+    assert d[0]["skipped_runs"] == ["sub-01_ses-00_task-test_desc-preproc_bold.nii.gz"]

@@ -48,7 +48,7 @@ class PhysioBlock:
         return {
             "index": self.index, "duration_s": round(self.duration_s, 3),
             "n_samples": int(self.data.shape[1]), "n_pulses": self.n_pulses,
-            "tr_s": round(self.tr_s, 4), "n_trs": int(round(self.duration_s / self.tr_s)) if self.tr_s else 0,
+            "tr_s": round(self.tr_s, 4), "n_trs": self.n_pulses,     # one trigger per TR
         }
 
 

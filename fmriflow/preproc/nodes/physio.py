@@ -21,6 +21,7 @@ or port), or ``in_file`` + ``block`` iterated in lockstep.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +69,41 @@ def _tr_from_header(path: Path) -> tuple[float, int]:
     tr = float(img.header.get_zooms()[3]) if len(img.shape) == 4 else 0.0
     n = int(img.shape[3]) if len(img.shape) == 4 else 0
     return tr, n
+
+
+_DERIV_ENTITIES = re.compile(r"_(space|res|den|desc)-[A-Za-z0-9]+")
+
+
+def _acquisition_time(bold: Path, bids_dir: Path | None) -> float | None:
+    """Seconds since midnight from the run's raw sidecar (``AcquisitionTime``), else None.
+
+    A derivative (``…_space-T1w_desc-preproc_bold.nii.gz``) maps back to its raw
+    file by dropping the derivative entities; the sidecar is looked for next to
+    the file first, then under ``bids_dir`` for the same subject / session.
+    """
+    stem = _DERIV_ENTITIES.sub("", _stem(bold))
+    candidates = [bold.parent / f"{stem}.json", bold.with_name(f"{_stem(bold)}.json")]
+    if bids_dir is not None:
+        parts = dict(kv.split("-", 1) for kv in stem.split("_") if "-" in kv)
+        sub, ses = parts.get("sub"), parts.get("ses")
+        if sub:
+            base = bids_dir / f"sub-{sub}"
+            if ses:
+                base = base / f"ses-{ses}"
+            candidates.append(base / "func" / f"{stem}.json")
+    for c in candidates:
+        if c.is_file():
+            try:
+                t = json.loads(c.read_text()).get("AcquisitionTime")
+            except Exception:
+                continue
+            if t:
+                try:
+                    h, m, sec = str(t).split(":")
+                    return int(h) * 3600 + int(m) * 60 + float(sec)
+                except ValueError:
+                    continue
+    return None
 
 
 # ── metrics ─────────────────────────────────────────────────────────
@@ -143,10 +179,13 @@ class PhysioRegressorsNode:
         "block": {"kind": "any", "required": False,
                   "description": "block index for a single in_file (overrides the param; may iterate in lockstep with it)"},
         "in_file": {"kind": "nifti", "required": False,
-                    "description": "the run's BOLD, or fmriprep's whole list (run i ↔ block i); supplies the TR when tr=0"},
+                    "description": "the run's BOLD, or fmriprep's whole list (run i in scan order ↔ block i); supplies the TR when tr=0"},
+        "bids_dir": {"kind": "dir", "required": False,
+                     "description": "raw BIDS root: the runs' sidecars give the scan order (AcquisitionTime) the blocks follow"},
     }
     OUTPUTS = {
         "regressors_file": {"kind": "tsv", "description": "one column per regressor, one row per TR (a list when in_file is a list)"},
+        "bold_files": {"kind": "nifti", "description": "the BOLD runs that got regressors, in the same order (feed physio_clean)"},
         "blocks_file": {"kind": "json", "description": "how the recording split into blocks and which block this run got"},
     }
 
@@ -154,8 +193,14 @@ class PhysioRegressorsNode:
         "block": {"type": "int", "default": 0, "min": 0, "group": "Block",
                   "description": "Which scan block of the recording a single in_file is (0-based)."},
         "blocks": {"type": "list[int]", "default": [], "group": "Block",
-                   "description": "With a list of BOLDs: explicit block index per run, in list order, when the recording "
-                                  "has extra blocks. Empty = run i is block i."},
+                   "description": "With a list of BOLDs: explicit block index per paired run, in list order, when the "
+                                  "recording has extra blocks. Empty = run i (scan order) is block i."},
+        "sessions": {"type": "list[string]", "default": [], "group": "Block",
+                     "description": "Which session each recording in physio_file covers, in the same order (e.g. 01, 02). "
+                                    "Runs from other sessions are left out. Empty = match by ses- in the file names."},
+        "max_tr_mismatch": {"type": "int", "default": 5, "min": 0, "group": "Block",
+                            "description": "A run whose block has more or fewer triggers than the BOLD has TRs, by more than "
+                                           "this, stops the node (a wrong pairing)."},
         "tr": {"type": "float", "default": 0.0, "min": 0.0, "group": "Block",
                "description": "TR in seconds; 0 reads it from in_file's header (values > 10 are taken as ms)."},
         "model": {"type": "list[string]", "default": list(MODEL_TERMS), "enum": list(MODEL_TERMS), "group": "Model",
@@ -211,36 +256,65 @@ class PhysioRegressorsNode:
             if len(physio_files) != 1:
                 raise ValueError("physio_regressors: several recordings need a list of BOLDs to pair them with")
             reg, blk = self._one(split(physio_files[0]), block, bold_in, out_dir, params, suffix="")
-            return {"regressors_file": reg, "blocks_file": blk}
+            out = {"regressors_file": reg, "blocks_file": blk}
+            if bold_in:
+                out["bold_files"] = Path(str(bold_in))
+            return out
 
         bolds = [str(b) for b in bold_in]
         explicit = [int(x) for x in (params.get("blocks") or [])] or None
-        pairs = pair_runs(bolds, physio_files, explicit)
+        sessions = [str(x) for x in (params.get("sessions") or [])] or None
+        bids_dir = inputs.get("bids_dir")
+        times = {b: _acquisition_time(Path(b), Path(bids_dir) if bids_dir else None) for b in bolds}
+        pairs, skipped = pair_runs(bolds, physio_files, explicit, sessions=sessions, order_key=lambda b: times[b])
+        if not pairs:
+            raise ValueError("physio_regressors: no BOLD run is covered by a recording (check 'sessions')")
         # Every recording must split into exactly the runs it is paired with,
         # unless the caller mapped blocks explicitly.
+        per_file: dict[str, list] = {}
+        for pr in pairs:
+            per_file.setdefault(pr.physio_file, []).append(pr)
         if explicit is None:
-            per_file: dict[str, list[str]] = {}
-            for pr in pairs:
-                per_file.setdefault(pr.physio_file, []).append(pr.bold)
-            for path, runs in per_file.items():
+            for path, prs in per_file.items():
                 sp = split(path)
-                if len(sp.blocks) != len(runs):
-                    have = ", ".join(f"#{b.index} {b.duration_s:.0f}s/{b.summary()['n_trs']} TRs" for b in sp.blocks)
-                    want = ", ".join(f"{Path(r).name} ({_tr_from_header(Path(r))[1]} TRs)" for r in runs)
+                if len(sp.blocks) != len(prs):
+                    have = ", ".join(f"#{b.index} {b.duration_s:.0f}s/{b.n_pulses} triggers" for b in sp.blocks)
+                    want = ", ".join(f"{Path(pr.bold).name} ({_tr_from_header(Path(pr.bold))[1]} TRs)" for pr in prs)
                     raise ValueError(
                         f"physio_regressors: {Path(path).name} splits into {len(sp.blocks)} block(s) [{have}] but "
-                        f"{len(runs)} BOLD run(s) pair with it [{want}]; set 'blocks' to map runs to blocks explicitly, "
+                        f"{len(prs)} BOLD run(s) pair with it [{want}]; set 'blocks' to map runs to blocks explicitly, "
                         f"or adjust run_gap_s / ttl_threshold"
                     )
+        # The block's trigger count must match the run's TR count: the check that
+        # catches a wrong scan order before any regressor is fitted.
+        tol = int(params.get("max_tr_mismatch", 5) or 0)
+        table = []
+        bad = []
+        for pr in pairs:
+            blk = split(pr.physio_file).blocks[pr.block]
+            n_trs = _tr_from_header(Path(pr.bold))[1]
+            table.append((Path(pr.bold).name, pr.session, times[pr.bold], pr.block, blk.n_pulses, n_trs))
+            if abs(blk.n_pulses - n_trs) > tol:
+                bad.append(f"{Path(pr.bold).name}: block #{pr.block} has {blk.n_pulses} triggers, BOLD has {n_trs} TRs")
+        if bad:
+            rows = "\n".join(f"  {name}  ses={ses} t={t}  block #{k}: {np} triggers vs {nt} TRs" for name, ses, t, k, np, nt in table)
+            raise ValueError(
+                "physio_regressors: runs and blocks do not line up (wrong scan order or a missing/extra block):\n"
+                + "\n".join("  " + b for b in bad) + "\nfull pairing:\n" + rows
+                + "\nConnect bids_dir so runs are ordered by AcquisitionTime, or set 'blocks' explicitly."
+            )
         regs: list[Path] = []
         blks: list[Path] = []
+        used: list[Path] = []
         for pr in pairs:
-            reg, blk = self._one(split(pr.physio_file), pr.block, pr.bold, out_dir, params, suffix="_" + _stem(Path(pr.bold)))
-            regs.append(reg)
-            blks.append(blk)
-        return {"regressors_file": regs, "blocks_file": blks}
+            reg, blk = self._one(split(pr.physio_file), pr.block, pr.bold, out_dir, params, suffix="_" + _stem(Path(pr.bold)),
+                                 extra={"session": pr.session, "order": pr.order, "acquisition_time_s": times[pr.bold],
+                                        "skipped_runs": [Path(b).name for b in skipped]})
+            regs.append(reg); blks.append(blk); used.append(Path(pr.bold))
+        return {"regressors_file": regs, "bold_files": used, "blocks_file": blks}
 
-    def _one(self, split: acq_mod.AcqSplit, block: int, in_file: Any, out_dir: Path, params: dict[str, Any], *, suffix: str) -> tuple[Path, Path]:
+    def _one(self, split: acq_mod.AcqSplit, block: int, in_file: Any, out_dir: Path, params: dict[str, Any], *,
+             suffix: str, extra: dict[str, Any] | None = None) -> tuple[Path, Path]:
         """Regressors for one BOLD from ``block`` of ``split``; files named with ``suffix``."""
         from fmriflow.preproc.physio.phlem import build_regressors
         from fmriflow.preproc.physio.regress import write_regressors
@@ -279,6 +353,7 @@ class PhysioRegressorsNode:
             "selected": {**blk.summary(), "n_trs": int(X.shape[0])},
             "tr_s": tr, "bold_file": str(in_file or ""), "bold_n_trs": bold_n_trs,
             "regressors": names, "n_regressors": int(X.shape[1]),
+            **(extra or {}),
         })
         blocks_file = out_dir / f"physio_blocks{suffix}.json"
         blocks_file.write_text(json.dumps(summary, indent=2))

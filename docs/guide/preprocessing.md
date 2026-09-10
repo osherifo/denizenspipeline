@@ -274,21 +274,30 @@ TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoin
 | `physio_estimate` | `in_file`, `regressors_file` | `weights_file` | Per-voxel OLS weights of the regressors. |
 | `physio_clean` | `in_file`, `regressors_file`, optional `weights_file` | `out_file`, `weights_file`, `summary_file` | Subtracts regressors × weights per voxel, z-scores the residual and restores the voxel mean. Estimates the weights itself when none are connected. |
 
-**After fmriprep** the wiring is two edges, and the `fmriprep_physio` template has it
+**After fmriprep** the wiring is three edges, and the `fmriprep_physio` template has it
 ready: fmriprep's `bold_preproc` list goes to `physio_regressors` **without ×N**, which
-pairs run *i* with block *i* of the recording and returns one regressor TSV per run; then
-`physio_clean` iterates (×N) over `in_file` and `regressors_file`. Browse to the `.acq`
-on the `physio_file` port of `physio_regressors`; with one recording per session, give
-them all (names carrying `ses-` are matched to the runs' sessions, otherwise they pair in
-sorted order). The manifest's BOLD files point at the cleaned runs.
+pairs each run with its block and returns one regressor TSV per run plus `bold_files`,
+the runs it covered in the same order; `physio_clean` iterates (×N) over those two
+lists. The manifest's BOLD files point at the cleaned runs. On `physio_regressors`:
 
-The recording must split into exactly as many blocks as runs pair with it; if it does
-not (an aborted run, a localizer that also sent triggers), the node stops and lists both
-sides, and `blocks` maps runs to block indices explicitly. For one run at a time, give a
-single `in_file` and `block`, or iterate `in_file` and `block` in lockstep. The TR is
-read from the BOLD header when `tr` is 0 (a value above 10 is taken as milliseconds).
-Physio and BOLD TR counts must agree after trimming: `auto_trim` drops the surplus at the
-end, or set `trim_begin` / `trim_end`.
+- **`physio_file`**: browse to the `.acq`; with one recording per session give them all,
+  and list the session each covers in `sessions` (`01, 02`). Runs from sessions without
+  a recording, a T1 session's test scans for instance, are left out. Without `sessions`,
+  recording names carrying `ses-` are matched to the runs' sessions, otherwise they pair
+  in sorted order.
+- **`bids_dir`** (bind it to `$inputs.bids_dir`): blocks are in **scan order**, and run
+  names are not, so the raw sidecars' `AcquisitionTime` orders the runs. Without it the
+  runs are taken in the order given, which is only right by luck.
+- Before fitting anything, every block's trigger count is compared with its run's TR
+  count. A difference beyond `max_tr_mismatch` stops the node with the full pairing
+  table, which is how a wrong order shows up. A recording that does not split into
+  exactly the runs paired with it (an aborted run, a localizer that also sent triggers)
+  stops it too, and `blocks` maps runs to block indices explicitly.
+
+For one run at a time, give a single `in_file` and `block`, or iterate `in_file` and
+`block` in lockstep. The TR is read from the BOLD header when `tr` is 0 (a value above
+10 is taken as milliseconds). Physio and BOLD TR counts must agree after trimming:
+`auto_trim` drops the surplus at the end, or set `trim_begin` / `trim_end`.
 
 Checkpoints: `physio_blocks` (how many blocks, and the chosen block's TR surplus over
 the BOLD), `physio_regressors` (NaNs, constant columns, collinearity),
