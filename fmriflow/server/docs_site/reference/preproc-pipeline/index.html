@@ -1675,7 +1675,11 @@ attribute; the node library serves them as <code>ui</code> on each node:</p>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;label_map&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>          <span class="c1"># everything else derives</span>
 </code></pre></div>
 <p>The values are port names: the popup serves whatever path that port holds for <em>this
-run's</em> node, via <code>GET /api/preproc/runs/{id}/nodes/{node_id}/…</code>.</p>
+run's</em> node, via <code>GET /api/preproc/runs/{id}/nodes/{node_id}/…</code>. A node may adjust both
+per run from its parameters with <code>ui_for_params(params)</code> and
+<code>checks_for_params(params, checks)</code>: fmriprep hides Structural QC and skips the
+FreeSurfer checks in its functional-only modes, and skips the functional checks in
+<code>anat_only</code>.</p>
 <p>The Library tab's <strong>New node</strong> offers a scaffold per kind; <strong>Import nipype pipeline</strong>
 turns a <code>.py</code> file with a <code>build()</code> function or a module-level <code>Workflow</code> into a
 composite node.</p>

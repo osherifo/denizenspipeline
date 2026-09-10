@@ -158,9 +158,11 @@ def node_kind(cls: type) -> str:
 UI_KEYS = ("inner_dag", "checkpoints", "log", "report", "structural_qc", "summary", "label_map", "views")
 
 
-def node_ui(cls: type) -> dict[str, Any]:
+def node_ui(cls: type, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """What the run UI may show for this node — derived from the contract,
-    overridable by a ``UI`` class attribute.
+    overridable by a ``UI`` class attribute, and adjusted per run by an
+    optional ``ui_for_params(params)`` method when ``params`` are given (an
+    app that ran in a functional-only mode has no structural QC to show).
 
     The pipeline layer never looks at this. The frontend keeps generic tabs
     for every node and adds one per capability that names an output port:
@@ -193,7 +195,15 @@ def node_ui(cls: type) -> dict[str, Any]:
         "views": [],
     }
     declared = dict(getattr(cls, "UI", None) or {})
-    return {**derived, **{k: v for k, v in declared.items() if k in UI_KEYS}}
+    ui = {**derived, **{k: v for k, v in declared.items() if k in UI_KEYS}}
+    hook = getattr(cls, "ui_for_params", None)
+    if params is not None and callable(hook):
+        try:
+            per_run = hook(cls(), dict(params)) or {}
+        except Exception:  # a UI hint must never break a run view
+            per_run = {}
+        ui.update({k: v for k, v in per_run.items() if k in UI_KEYS})
+    return ui
 
 
 # ── Public record ──────────────────────────────────────────────────

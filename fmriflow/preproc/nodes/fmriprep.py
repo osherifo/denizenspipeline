@@ -201,6 +201,26 @@ class FmriprepNode:
             "sequence": str(params.get("sequence") or ""),
         }
 
+    # Modes that run (or reuse) the anatomical workflow vs. functional-only ones.
+    ANAT_MODES = ("full", "anat_only")
+    FUNC_MODES = ("full", "func_only", "func_precomputed_anat")
+    # The FreeSurfer-chain steps; everything else in CHECKS is functional.
+    FS_STEPS = ("orig.mgz", "nu.mgz", "T1.mgz", "brainmask.mgz", "wm.mgz", "lh.white", "rh.white", "lh.thickness", "rh.thickness", "aseg.stats")
+
+    def ui_for_params(self, params: dict[str, Any]) -> dict[str, Any]:
+        """A functional-only run has no structural QC of its own: the FreeSurfer
+        directory it reads was made by (and is reviewed on) the anatomical run."""
+        mode = str(params.get("mode") or "full")
+        return {} if mode in self.ANAT_MODES else {"structural_qc": None}
+
+    def checks_for_params(self, params: dict[str, Any], checks: list[Check]) -> list[Check]:
+        """Only the checks that this mode can produce: FreeSurfer steps in
+        anatomical modes, functional-output steps in functional modes."""
+        mode = str(params.get("mode") or "full")
+        keep_fs = mode in self.ANAT_MODES
+        keep_func = mode in self.FUNC_MODES
+        return [c for c in checks if (keep_fs if c.step in self.FS_STEPS else keep_func)]
+
     # ── node contract ────────────────────────────────────────────
 
     def validate(self, inputs: dict[str, Any], params: dict[str, Any]) -> list[str]:

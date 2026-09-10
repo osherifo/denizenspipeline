@@ -76,8 +76,11 @@ def _record(request: Request, run_id: str, node_id: str) -> dict[str, Any]:
     )
 
     registry = request.app.state.node_registry
+    params = dict(((doc or {}).get("data") or {}).get("params") or {})
     try:
         info = registry.info(node_type).to_dict() if node_type else {}
+        from fmriflow.preproc.node_registry import node_ui
+        info["ui"] = node_ui(registry.cls(node_type), params)
     except KeyError:
         info = {}
 
@@ -91,7 +94,7 @@ def _record(request: Request, run_id: str, node_id: str) -> dict[str, Any]:
         "work_dir": node_work_dir,
         "outputs": dict((rec or {}).get("outputs") or {}),
         "error": (rec or {}).get("error"),
-        "params": dict(((doc or {}).get("data") or {}).get("params") or {}),
+        "params": params,
         "ui": info.get("ui") or {},
         "output_ports": info.get("outputs") or {},
         "params_schema": info.get("params_schema") or {},

@@ -283,7 +283,7 @@ class ContainerAppInterface(BaseInterface):
         watcher = None
         abort_event = threading.Event()
         from fmriflow.preproc.checkpoints import resolve_checks
-        checks = resolve_checks(cls, list(self.inputs.checks) if isdefined(self.inputs.checks) else [])
+        checks = resolve_checks(cls, list(self.inputs.checks) if isdefined(self.inputs.checks) else [], params)
         if checks and isdefined(self.inputs.checkpoints_path) and self.inputs.checkpoints_path:
             from fmriflow.preproc.checkpoints import CheckpointSink, CheckpointWatcher
 

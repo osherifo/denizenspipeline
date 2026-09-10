@@ -148,7 +148,11 @@ class MyApp:
 ```
 
 The values are port names: the popup serves whatever path that port holds for *this
-run's* node, via `GET /api/preproc/runs/{id}/nodes/{node_id}/…`.
+run's* node, via `GET /api/preproc/runs/{id}/nodes/{node_id}/…`. A node may adjust both
+per run from its parameters with `ui_for_params(params)` and
+`checks_for_params(params, checks)`: fmriprep hides Structural QC and skips the
+FreeSurfer checks in its functional-only modes, and skips the functional checks in
+`anat_only`.
 
 The Library tab's **New node** offers a scaffold per kind; **Import nipype pipeline**
 turns a `.py` file with a `build()` function or a module-level `Workflow` into a

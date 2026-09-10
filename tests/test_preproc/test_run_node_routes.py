@@ -89,6 +89,18 @@ def test_record_merges_result_job_and_library(app_with_fmriprep_run):
     assert c.get("/api/preproc/runs/nope/nodes/fp").status_code == 404
 
 
+def test_functional_only_run_hides_structural_qc(app_with_fmriprep_run):
+    """The FreeSurfer dir a functional run reads was made by the anatomical run; the popup
+    must not offer structural QC for it."""
+    app = app_with_fmriprep_run
+    run_dir = app.state.preproc_run_manager.run_dir("run1")
+    job = json.loads((run_dir / "job.json").read_text())
+    job["pipeline"]["nodes"][0]["data"]["params"] = {"mode": "func_precomputed_anat"}
+    (run_dir / "job.json").write_text(json.dumps(job))
+    d = TestClient(app).get("/api/preproc/runs/run1/nodes/fp").json()
+    assert d["ui"]["structural_qc"] is None and d["ui"]["report"] == "report_html"
+
+
 def test_log_inner_and_work_tree_are_node_scoped(app_with_fmriprep_run):
     c = TestClient(app_with_fmriprep_run)
     log = c.get("/api/preproc/runs/run1/nodes/fp/log?tail=3").json()

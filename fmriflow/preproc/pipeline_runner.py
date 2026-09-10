@@ -379,7 +379,7 @@ class PipelineRunner:
             return
         checks = generic_output_checks(cls)
         pnode = self._pipeline.node(rec.node_id) if self._pipeline is not None else None
-        user_checks = [c for c in resolve_checks(cls, pnode.checks if pnode is not None else []) if c.source == "pipeline"]
+        user_checks = [c for c in resolve_checks(cls, pnode.checks if pnode is not None else [], pnode.params if pnode is not None else None) if c.source == "pipeline"]
         if not checks and not user_checks:
             return
         outputs = _result_outputs(node)

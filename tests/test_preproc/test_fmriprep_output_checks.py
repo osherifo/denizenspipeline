@@ -125,3 +125,19 @@ def test_fmriprep_checks_cover_the_constraint_tables_that_apply():
     assert all(c.live for c in FmriprepNode.CHECKS), "a container app only sweeps live checks"
     ctx = FmriprepNode().checkpoint_context({"bids_dir": "/b", "subject": "sub-01", "output_dir": "/o"}, {}, Path("/n"))
     assert ctx["bids_dir"] == "/b" and ctx["subject"] == "01"
+
+
+def test_mode_gates_structural_qc_and_the_freesurfer_checks():
+    from fmriflow.preproc.node_registry import node_ui
+    fs = set(FmriprepNode.FS_STEPS)
+    for mode in ("func_only", "func_precomputed_anat"):
+        assert node_ui(FmriprepNode, {"mode": mode})["structural_qc"] is None
+        steps = {c.step for c in ck.resolve_checks(FmriprepNode, [], {"mode": mode})}
+        assert not (steps & fs) and "bold_spikes" in steps
+    assert node_ui(FmriprepNode, {"mode": "anat_only"})["structural_qc"] == "fs_subjects_dir"
+    steps = {c.step for c in ck.resolve_checks(FmriprepNode, [], {"mode": "anat_only"})}
+    assert fs <= steps and "bold_spikes" not in steps
+    full = {c.step for c in ck.resolve_checks(FmriprepNode, [], {"mode": "full"})}
+    assert fs <= full and "bold_spikes" in full
+    # without params (the library listing) nothing is hidden
+    assert node_ui(FmriprepNode)["structural_qc"] == "fs_subjects_dir"

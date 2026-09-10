@@ -209,12 +209,21 @@ def metric_catalog() -> list[dict[str, Any]]:
     return out
 
 
-def resolve_checks(cls: type, node_checks: list[dict[str, Any]] | None) -> list[Check]:
-    """The checks to run for a node: its class ``CHECKS`` minus the ones a
-    pipeline entry disables (``{"step": ..., "enabled": false}``), plus the
-    pipeline's own entries (a pipeline entry with a built-in's ``step`` and
-    ``norms`` only re-bounds that built-in)."""
-    builtin = {c.step: c for c in (getattr(cls, "CHECKS", []) or [])}
+def resolve_checks(cls: type, node_checks: list[dict[str, Any]] | None, params: dict[str, Any] | None = None) -> list[Check]:
+    """The checks to run for a node: its class ``CHECKS`` (narrowed by an
+    optional ``checks_for_params(params, checks)`` method when ``params`` are
+    given — fmriprep drops its FreeSurfer checks in functional-only modes),
+    minus the ones a pipeline entry disables (``{"step": ..., "enabled": false}``),
+    plus the pipeline's own entries (a pipeline entry with a built-in's ``step``
+    and ``norms`` only re-bounds that built-in)."""
+    base_checks = list(getattr(cls, "CHECKS", []) or [])
+    hook = getattr(cls, "checks_for_params", None)
+    if params is not None and callable(hook):
+        try:
+            base_checks = list(hook(cls(), dict(params), base_checks))
+        except Exception:
+            logger.exception("checks_for_params failed for %s; using all checks", cls)
+    builtin = {c.step: c for c in base_checks}
     out: dict[str, Check] = dict(builtin)
     for entry in node_checks or []:
         step = str(entry.get("step") or "")
