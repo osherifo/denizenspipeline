@@ -199,10 +199,17 @@ class ConvertConfigStore:
     def update_config(self, filename: str, yaml_text: str) -> dict:
         """Overwrite a saved config with edited YAML.
 
-        The text must parse to a mapping. ``_meta`` is kept from the file on
-        disk when the edit dropped it (name and creation stay stable). Only
-        configs in the active dir are writable; a legacy one must be
-        duplicated first. Raises ``FileNotFoundError`` / ``ValueError``.
+        ``_meta.name`` and ``_meta.created`` are identity/provenance and
+        always come from the file already on disk — the editor round-trips
+        the whole saved file (``_meta`` included) into the editable text, so
+        an edit to any unrelated field would otherwise silently carry
+        through and let the name/creation time be rewritten, or the two
+        drift apart if only ``name`` (not the actual filename) is edited.
+        Everything else in ``_meta`` (e.g. ``description``) is taken from
+        the submitted YAML; if ``_meta`` was dropped entirely, the whole
+        on-disk block is restored, as before. Only configs in the active
+        dir are writable; a legacy one must be duplicated first. Raises
+        ``FileNotFoundError`` / ``ValueError``.
         """
         path = self._validate_filename(filename)
         if not path.is_file():
@@ -213,13 +220,21 @@ class ConvertConfigStore:
             raise ValueError(f"YAML does not parse: {e}") from e
         if not isinstance(data, dict) or not data:
             raise ValueError("config YAML must be a non-empty mapping")
-        if "_meta" not in data:
-            try:
-                old = yaml.safe_load(path.read_text()) or {}
-            except yaml.YAMLError:
-                old = {}
-            if isinstance(old, dict) and old.get("_meta"):
-                data["_meta"] = old["_meta"]
+
+        try:
+            on_disk = yaml.safe_load(path.read_text()) or {}
+        except yaml.YAMLError:
+            on_disk = {}
+        on_disk_meta = on_disk.get("_meta") if isinstance(on_disk, dict) else None
+        if isinstance(on_disk_meta, dict):
+            if "_meta" not in data:
+                data["_meta"] = dict(on_disk_meta)
+            else:
+                meta = dict(data["_meta"]) if isinstance(data.get("_meta"), dict) else {}
+                meta["name"] = on_disk_meta.get("name", meta.get("name", path.stem))
+                meta["created"] = on_disk_meta.get("created", meta.get("created", ""))
+                data["_meta"] = meta
+
         raw = yaml.safe_dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         path.write_text(raw)
         self._invalidate()
