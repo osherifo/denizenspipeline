@@ -1779,9 +1779,10 @@ TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoin
 </tbody>
 </table>
 <p>A recording usually covers a whole session, one block per run. Wire the nodes so they
-iterate in lockstep: put <strong>×N</strong> on both <code>block</code> and <code>in_file</code> of <code>physio_regressors</code>,
-give <code>block</code> the literal list <code>[0, 1, 2, …]</code>, and iterate <code>physio_clean</code> over <code>in_file</code>
-and <code>regressors_file</code>. The TR is read from the BOLD header when <code>tr</code> is 0 (a value
+iterate in lockstep: connect the BOLD list to <code>in_file</code> of <code>physio_regressors</code>, press
+<strong>×N</strong> on <code>in_file</code> and on <code>block</code>, and type the block list into <code>block</code> (<code>0, 1, 2</code>; a
+literal on an iterated port is one item per iteration). Then iterate <code>physio_clean</code> over
+<code>in_file</code> and <code>regressors_file</code>. The TR is read from the BOLD header when <code>tr</code> is 0 (a value
 above 10 is taken as milliseconds). Physio and BOLD TR counts must agree after
 trimming: <code>auto_trim</code> drops the surplus at the end, or set <code>trim_begin</code> / <code>trim_end</code>.
 A wrong block index fails with the list of blocks and their durations.</p>

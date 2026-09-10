@@ -146,3 +146,21 @@ def test_run_defaults_roundtrip_and_empty_values_dropped():
     again = Pipeline.from_yaml(p.to_yaml())
     assert again.run_defaults == p.run_defaults
     assert "run_defaults" not in Pipeline(name="t").to_dict()   # templates stay clean
+
+
+def test_validate_accepts_a_list_literal_on_an_iterated_handle():
+    from fmriflow.preproc.graph import Pipeline
+    base = {
+        "schema_version": 1, "name": "t", "inputs": {},
+        "nodes": [{"id": "n", "type": "smooth", "kind": "interface", "position": {"x": 0, "y": 0},
+                   "data": {"params": {}, "literal_inputs": {"in_file": ["/a.nii", "/b.nii"]}, "iter": {"handle": "in_file"}}}],
+        "edges": [], "manifest": {},
+    }
+    assert not [e for e in Pipeline.from_dict(base).validate(None) if "iter" in e]
+    base["nodes"][0]["data"]["literal_inputs"]["in_file"] = "/a.nii"
+    errors = Pipeline.from_dict(base).validate(None)
+    assert any("not a list" in e for e in errors)
+    del base["nodes"][0]["data"]["literal_inputs"]["in_file"]
+    errors = Pipeline.from_dict(base).validate(None)
+    assert any("needs an incoming edge, a list literal or 'values'" in e for e in errors)
+

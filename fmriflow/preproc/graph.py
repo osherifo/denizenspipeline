@@ -388,12 +388,18 @@ class Pipeline:
                             f"node {n.id}: iter handle {handle!r} not in "
                             f"{n.type}.INPUTS={sorted(inputs)}"
                         )
-                # The list to iterate over arrives on the handle's edge, or is
-                # given literally as ``values``; one of the two must be there.
+                # The list to iterate over arrives on the handle's edge, is a
+                # list literal on the port, or is given as ``values``.
                 fed_by_edge = any(e.target_handle == handle for e in self.predecessors(n.id))
-                if not fed_by_edge and "values" not in n.iter:
+                literal = n.literal_inputs.get(handle)
+                if handle in n.literal_inputs and not isinstance(literal, list):
                     errors.append(
-                        f"node {n.id}: iter handle {handle!r} needs an incoming edge or literal 'values'"
+                        f"node {n.id}: iter handle {handle!r} has a literal value that is not a list "
+                        f"({literal!r}); give one item per iteration"
+                    )
+                elif not fed_by_edge and handle not in n.literal_inputs and "values" not in n.iter:
+                    errors.append(
+                        f"node {n.id}: iter handle {handle!r} needs an incoming edge, a list literal or 'values'"
                     )
 
         backend_node = self.manifest.get("backend_node")

@@ -272,9 +272,10 @@ TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoin
 | `physio_clean` | `in_file`, `regressors_file`, optional `weights_file` | `out_file`, `weights_file`, `summary_file` | Subtracts regressors × weights per voxel, z-scores the residual and restores the voxel mean. Estimates the weights itself when none are connected. |
 
 A recording usually covers a whole session, one block per run. Wire the nodes so they
-iterate in lockstep: put **×N** on both `block` and `in_file` of `physio_regressors`,
-give `block` the literal list `[0, 1, 2, …]`, and iterate `physio_clean` over `in_file`
-and `regressors_file`. The TR is read from the BOLD header when `tr` is 0 (a value
+iterate in lockstep: connect the BOLD list to `in_file` of `physio_regressors`, press
+**×N** on `in_file` and on `block`, and type the block list into `block` (`0, 1, 2`; a
+literal on an iterated port is one item per iteration). Then iterate `physio_clean` over
+`in_file` and `regressors_file`. The TR is read from the BOLD header when `tr` is 0 (a value
 above 10 is taken as milliseconds). Physio and BOLD TR counts must agree after
 trimming: `auto_trim` drops the surplus at the end, or set `trim_begin` / `trim_end`.
 A wrong block index fails with the list of blocks and their durations.

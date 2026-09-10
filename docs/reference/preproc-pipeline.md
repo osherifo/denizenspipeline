@@ -55,7 +55,7 @@ run_defaults:                # optional — the Run panel, saved with the pipeli
 | `nodes[].data.params` | Node parameters (see the node's schema in the Library). Schema defaults apply when a key is absent. |
 | `nodes[].data.bindings` | Input port → `$inputs.<name>`. |
 | `nodes[].data.literal_inputs` | Input port → fixed value (a path, a string, a list). |
-| `nodes[].data.iter` | `{handle: <port>}` or `{handles: [<port>, …]}` — the node becomes a nipype `MapNode` over the list(s) arriving on those ports; `values: [...]` gives the list literally. Not available on composite nodes (put a `select` node in front). |
+| `nodes[].data.iter` | `{handle: <port>}` or `{handles: [<port>, …]}` — the node becomes a nipype `MapNode` over the list(s) arriving on those ports. A handle's list comes from its edge, from a list in `literal_inputs` (what the Build tab writes when you type `0, 1, 2` into an iterated port), or from `values: [...]` (first handle). Several handles iterate in lockstep. Not available on composite nodes (put a `select` node in front). |
 | `edges[]` | `sourceHandle` is an output port of `source`, `targetHandle` an input port of `target`. An input port may be fed by exactly one of: an edge, a literal, a binding. |
 | `manifest.backend_node` | The node whose collector builds the base `PreprocManifest` (fmriprep, bids_app, custom_shell, a composite with `to_manifest`, or a source). |
 | `manifest.bold_from` / `confounds_from` | `<node_id>.<port>`; the manifest's runs point at those files and `output_dir` becomes that node's work dir. |

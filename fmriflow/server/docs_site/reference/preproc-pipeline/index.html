@@ -1474,7 +1474,7 @@ hand look the same.</p>
 </tr>
 <tr>
 <td><code>nodes[].data.iter</code></td>
-<td><code>{handle: &lt;port&gt;}</code> or <code>{handles: [&lt;port&gt;, …]}</code> — the node becomes a nipype <code>MapNode</code> over the list(s) arriving on those ports; <code>values: [...]</code> gives the list literally. Not available on composite nodes (put a <code>select</code> node in front).</td>
+<td><code>{handle: &lt;port&gt;}</code> or <code>{handles: [&lt;port&gt;, …]}</code> — the node becomes a nipype <code>MapNode</code> over the list(s) arriving on those ports. A handle's list comes from its edge, from a list in <code>literal_inputs</code> (what the Build tab writes when you type <code>0, 1, 2</code> into an iterated port), or from <code>values: [...]</code> (first handle). Several handles iterate in lockstep. Not available on composite nodes (put a <code>select</code> node in front).</td>
 </tr>
 <tr>
 <td><code>edges[]</code></td>

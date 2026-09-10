@@ -8,6 +8,7 @@ import { NodeChecksSection } from './checks/NodeChecksSection'
 import { usePreprocPipelineStore } from '../../stores/preproc-pipeline-store'
 import type { ParamSchema, PipelineNodeDoc, PreprocNodeInfo } from '../../api/types'
 import { KIND_COLORS, KIND_LABELS } from './PipelineNodeCard'
+import { formatIterLiteral, parseIterLiteral } from './iter-literal'
 
 /** Port kinds that name something on disk (everything but scalars and `any`). */
 const isPathKind = (kind: string) => !['str', 'int', 'float', 'bool', 'any', 'list'].includes(kind)
@@ -66,13 +67,20 @@ export function NodeParamPanel({ node, info }: Props) {
     const literal = { ...(node.data.literal_inputs ?? {}) }
     if (value.startsWith('$inputs.')) { bindings[port] = value; delete literal[port] }
     else if (value === '') { delete bindings[port]; delete literal[port] }
-    else { literal[port] = value; delete bindings[port] }
+    // On an iterated port the literal is the list to iterate over, one item per iteration.
+    else { literal[port] = iterHandles.includes(port) ? parseIterLiteral(value) : value; delete bindings[port] }
     updateNodeData(node.id, { bindings, literal_inputs: literal })
   }
 
   const toggleIter = (port: string) => {
-    const next = iterHandles.includes(port) ? iterHandles.filter((h) => h !== port) : [...iterHandles, port]
-    updateNodeData(node.id, { iter: next.length ? (next.length === 1 ? { handle: next[0] } : { handles: next }) : null })
+    const on = !iterHandles.includes(port)
+    const next = on ? [...iterHandles, port] : iterHandles.filter((h) => h !== port)
+    const literal = { ...(node.data.literal_inputs ?? {}) }
+    // A literal on the port changes shape with the toggle: list while iterated, text otherwise.
+    if (port in literal && !fedByEdge.has(port)) {
+      literal[port] = on ? parseIterLiteral(formatIterLiteral(literal[port])) : formatIterLiteral(literal[port])
+    }
+    updateNodeData(node.id, { iter: next.length ? (next.length === 1 ? { handle: next[0] } : { handles: next }) : null, literal_inputs: literal })
   }
 
   return (
@@ -90,7 +98,8 @@ export function NodeParamPanel({ node, info }: Props) {
           <div style={h}>Inputs</div>
           {inputs.map(([port, spec]) => {
             const edge = fedByEdge.has(port)
-            const value = node.data.bindings?.[port] ?? (node.data.literal_inputs?.[port] as string | undefined) ?? ''
+            const iterated = iterHandles.includes(port)
+            const value = node.data.bindings?.[port] ?? formatIterLiteral(node.data.literal_inputs?.[port])
             return (
               <div key={port} style={row}>
                 <label title={spec.description} style={{ color: 'var(--text-primary)' }}>
@@ -115,7 +124,8 @@ export function NodeParamPanel({ node, info }: Props) {
                       <input
                         list={`inputs-${node.id}-${port}`}
                         style={input}
-                        placeholder={`${spec.kind}, or $inputs.<name>`}
+                        placeholder={iterated ? 'one item per iteration: 0, 1, 2' : `${spec.kind}, or $inputs.<name>`}
+                        title={iterated ? 'a list to iterate over, comma-separated or JSON' : undefined}
                         value={String(value)}
                         onChange={(e) => setBinding(port, e.target.value)}
                       />
