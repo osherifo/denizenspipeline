@@ -81,9 +81,16 @@ async def _tail_events_jsonl(websocket: WebSocket, registry, run_id: str, events
                     if not line:
                         continue
                     try:
-                        events.append(json.loads(line))
+                        ev = json.loads(line)
                     except json.JSONDecodeError:
                         logger.warning("Malformed event in %s: %r", events_path, line)
+                        continue
+                    if ev.get("event") == "checkpoint":
+                        from fmriflow.preproc.checkpoints import is_parked_record, trim_record
+                        if is_parked_record(ev):
+                            continue
+                        ev = trim_record(ev)
+                    events.append(ev)
                 new_offset = f.tell()
         except OSError as e:
             logger.warning("Could not read %s: %s", events_path, e)

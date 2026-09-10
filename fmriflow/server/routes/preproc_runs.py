@@ -40,6 +40,7 @@ async def get_run(request: Request, run_id: str, nipype: bool = Query(True)):
 @router.get("/preproc/runs/{run_id}/events")
 async def run_events(request: Request, run_id: str, offset: int = Query(0, ge=0)):
     """Poll-style access to ``events.jsonl`` (the WebSocket streams the same file)."""
+    from fmriflow.preproc.checkpoints import is_parked_record, trim_record
     _get(request, run_id)
     path = _manager(request).events_path(run_id)
     events: list[dict] = []
@@ -51,9 +52,14 @@ async def run_events(request: Request, run_id: str, offset: int = Query(0, ge=0)
                 line = line.strip()
                 if line:
                     try:
-                        events.append(json.loads(line))
+                        ev = json.loads(line)
                     except json.JSONDecodeError:
-                        pass
+                        continue
+                    if ev.get("event") == "checkpoint":
+                        if is_parked_record(ev):
+                            continue
+                        ev = trim_record(ev)
+                    events.append(ev)
             new_offset = f.tell()
     return {"events": events, "offset": new_offset}
 

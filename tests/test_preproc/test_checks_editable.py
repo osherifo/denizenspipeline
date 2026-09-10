@@ -278,3 +278,45 @@ def test_default_allow_list_keeps_three_checks_live(monkeypatch):
     c = ck.Check.from_dict({"step": "bold_spikes", "artifact": "{node_dir}/x", "metric": "nifti_stats", "norms": {"hard": {"n_trs": [">", 1]}}})
     assert [x.step for x in ck.resolve_checks(SmoothTransform, [c.to_dict()], {})] == ["bold_spikes"]
 
+
+def test_parked_records_are_hidden_on_read_and_pruned_on_disk(tmp_path, monkeypatch):
+    """Old runs recorded every check; with the allow-list they show (and keep) only the live ones."""
+    from fmriflow.preproc import norms as _norms
+    monkeypatch.setattr(_norms, "ACTIVE_CHECKS", {"bold_output": ("is_4d", "n_trs"), "sdc_delta_te": ("has_both_echoes",)})
+    run = tmp_path / "run"; run.mkdir()
+    recs = [
+        {"stage": "preproc", "run_id": "r", "node": "w.fp", "step": "bold_nan_inf[task-x]", "subject": "01",
+         "metrics": {"n_nan_inf": 0}, "expectations": {"n_nan_inf": ["==", 0]}, "soft_expectations": {}, "verdict": "ok", "t": 1},
+        {"stage": "preproc", "run_id": "r", "node": "w.fp", "step": "nu.mgz", "subject": "01",
+         "metrics": {"n_unique": 70}, "expectations": {"n_unique": [">", 100]}, "soft_expectations": {}, "verdict": "bad", "t": 1},
+        {"stage": "preproc", "run_id": "r", "node": "w.sm", "step": "out_file", "subject": "01",              # bold_output
+         "metrics": {"exists": True, "size_bytes": 9, "is_4d": True, "n_trs": 6, "nonzero_fraction": 0.5},
+         "expectations": {"exists": ["==", True], "is_4d": ["==", True], "n_trs": [">", 1]},
+         "soft_expectations": {"nonzero_fraction": [">", 0.01]}, "verdict": "suspicious", "reasons": ["nonzero_fraction=0.5 outside > 0.9"], "t": 1},
+        {"stage": "preproc", "run_id": "r", "node": "w.fp", "step": "manifest", "subject": "01",              # generic `output`
+         "metrics": {"exists": True, "size_bytes": 3}, "expectations": {"exists": ["==", True], "size_bytes": [">", 0]},
+         "soft_expectations": {}, "verdict": "ok", "t": 1},
+        {"stage": "preproc", "run_id": "r", "node": "w.sm", "step": "my_own", "subject": "01",               # pipeline-authored
+         "metrics": {"mean": 3.0}, "expectations": {"mean": [">", 1]}, "soft_expectations": {}, "verdict": "ok", "t": 1},
+    ]
+    (run / "checkpoints.jsonl").write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+    events = [{"event": "started"}] + [{"event": "checkpoint", "node": r["node"], "step": r["step"], "verdict": r["verdict"],
+                                        "reasons": r.get("reasons", []), "metrics": r["metrics"], "t": 1} for r in recs] + [{"event": "completed"}]
+    (run / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n")
+
+    shown = ck.read_checkpoints(run / "checkpoints.jsonl")
+    assert [c.step for c in shown] == ["out_file", "my_own"]
+    assert shown[0].metrics == {"is_4d": True, "n_trs": 6} and shown[0].soft_expectations == {} and shown[0].verdict == "ok"
+    assert len(ck.read_checkpoints(run / "checkpoints.jsonl", active_only=False)) == 5
+
+    removed = ck.prune_parked(run)
+    assert removed == {"checkpoints": 3, "events": 3}
+    assert (run / "checkpoints.jsonl.parked").read_text().count("\n") == 5      # original kept
+    kept = [json.loads(l) for l in (run / "checkpoints.jsonl").read_text().splitlines()]
+    assert [k["step"] for k in kept] == ["out_file", "my_own"] and kept[0]["metrics"] == {"is_4d": True, "n_trs": 6}
+    ev = [json.loads(l) for l in (run / "events.jsonl").read_text().splitlines()]
+    assert [e.get("step", e["event"]) for e in ev] == ["started", "out_file", "my_own", "completed"]
+    # a second prune changes nothing and keeps the first backup
+    assert ck.prune_parked(run) == {"checkpoints": 0, "events": 0}
+    assert (run / "checkpoints.jsonl.parked").read_text().count("\n") == 5
+

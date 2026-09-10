@@ -952,11 +952,67 @@ class CheckpointSink:
                 append_jsonl(self.events_path, {
                     "event": "checkpoint", "node": cp.node, "leaf": cp.node.rsplit(".", 1)[-1],
                     "step": cp.step, "verdict": cp.verdict, "reasons": list(cp.reasons),
-                    "metrics": cp.metrics, "t": cp.t, "timestamp": cp.t,
+                    "metrics": cp.metrics, "expectations": cp.expectations, "t": cp.t, "timestamp": cp.t,
                 })
 
 
-def read_checkpoints(path: Path | str) -> list[Checkpoint]:
+def _norms_key_of(d: dict[str, Any]) -> str | None:
+    """The norms key a recorded checkpoint (or its mirrored event) was judged by.
+
+    Built-in steps are their own key. Generic output checks record the *port name*
+    as their step: a BOLD port maps to ``bold_output``; any other port is
+    recognised as ``output`` by its bounds, or (an event carries no bounds) by
+    the generic metric's key set. ``None`` for a step a pipeline named itself.
+    """
+    from fmriflow.preproc.norms import HARD_NORMS
+    base = str(d.get("step") or "").split("[", 1)[0]
+    if base in HARD_NORMS:
+        return base
+    if base in _BOLD_PORTS:
+        return "bold_output"
+    exp = set((d.get("expectations") or {}).keys())
+    if exp:
+        return "output" if exp == set(HARD_NORMS.get("output", {}).get("hard", {})) else None
+    keys = set((d.get("metrics") or {}).keys())
+    if keys and "exists" in keys and keys <= _OUTPUT_METRIC_KEYS:
+        return "output"
+    return None
+
+
+_BOLD_PORTS = ("bold", "bold_preproc", "out_file")
+_OUTPUT_METRIC_KEYS = {"exists", "size_bytes", "shape", "is_4d", "n_trs", "nonzero_fraction", "read_error"}
+
+
+def is_parked_record(d: dict[str, Any]) -> bool:
+    """True for a recorded checkpoint of a check that is parked today (a built-in
+    or generic check whose norms key is outside :data:`ACTIVE_CHECKS`). Checks a
+    pipeline declared under its own step name are kept."""
+    from fmriflow.preproc.norms import ACTIVE_CHECKS, is_active_step
+    if ACTIVE_CHECKS is None:
+        return False
+    key = _norms_key_of(d)
+    return key is not None and not is_active_step(key)
+
+
+def trim_record(d: dict[str, Any]) -> dict[str, Any]:
+    """A live record as it would be written today: parked metrics and soft bounds gone."""
+    from fmriflow.preproc.norms import active_metrics
+    key = _norms_key_of(d)
+    keep = active_metrics(key) if key else None
+    out = dict(d)
+    if keep is not None:
+        out["metrics"] = {k: v for k, v in (d.get("metrics") or {}).items() if k in keep}
+        out["expectations"] = {k: v for k, v in (d.get("expectations") or {}).items() if k in keep}
+    out["soft_expectations"] = {}
+    if out.get("verdict") == "suspicious":
+        out["verdict"] = "ok"
+        out["reasons"] = [r for r in (d.get("reasons") or []) if " outside " not in r]
+    return out
+
+
+def read_checkpoints(path: Path | str, *, active_only: bool = True) -> list[Checkpoint]:
+    """Records from ``checkpoints.jsonl``; by default only those of checks that are
+    live today, trimmed to the live metrics, so old runs show what new runs would."""
     p = Path(path)
     if not p.is_file():
         return []
@@ -966,7 +1022,12 @@ def read_checkpoints(path: Path | str) -> list[Checkpoint]:
         if not line:
             continue
         try:
-            out.append(Checkpoint.from_dict(json.loads(line)))
+            d = json.loads(line)
+            if active_only:
+                if is_parked_record(d):
+                    continue
+                d = trim_record(d)
+            out.append(Checkpoint.from_dict(d))
         except (ValueError, KeyError):
             continue
     return out
@@ -1082,3 +1143,54 @@ def render_thumbnail(artifact: Path, *, size: int = 160) -> Path | None:
     except Exception as e:
         logger.debug("thumbnail for %s failed: %s", artifact, e)
         return None
+
+
+def prune_parked(run_dir: Path | str) -> dict[str, int]:
+    """Rewrite a run's ``checkpoints.jsonl`` and ``events.jsonl`` without the records
+    of parked checks (and with live records trimmed). The originals are kept next to
+    them as ``*.jsonl.parked`` the first time, so widening the allow-list later can
+    restore them. Returns counts of removed records per file."""
+    run_dir = Path(run_dir)
+    removed = {"checkpoints": 0, "events": 0}
+    cp = run_dir / CHECKPOINTS_FILENAME
+    if cp.is_file():
+        backup = cp.with_suffix(".jsonl.parked")
+        if not backup.exists():
+            backup.write_bytes(cp.read_bytes())
+        kept = []
+        for line in cp.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if is_parked_record(d):
+                removed["checkpoints"] += 1
+                continue
+            kept.append(json.dumps(trim_record(d), default=str))
+        cp.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+    ev = run_dir / "events.jsonl"
+    if ev.is_file():
+        backup = ev.with_suffix(".jsonl.parked")
+        if not backup.exists():
+            backup.write_bytes(ev.read_bytes())
+        kept = []
+        for line in ev.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+            except ValueError:
+                kept.append(line)
+                continue
+            if d.get("event") == "checkpoint":
+                if is_parked_record(d):
+                    removed["events"] += 1
+                    continue
+                d = trim_record(d)
+                line = json.dumps(d, default=str)
+            kept.append(line)
+        ev.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+    return removed
+
