@@ -8,12 +8,19 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from fmriflow.preproc.graph import Pipeline, PipelineRunRequest
-from fmriflow.preproc.templates import list_templates, load_template
+from fmriflow.preproc.templates import (
+    concrete_path_warnings, delete_user_template, list_templates, load_template, save_user_template,
+)
 
 router = APIRouter(tags=["preproc-pipelines"])
 
 
 class PipelineBody(BaseModel):
+    pipeline: dict[str, Any]
+
+
+class TemplateBody(BaseModel):
+    name: str
     pipeline: dict[str, Any]
 
 
@@ -73,6 +80,37 @@ async def pipeline_template(name: str):
         return {"pipeline": load_template(name).to_dict()}
     except KeyError as e:
         raise HTTPException(404, detail=str(e))
+
+
+@router.post("/preproc/pipelines/templates")
+async def save_template(request: Request, body: TemplateBody):
+    """*Save as template*: write the editor's pipeline to the user tier.
+
+    The run panel (``run_defaults``) is dropped — a template is a starting
+    point, not a dataset. ``warnings`` lists node values that hold a
+    concrete path and so will not travel; ``errors`` is the validation
+    result (saved regardless, like a pipeline).
+    """
+    pipeline = _parse(body.pipeline)
+    errors = pipeline.validate(request.app.state.node_registry)
+    warnings = concrete_path_warnings(pipeline)
+    try:
+        path = save_user_template(body.name, pipeline)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    return {"saved": True, "name": body.name, "tier": "user", "path": str(path),
+            "warnings": warnings, "errors": errors}
+
+
+@router.delete("/preproc/pipelines/templates/{name}")
+async def delete_template(name: str):
+    try:
+        deleted = delete_user_template(name)
+    except ValueError as e:
+        raise HTTPException(403, detail=str(e))
+    if not deleted:
+        raise HTTPException(404, detail=f"no user template named {name!r}")
+    return {"deleted": True}
 
 
 @router.post("/preproc/pipelines/validate")

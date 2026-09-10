@@ -103,4 +103,27 @@ describe('preproc pipeline store', () => {
     expect(runId).toBe('pp_new')
     expect(usePreprocPipelineStore.getState().lastRunId).toBe('pp_new')
   })
+
+  it('saves the editor as a user template and lists it with its tier', async () => {
+    const s = usePreprocPipelineStore.getState()
+    await s.loadTemplate('derivatives_smooth')
+    usePreprocPipelineStore.getState().updateNodeParams('smooth', { fwhm: 5, mask: '/data/mask.nii.gz' })
+    const warnings = await usePreprocPipelineStore.getState().saveTemplate('my_smooth')
+    expect(warnings).toEqual(['smooth.mask (param) holds a concrete path: /data/mask.nii.gz'])
+    const st = usePreprocPipelineStore.getState()
+    expect(st.templates.map((t) => [t.name, t.tier])).toEqual([['derivatives_smooth', 'bundled'], ['my_smooth', 'user']])
+    // the editor is untouched: still an unsaved draft
+    expect(st.pipelineName).toBeNull()
+
+    await st.removeTemplate('my_smooth')
+    expect(usePreprocPipelineStore.getState().templates.map((t) => t.name)).toEqual(['derivatives_smooth'])
+  })
+
+  it('refuses a bundled template name', async () => {
+    const s = usePreprocPipelineStore.getState()
+    await s.loadTemplate('derivatives_smooth')
+    const warnings = await usePreprocPipelineStore.getState().saveTemplate('derivatives_smooth')
+    expect(warnings).toBeNull()
+    expect(usePreprocPipelineStore.getState().error).toMatch(/bundled template/)
+  })
 })

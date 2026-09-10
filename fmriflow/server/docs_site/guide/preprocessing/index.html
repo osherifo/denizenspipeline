@@ -736,6 +736,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#your-own-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Your own templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reusing-a-freesurfer-reconstruction" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1368,6 +1379,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#your-own-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Your own templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reusing-a-freesurfer-reconstruction" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1579,6 +1601,19 @@ confound regression on derivatives produced elsewhere (<code>derivatives_source<
 <code>smooth</code> → <code>regress_confounds</code>), or a hand-written nipype workflow such as the
 <code>reference_fsl_ants</code> composite node — is built from the palette and saved as a
 pipeline of your own.</p>
+<h3 id="your-own-templates">Your own templates<a class="headerlink" href="#your-own-templates" title="Permanent link">&para;</a></h3>
+<p><strong>Save as template</strong> in the Build toolbar keeps the current graph as a starting point
+of your own. It lands in <code>$FMRIFLOW_HOME/addons/pipelines/&lt;name&gt;.yaml</code> and shows up in
+the Templates list with a <code>user</code> badge; the bundled ones are read-only, and a user
+template cannot take a bundled name. Delete one with the ✕ on its card.</p>
+<p>A template differs from a saved pipeline in two ways. Loading it always gives you an
+unsaved draft, so <strong>Save</strong> never overwrites the template itself. And the Run panel is
+not kept: a template should take its paths from pipeline inputs bound at run time, so
+it works on the next dataset as well as this one. If a node parameter still holds a
+literal path (<code>/data/...</code>), the save goes through but tells you which values will not
+travel.</p>
+<p><code>fmriflow preproc run &lt;template-name&gt;</code> resolves user templates the same way it does
+bundled ones.</p>
 <h3 id="reusing-a-freesurfer-reconstruction">Reusing a FreeSurfer reconstruction<a class="headerlink" href="#reusing-a-freesurfer-reconstruction" title="Permanent link">&para;</a></h3>
 <p><code>func_precomputed_anat</code> reuses an existing FreeSurfer subject instead of running
 recon-all. Point <code>fs_subjects_dir</code> at the subjects directory and, when the subject is not

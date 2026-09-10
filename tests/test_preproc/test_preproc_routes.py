@@ -38,6 +38,30 @@ def test_templates_and_nodes(client):
     assert "preproc_node" in client.get("/api/preproc/nodes/scaffold/interface").json()["code"]
 
 
+def test_save_and_delete_user_template(client):
+    p = client.get("/api/preproc/pipelines/templates/fmriprep_anat_only").json()["pipeline"]
+    p["run_defaults"] = {"subject": "01", "bids_dir": "/data/bids"}
+    p["nodes"][0]["data"]["params"]["fs_license"] = "/opt/fs/license.txt"
+
+    r = client.post("/api/preproc/pipelines/templates", json={"name": "mine", "pipeline": p})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["saved"] and body["tier"] == "user" and body["path"].endswith("addons/pipelines/mine.yaml")
+    assert len(body["warnings"]) == 1 and "fs_license" in body["warnings"][0]
+
+    rows = {t["name"]: t for t in client.get("/api/preproc/pipelines/templates").json()["templates"]}
+    assert rows["mine"]["tier"] == "user"
+    got = client.get("/api/preproc/pipelines/templates/mine").json()["pipeline"]
+    assert got["name"] == "mine" and "run_defaults" not in got
+
+    # bundled names are protected either way
+    assert client.post("/api/preproc/pipelines/templates", json={"name": "fmriprep_full", "pipeline": p}).status_code == 400
+    assert client.delete("/api/preproc/pipelines/templates/fmriprep_full").status_code == 403
+
+    assert client.delete("/api/preproc/pipelines/templates/mine").json()["deleted"]
+    assert client.delete("/api/preproc/pipelines/templates/mine").status_code == 404
+
+
 def test_pipeline_crud_and_validate(client, sample_pipeline):
     p = sample_pipeline("derivatives_smooth_regress").to_dict()
     r = client.put("/api/preproc/pipelines/mine", json={"pipeline": p})

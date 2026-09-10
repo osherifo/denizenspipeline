@@ -5,6 +5,8 @@ import {
   fetchNodeLibrary,
   fetchPipeline,
   fetchPipelineTemplate,
+  savePipelineTemplate,
+  deletePipelineTemplate,
   fetchPipelineTemplates,
   fetchPipelines,
   runPipeline,
@@ -140,6 +142,9 @@ interface PipelineState {
   validate: () => Promise<void>
   save: (name: string) => Promise<void>
   remove: (name: string) => Promise<void>
+  /** Save the editor's pipeline as a user template; resolves to the server's path warnings. */
+  saveTemplate: (name: string) => Promise<string[] | null>
+  removeTemplate: (name: string) => Promise<void>
   setBinding: (patch: Partial<RunBinding>) => void
   launch: () => Promise<string | null>
 }
@@ -318,6 +323,26 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
       await deletePipeline(name)
       if (get().pipelineName === name) get().newPipeline()
       await get().loadPipelines()
+    } catch (e) {
+      set({ error: (e as Error).message })
+    }
+  },
+
+  saveTemplate: async (name) => {
+    try {
+      const { warnings } = await savePipelineTemplate(name, get().pipeline)
+      await get().loadTemplates()
+      return warnings
+    } catch (e) {
+      set({ error: (e as Error).message })
+      return null
+    }
+  },
+
+  removeTemplate: async (name) => {
+    try {
+      await deletePipelineTemplate(name)
+      await get().loadTemplates()
     } catch (e) {
       set({ error: (e as Error).message })
     }

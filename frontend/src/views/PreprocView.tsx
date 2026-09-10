@@ -17,6 +17,7 @@ import { ImportPipelineModal } from '../components/preproc-graph/ImportPipelineM
 import { ManifestBrowser } from '../components/preproc/ManifestBrowser'
 import { CollectForm } from '../components/preproc/CollectForm'
 import { KIND_COLORS, KIND_LABELS } from '../components/preproc-graph/PipelineNodeCard'
+import { useDialog } from '../components/common/Dialog'
 
 export type PreprocTab = 'build' | 'runs' | 'library' | 'outputs'
 
@@ -49,6 +50,10 @@ const sideCardName: CSSProperties = { fontWeight: 600, overflowWrap: 'anywhere' 
 const sideCardChain: CSSProperties = {
   fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflowX: 'auto', paddingBottom: 2,
 }
+const tierBadge: CSSProperties = {
+  marginLeft: 6, padding: '0 5px', borderRadius: 3, fontSize: 9, fontWeight: 600, verticalAlign: 'middle',
+  border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: 0.5,
+}
 
 function tabFromHash(): PreprocTab {
   const m = /preproc\/(build|runs|library|outputs)/.exec(window.location.hash)
@@ -77,7 +82,29 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
   const s = usePreprocPipelineStore()
   const runsSelect = usePreprocRunsStore((r) => r.select)
   const [saveAs, setSaveAs] = useState('')
+  const dlg = useDialog()
   useEffect(() => { void s.loadLibrary(); void s.loadTemplates(); void s.loadPipelines() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveAsTemplate() {
+    const suggested = (s.pipelineName || s.pipeline.name || 'my_template').replace(/[^a-zA-Z0-9_-]/g, '_')
+    const name = await dlg.prompt('Save the current graph as a template named:', {
+      defaultValue: suggested, placeholder: 'template_name',
+    })
+    if (!name) return
+    if (s.templates.some((t) => t.name === name && t.tier === 'user')
+        && !(await dlg.confirm(`Overwrite your template "${name}"?`))) return
+    const warnings = await s.saveTemplate(name)
+    if (warnings === null) return
+    if (warnings.length) {
+      await dlg.alert(
+        `Template "${name}" saved. These node values hold a concrete path and will not carry over to another dataset — bind them to a pipeline input instead:\n\n${warnings.join('\n')}`,
+      )
+    }
+  }
+
+  async function removeTemplate(name: string) {
+    if (await dlg.confirm(`Delete template "${name}"?`)) await s.removeTemplate(name)
+  }
 
   const selected = s.pipeline.nodes.find((n) => n.id === s.selectedNodeId) ?? null
   const info = selected ? s.library.find((n) => n.name === selected.type) : undefined
@@ -90,10 +117,21 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
         <div>
           <div style={{ ...small, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Templates</div>
           {s.templates.map((t) => (
-            <div key={t.name} title={t.description} onClick={() => void s.loadTemplate(t.name)}
-              style={{ ...sideCard, cursor: 'pointer' }}>
-              <div style={sideCardName}>{t.name}</div>
-              <div style={sideCardChain}>{t.node_types.join(' → ')}</div>
+            <div key={t.name} title={t.description || (t.tier === 'user' ? 'your template' : 'bundled template')}
+              onClick={() => void s.loadTemplate(t.name)}
+              style={{ ...sideCard, cursor: 'pointer', display: 'flex', gap: 6 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={sideCardName}>
+                  {t.name}
+                  {t.tier === 'user' && <span style={tierBadge}>user</span>}
+                </div>
+                <div style={sideCardChain}>{t.error ? <span style={{ color: '#ef4444' }}>{t.error}</span> : t.node_types.join(' → ')}</div>
+              </div>
+              {t.tier === 'user' && (
+                <button title="delete this template" aria-label={`delete template ${t.name}`}
+                  onClick={(e) => { e.stopPropagation(); void removeTemplate(t.name) }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
+              )}
             </div>
           ))}
         </div>
@@ -122,6 +160,7 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
           <button style={btn} onClick={() => void s.validate()}>Validate</button>
           <input style={{ ...input, width: 150 }} placeholder={s.pipelineName ?? 'save as…'} value={saveAs} onChange={(e) => setSaveAs(e.target.value)} />
           <button style={{ ...btn, borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }} onClick={() => void s.save(saveAs || s.pipelineName || s.pipeline.name)}>Save{s.dirty ? ' *' : ''}</button>
+          <button style={btn} title="Keep this graph as a reusable starting point (run panel values are not kept)" onClick={() => void saveAsTemplate()}>Save as template</button>
         </div>
         {s.validation && (
           <div style={{ fontSize: 12, marginBottom: 8, color: s.validation.ok ? '#10b981' : '#ef4444' }}>

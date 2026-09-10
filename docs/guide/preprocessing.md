@@ -114,6 +114,23 @@ confound regression on derivatives produced elsewhere (`derivatives_source` →
 `reference_fsl_ants` composite node — is built from the palette and saved as a
 pipeline of your own.
 
+### Your own templates
+
+**Save as template** in the Build toolbar keeps the current graph as a starting point
+of your own. It lands in `$FMRIFLOW_HOME/addons/pipelines/<name>.yaml` and shows up in
+the Templates list with a `user` badge; the bundled ones are read-only, and a user
+template cannot take a bundled name. Delete one with the ✕ on its card.
+
+A template differs from a saved pipeline in two ways. Loading it always gives you an
+unsaved draft, so **Save** never overwrites the template itself. And the Run panel is
+not kept: a template should take its paths from pipeline inputs bound at run time, so
+it works on the next dataset as well as this one. If a node parameter still holds a
+literal path (`/data/...`), the save goes through but tells you which values will not
+travel.
+
+`fmriflow preproc run <template-name>` resolves user templates the same way it does
+bundled ones.
+
 ### Reusing a FreeSurfer reconstruction
 
 `func_precomputed_anat` reuses an existing FreeSurfer subject instead of running

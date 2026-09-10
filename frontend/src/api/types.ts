@@ -1539,10 +1539,13 @@ export interface PipelineSummary {
 
 export interface PipelineTemplateSummary {
   name: string
+  /** bundled = ships with the package (read-only); user = $FMRIFLOW_HOME/addons/pipelines/ */
+  tier: 'bundled' | 'user'
   description: string
   n_nodes: number
   node_types: string[]
   inputs: Record<string, { kind: string; description?: string }>
+  error?: string | null
 }
 
 export interface PipelineRunRequestBody {

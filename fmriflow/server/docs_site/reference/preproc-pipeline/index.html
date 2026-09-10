@@ -1798,7 +1798,12 @@ a check against a finished run's node before you commit to it
 <tr>
 <td>GET</td>
 <td><code>/api/preproc/pipelines</code> · <code>/pipelines/templates</code> · <code>/pipelines/templates/{name}</code></td>
-<td>listing + templates</td>
+<td>listing + templates (each template carries <code>tier: bundled \| user</code>)</td>
+</tr>
+<tr>
+<td>POST/DELETE</td>
+<td><code>/api/preproc/pipelines/templates</code> · <code>/pipelines/templates/{name}</code></td>
+<td>user templates in <code>$FMRIFLOW_HOME/addons/pipelines/</code> (save drops <code>run_defaults</code>; bundled names refused)</td>
 </tr>
 <tr>
 <td>POST</td>

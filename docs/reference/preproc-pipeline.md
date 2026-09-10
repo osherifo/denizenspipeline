@@ -255,7 +255,8 @@ a check against a finished run's node before you commit to it
 | GET | `/api/preproc/nodes` · `/nodes/{name}` · `/nodes/{name}/preflight` · `/nodes/scaffold/{kind}` | node library |
 | POST | `/api/preproc/nodes` · `/nodes/import` · `/nodes/rescan` | author / import / rescan |
 | GET/PUT/DELETE | `/api/preproc/pipelines/{name}` | saved pipelines |
-| GET | `/api/preproc/pipelines` · `/pipelines/templates` · `/pipelines/templates/{name}` | listing + templates |
+| GET | `/api/preproc/pipelines` · `/pipelines/templates` · `/pipelines/templates/{name}` | listing + templates (each template carries `tier: bundled \| user`) |
+| POST/DELETE | `/api/preproc/pipelines/templates` · `/pipelines/templates/{name}` | user templates in `$FMRIFLOW_HOME/addons/pipelines/` (save drops `run_defaults`; bundled names refused) |
 | POST | `/api/preproc/pipelines/validate` · `/pipelines/run` | validate / launch |
 | GET | `/api/preproc/runs` · `/runs/{id}` · `/runs/{id}/events` · `/runs/{id}/log` · `/runs/{id}/checkpoints` · `/runs/{id}/checkpoints/{i}/thumbnail` | runs |
 | POST | `/api/preproc/runs/{id}/cancel` · `/resume` · `/restart` | control |

@@ -91,6 +91,19 @@ export async function fetchPipelineTemplate(name: string): Promise<{ pipeline: P
   return json(`${BASE}/preproc/pipelines/templates/${enc(name)}`)
 }
 
+/** "Save as template": writes to the user tier; the run panel is dropped server-side. */
+export async function savePipelineTemplate(name: string, pipeline: PipelineDoc): Promise<{ saved: boolean; name: string; tier: 'user'; path: string; warnings: string[]; errors: string[] }> {
+  return json(`${BASE}/preproc/pipelines/templates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, pipeline }),
+  })
+}
+
+export async function deletePipelineTemplate(name: string): Promise<{ deleted: boolean }> {
+  return json(`${BASE}/preproc/pipelines/templates/${enc(name)}`, { method: 'DELETE' })
+}
+
 export async function fetchPipeline(name: string): Promise<{ name: string; pipeline: PipelineDoc; path: string }> {
   return json(`${BASE}/preproc/pipelines/${enc(name)}`)
 }

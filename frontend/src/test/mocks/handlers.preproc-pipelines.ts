@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { NodeUiCapabilities, PipelineDoc, PipelineRunDetail, PreprocNodeInfo, RunNodeRecord } from '../../api/types'
+import type { NodeUiCapabilities, PipelineDoc, PipelineRunDetail, PipelineTemplateSummary, PreprocNodeInfo, RunNodeRecord } from '../../api/types'
 
 const NO_UI: NodeUiCapabilities = { inner_dag: false, checkpoints: false, log: false, report: null, structural_qc: null, summary: null, label_map: null, views: [] }
 
@@ -69,6 +69,9 @@ export const FMRIPREP_RUN_NODE: RunNodeRecord = buildRunNode({
   params: { mode: 'anat_only' }, params_schema: NODE_LIBRARY[2].params_schema, output_ports: NODE_LIBRARY[2].outputs, ui: NODE_LIBRARY[2].ui,
 })
 
+/** User-tier templates, mutated by the POST/DELETE template handlers below. */
+export const userTemplates: PipelineTemplateSummary[] = []
+
 export const preprocPipelinesHandlers = [
   http.get('/api/preproc/checks/metrics', () => HttpResponse.json({ metrics: [
     { name: 'nifti_stats', description: 'Shape, non-zero fraction, percentiles of any NIfTI', builtin: true },
@@ -112,9 +115,29 @@ export const preprocPipelinesHandlers = [
     root: '/c',
   })),
   http.get('/api/preproc/pipelines/templates', () => HttpResponse.json({
-    templates: [{ name: 'derivatives_smooth', description: 'source → smooth', n_nodes: 2, node_types: ['derivatives_source', 'smooth'], inputs: TEMPLATE_PIPELINE.inputs }],
+    templates: [
+      { name: 'derivatives_smooth', tier: 'bundled', description: 'source → smooth', n_nodes: 2, node_types: ['derivatives_source', 'smooth'], inputs: TEMPLATE_PIPELINE.inputs },
+      ...userTemplates,
+    ],
   })),
   http.get('/api/preproc/pipelines/templates/:name', () => HttpResponse.json({ pipeline: TEMPLATE_PIPELINE })),
+  http.post('/api/preproc/pipelines/templates', async ({ request }) => {
+    const body = (await request.json()) as { name: string; pipeline: PipelineDoc }
+    if (body.name === 'derivatives_smooth') return HttpResponse.json({ detail: `'${body.name}' is a bundled template; pick another name` }, { status: 400 })
+    const warnings = body.pipeline.nodes.flatMap((n) => Object.entries(n.data.params)
+      .filter(([, v]) => typeof v === 'string' && v.startsWith('/'))
+      .map(([k, v]) => `${n.id}.${k} (param) holds a concrete path: ${v}`))
+    const idx = userTemplates.findIndex((t) => t.name === body.name)
+    const row: PipelineTemplateSummary = { name: body.name, tier: 'user', description: body.pipeline.description ?? '', n_nodes: body.pipeline.nodes.length, node_types: body.pipeline.nodes.map((n) => n.type), inputs: body.pipeline.inputs, error: null }
+    if (idx >= 0) userTemplates[idx] = row; else userTemplates.push(row)
+    return HttpResponse.json({ saved: true, name: body.name, tier: 'user', path: `/home/x/addons/pipelines/${body.name}.yaml`, warnings, errors: [] })
+  }),
+  http.delete('/api/preproc/pipelines/templates/:name', ({ params }) => {
+    const idx = userTemplates.findIndex((t) => t.name === params.name)
+    if (idx < 0) return HttpResponse.json({ detail: 'no user template' }, { status: 404 })
+    userTemplates.splice(idx, 1)
+    return HttpResponse.json({ deleted: true })
+  }),
   http.post('/api/preproc/pipelines/validate', async ({ request }) => {
     const body = (await request.json()) as { pipeline: PipelineDoc }
     const bad = body.pipeline.edges.filter((e) => e.targetHandle === 'bogus').map((e) => `edge ${e.id}: target handle 'bogus' not in smooth.INPUTS`)
