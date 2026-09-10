@@ -42,6 +42,19 @@ describe('PathPickerModal files in directory mode', () => {
   })
 })
 
+describe('PathPickerModal reopening on a file path', () => {
+  it('opens the containing folder and preselects the file instead of erroring', async () => {
+    const onPick = vi.fn()
+    render(<PathPickerModal initialPath="/workspace/data/dicoms/README.txt" mode="any" onPick={onPick} onClose={() => {}} />)
+    // The containing folder's listing, not a "not a directory" error.
+    await waitFor(() => expect(screen.getByText('sub01')).toBeInTheDocument())
+    expect(screen.queryByText(/not a directory/)).toBeNull()
+    // The file itself is already selected — one click picks it, no extra navigation.
+    fireEvent.click(screen.getByText('Use selected'))
+    expect(onPick).toHaveBeenCalledWith('/workspace/data/dicoms/README.txt')
+  })
+})
+
 describe('PathPickerModal roots', () => {
   it('shows no data/home chips, only extra roots', async () => {
     render(<PathPickerModal onPick={vi.fn()} onClose={() => {}} />)

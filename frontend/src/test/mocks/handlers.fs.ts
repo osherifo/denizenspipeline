@@ -31,11 +31,16 @@ export const fsHandlers = [
         { name: 'ses1', path: '/workspace/data/dicoms/sub01/ses1', is_dir: true },
       ], truncated: false })
     }
+    // Matches the real backend: listing a file 400s (only a directory can be listed).
+    if (p === '/workspace/data/dicoms/README.txt') {
+      return HttpResponse.json({ detail: `not a directory: ${p}` }, { status: 400 })
+    }
     return HttpResponse.json({ detail: 'path is outside the browsable roots' }, { status: 403 })
   }),
   http.get('/api/fs/exists', ({ request }) => {
     const p = new URL(request.url).searchParams.get('path') ?? ''
     const exists = p.startsWith('/workspace/data')
-    return HttpResponse.json({ path: p, exists, is_dir: exists, resolved: exists ? p : null })
+    const is_dir = exists && p !== '/workspace/data/dicoms/README.txt'
+    return HttpResponse.json({ path: p, exists, is_dir, resolved: exists ? p : null })
   }),
 ]

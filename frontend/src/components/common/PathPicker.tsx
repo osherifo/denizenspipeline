@@ -60,7 +60,23 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
       if (cancelled) return
       setRoots(r.roots); setExtraEnv(r.extra_roots_env)
       const start = initialPath && r.roots.some((x) => initialPath.startsWith(x.path)) ? initialPath : r.roots[0]?.path
-      if (start) await open(start)
+      if (!start) return
+      // initialPath may name an existing FILE — reopening a populated file field,
+      // say — but the listing endpoint only accepts directories and errors on one.
+      // Open the file's parent instead and preselect the file.
+      let openAt = start
+      let preselect: string | null = null
+      try {
+        const info = await fetchFsExists(start)
+        if (info.exists && !info.is_dir) {
+          const slash = start.lastIndexOf('/')
+          openAt = slash > 0 ? start.slice(0, slash) : '/'
+          preselect = start
+        }
+      } catch { /* fall through; open() below surfaces any real error */ }
+      if (cancelled) return
+      await open(openAt)
+      if (!cancelled && preselect) setSelected(preselect)
     }).catch((e) => setError((e as Error).message))
     return () => { cancelled = true }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
