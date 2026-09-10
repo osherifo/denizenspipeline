@@ -66,7 +66,7 @@ export function NormsPanel() {
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: 12 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, fontSize: 12 }}>
         <b>Checkpoint norms</b>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>a bound marks a result <b>bad</b> (hard) or <b>suspicious</b> (soft) · edit the value, blank it to reset · saved to <code>{path}</code></span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>a result outside its bound is <b>bad</b> · edit the value, blank it to reset · saved to <code>{path}</code></span>
         <span style={{ flex: 1 }} />
         <input style={{ ...input, fontFamily: 'inherit', width: 160 }} placeholder="filter step / metric" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <button style={btn} disabled={!dirty} onClick={() => setDraft({})}>Revert</button>
@@ -76,7 +76,7 @@ export function NormsPanel() {
       {saved && !dirty && <div style={{ color: '#10b981', fontSize: 11, marginBottom: 6 }}>Saved. New runs use these bounds.</div>}
       <div style={{ overflowX: 'auto' }}>
         <table style={table}>
-          <thead><tr><th style={th}>step</th><th style={th}>metric</th><th style={th}>kind</th><th style={th}>bound (op value)</th><th style={th}>built-in</th></tr></thead>
+          <thead><tr><th style={th}>step</th><th style={th}>metric</th><th style={th}>bound (op value)</th><th style={th}>built-in</th></tr></thead>
           <tbody>
             {visible.map((r) => {
               const k = key(r)
@@ -86,7 +86,6 @@ export function NormsPanel() {
                 <tr key={k}>
                   <td style={td}>{r.step}</td>
                   <td style={td}>{r.metric}</td>
-                  <td style={{ ...td, color: r.kind === 'hard' ? '#ef4444' : '#f59e0b' }}>{r.kind}</td>
                   <td style={td}>
                     <input style={{ ...input, borderColor: isUser ? 'var(--accent-cyan)' : 'var(--border)' }} value={text} aria-label={`${r.step} ${r.kind} ${r.metric}`}
                       onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} />

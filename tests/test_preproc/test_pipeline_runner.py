@@ -15,6 +15,7 @@ nipype = pytest.importorskip("nipype")
 from fmriflow.preproc.graph import Pipeline, PipelineEdge, PipelineNode, PipelineRunRequest  # noqa: E402
 from fmriflow.preproc.node_registry import NodeRegistry  # noqa: E402
 from fmriflow.preproc.pipeline_runner import PipelineRunner  # noqa: E402
+from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 
 
 _FIXTURES = Path(__file__).parent / "fixtures"
@@ -27,7 +28,7 @@ def fixture_pipeline(name: str):
 
 @pytest.fixture(scope="module")
 def registry():
-    return NodeRegistry(user_dirs=[]).discover()
+    return NodeRegistry(user_dirs=[PARKED_DIR]).discover()
 
 
 @pytest.fixture
@@ -136,7 +137,7 @@ def test_composite_node_is_embedded_and_wired(registry, tmp_path):
                 return wf
             def to_manifest(self, config, outputs): return None
     '''))
-    reg = NodeRegistry(user_dirs=[nodes_dir]).discover()
+    reg = NodeRegistry(user_dirs=[PARKED_DIR, nodes_dir]).discover()
     src = tmp_path / "in.nii.gz"
     nib.save(nib.Nifti1Image(np.zeros((2, 2, 2, 2), dtype="float32"), np.eye(4)), src)
     pipeline = Pipeline(

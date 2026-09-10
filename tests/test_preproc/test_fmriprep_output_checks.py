@@ -15,6 +15,14 @@ from fmriflow.preproc.nodes.fmriprep import FmriprepNode  # noqa: E402
 from fmriflow.preproc.norms import norms_for  # noqa: E402
 
 
+
+
+@pytest.fixture(autouse=True)
+def _all_checks(monkeypatch):
+    """These tests exercise the whole check set; the product default keeps only a few live."""
+    from fmriflow.preproc import norms as _norms
+    monkeypatch.setattr(_norms, "ACTIVE_CHECKS", None)
+
 def _bold(path: Path, *, n_t=30, nan=False, zero_vol=False, spike=False, seed=0) -> Path:
     rng = np.random.default_rng(seed)
     data = 1000 + rng.normal(0, 5, (6, 6, 6, n_t))

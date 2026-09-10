@@ -55,9 +55,9 @@ run_defaults:                # optional — the Run panel, saved with the pipeli
 | `nodes[].data.params` | Node parameters (see the node's schema in the Library). Schema defaults apply when a key is absent. |
 | `nodes[].data.bindings` | Input port → `$inputs.<name>`. |
 | `nodes[].data.literal_inputs` | Input port → fixed value (a path, a string, a list). |
-| `nodes[].data.iter` | `{handle: <port>}` or `{handles: [<port>, …]}` — the node becomes a nipype `MapNode` over the list(s) arriving on those ports. A handle's list comes from its edge, from a list in `literal_inputs` (what the Build tab writes when you type `0, 1, 2` into an iterated port), or from `values: [...]` (first handle). Several handles iterate in lockstep. Not available on composite nodes (put a `select` node in front). |
+| `nodes[].data.iter` | `{handle: <port>}` or `{handles: [<port>, …]}` — the node becomes a nipype `MapNode` over the list(s) arriving on those ports. A handle's list comes from its edge, from a list in `literal_inputs` (what the Build tab writes when you type `0, 1, 2` into an iterated port), or from `values: [...]` (first handle). Several handles iterate in lockstep. Not available on composite nodes. |
 | `edges[]` | `sourceHandle` is an output port of `source`, `targetHandle` an input port of `target`. An input port may be fed by exactly one of: an edge, a literal, a binding. |
-| `manifest.backend_node` | The node whose collector builds the base `PreprocManifest` (fmriprep, bids_app, custom_shell, a composite with `to_manifest`, or a source). |
+| `manifest.backend_node` | The node whose collector builds the base `PreprocManifest` (fmriprep, a composite with `to_manifest`, or a source). |
 | `manifest.bold_from` / `confounds_from` | `<node_id>.<port>`; the manifest's runs point at those files and `output_dir` becomes that node's work dir. |
 
 `POST /api/preproc/pipelines/validate` (or the **Validate** button) reports every
@@ -176,14 +176,21 @@ composite node.
  "step": "nu.mgz", "subject": "01",
  "metrics": {"n_unique": 70, "modal_fraction": 0.669, "modal_value": 110},
  "expectations": {"modal_fraction": ["<", 0.5], "n_unique": [">", 100]},
- "soft_expectations": {"modal_fraction": ["<", 0.3], "n_unique": [">", 200]},
  "verdict": "bad", "reasons": ["modal_fraction=0.669 violates < 0.5"],
  "artifact": "…/sub-01/mri/nu.mgz", "t": 1757430000.0}
 ```
 
-Verdicts: `ok` (all bounds hold), `suspicious` (a soft bound fails), `bad` (a hard
-bound fails), `unknown` (a metric could not be computed). A `sequence` parameter on the
-fmriprep node selects sequence-specific overrides (`<step>@<sequence>` keys).
+Verdicts: `ok` (all bounds hold), `bad` (a bound fails), `unknown` (a metric could not
+be computed). A `sequence` parameter on the fmriprep node selects sequence-specific
+overrides (`<step>@<sequence>` keys).
+
+**Which checks are live.** The package defines many checks (FreeSurfer volumes and
+surfaces, BOLD integrity, motion, fieldmaps, CompCor, physio), but only a short list is
+switched on at the moment: `bold_output` (`is_4d`, `n_trs`) on every BOLD output port
+and `sdc_delta_te` (`has_both_echoes`) on fmriprep's fieldmaps. The rest are defined but
+neither evaluated nor listed, and a second, softer bound level ("suspicious") is parked
+with them. The list is `ACTIVE_CHECKS` in `fmriflow/preproc/norms.py`; `None` switches
+everything back on. Checks a pipeline declares itself (below) always run.
 
 ### Editing thresholds: `norms.yaml`
 
@@ -194,10 +201,8 @@ for you. A bound is `[op, value]`; `op` is one of `<`, `<=`, `>`, `>=`, `==`, `!
 and the file is re-read on change.
 
 ```yaml
-lh.thickness:
-  soft: {mean_mm: [between, [2.0, 3.2]]}
-wm.mgz:
-  hard: {wm_volume_cm3: [between, [200, 1000]]}
+bold_output:
+  hard: {n_trs: [">", 100]}
 ```
 
 ### Adding checks: `checks:` on a pipeline node
@@ -220,7 +225,7 @@ other nodes evaluate them when they finish.
       - step: aseg
         artifact: "{fs_subject_dir}/mri/aseg.mgz"
         metric: nifti_stats
-        norms: {soft: {n_unique: [">", 30]}}
+        norms: {hard: {n_unique: [">", 30]}}
 ```
 
 An artifact template may use glob wildcards (`*`, `**`) for outputs that exist once per

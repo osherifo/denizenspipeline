@@ -15,9 +15,10 @@ from fmriflow.preproc.backends.fmriprep_params import FmriprepParams  # noqa: E4
 from fmriflow.preproc.manifest import PreprocConfig  # noqa: E402
 from fmriflow.preproc.nipype_adapters import make_container_interface  # noqa: E402
 from fmriflow.preproc.node_registry import NodeRegistry, preproc_node  # noqa: E402
-from fmriflow.preproc.nodes.bids_app import BidsAppNode  # noqa: E402
-from fmriflow.preproc.nodes.custom_shell import CustomShellNode  # noqa: E402
+from fmriflow.preproc.nodes._parked.bids_app import BidsAppNode  # noqa: E402
+from fmriflow.preproc.nodes._parked.custom_shell import CustomShellNode  # noqa: E402
 from fmriflow.preproc.nodes.fmriprep import FmriprepNode  # noqa: E402
+from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 
 
 @pytest.fixture
@@ -149,7 +150,7 @@ def _tiny_nifti(tmp_path: Path) -> Path:
 
 
 def test_registry_lists_the_three_container_apps():
-    reg = NodeRegistry(user_dirs=[]).discover()
+    reg = NodeRegistry(user_dirs=[PARKED_DIR]).discover()
     assert {"fmriprep", "bids_app", "custom_shell"} <= set(reg.names())
     assert all(reg.kind(n) == "container_app" for n in ("fmriprep", "bids_app", "custom_shell"))
 

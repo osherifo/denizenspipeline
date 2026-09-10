@@ -90,17 +90,14 @@ function CheckEditor({ entry, metrics, runs, nodeId, pipelineName, onLoadRuns, o
   onLoadRuns: () => void; onChange: (patch: Partial<CheckDef>) => void; onRemove: () => void
 }) {
   const [hardText, setHardText] = useState(formatBounds(entry.norms?.hard))
-  const [softText, setSoftText] = useState(formatBounds(entry.norms?.soft))
   const [runId, setRunId] = useState('')
   const [result, setResult] = useState<CheckEvaluation | null>(null)
   const [error, setError] = useState<string | null>(null)
   const hard = useMemo(() => parseBounds(hardText), [hardText])
-  const soft = useMemo(() => parseBounds(softText), [softText])
   const commitBounds = () => {
-    if (hard.errors.length || soft.errors.length) return
+    if (hard.errors.length) return
     const norms: CheckDef['norms'] = {}
     if (Object.keys(hard.bounds).length) norms.hard = hard.bounds
-    if (Object.keys(soft.bounds).length) norms.soft = soft.bounds
     onChange({ norms: Object.keys(norms).length ? norms : undefined })
   }
   const tryIt = async () => {
@@ -123,14 +120,11 @@ function CheckEditor({ entry, metrics, runs, nodeId, pipelineName, onLoadRuns, o
       <input style={mono} value={entry.artifact ?? ''} onChange={(e) => onChange({ artifact: e.target.value })} placeholder="artifact, e.g. {fs_subject_dir}/mri/aseg.mgz" aria-label="artifact" />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         <div>
-          <div style={small}>bad when (hard)</div>
-          <textarea style={{ ...mono, minHeight: 34 }} value={hardText} onChange={(e) => setHardText(e.target.value)} onBlur={commitBounds} placeholder={'n_trs > 100\nmean between 50 500'} aria-label="hard bounds" />
+          <div style={small}>bad when</div>
+          <textarea style={{ ...mono, minHeight: 34 }} value={hardText} onChange={(e) => setHardText(e.target.value)} onBlur={commitBounds} placeholder={'n_trs > 100\nmean between 50 500'} aria-label="bounds" />
           {hard.errors.map((x) => <div key={x} style={{ ...small, color: '#ef4444' }}>{x}</div>)}
         </div>
         <div>
-          <div style={small}>suspicious when (soft)</div>
-          <textarea style={{ ...mono, minHeight: 34 }} value={softText} onChange={(e) => setSoftText(e.target.value)} onBlur={commitBounds} placeholder="nonzero_fraction > 0.05" aria-label="soft bounds" />
-          {soft.errors.map((x) => <div key={x} style={{ ...small, color: '#ef4444' }}>{x}</div>)}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

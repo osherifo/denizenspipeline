@@ -20,6 +20,13 @@ from fmriflow.preproc.pipeline_runner import PipelineRunner  # noqa: E402
 from fmriflow.server.services.run_registry import RunStateFile  # noqa: E402
 
 
+
+@pytest.fixture(autouse=True)
+def _all_checks(monkeypatch):
+    """These tests exercise the whole check set; the product default keeps only a few live."""
+    from fmriflow.preproc import norms as _norms
+    monkeypatch.setattr(_norms, "ACTIVE_CHECKS", None)
+
 def _nifti(path: Path, shape=(4, 4, 4, 6), value=100.0) -> Path:
     rng = np.random.default_rng(0)
     data = (value + rng.normal(0, 1, shape)).astype("float32")   # a little noise so tSNR is finite
@@ -155,6 +162,7 @@ GOOD = """
 from pathlib import Path
 from fmriflow.preproc.checkpoints import checkpoint_metric
 
+
 @checkpoint_metric("file_size")
 def file_size(path: Path):
     \"\"\"Size of the file in bytes.\"\"\"
@@ -251,4 +259,22 @@ def test_metric_routes(home, tmp_path):
     assert c.delete("/api/preproc/checks/metrics/nifti_stats").status_code == 403
     assert c.delete("/api/preproc/checks/metrics/file_size").json()["deleted"]
     assert c.delete("/api/preproc/checks/metrics/file_size").status_code == 404
+
+
+def test_default_allow_list_keeps_three_checks_live(monkeypatch):
+    """The product default: three bounds, hard only; everything else is parked."""
+    from fmriflow.preproc import norms as _norms
+    from fmriflow.preproc.nodes.fmriprep import FmriprepNode
+    from fmriflow.preproc.nodes.smooth import SmoothNode as SmoothTransform
+    monkeypatch.setattr(_norms, "ACTIVE_CHECKS", {"bold_output": ("is_4d", "n_trs"), "sdc_delta_te": ("has_both_echoes",)})
+    rows = nm.norms_table()
+    assert [(r["step"], r["metric"], r["kind"]) for r in rows] == [
+        ("bold_output", "is_4d", "hard"), ("bold_output", "n_trs", "hard"), ("sdc_delta_te", "has_both_echoes", "hard")]
+    assert nm.norms_for("bold_output") == {"hard": {"is_4d": ("==", True), "n_trs": (">", 1)}, "soft": {}}
+    assert nm.norms_for("bold_spikes") == {"hard": {}, "soft": {}}
+    assert [c.step for c in ck.resolve_checks(FmriprepNode, [], {"mode": "full"})] == ["sdc_delta_te"]
+    assert [key for _, c in ck.generic_output_checks(SmoothTransform) for key in [c.key]] == ["bold_output"]
+    # a pipeline-authored check on a parked step still runs, with its own bounds
+    c = ck.Check.from_dict({"step": "bold_spikes", "artifact": "{node_dir}/x", "metric": "nifti_stats", "norms": {"hard": {"n_trs": [">", 1]}}})
+    assert [x.step for x in ck.resolve_checks(SmoothTransform, [c.to_dict()], {})] == ["bold_spikes"]
 

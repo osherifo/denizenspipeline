@@ -110,9 +110,8 @@ For each node the side panel shows:
 
 The shipped templates are the fmriprep ones (plus `fmriprep_physio`, fmriprep followed by physio correction). Anything else — smoothing or
 confound regression on derivatives produced elsewhere (`derivatives_source` →
-`smooth` → `regress_confounds`), or a hand-written nipype workflow such as the
-`reference_fsl_ants` composite node — is built from the palette and saved as a
-pipeline of your own.
+`smooth` → `regress_confounds`), or a nipype workflow you import as a composite node —
+is built from the palette and saved as a pipeline of your own.
 
 ### Your own templates
 
@@ -172,17 +171,14 @@ capabilities it derives from its contract or declares in a `UI` class attribute 
 [pipeline reference](../reference/preproc-pipeline.md#node-contract)); a node you write
 yourself gets the generic tabs without any frontend work.
 
-**Checkpoints** are the filmstrip under the graph. As recon-all writes each file the
-fmriprep node measures it — `orig/nu/T1.mgz` intensity statistics (unique values, modal
-fraction), `wm.mgz` volume, `?h.white` Euler numbers, `?h.thickness` mean and
-zero-thickness fraction, `aseg.stats` — and judges it against a norms table:
-**ok**, **suspicious**, **bad** (with the reasons), or **unknown**. Once BOLD runs land it also
-checks each one: NaN/Inf and dead volumes, RF-spike volumes, framewise displacement and
-rigid-body extremes from the confounds, the estimated fieldmap's range and the GRE
-fieldmap's ΔTE, the per-run reference volume, and the CompCor regressors. A bad `nu.mgz` is
-visible ~20 minutes into a 10-hour run instead of after it. Every node also gets generic
-output checks (file exists, non-empty, 4D where a BOLD is expected). Tick **abort on bad
-checkpoint** in the Run panel to have a `bad` verdict terminate the run.
+**Checkpoints** are the cards under the graph. As a node writes its outputs they are
+measured and judged against a bound: **ok**, **bad** (with the reason), or **unknown**.
+At the moment only a short list of checks is switched on: every BOLD output must be 4-D
+with more than one volume, and fmriprep's GRE fieldmaps must carry both echoes. The many
+other checks the package defines (FreeSurfer volumes and surfaces, BOLD integrity, motion,
+fieldmap range, CompCor, physio) are parked until the check set is revisited; see the
+[pipeline reference](../reference/preproc-pipeline.md#events-and-checkpoints). Tick
+**abort on bad checkpoint** in the Run panel to have a `bad` verdict terminate the run.
 
 Both halves of a checkpoint are editable without touching Python. **Library →
 Checkpoint norms** is the threshold table: change a bound, blank it to go back to the

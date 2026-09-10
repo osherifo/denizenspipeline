@@ -15,8 +15,16 @@ nib = pytest.importorskip("nibabel")
 from fmriflow.preproc.physio import acq as acq_mod
 from fmriflow.preproc.physio.phlem import MODEL_TERMS, PhLEMData, build_regressors, peakdet
 from fmriflow.preproc.physio.regress import (
+
     aligned_regressors, clean, estimate_weights, read_regressors, trim_bounds, write_regressors,
 )
+
+
+@pytest.fixture(autouse=True)
+def _all_checks(monkeypatch):
+    """These tests exercise the whole check set; the product default keeps only a few live."""
+    from fmriflow.preproc import norms as _norms
+    monkeypatch.setattr(_norms, "ACTIVE_CHECKS", None)
 
 HZ = 100.0
 TR = 2.0

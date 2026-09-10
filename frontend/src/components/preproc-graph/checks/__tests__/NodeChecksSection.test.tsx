@@ -19,8 +19,8 @@ describe('<NodeChecksSection />', () => {
     expect(n.data.checks?.[0]).toMatchObject({ step: 'check_1', metric: 'nifti_stats', live: true })
     rerender(<NodeChecksSection node={n} />)
     fireEvent.change(screen.getByLabelText('artifact'), { target: { value: '{out_file}' } })
-    fireEvent.change(screen.getByLabelText('hard bounds'), { target: { value: 'n_trs > 10' } })
-    fireEvent.blur(screen.getByLabelText('hard bounds'))
+    fireEvent.change(screen.getByLabelText('bounds'), { target: { value: 'n_trs > 10' } })
+    fireEvent.blur(screen.getByLabelText('bounds'))
     n = usePreprocPipelineStore.getState().pipeline.nodes.find((x) => x.id === 'smooth')!
     expect(n.data.checks?.[0]).toMatchObject({ artifact: '{out_file}', norms: { hard: { n_trs: ['>', 10] } } })
     rerender(<NodeChecksSection node={n} />)
@@ -30,8 +30,8 @@ describe('<NodeChecksSection />', () => {
     await waitFor(() => expect(within(select).getAllByRole('option').length).toBe(2))
     fireEvent.change(select, { target: { value: 'pp_abc' } })
     fireEvent.click(screen.getByText('Try'))
-    await waitFor(() => expect(screen.getByText('suspicious')).toBeInTheDocument())
-    expect(screen.getByText(/n_trs=6 outside/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('bad')).toBeInTheDocument())
+    expect(screen.getByText(/n_trs=6 violates/)).toBeInTheDocument()
   })
 
   it('lists an app node’s built-in checks and can untick one', async () => {

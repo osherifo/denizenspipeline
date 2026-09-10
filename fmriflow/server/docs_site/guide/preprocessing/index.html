@@ -1620,9 +1620,8 @@ path the server cannot see gets a warning under the field; bindings such as
 <p><strong>Validate</strong> checks ports, kinds, doubly fed inputs and cycles before you run.</p>
 <p>The shipped templates are the fmriprep ones (plus <code>fmriprep_physio</code>, fmriprep followed by physio correction). Anything else — smoothing or
 confound regression on derivatives produced elsewhere (<code>derivatives_source</code> →
-<code>smooth</code> → <code>regress_confounds</code>), or a hand-written nipype workflow such as the
-<code>reference_fsl_ants</code> composite node — is built from the palette and saved as a
-pipeline of your own.</p>
+<code>smooth</code> → <code>regress_confounds</code>), or a nipype workflow you import as a composite node —
+is built from the palette and saved as a pipeline of your own.</p>
 <h3 id="your-own-templates">Your own templates<a class="headerlink" href="#your-own-templates" title="Permanent link">&para;</a></h3>
 <p><strong>Save as template</strong> in the Build toolbar keeps the current graph as a starting point
 of your own. It lands in <code>$FMRIFLOW_HOME/addons/pipelines/&lt;name&gt;.yaml</code> and shows up in
@@ -1674,17 +1673,14 @@ stage's backend node with <strong>Backend node →</strong>. Which tabs a node g
 capabilities it derives from its contract or declares in a <code>UI</code> class attribute (see the
 <a href="../../reference/preproc-pipeline/#node-contract">pipeline reference</a>); a node you write
 yourself gets the generic tabs without any frontend work.</p>
-<p><strong>Checkpoints</strong> are the filmstrip under the graph. As recon-all writes each file the
-fmriprep node measures it — <code>orig/nu/T1.mgz</code> intensity statistics (unique values, modal
-fraction), <code>wm.mgz</code> volume, <code>?h.white</code> Euler numbers, <code>?h.thickness</code> mean and
-zero-thickness fraction, <code>aseg.stats</code> — and judges it against a norms table:
-<strong>ok</strong>, <strong>suspicious</strong>, <strong>bad</strong> (with the reasons), or <strong>unknown</strong>. Once BOLD runs land it also
-checks each one: NaN/Inf and dead volumes, RF-spike volumes, framewise displacement and
-rigid-body extremes from the confounds, the estimated fieldmap's range and the GRE
-fieldmap's ΔTE, the per-run reference volume, and the CompCor regressors. A bad <code>nu.mgz</code> is
-visible ~20 minutes into a 10-hour run instead of after it. Every node also gets generic
-output checks (file exists, non-empty, 4D where a BOLD is expected). Tick <strong>abort on bad
-checkpoint</strong> in the Run panel to have a <code>bad</code> verdict terminate the run.</p>
+<p><strong>Checkpoints</strong> are the cards under the graph. As a node writes its outputs they are
+measured and judged against a bound: <strong>ok</strong>, <strong>bad</strong> (with the reason), or <strong>unknown</strong>.
+At the moment only a short list of checks is switched on: every BOLD output must be 4-D
+with more than one volume, and fmriprep's GRE fieldmaps must carry both echoes. The many
+other checks the package defines (FreeSurfer volumes and surfaces, BOLD integrity, motion,
+fieldmap range, CompCor, physio) are parked until the check set is revisited; see the
+<a href="../../reference/preproc-pipeline/#events-and-checkpoints">pipeline reference</a>. Tick
+<strong>abort on bad checkpoint</strong> in the Run panel to have a <code>bad</code> verdict terminate the run.</p>
 <p>Both halves of a checkpoint are editable without touching Python. <strong>Library →
 Checkpoint norms</strong> is the threshold table: change a bound, blank it to go back to the
 built-in, Save — it lands in <code>configs/norms.yaml</code> in your fMRIflow home. A node's panel has

@@ -262,7 +262,7 @@ documented conceptual stages.
   at the section for that step.
 
 The lane selector and friendly labels are fmriprep-specific. Other
-nipype workflows (a composite node such as `reference_fsl_ants`) get a
+nipype workflows (an imported composite node) get a
 single fallback `Workflow` lane (so the selector hides) plus raw
 labels — we don't pretend to know their conceptual stages.
 

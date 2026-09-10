@@ -10,6 +10,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from tests.test_preproc.conftest import install_parked_nodes  # noqa: E402
+
 nib = pytest.importorskip("nibabel")
 nipype = pytest.importorskip("nipype")
 
@@ -18,15 +20,17 @@ from fmriflow.preproc.node_registry import NodeRegistry  # noqa: E402
 from fmriflow.server.services.pipeline_store import PipelineStore  # noqa: E402
 from fmriflow.server.services.preproc_run_manager import PreprocRunManager  # noqa: E402
 from fmriflow.server.services.run_registry import RunRegistry  # noqa: E402
+from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 
 
 @pytest.fixture
 def manager(tmp_path, monkeypatch):
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    install_parked_nodes(tmp_path / "home")
     return PreprocRunManager(
         run_registry=RunRegistry(root=tmp_path / "runs"),
         pipeline_store=PipelineStore(tmp_path / "configs"),
-        node_registry=NodeRegistry(user_dirs=[]).discover(),
+        node_registry=NodeRegistry(user_dirs=[PARKED_DIR]).discover(),
     )
 
 

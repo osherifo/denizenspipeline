@@ -22,11 +22,12 @@ from fmriflow.preproc.nipype_adapters import (  # noqa: E402
     make_interface,
 )
 from fmriflow.preproc.node_registry import NodeRegistry  # noqa: E402
+from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 
 
 @pytest.fixture(scope="module")
 def registry():
-    return NodeRegistry(user_dirs=[]).discover()
+    return NodeRegistry(user_dirs=[PARKED_DIR]).discover()
 
 
 @pytest.fixture

@@ -111,7 +111,6 @@ export const preprocPipelinesHandlers = [
   }),
   http.get('/api/preproc/checks/norms', () => HttpResponse.json({ path: '/home/x/configs/norms.yaml', user: {}, rows: [
     { step: 'nu.mgz', kind: 'hard', metric: 'n_unique', op: '>', value: 100, source: 'builtin', builtin: ['>', 100] },
-    { step: 'nu.mgz', kind: 'soft', metric: 'modal_fraction', op: '<', value: 0.3, source: 'builtin', builtin: ['<', 0.3] },
     { step: 'wm.mgz', kind: 'hard', metric: 'wm_volume_cm3', op: 'between', value: [200, 1000], source: 'user', builtin: ['between', [250, 900]] },
   ] })),
   http.put('/api/preproc/checks/norms', async ({ request }) => {
@@ -123,7 +122,7 @@ export const preprocPipelinesHandlers = [
     : [] })),
   http.post('/api/preproc/checks/evaluate', async ({ request }) => {
     const b = (await request.json()) as { check: { step: string; artifact: string } }
-    return HttpResponse.json({ artifact: '/o/x.nii.gz', exists: true, context: {}, checkpoint: { stage: 'preproc', run_id: 'pp_abc', node: 'smooth', step: b.check.step, subject: '01', metrics: { n_trs: 6 }, expectations: {}, soft_expectations: {}, verdict: 'suspicious', thumbnail: null, detail: {}, t: 0, artifact: '/o/x.nii.gz', reasons: ['n_trs=6 outside > 10'] } })
+    return HttpResponse.json({ artifact: '/o/x.nii.gz', exists: true, context: {}, checkpoint: { stage: 'preproc', run_id: 'pp_abc', node: 'smooth', step: b.check.step, subject: '01', metrics: { n_trs: 6 }, expectations: {}, soft_expectations: {}, verdict: 'bad', thumbnail: null, detail: {}, t: 0, artifact: '/o/x.nii.gz', reasons: ['n_trs=6 violates > 10'] } })
   }),
   http.get('/api/preproc/runs/:id/nodes/:node/log', () => HttpResponse.json({ lines: ['a', 'b'], total: 2 })),
   http.get('/api/preproc/runs/:id/nodes/:node/inner', () => HttpResponse.json({ prefix: 'p.fp.', nipype_status: { counts: { running: 0, ok: 1, failed: 0, completed_assumed: 0, total_seen: 1 }, recent_nodes: [{ node: 'fmriprep_wf.a.n1', leaf: 'n1', workflow: 'fmriprep_wf.a', status: 'ok', started_at: 1, finished_at: 2, elapsed: 1, crash_file: null, level: 'INFO' }] } })),

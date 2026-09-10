@@ -90,12 +90,11 @@ export function CheckpointFilmstrip({ runId, checkpoints, nodeFilter }: Props) {
             <tbody>
               {Object.entries(openRow.cp.metrics).filter(([k]) => k !== 'shape').map(([k, v]) => {
                 const hard = openRow.cp.expectations[k]
-                const soft = openRow.cp.soft_expectations[k]
                 return (
                   <tr key={k}>
                     <td style={{ paddingRight: 12, color: 'var(--text-secondary)' }}>{k}</td>
                     <td style={{ paddingRight: 12 }}>{typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(4)) : String(v)}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{hard ? `bad unless ${hard[0]} ${JSON.stringify(hard[1])}` : ''}{soft ? ` · suspicious unless ${soft[0]} ${JSON.stringify(soft[1])}` : ''}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{hard ? `bad unless ${hard[0]} ${JSON.stringify(hard[1])}` : ''}</td>
                   </tr>
                 )
               })}

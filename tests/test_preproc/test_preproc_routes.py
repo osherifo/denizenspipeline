@@ -6,6 +6,8 @@ import time
 
 import numpy as np
 import pytest
+
+from tests.test_preproc.conftest import install_parked_nodes  # noqa: E402
 from fastapi.testclient import TestClient
 
 nib = pytest.importorskip("nibabel")
@@ -15,6 +17,7 @@ nipype = pytest.importorskip("nipype")
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    install_parked_nodes(tmp_path / "home")
     from fmriflow.server.app import create_app
     app = create_app()
     return TestClient(app)
@@ -29,7 +32,7 @@ def test_templates_and_nodes(client):
 
     nodes = client.get("/api/preproc/nodes").json()["nodes"]
     names = {n["name"] for n in nodes}
-    assert {"fmriprep", "smooth", "bids_source", "reference_fsl_ants", "select"} <= names
+    assert {"fmriprep", "smooth", "regress_confounds", "bids_source", "derivatives_source", "physio_regressors"} <= names
     fp = client.get("/api/preproc/nodes/fmriprep").json()
     assert fp["kind"] == "container_app" and "mode" in fp["params_schema"] and fp["source_code"]
     assert fp["ui"]["inner_dag"] and fp["ui"]["report"] == "report_html" and fp["ui"]["label_map"] == "fmriprep"

@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from tests.test_preproc.conftest import install_parked_nodes  # noqa: E402
+
 nib = pytest.importorskip("nibabel")
 nipype = pytest.importorskip("nipype")
 
@@ -19,11 +21,19 @@ from fmriflow.preproc import checkpoints as ck  # noqa: E402
 from fmriflow.preproc.graph import Pipeline, PipelineEdge, PipelineNode, PipelineRunRequest  # noqa: E402
 from fmriflow.preproc.nipype_adapters import make_container_interface  # noqa: E402
 from fmriflow.preproc.node_registry import NodeRegistry, preproc_node  # noqa: E402
+from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 from fmriflow.preproc.norms import norms_for  # noqa: E402
 from fmriflow.preproc.pipeline_runner import PipelineRunner  # noqa: E402
 
 
 # ── synthetic artefacts ───────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _all_checks(monkeypatch):
+    """These tests exercise the whole check set; the product default keeps only a few live."""
+    from fmriflow.preproc import norms as _norms
+    monkeypatch.setattr(_norms, "ACTIVE_CHECKS", None)
 
 def _volume(path: Path, collapsed: bool) -> Path:
     rng = np.random.default_rng(0)
@@ -162,7 +172,7 @@ def test_abort_on_bad_terminates_the_app(tmp_path):
 
 @pytest.fixture(scope="module")
 def registry():
-    return NodeRegistry(user_dirs=[]).discover()
+    return NodeRegistry(user_dirs=[PARKED_DIR]).discover()
 
 
 def _chain(tmp_path):
@@ -196,6 +206,7 @@ def test_runner_abort_on_bad_output(registry, tmp_path):
     nodes_dir.mkdir()
     (nodes_dir / "flat.py").write_text('''
 from fmriflow.preproc.node_registry import preproc_node
+
 @preproc_node("flat3d")
 class Flat:
     INPUTS = ["in_file"]; OUTPUTS = {"out_file": {"kind": "nifti"}}
@@ -205,7 +216,7 @@ class Flat:
         nib.save(nib.Nifti1Image(np.ones((2, 2, 2), dtype="float32"), np.eye(4)), p)
         return {"out_file": p}
 ''')
-    reg = NodeRegistry(user_dirs=[nodes_dir]).discover()
+    reg = NodeRegistry(user_dirs=[PARKED_DIR, nodes_dir]).discover()
     src = tmp_path / "in.nii.gz"
     nib.save(nib.Nifti1Image(np.ones((2, 2, 2, 2), dtype="float32"), np.eye(4)), src)
     pipeline = Pipeline(name="ab", nodes=[PipelineNode(id="f", type="flat3d", literal_inputs={"in_file": str(src)})], manifest={})
@@ -219,6 +230,7 @@ class Flat:
 def test_checkpoints_route_and_thumbnail(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    install_parked_nodes(tmp_path / "home")
     from fmriflow.server.app import create_app
     client = TestClient(create_app())
     src = tmp_path / "in.nii.gz"

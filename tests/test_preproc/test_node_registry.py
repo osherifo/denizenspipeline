@@ -7,6 +7,7 @@ import pytest
 
 from fmriflow.preproc import node_registry as nr
 from fmriflow.preproc.node_registry import NodeRegistry, normalize_ports, preproc_node
+from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 
 
 BUILTINS = {
@@ -16,7 +17,7 @@ BUILTINS = {
 
 
 def test_builtins_are_discovered_with_kinds_and_sources():
-    reg = NodeRegistry(user_dirs=[]).discover()
+    reg = NodeRegistry(user_dirs=[PARKED_DIR]).discover()
     assert BUILTINS <= set(reg.names())
     assert reg.kind("smooth") == "interface"
     assert reg.kind("bids_source") == "source"
@@ -55,7 +56,7 @@ def test_user_dir_node_is_discovered_and_shadows_builtin(tmp_path):
             def run(self, inputs, out_dir, params):
                 return {}
     '''))
-    reg = NodeRegistry(user_dirs=[tmp_path]).discover()
+    reg = NodeRegistry(user_dirs=[PARKED_DIR, tmp_path]).discover()
     assert reg.source("smooth") == "user"
     assert reg.info("smooth").version == "9.9"
     assert ("smooth", "built-in") in reg.shadowed()
@@ -82,7 +83,7 @@ def test_old_workflow_decorator_registers_a_composite(tmp_path):
             def build(self, config): return None
             def to_manifest(self, config, outputs): return None
     '''))
-    reg = NodeRegistry(user_dirs=[tmp_path]).discover()
+    reg = NodeRegistry(user_dirs=[PARKED_DIR, tmp_path]).discover()
     assert reg.kind("legacy_clean") == "composite"
     assert reg.source("legacy_clean") == "user"
 
@@ -109,9 +110,24 @@ def test_old_transform_and_nipype_node_decorators_register_interfaces():
 
 
 def test_container_apps_come_from_the_nodes_package():
-    reg = NodeRegistry(user_dirs=[]).discover()
-    for name in ("fmriprep", "custom_shell", "bids_app"):
-        assert reg.cls(name).__module__.startswith("fmriflow.preproc.nodes")
+    reg = NodeRegistry(user_dirs=[PARKED_DIR]).discover()
+    assert reg.cls("fmriprep").__module__.startswith("fmriflow.preproc.nodes")
+    # parked container apps load from the parked dir like user files, and are not in the default library
+    for name in ("custom_shell", "bids_app"):
+        assert reg.has(name) and reg.kind(name) == "container_app"
+
+
+def test_parked_nodes_are_not_in_the_default_library():
+    """A fresh interpreter (the registry table is a module global other tests fill)."""
+    import json, subprocess, sys
+    out = subprocess.run([sys.executable, "-c",
+        "import json; from fmriflow.preproc.node_registry import NodeRegistry; "
+        "print(json.dumps(NodeRegistry(user_dirs=[]).discover().names()))"],
+        capture_output=True, text=True, check=True).stdout
+    names = set(json.loads(out.strip().splitlines()[-1]))
+    assert {"fmriprep", "smooth", "regress_confounds", "bids_source", "derivatives_source",
+            "physio_regressors", "physio_estimate", "physio_clean"} <= names
+    assert not {"bids_app", "custom_shell", "identity", "mask_apply", "reference_fsl_ants", "select"} & names
 
 
 def test_unknown_kind_is_rejected():
@@ -127,15 +143,15 @@ def test_same_file_loaded_twice_is_not_a_shadow(tmp_path, caplog):
             OUTPUTS = ["out_file"]
             def run(self, i, o, p): return {}
     '''))
-    NodeRegistry(user_dirs=[tmp_path]).discover()
+    NodeRegistry(user_dirs=[PARKED_DIR, tmp_path]).discover()
     with caplog.at_level("WARNING"):
-        reg = NodeRegistry(user_dirs=[tmp_path]).discover()
+        reg = NodeRegistry(user_dirs=[PARKED_DIR, tmp_path]).discover()
     assert "Re-registering" not in caplog.text
     assert ("dup_node", "user") not in reg.shadowed()
 
 
 def test_preflight_runs_on_class_requirements():
-    reg = NodeRegistry(user_dirs=[]).discover()
+    reg = NodeRegistry(user_dirs=[PARKED_DIR]).discover()
     assert reg.preflight("identity").ok
 
 

@@ -103,6 +103,33 @@ HARD_NORMS: dict[str, StepNorms] = {
 # changes just that bound. Re-read when the file changes.
 
 USER_NORMS_FILENAME = "norms.yaml"
+
+# Which built-in checks are live: step -> the metrics shown and bounded. Everything
+# else in HARD_NORMS (and every built-in CHECKS entry whose step is not listed)
+# stays defined but is neither evaluated nor shown, until the check set is
+# revisited. ``None`` means "everything" (tests of the machinery use that).
+# Only hard bounds are in use; soft bounds ("suspicious") are parked with them.
+ACTIVE_CHECKS: dict[str, tuple[str, ...]] | None = {
+    "bold_output": ("is_4d", "n_trs"),
+    "sdc_delta_te": ("has_both_echoes",),
+}
+
+
+def is_active_step(step: str) -> bool:
+    return ACTIVE_CHECKS is None or step in ACTIVE_CHECKS
+
+
+def active_metrics(step: str) -> tuple[str, ...] | None:
+    """The metrics kept for ``step`` (``None`` = all)."""
+    return None if ACTIVE_CHECKS is None else ACTIVE_CHECKS.get(step, ())
+
+
+def _restrict(step: str, row: StepNorms) -> StepNorms:
+    """Apply the allow-list to one step's norms; soft bounds are dropped while parked."""
+    keep = active_metrics(step)
+    if keep is None:
+        return {"hard": dict(row.get("hard", {})), "soft": dict(row.get("soft", {}))}
+    return {"hard": {m: b for m, b in row.get("hard", {}).items() if m in keep}, "soft": {}}
 _user_cache: tuple[float, dict[str, StepNorms]] | None = None
 
 
@@ -177,13 +204,14 @@ def save_user_norms(data: dict[str, Any]) -> None:
 
 
 def effective_norms() -> dict[str, StepNorms]:
-    """Built-ins with the user overlay merged in, metric by metric."""
+    """Built-ins with the user overlay merged in, metric by metric, restricted to
+    the active checks (see :data:`ACTIVE_CHECKS`)."""
     merged: dict[str, StepNorms] = {k: {"hard": dict(v.get("hard", {})), "soft": dict(v.get("soft", {}))} for k, v in HARD_NORMS.items()}
     for step, row in load_user_norms().items():
         dst = merged.setdefault(step, {"hard": {}, "soft": {}})
         dst["hard"].update(row.get("hard", {}))
         dst["soft"].update(row.get("soft", {}))
-    return merged
+    return {step: _restrict(step, row) for step, row in merged.items() if is_active_step(step.split("@", 1)[0])}
 
 
 def norms_table() -> list[dict[str, Any]]:

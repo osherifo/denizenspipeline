@@ -392,7 +392,8 @@ def resolve_checks(cls: type, node_checks: list[dict[str, Any]] | None, params: 
     minus the ones a pipeline entry disables (``{"step": ..., "enabled": false}``),
     plus the pipeline's own entries (a pipeline entry with a built-in's ``step``
     and ``norms`` only re-bounds that built-in)."""
-    base_checks = list(getattr(cls, "CHECKS", []) or [])
+    from fmriflow.preproc.norms import is_active_step
+    base_checks = [c for c in (getattr(cls, "CHECKS", []) or []) if is_active_step(c.key)]
     hook = getattr(cls, "checks_for_params", None)
     if params is not None and callable(hook):
         try:
@@ -835,6 +836,7 @@ def evaluate(
     sequence: str | None = None,
     stage: str = "preproc",
 ) -> Checkpoint:
+    from fmriflow.preproc.norms import active_metrics
     norms = norms_for(check.key, sequence)
     if check.norms:
         # a pipeline entry's own bounds overlay the table, metric by metric
@@ -848,6 +850,9 @@ def evaluate(
         verdict, reasons = "unknown", [f"could not compute metrics: {e}"]
     else:
         verdict, reasons = verdict_for(metrics, norms)
+        keep = active_metrics(check.key)
+        if keep is not None and check.source == "builtin":
+            metrics = {k: v for k, v in metrics.items() if k in keep}   # parked metrics stay off the record
     return Checkpoint(
         stage=stage, run_id=run_id, node=node, step=check.step, subject=subject,
         metrics=metrics, expectations={k: list(v) for k, v in norms["hard"].items()},
@@ -858,8 +863,9 @@ def evaluate(
 
 
 def generic_output_checks(cls: type) -> list[tuple[str, Check]]:
-    """(port, Check) for every nifti-kind output port of a node class."""
+    """(port, Check) for every nifti-kind output port of a node class (active steps only)."""
     from fmriflow.preproc.node_registry import node_ports
+    from fmriflow.preproc.norms import is_active_step
     _, outputs = node_ports(cls)
     checks: list[tuple[str, Check]] = []
     for port, spec in outputs.items():
@@ -867,6 +873,8 @@ def generic_output_checks(cls: type) -> list[tuple[str, Check]]:
         if kind not in ("file", "nifti", "mgz"):
             continue
         key = "bold_output" if kind == "nifti" and port in ("bold", "bold_preproc", "out_file") else "output"
+        if not is_active_step(key):
+            continue
         checks.append((port, Check(step=port, artifact=port, metrics=output_file_metrics, norms_key=key, live=False)))
     return checks
 
