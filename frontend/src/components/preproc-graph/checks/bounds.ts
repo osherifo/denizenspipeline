@@ -15,7 +15,12 @@ export function parseBounds(text: string): { bounds: Record<string, BoundJson>; 
     const num = (t: string) => { const v = Number(t); return Number.isFinite(v) ? v : t === 'true' ? true : t === 'false' ? false : t }
     if (op === 'between') {
       if (rest.length !== 2) { errors.push(`"${line}": between needs two values`); continue }
-      bounds[metric] = ['between', [num(rest[0]), num(rest[1])]]
+      // Both endpoints go through float() on the backend — a non-numeric endpoint
+      // here would pass this validation and only fail once the check is loaded.
+      const lo = Number(rest[0])
+      const hi = Number(rest[1])
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) { errors.push(`"${line}": between needs two numbers`); continue }
+      bounds[metric] = ['between', [lo, hi]]
     } else {
       if (rest.length !== 1) { errors.push(`"${line}": one value expected`); continue }
       bounds[metric] = [op, num(rest[0])]
