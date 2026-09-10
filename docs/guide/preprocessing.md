@@ -140,11 +140,14 @@ Two things happen that you should know about:
 
 - The run refuses to start if the subject is missing or incomplete, listing the subjects
   it did find. Without this, fmriprep would silently run a full recon-all instead.
-- fmriprep works on the reconstruction **in place** and "completes" it: an older
-  FreeSurfer version gets the volumes, transforms and surface measures a current one
-  writes, once, on first use. Point `fs_subjects_dir` at a copy you are happy to let it
-  modernise, not at a lab master. With `fs_subject`, nothing in your directory is renamed:
-  a small subjects dir under the run's work dir links `sub-<label>` to the subject.
+- The reconstruction is imported **as-is** (`fs_no_resume`, on by default). Left to
+  itself, fmriprep "resumes" recon-all to fill in whatever its own FreeSurfer expects,
+  which writes into your subjects dir and fails outright on a reconstruction from an
+  older FreeSurfer: 7.x steps read files that 5.x and 6.x never wrote
+  (`surf/rh.orig.premesh: could not open file`). Turn `fs_no_resume` off only to let
+  fmriprep finish an unfinished recon-all made by the same FreeSurfer version.
+- With `fs_subject`, nothing in your directory is renamed: a small subjects dir under
+  the run's work dir links `sub-<label>` to the subject.
 
 ## Workflow 3: watch a run
 

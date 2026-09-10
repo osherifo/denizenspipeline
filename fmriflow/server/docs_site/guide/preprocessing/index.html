@@ -1644,11 +1644,14 @@ Two things happen that you should know about:</p>
 <ul>
 <li>The run refuses to start if the subject is missing or incomplete, listing the subjects
   it did find. Without this, fmriprep would silently run a full recon-all instead.</li>
-<li>fmriprep works on the reconstruction <strong>in place</strong> and "completes" it: an older
-  FreeSurfer version gets the volumes, transforms and surface measures a current one
-  writes, once, on first use. Point <code>fs_subjects_dir</code> at a copy you are happy to let it
-  modernise, not at a lab master. With <code>fs_subject</code>, nothing in your directory is renamed:
-  a small subjects dir under the run's work dir links <code>sub-&lt;label&gt;</code> to the subject.</li>
+<li>The reconstruction is imported <strong>as-is</strong> (<code>fs_no_resume</code>, on by default). Left to
+  itself, fmriprep "resumes" recon-all to fill in whatever its own FreeSurfer expects,
+  which writes into your subjects dir and fails outright on a reconstruction from an
+  older FreeSurfer: 7.x steps read files that 5.x and 6.x never wrote
+  (<code>surf/rh.orig.premesh: could not open file</code>). Turn <code>fs_no_resume</code> off only to let
+  fmriprep finish an unfinished recon-all made by the same FreeSurfer version.</li>
+<li>With <code>fs_subject</code>, nothing in your directory is renamed: a small subjects dir under
+  the run's work dir links <code>sub-&lt;label&gt;</code> to the subject.</li>
 </ul>
 <h2 id="workflow-3-watch-a-run">Workflow 3: watch a run<a class="headerlink" href="#workflow-3-watch-a-run" title="Permanent link">&para;</a></h2>
 <p>The Runs tab shows the pipeline graph with each node coloured by status (running /

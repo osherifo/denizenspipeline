@@ -130,8 +130,12 @@ class FmriprepNode:
         "skull_strip_template": {"type": "str", "default": "", "group": "Anatomical"},
         "no_submm_recon": {"type": "bool", "default": False, "group": "Anatomical"},
         "fs_subjects_dir": {"type": "dir", "default": "", "group": "Anatomical",
-                            "description": "Reuse recon-all outputs from here (also an input port). fmriprep completes "
-                                           "an older reconstruction in place — point this at a copy you can let it modernise."},
+                            "description": "Reuse recon-all outputs from here (also an input port)."},
+        "fs_no_resume": {"type": "bool", "default": True, "group": "Anatomical",
+                         "description": "Use the precomputed reconstruction as-is (--fs-no-resume). Turn off only to let "
+                                        "fmriprep finish an unfinished recon-all made by the same FreeSurfer version; "
+                                        "that writes into fs_subjects_dir, and fails on a reconstruction from an older "
+                                        "FreeSurfer."},
         "fs_subject": {"type": "str", "default": "", "group": "Anatomical",
                        "description": "Name of the precomputed subject inside fs_subjects_dir when it is not "
                                       "sub-<label> (e.g. a pycortex-style name)."},
