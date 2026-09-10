@@ -118,7 +118,7 @@ pipeline of your own.
 
 `func_precomputed_anat` reuses an existing FreeSurfer subject instead of running
 recon-all. Point `fs_subjects_dir` at the subjects directory and, when the subject is not
-named `sub-<label>` there (a pycortex-style `ANfs`, say), set `fs_subject` to its name.
+named `sub-<label>` there (a pycortex-style `sub01fs`, say), set `fs_subject` to its name.
 Two things happen that you should know about:
 
 - The run refuses to start if the subject is missing or incomplete, listing the subjects
