@@ -732,6 +732,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Workflow 2: build a pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reusing-a-freesurfer-reconstruction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusing a FreeSurfer reconstruction
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1347,6 +1364,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Workflow 2: build a pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reusing-a-freesurfer-reconstruction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusing a FreeSurfer reconstruction
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1545,6 +1579,19 @@ confound regression on derivatives produced elsewhere (<code>derivatives_source<
 <code>smooth</code> → <code>regress_confounds</code>), or a hand-written nipype workflow such as the
 <code>reference_fsl_ants</code> composite node — is built from the palette and saved as a
 pipeline of your own.</p>
+<h3 id="reusing-a-freesurfer-reconstruction">Reusing a FreeSurfer reconstruction<a class="headerlink" href="#reusing-a-freesurfer-reconstruction" title="Permanent link">&para;</a></h3>
+<p><code>func_precomputed_anat</code> reuses an existing FreeSurfer subject instead of running
+recon-all. Point <code>fs_subjects_dir</code> at the subjects directory and, when the subject is not
+named <code>sub-&lt;label&gt;</code> there (a pycortex-style <code>ANfs</code>, say), set <code>fs_subject</code> to its name.
+Two things happen that you should know about:</p>
+<ul>
+<li>The run refuses to start if the subject is missing or incomplete, listing the subjects
+  it did find. Without this, fmriprep would silently run a full recon-all instead.</li>
+<li>The subject is <strong>copied</strong> into the run's work dir first (<code>fs_subjects/sub-&lt;label&gt;</code>),
+  because fmriprep "completes" whatever reconstruction it is handed — an older FreeSurfer
+  version gets new volumes, transforms and surface measures written into it. The original
+  is never touched; the copy is reused by later runs in the same work dir.</li>
+</ul>
 <h2 id="workflow-3-watch-a-run">Workflow 3: watch a run<a class="headerlink" href="#workflow-3-watch-a-run" title="Permanent link">&para;</a></h2>
 <p>The Runs tab shows the pipeline graph with each node coloured by status (running /
 done / cached ⟲ / failed) and a checkpoint badge. Click a node to see its <strong>outputs</strong>

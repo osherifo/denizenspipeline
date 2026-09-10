@@ -114,6 +114,20 @@ confound regression on derivatives produced elsewhere (`derivatives_source` →
 `reference_fsl_ants` composite node — is built from the palette and saved as a
 pipeline of your own.
 
+### Reusing a FreeSurfer reconstruction
+
+`func_precomputed_anat` reuses an existing FreeSurfer subject instead of running
+recon-all. Point `fs_subjects_dir` at the subjects directory and, when the subject is not
+named `sub-<label>` there (a pycortex-style `ANfs`, say), set `fs_subject` to its name.
+Two things happen that you should know about:
+
+- The run refuses to start if the subject is missing or incomplete, listing the subjects
+  it did find. Without this, fmriprep would silently run a full recon-all instead.
+- The subject is **copied** into the run's work dir first (`fs_subjects/sub-<label>`),
+  because fmriprep "completes" whatever reconstruction it is handed — an older FreeSurfer
+  version gets new volumes, transforms and surface measures written into it. The original
+  is never touched; the copy is reused by later runs in the same work dir.
+
 ## Workflow 3: watch a run
 
 The Runs tab shows the pipeline graph with each node coloured by status (running /

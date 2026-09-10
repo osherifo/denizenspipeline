@@ -130,7 +130,12 @@ class FmriprepNode:
         "skull_strip_template": {"type": "str", "default": "", "group": "Anatomical"},
         "no_submm_recon": {"type": "bool", "default": False, "group": "Anatomical"},
         "fs_subjects_dir": {"type": "dir", "default": "", "group": "Anatomical",
-                            "description": "Reuse recon-all outputs from here (also an input port)."},
+                            "description": "Reuse recon-all outputs from here (also an input port). The subject is "
+                                           "copied into the run's work dir first: fmriprep completes older "
+                                           "reconstructions in place, and that must not touch the original."},
+        "fs_subject": {"type": "str", "default": "", "group": "Anatomical",
+                       "description": "Name of the precomputed subject inside fs_subjects_dir when it is not "
+                                      "sub-<label> (e.g. a pycortex-style name)."},
         # ── Functional ──
         "bold2t1w_init": {"type": "str", "default": "", "enum": ["", "register", "header"], "group": "Functional"},
         "bold2t1w_dof": {"type": "int", "default": None, "enum": [6, 9, 12], "group": "Functional"},
@@ -172,8 +177,8 @@ class FmriprepNode:
         ``container_type`` left in an older saved pipeline is ignored.
         """
         out = {k: v for k, v in params.items() if v not in ("", None)}
-        out.pop("container", None)
-        out.pop("container_type", None)
+        for k in ("container", "container_type", "fs_subject"):
+            out.pop(k, None)
         return out
 
     @staticmethod
@@ -189,7 +194,11 @@ class FmriprepNode:
         output_dir, work_dir = self._dirs(inputs, out_dir)
         subject = str(inputs.get("subject") or "")
         label = subject if subject.startswith("sub-") else f"sub-{subject}"
-        fs_root = Path(inputs["fs_subjects_dir"]) if inputs.get("fs_subjects_dir") else Path(output_dir) / "sourcedata" / "freesurfer"
+        staged = self._staged_fs_dir(work_dir)
+        if inputs.get("fs_subjects_dir") or params.get("fs_subjects_dir"):
+            fs_root = staged if staged.is_dir() else Path(str(params.get("fs_subjects_dir") or inputs["fs_subjects_dir"]))
+        else:
+            fs_root = Path(output_dir) / "sourcedata" / "freesurfer"
         return {
             "node_dir": str(out_dir),
             "derivatives_dir": output_dir,
@@ -223,6 +232,68 @@ class FmriprepNode:
 
     # ── node contract ────────────────────────────────────────────
 
+    # ── precomputed FreeSurfer: reuse on a copy ──────────────────
+
+    FS_REQUIRED = ("surf/lh.white", "surf/rh.white", "mri/aseg.mgz", "mri/T1.mgz")
+
+    @staticmethod
+    def _label(subject: str) -> str:
+        return subject if subject.startswith("sub-") else f"sub-{subject}"
+
+    def _fs_source(self, inputs: dict[str, Any], params: dict[str, Any]) -> tuple[Path | None, Path | None, str | None]:
+        """(subjects dir, the precomputed subject's dir, error) for a reuse run."""
+        root = str(params.get("fs_subjects_dir") or inputs.get("fs_subjects_dir") or "")
+        if not root:
+            return None, None, None
+        root_p = Path(root)
+        if not root_p.is_dir():
+            return root_p, None, f"fs_subjects_dir not found: {root}"
+        label = self._label(str(inputs.get("subject") or ""))
+        name = str(params.get("fs_subject") or "").strip() or label
+        cand = root_p / name
+        if not cand.is_dir():
+            present = sorted(d.name for d in root_p.iterdir() if d.is_dir() and d.name != "fsaverage")
+            return root_p, None, (f"no precomputed FreeSurfer subject {name!r} in {root} (found: {', '.join(present) or 'nothing'}); "
+                                  f"set fs_subject to the right name — without it fmriprep would silently run recon-all from scratch")
+        missing = [f for f in self.FS_REQUIRED if not (cand / f).exists()]
+        if missing:
+            return root_p, cand, f"precomputed subject {cand} is incomplete: missing {', '.join(missing)}"
+        return root_p, cand, None
+
+    @staticmethod
+    def _staged_fs_dir(work_dir: str) -> Path:
+        return Path(work_dir) / "fs_subjects"
+
+    def _stage_fs(self, inputs: dict[str, Any], params: dict[str, Any], work_dir: str) -> str | None:
+        """Copy the precomputed subject into ``<work_dir>/fs_subjects/sub-<label>`` and
+        link ``fsaverage`` beside it; return that subjects dir.
+
+        fmriprep "completes" any reconstruction it is handed — older FreeSurfer
+        versions get missing volumes, transforms and surface measures written
+        into the subject directory — so it must never be pointed at the
+        original. The copy is skipped when a complete one is already staged.
+        """
+        root, src, err = self._fs_source(inputs, params)
+        if err or src is None or root is None:
+            return None
+        staged_root = self._staged_fs_dir(work_dir)
+        label = self._label(str(inputs.get("subject") or ""))
+        dst = staged_root / label
+        staged_root.mkdir(parents=True, exist_ok=True)
+        marker = dst / ".fmriflow_staged_from"
+        if not (dst.is_dir() and marker.is_file() and marker.read_text().strip() == str(src.resolve())):
+            if dst.exists() or dst.is_symlink():
+                shutil.rmtree(dst) if dst.is_dir() and not dst.is_symlink() else dst.unlink()
+            logger.info("staging precomputed FreeSurfer subject %s -> %s", src, dst)
+            shutil.copytree(src, dst, symlinks=True)
+            for stale in ("IsRunning.lh+rh", "IsRunning.lh", "IsRunning.rh"):
+                (dst / "scripts" / stale).unlink(missing_ok=True)
+            marker.write_text(str(src.resolve()))
+        fsavg = staged_root / "fsaverage"
+        if not fsavg.exists() and (root / "fsaverage").is_dir():
+            fsavg.symlink_to((root / "fsaverage").resolve())
+        return str(staged_root)
+
     def validate(self, inputs: dict[str, Any], params: dict[str, Any]) -> list[str]:
         p = fmriprep_params(self._clean(params))
         # The FreeSurfer subjects dir may arrive on the input port instead of
@@ -230,8 +301,10 @@ class FmriprepNode:
         if not p.fs_subjects_dir and inputs.get("fs_subjects_dir"):
             p = dataclasses.replace(p, fs_subjects_dir=str(inputs["fs_subjects_dir"]))
         errors = list(p.validate())
-        if p.fs_subjects_dir and not Path(p.fs_subjects_dir).is_dir():
-            errors.append(f"fs_subjects_dir not found: {p.fs_subjects_dir}")
+        if p.fs_subjects_dir:
+            _, _, err = self._fs_source(inputs, params)
+            if err:
+                errors.append(err)
         if not inputs.get("bids_dir") or not Path(inputs["bids_dir"]).is_dir():
             errors.append(f"BIDS directory not found: {inputs.get('bids_dir')}")
         if not inputs.get("subject"):
@@ -252,6 +325,10 @@ class FmriprepNode:
         output_dir, work_dir = self._dirs(inputs, out_dir)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         Path(work_dir).mkdir(parents=True, exist_ok=True)
+        if p.fs_subjects_dir:
+            staged = self._stage_fs(inputs, params, work_dir)
+            if staged:
+                p = dataclasses.replace(p, fs_subjects_dir=staged)
 
         cmd = ["fmriprep", bids_dir, output_dir, "participant", "--participant-label", subject]
         if work_dir:
@@ -273,8 +350,13 @@ class FmriprepNode:
             "manifest": manifest_path,
         }
         fs_dir = base / "sourcedata" / "freesurfer"
-        if not fs_dir.is_dir() and inputs.get("fs_subjects_dir"):
-            fs_dir = Path(inputs["fs_subjects_dir"])
+        if not fs_dir.is_dir():
+            _, work_dir = self._dirs(inputs, out_dir)
+            staged = self._staged_fs_dir(work_dir)
+            if staged.is_dir():
+                fs_dir = staged                       # the copy fmriprep actually used
+            elif inputs.get("fs_subjects_dir") or params.get("fs_subjects_dir"):
+                fs_dir = Path(str(params.get("fs_subjects_dir") or inputs["fs_subjects_dir"]))
         if fs_dir.is_dir():
             outputs["fs_subjects_dir"] = fs_dir
         report = base / f"sub-{inputs['subject']}.html"

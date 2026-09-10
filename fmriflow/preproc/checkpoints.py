@@ -439,7 +439,7 @@ def output_file_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             import numpy as np
             data, _ = _load_volume(path)
             metrics["shape"] = [int(s) for s in data.shape]
-            metrics["is_4d"] = data.ndim == 4
+            metrics["is_4d"] = data.ndim == 4 and data.shape[3] > 1
             metrics["n_trs"] = int(data.shape[3]) if data.ndim == 4 else 1
             sample = data[..., 0] if data.ndim == 4 else data
             metrics["nonzero_fraction"] = float(np.count_nonzero(sample) / max(sample.size, 1))
@@ -455,9 +455,11 @@ def nifti_stats_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     import numpy as np
     data, zooms = _load_volume(path)
     arr = np.asarray(data, dtype="float64")
+    if arr.ndim == 4 and arr.shape[3] == 1:
+        arr = arr[..., 0]          # a singleton time axis is a single volume
     nz = arr[arr != 0]
     metrics: dict[str, Any] = {
-        "shape": [int(x) for x in arr.shape], "ndim": int(arr.ndim), "is_4d": arr.ndim == 4,
+        "shape": [int(x) for x in data.shape], "ndim": int(arr.ndim), "is_4d": arr.ndim == 4,
         "n_trs": int(arr.shape[3]) if arr.ndim == 4 else 1,
         "voxel_mm": [round(float(z), 3) for z in zooms],
         "nonzero_fraction": float(nz.size / max(arr.size, 1)),
@@ -483,7 +485,9 @@ def bold_integrity_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     import numpy as np
     data, _ = _load_volume(path)
     arr = np.asarray(data, dtype="float64")
-    metrics: dict[str, Any] = {"shape": [int(x) for x in arr.shape], "is_4d": arr.ndim == 4}
+    if arr.ndim == 4 and arr.shape[3] == 1:
+        arr = arr[..., 0]          # fmriprep writes reference volumes as (x, y, z, 1)
+    metrics: dict[str, Any] = {"shape": [int(x) for x in data.shape], "is_4d": arr.ndim == 4}
     bad = ~np.isfinite(arr)
     metrics["n_nan_inf"] = int(bad.sum())
     finite = np.where(bad, 0.0, arr)
