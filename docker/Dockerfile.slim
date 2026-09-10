@@ -105,7 +105,7 @@ COPY --from=frontend-build /build/fmriflow/server/static/ ./fmriflow/server/stat
 # with `pip install fmriflow[nlp]` if you need Word2Vec/BERT/FastText.
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir heudiconv \
-    && pip install --no-cache-dir '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
+    && pip install --no-cache-dir '.[frontend,bids,physio,ml,himalaya,audio,video,cloud,viz,flatten]'
 
 # Default workspace ($FMRIFLOW_HOME). The compose file binds the
 # host's $FMRIFLOW_HOME (default ~/projects/fmriflow) to /workspace

@@ -807,6 +807,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#physiological-noise-correction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Physiological noise correction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#migrating-from-the-earlier-surfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1450,6 +1461,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#physiological-noise-correction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Physiological noise correction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#migrating-from-the-earlier-surfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1723,6 +1745,50 @@ regression when the analysis pipeline loads the data:</p>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">high_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">fd_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">      </span><span class="c1"># scrub high-motion TRs</span>
 </code></pre></div>
+<h2 id="physiological-noise-correction">Physiological noise correction<a class="headerlink" href="#physiological-noise-correction" title="Permanent link">&para;</a></h2>
+<p>Three nodes take a BIOPAC <code>.acq</code> recording (pulse-ox, respiration and the scanner's
+TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoint:</p>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>In</th>
+<th>Out</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physio_regressors</code></td>
+<td><code>physio_file</code> (.acq), <code>block</code>, optional <code>in_file</code></td>
+<td><code>regressors_file</code> (TSV), <code>blocks_file</code></td>
+<td>Splits the recording into scan blocks at gaps in the TTL train and builds the PhLEM model for one block: RETROICOR phase terms, per-TR beat and breath rates, respiration-volume and heart-rate variation.</td>
+</tr>
+<tr>
+<td><code>physio_estimate</code></td>
+<td><code>in_file</code>, <code>regressors_file</code></td>
+<td><code>weights_file</code></td>
+<td>Per-voxel OLS weights of the regressors.</td>
+</tr>
+<tr>
+<td><code>physio_clean</code></td>
+<td><code>in_file</code>, <code>regressors_file</code>, optional <code>weights_file</code></td>
+<td><code>out_file</code>, <code>weights_file</code>, <code>summary_file</code></td>
+<td>Subtracts regressors × weights per voxel, z-scores the residual and restores the voxel mean. Estimates the weights itself when none are connected.</td>
+</tr>
+</tbody>
+</table>
+<p>A recording usually covers a whole session, one block per run. Wire the nodes so they
+iterate in lockstep: put <strong>×N</strong> on both <code>block</code> and <code>in_file</code> of <code>physio_regressors</code>,
+give <code>block</code> the literal list <code>[0, 1, 2, …]</code>, and iterate <code>physio_clean</code> over <code>in_file</code>
+and <code>regressors_file</code>. The TR is read from the BOLD header when <code>tr</code> is 0 (a value
+above 10 is taken as milliseconds). Physio and BOLD TR counts must agree after
+trimming: <code>auto_trim</code> drops the surplus at the end, or set <code>trim_begin</code> / <code>trim_end</code>.
+A wrong block index fails with the list of blocks and their durations.</p>
+<p>Checkpoints: <code>physio_blocks</code> (how many blocks, and the chosen block's TR surplus over
+the BOLD), <code>physio_regressors</code> (NaNs, constant columns, collinearity),
+<code>physio_weights</code>, <code>physio_clean</code> (variance removed, NaNs). The node needs the
+<code>bioread</code> package (<code>pip install "fmriflow[physio]"</code>; the full image has it).</p>
 <h2 id="migrating-from-the-earlier-surfaces">Migrating from the earlier surfaces<a class="headerlink" href="#migrating-from-the-earlier-surfaces" title="Permanent link">&para;</a></h2>
 <p>Stack presets, saved post-preproc graphs and <code>backend:</code>-style stage configs are converted
 in one go:</p>

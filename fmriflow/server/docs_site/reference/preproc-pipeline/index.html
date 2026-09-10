@@ -1752,12 +1752,18 @@ other nodes evaluate them when they finish.</p>
 </code></pre></div>
 <p>An artifact template may use glob wildcards (<code>*</code>, <code>**</code>) for outputs that exist once per
 run; every match gets its own record, named <code>step[ses-01_task-x_run-2]</code>, judged by the
-step's norms. fmriprep's built-in checks use this for the functional outputs.</p>
+step's norms. fmriprep's built-in checks use this for the functional outputs. A
+container app's built-in <code>CHECKS</code> run live while it executes; any other node's built-in
+<code>CHECKS</code> are evaluated once its <code>run()</code> returns, like the checks a pipeline declares. For
+an iterated node, <code>{node_dir}/**/&lt;file&gt;</code> matches once per iteration, and matches that
+share a file name are told apart by their folder (<code>step[physio1]</code>).</p>
 <p>Metrics: <code>volume_intensity</code>, <code>brain_volume</code>, <code>wm_volume</code>, <code>surface</code>, <code>thickness</code>,
 <code>aseg_stats</code>, <code>output_file</code>, <code>bold_integrity</code> (NaN/Inf, dead volumes, negative values,
 flat voxels, RF-spike volumes), <code>confounds_motion</code> (FD, DVARS, rigid-body extremes from
 the confounds TSV), <code>fieldmap_stats</code>, <code>phasediff_delta_te</code> (from a GRE fieldmap JSON),
-<code>compcor_components</code> (CompCor columns + variance explained), and the all-purpose <code>nifti_stats</code> (shape, voxel size,
+<code>compcor_components</code> (CompCor columns + variance explained), <code>physio_blocks</code>, <code>physio_regressors</code>,
+<code>physio_clean_summary</code> (the physio nodes' block split, regressor TSV and cleaning summary), and the
+all-purpose <code>nifti_stats</code> (shape, voxel size,
 non-zero fraction, mean/std, percentiles, <code>n_unique</code>, <code>tsnr_median</code> for 4-D). Your own
 metric is a decorated function in <code>$FMRIFLOW_HOME/addons/checks/*.py</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fmriflow.preproc.checkpoints</span><span class="w"> </span><span class="kn">import</span> <span class="n">checkpoint_metric</span>

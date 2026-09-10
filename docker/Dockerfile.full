@@ -85,7 +85,7 @@ RUN python -m venv "$FMRIFLOW_VENV" \
     && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir --upgrade pip \
     && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir heudiconv \
     && "$FMRIFLOW_VENV/bin/pip" install --no-cache-dir \
-        '.[frontend,bids,ml,himalaya,audio,video,cloud,viz,flatten]'
+        '.[frontend,bids,physio,ml,himalaya,audio,video,cloud,viz,flatten]'
 
 # Expose the venv's console scripts that fmriflow shells out to by name.
 # Deliberately NOT prepending the venv's bin dir: that would make

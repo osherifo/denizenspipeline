@@ -76,6 +76,13 @@ HARD_NORMS: dict[str, StepNorms] = {
     # CompCor regressors: present, finite, not flat; retained components explain a sensible share.
     "compcor_components_valid": {"hard": {"n_acompcor": (">", 0), "n_nan_inf_components": ("==", 0), "n_constant_components": ("==", 0)}, "soft": {"max_abs_component_correlation": ("<", 0.3)}},
     "compcor_variance_explained": {"hard": {}, "soft": {"acompcor_cumulative_variance": ("between", (0.2, 0.99))}},
+    # Physio correction (BIOPAC → PhLEM regressors → cleaned BOLD).
+    "physio_blocks": {"hard": {"n_blocks": (">", 0)}, "soft": {"tr_surplus": ("between", (0, 5))}},
+    "physio_regressors": {"hard": {"n_nan_inf": ("==", 0), "n_constant_columns": ("==", 0), "n_regressors": (">", 0)},
+                          "soft": {"max_abs_correlation": ("<", 0.95)}},
+    "physio_weights": {"hard": {"n_unique": (">", 1)}, "soft": {}},
+    "physio_clean": {"hard": {"n_nan_inf": ("==", 0)},
+                     "soft": {"variance_removed_fraction": ("between", (0.0, 0.5))}},
     # Generic per-output checks attached to every nifti output port.
     "output": {
         "hard": {"exists": ("==", True), "size_bytes": (">", 0)},

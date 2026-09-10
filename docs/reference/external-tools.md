@@ -28,6 +28,7 @@ Versions are pinned in three places, and this page mirrors them:
 | **FSL** (`mcflirt`, `bet`, `flirt`; `FSLDIR`) | the reference nipype template only | ✗ | partial — the fmriprep base carries a trimmed FSL; run `fmriflow preproc doctor` to confirm | FSL 6.x |
 | **AFNI** | fmriprep (ships in its base image) | ✗ | ✓ | only if running fmriprep bare |
 | **docker** CLI or **apptainer** | not used by the pipeline at present (container-launched apps are a planned iteration) | docker CLI 27.3.1 present, unused | not needed | — |
+| **bioread** (pip extra `physio`) | the `physio_regressors` node — reads BIOPAC `.acq` recordings | ✓ | ✓ | `pip install "fmriflow[physio]"` |
 | **autoflatten** + **pycortex** (pip extras `flatten`, `viz`) | Autoflatten tab, flatmap reporters | ✓ | ✓ | `pip install "fmriflow[flatten,viz]"` |
 | **git** (and **git-lfs** for large artefacts) | Artifact Hub | git ✓, git-lfs ✗ | git ✓, git-lfs ✗ | distro packages |
 

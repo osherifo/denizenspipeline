@@ -260,6 +260,30 @@ response:
     fd_threshold: 0.5      # scrub high-motion TRs
 ```
 
+## Physiological noise correction
+
+Three nodes take a BIOPAC `.acq` recording (pulse-ox, respiration and the scanner's
+TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoint:
+
+| Node | In | Out | What it does |
+|---|---|---|---|
+| `physio_regressors` | `physio_file` (.acq), `block`, optional `in_file` | `regressors_file` (TSV), `blocks_file` | Splits the recording into scan blocks at gaps in the TTL train and builds the PhLEM model for one block: RETROICOR phase terms, per-TR beat and breath rates, respiration-volume and heart-rate variation. |
+| `physio_estimate` | `in_file`, `regressors_file` | `weights_file` | Per-voxel OLS weights of the regressors. |
+| `physio_clean` | `in_file`, `regressors_file`, optional `weights_file` | `out_file`, `weights_file`, `summary_file` | Subtracts regressors × weights per voxel, z-scores the residual and restores the voxel mean. Estimates the weights itself when none are connected. |
+
+A recording usually covers a whole session, one block per run. Wire the nodes so they
+iterate in lockstep: put **×N** on both `block` and `in_file` of `physio_regressors`,
+give `block` the literal list `[0, 1, 2, …]`, and iterate `physio_clean` over `in_file`
+and `regressors_file`. The TR is read from the BOLD header when `tr` is 0 (a value
+above 10 is taken as milliseconds). Physio and BOLD TR counts must agree after
+trimming: `auto_trim` drops the surplus at the end, or set `trim_begin` / `trim_end`.
+A wrong block index fails with the list of blocks and their durations.
+
+Checkpoints: `physio_blocks` (how many blocks, and the chosen block's TR surplus over
+the BOLD), `physio_regressors` (NaNs, constant columns, collinearity),
+`physio_weights`, `physio_clean` (variance removed, NaNs). The node needs the
+`bioread` package (`pip install "fmriflow[physio]"`; the full image has it).
+
 ## Migrating from the earlier surfaces
 
 Stack presets, saved post-preproc graphs and `backend:`-style stage configs are converted

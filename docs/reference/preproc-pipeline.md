@@ -225,13 +225,19 @@ other nodes evaluate them when they finish.
 
 An artifact template may use glob wildcards (`*`, `**`) for outputs that exist once per
 run; every match gets its own record, named `step[ses-01_task-x_run-2]`, judged by the
-step's norms. fmriprep's built-in checks use this for the functional outputs.
+step's norms. fmriprep's built-in checks use this for the functional outputs. A
+container app's built-in `CHECKS` run live while it executes; any other node's built-in
+`CHECKS` are evaluated once its `run()` returns, like the checks a pipeline declares. For
+an iterated node, `{node_dir}/**/<file>` matches once per iteration, and matches that
+share a file name are told apart by their folder (`step[physio1]`).
 
 Metrics: `volume_intensity`, `brain_volume`, `wm_volume`, `surface`, `thickness`,
 `aseg_stats`, `output_file`, `bold_integrity` (NaN/Inf, dead volumes, negative values,
 flat voxels, RF-spike volumes), `confounds_motion` (FD, DVARS, rigid-body extremes from
 the confounds TSV), `fieldmap_stats`, `phasediff_delta_te` (from a GRE fieldmap JSON),
-`compcor_components` (CompCor columns + variance explained), and the all-purpose `nifti_stats` (shape, voxel size,
+`compcor_components` (CompCor columns + variance explained), `physio_blocks`, `physio_regressors`,
+`physio_clean_summary` (the physio nodes' block split, regressor TSV and cleaning summary), and the
+all-purpose `nifti_stats` (shape, voxel size,
 non-zero fraction, mean/std, percentiles, `n_unique`, `tsnr_median` for 4-D). Your own
 metric is a decorated function in `$FMRIFLOW_HOME/addons/checks/*.py`:
 

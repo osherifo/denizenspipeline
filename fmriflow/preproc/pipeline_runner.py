@@ -368,8 +368,10 @@ class PipelineRunner:
     def _output_checkpoints(self, node: Any, rec: NodeRunRecord, full: str) -> None:
         """Generic per-output checks for a finished interface/source node."""
         from fmriflow.preproc.checkpoints import (
-            Checkpoint, CheckpointSink, evaluate, generic_output_checks, resolve_artifact, resolve_checks, worst_verdict,
+            Checkpoint, CheckpointSink, evaluate, generic_output_checks, resolve_artifact, resolve_artifacts,
+            resolve_checks, substep_label, worst_verdict,
         )
+        from fmriflow.preproc.node_registry import node_kind
 
         if self.checkpoints_path is None or self._request is None:
             return
@@ -379,30 +381,50 @@ class PipelineRunner:
             return
         checks = generic_output_checks(cls)
         pnode = self._pipeline.node(rec.node_id) if self._pipeline is not None else None
-        user_checks = [c for c in resolve_checks(cls, pnode.checks if pnode is not None else [], pnode.params if pnode is not None else None) if c.source == "pipeline"]
-        if not checks and not user_checks:
+        # A container app's built-in checks ran live while it executed; every other node's
+        # built-in checks (a transform's ``CHECKS``) are evaluated here, after ``run()``,
+        # alongside the checks the pipeline itself declares.
+        watched_live = node_kind(cls) == "container_app"
+        post_checks = [
+            c for c in resolve_checks(cls, pnode.checks if pnode is not None else [], pnode.params if pnode is not None else None)
+            if c.source == "pipeline" or not watched_live
+        ]
+        if not checks and not post_checks:
             return
         outputs = _result_outputs(node)
         sink = CheckpointSink(self.checkpoints_path, self.events_path)
         verdicts: list[str] = []
         bad_reasons: list[str] = []
-        # Pipeline-level checks: artifact templates see {node_dir}, {subject} and every output port.
-        if user_checks:
+        # Artifact templates see {node_dir}, {subject} and every output port. A glob (``**``)
+        # matches once per iteration of a mapped node; each match is its own sub-step.
+        if post_checks:
             context = {"subject": self._request.subject, "node_dir": str(getattr(node, "output_dir", lambda: "")() or "")}
             for port, value in outputs.items():
                 context[port] = str(value[0] if isinstance(value, list) and value else value or "")
-            for check in user_checks:
-                artifact = resolve_artifact(check.artifact, context)
-                if artifact is None or not artifact.exists():
+            for check in post_checks:
+                found = resolve_artifacts(check.artifact, context)
+                if not found:
+                    artifact = resolve_artifact(check.artifact, context)
                     cp = Checkpoint(stage="preproc", run_id=self.run_id, node=full, step=check.step, subject=self._request.subject,
                                     metrics={}, expectations={}, verdict="unknown", artifact=str(artifact) if artifact else check.artifact,
                                     reasons=[f"artifact not found: {artifact or check.artifact}"], t=time.time())
-                else:
-                    cp = evaluate(check, artifact, run_id=self.run_id, node=full, subject=self._request.subject)
-                sink.write(cp)
-                verdicts.append(cp.verdict)
-                if cp.verdict == "bad":
-                    bad_reasons.append(f"{check.step}: {', '.join(cp.reasons)}")
+                    sink.write(cp)
+                    verdicts.append(cp.verdict)
+                    continue
+                labels = [substep_label(f) for f in found]
+                if len(set(labels)) < len(labels):          # same file name per iteration: label by folder
+                    labels = [f.parent.name.lstrip("_") for f in found]
+                for f, label in zip(found, labels):
+                    step = check.step if len(found) == 1 else f"{check.step}[{label}]"
+                    cp = evaluate(
+                        Check(step=step, artifact=check.artifact, metrics=check.metrics, norms_key=check.key,
+                              live=False, thumbnail=check.thumbnail, metric=check.metric, norms=check.norms, source=check.source),
+                        f, run_id=self.run_id, node=full, subject=self._request.subject,
+                    )
+                    sink.write(cp)
+                    verdicts.append(cp.verdict)
+                    if cp.verdict == "bad":
+                        bad_reasons.append(f"{step}: {', '.join(cp.reasons)}")
         for port, check in checks:
             value = outputs.get(port)
             files = value if isinstance(value, list) else [value] if value else []
