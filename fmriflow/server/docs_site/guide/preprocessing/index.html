@@ -1570,7 +1570,10 @@ yourself gets the generic tabs without any frontend work.</p>
 fmriprep node measures it — <code>orig/nu/T1.mgz</code> intensity statistics (unique values, modal
 fraction), <code>wm.mgz</code> volume, <code>?h.white</code> Euler numbers, <code>?h.thickness</code> mean and
 zero-thickness fraction, <code>aseg.stats</code> — and judges it against a norms table:
-<strong>ok</strong>, <strong>suspicious</strong>, <strong>bad</strong> (with the reasons), or <strong>unknown</strong>. A bad <code>nu.mgz</code> is
+<strong>ok</strong>, <strong>suspicious</strong>, <strong>bad</strong> (with the reasons), or <strong>unknown</strong>. Once BOLD runs land it also
+checks each one: NaN/Inf and dead volumes, RF-spike volumes, framewise displacement and
+rigid-body extremes from the confounds, the estimated fieldmap's range and the GRE
+fieldmap's ΔTE, the per-run reference volume, and the CompCor regressors. A bad <code>nu.mgz</code> is
 visible ~20 minutes into a 10-hour run instead of after it. Every node also gets generic
 output checks (file exists, non-empty, 4D where a BOLD is expected). Tick <strong>abort on bad
 checkpoint</strong> in the Run panel to have a <code>bad</code> verdict terminate the run.</p>

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -466,6 +467,173 @@ def nifti_stats_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return metrics, {}
 
 
+@checkpoint_metric("bold_integrity")
+def bold_integrity_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """A BOLD series' basic integrity: NaN/Inf voxels, all-zero volumes, negative values,
+    flat time series, and RF-spike volumes (global mean beyond median ± 5·MAD)."""
+    import numpy as np
+    data, _ = _load_volume(path)
+    arr = np.asarray(data, dtype="float64")
+    metrics: dict[str, Any] = {"shape": [int(x) for x in arr.shape], "is_4d": arr.ndim == 4}
+    bad = ~np.isfinite(arr)
+    metrics["n_nan_inf"] = int(bad.sum())
+    finite = np.where(bad, 0.0, arr)
+    metrics["n_negative"] = int((finite < 0).sum())
+    if arr.ndim == 4:
+        n_t = arr.shape[3]
+        vol_means = finite.reshape(-1, n_t).mean(axis=0)
+        metrics["n_trs"] = int(n_t)
+        metrics["n_zero_volumes"] = int((np.abs(finite).reshape(-1, n_t).sum(axis=0) == 0).sum())
+        med = float(np.median(vol_means))
+        mad = float(np.median(np.abs(vol_means - med))) * 1.4826 or 1e-9
+        spikes = np.abs(vol_means - med) > 5.0 * mad
+        metrics["n_spike_volumes"] = int(spikes.sum())
+        metrics["spike_volumes"] = [int(i) for i in np.flatnonzero(spikes)[:20]]
+        ts = finite.reshape(-1, n_t)
+        nonzero = np.abs(ts).sum(axis=1) > 0
+        metrics["flat_voxel_fraction"] = float((ts[nonzero].std(axis=1) == 0).mean()) if nonzero.any() else 1.0
+        metrics["global_mean_range"] = [float(vol_means.min()), float(vol_means.max())]
+    else:
+        metrics["n_trs"] = 1
+        metrics["n_zero_volumes"] = int(np.abs(finite).sum() == 0)
+        metrics["n_spike_volumes"] = 0
+        nz = finite[finite != 0]
+        metrics["spatial_std"] = float(nz.std()) if nz.size else 0.0
+    return metrics, {}
+
+
+def _read_tsv(path: Path) -> tuple[list[str], list[list[str]]]:
+    lines = [ln for ln in path.read_text(errors="replace").splitlines() if ln.strip()]
+    if not lines:
+        return [], []
+    header = lines[0].split("\t")
+    rows = [ln.split("\t") for ln in lines[1:]]
+    return header, rows
+
+
+def _column(header: list[str], rows: list[list[str]], name: str) -> list[float]:
+    import math
+    if name not in header:
+        return []
+    i = header.index(name)
+    out = []
+    for r in rows:
+        try:
+            v = float(r[i])
+        except (ValueError, IndexError):
+            v = math.nan
+        out.append(v)
+    return out
+
+
+@checkpoint_metric("confounds_motion")
+def confounds_motion_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Head motion from fmriprep's confounds TSV: framewise displacement (mean, max, fraction
+    over 0.5 mm), DVARS, and the rigid-body extremes (max |translation| mm, max |rotation| deg)."""
+    import math
+    import numpy as np
+    header, rows = _read_tsv(path)
+    metrics: dict[str, Any] = {"n_trs": len(rows)}
+    fd = [v for v in _column(header, rows, "framewise_displacement") if not math.isnan(v)]
+    if fd:
+        a = np.asarray(fd)
+        metrics.update({"mean_fd": float(a.mean()), "max_fd": float(a.max()),
+                        "frac_fd_over_0p2": float((a > 0.2).mean()), "frac_fd_over_0p5": float((a > 0.5).mean()),
+                        "n_fd_over_0p5": int((a > 0.5).sum())})
+    dv = [v for v in _column(header, rows, "dvars") if not math.isnan(v)]
+    if dv:
+        metrics["mean_dvars"] = float(np.mean(dv)); metrics["max_dvars"] = float(np.max(dv))
+    trans = [np.asarray([v for v in _column(header, rows, c) if not math.isnan(v)]) for c in ("trans_x", "trans_y", "trans_z")]
+    rots = [np.asarray([v for v in _column(header, rows, c) if not math.isnan(v)]) for c in ("rot_x", "rot_y", "rot_z")]
+    if all(t.size for t in trans):
+        metrics["max_abs_trans_mm"] = float(max(np.abs(t - t[0]).max() for t in trans))
+        metrics["trans_range_mm"] = float(max(t.max() - t.min() for t in trans))
+    if all(r.size for r in rots):
+        metrics["max_abs_rot_deg"] = float(math.degrees(max(np.abs(r - r[0]).max() for r in rots)))
+    return metrics, {}
+
+
+@checkpoint_metric("fieldmap_stats")
+def fieldmap_stats_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """A preprocessed fieldmap (Hz): finite fraction, spread and the 99th-percentile |offset| —
+    a flat map means estimation failed, an enormous one means a wrong delta-TE or wrap."""
+    import numpy as np
+    data, _ = _load_volume(path)
+    arr = np.asarray(data, dtype="float64")
+    finite = np.isfinite(arr)
+    vals = arr[finite & (arr != 0)]
+    metrics: dict[str, Any] = {"finite_fraction": float(finite.mean()), "n_voxels": int(vals.size)}
+    if vals.size:
+        metrics.update({"std_hz": float(vals.std()), "p99_abs_hz": float(np.percentile(np.abs(vals), 99)),
+                        "max_abs_hz": float(np.abs(vals).max()), "median_hz": float(np.median(vals))})
+    else:
+        metrics.update({"std_hz": 0.0, "p99_abs_hz": 0.0, "max_abs_hz": 0.0})
+    return metrics, {}
+
+
+@checkpoint_metric("phasediff_delta_te")
+def phasediff_delta_te_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """From a GRE fieldmap's phasediff JSON: the two echo times and their difference in ms,
+    plus how far ΔTE sits from a multiple of the 3 T fat-water period (~2.27 ms)."""
+    import json as _json
+    meta = _json.loads(path.read_text())
+    te1, te2 = meta.get("EchoTime1"), meta.get("EchoTime2")
+    metrics: dict[str, Any] = {"has_both_echoes": te1 is not None and te2 is not None}
+    if te1 is not None and te2 is not None:
+        te1, te2 = float(te1), float(te2)
+        d_ms = (te2 - te1) * 1000.0
+        metrics.update({"te1_ms": te1 * 1000.0, "te2_ms": te2 * 1000.0, "delta_te_ms": d_ms,
+                        "echoes_ordered": te2 > te1 > 0,
+                        "fat_period_offset_ms": abs(d_ms / 2.27 - round(d_ms / 2.27)) * 2.27 if d_ms > 0 else 0.0})
+    for k in ("PhaseEncodingDirection", "IntendedFor"):
+        if k in meta:
+            metrics[f"has_{k}"] = True
+    return metrics, {}
+
+
+@checkpoint_metric("compcor_components")
+def compcor_components_metrics(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """fmriprep's CompCor regressors from the confounds TSV (+ its JSON sidecar): how many
+    a/tCompCor columns, any NaN/Inf or constant ones, and the variance the retained
+    anatomical components explain."""
+    import json as _json
+    import math
+    import numpy as np
+    header, rows = _read_tsv(path)
+    acomp = [c for c in header if c.startswith("a_comp_cor_")]
+    tcomp = [c for c in header if c.startswith("t_comp_cor_")]
+    metrics: dict[str, Any] = {"n_acompcor": len(acomp), "n_tcompcor": len(tcomp), "n_rows": len(rows)}
+    n_nan = 0; n_const = 0
+    for c in acomp + tcomp:
+        col = np.asarray(_column(header, rows, c))
+        n_nan += int((~np.isfinite(col)).sum())
+        good = col[np.isfinite(col)]
+        if good.size and good.std() == 0:
+            n_const += 1
+    metrics["n_nan_inf_components"] = n_nan
+    metrics["n_constant_components"] = n_const
+    side = path.with_suffix("").with_suffix(".json") if path.name.endswith(".tsv") else None
+    if side is not None and side.is_file():
+        try:
+            meta = _json.loads(side.read_text())
+            cum = [float(v.get("CumulativeVarianceExplained")) for k, v in meta.items()
+                   if k.startswith("a_comp_cor_") and isinstance(v, dict) and v.get("CumulativeVarianceExplained") is not None and (v.get("Retained") in (True, None))]
+            if cum:
+                metrics["acompcor_cumulative_variance"] = float(max(cum))
+            masks = {str(v.get("Mask")) for k, v in meta.items() if k.startswith("a_comp_cor_") and isinstance(v, dict)}
+            metrics["acompcor_masks"] = sorted(m for m in masks if m and m != "None")
+        except (ValueError, TypeError) as e:
+            metrics["sidecar_error"] = str(e)
+    if acomp:
+        cols = np.column_stack([np.asarray(_column(header, rows, c)) for c in acomp[:10]])
+        cols = cols[np.isfinite(cols).all(axis=1)]
+        if cols.shape[0] > 3 and cols.shape[1] > 1:
+            corr = np.corrcoef(cols, rowvar=False)
+            off = np.abs(corr[~np.eye(corr.shape[0], dtype=bool)])
+            metrics["max_abs_component_correlation"] = float(np.nan_to_num(off).max())
+    return metrics, {}
+
+
 # ── evaluation ────────────────────────────────────────────────────
 
 def evaluate(
@@ -514,11 +682,57 @@ def generic_output_checks(cls: type) -> list[tuple[str, Check]]:
     return checks
 
 
+_GLOB_CHARS = ("*", "?", "[")
+_BIDS_ENTITY = re.compile(r"(ses|task|acq|run|dir|echo|fmapid)-[A-Za-z0-9]+")
+
+
+def resolve_artifacts(template: str, context: dict[str, Any]) -> list[Path]:
+    """Every file a template names. A template may use glob wildcards (``*``,
+    ``?``, ``**``) for outputs whose names carry run-level entities — fmriprep's
+    ``sub-01_ses-01_task-x_run-1_desc-preproc_bold.nii.gz`` — so one check
+    covers every run; matches come back sorted, missing files as an empty list."""
+    try:
+        text = template.format(**context)
+    except (KeyError, IndexError):
+        return []
+    if not any(ch in text for ch in _GLOB_CHARS):
+        return [Path(text)]
+    # split at the first wildcard segment so Path.glob gets a fixed root
+    parts = Path(text).parts
+    fixed = []
+    for i, part in enumerate(parts):
+        if any(ch in part for ch in _GLOB_CHARS):
+            root = Path(*fixed) if fixed else Path(".")
+            pattern = str(Path(*parts[i:]))
+            try:
+                return sorted(p for p in root.glob(pattern) if p.is_file())
+            except (OSError, ValueError):
+                return []
+        fixed.append(part)
+    return [Path(text)]
+
+
 def resolve_artifact(template: str, context: dict[str, Any]) -> Path | None:
+    """The first file a template names (see :func:`resolve_artifacts`)."""
+    found = resolve_artifacts(template, context)
+    if found:
+        return found[0]
+    if any(ch in template for ch in _GLOB_CHARS):
+        return None
     try:
         return Path(template.format(**context))
     except (KeyError, IndexError):
         return None
+
+
+def substep_label(path: Path) -> str:
+    """``task-x_run-1`` from a BIDS file name (else its stem): what a check over
+    several runs appends to its step name, ``bold_spikes[task-x_run-1]``."""
+    name = path.name
+    ents = _BIDS_ENTITY.findall(name)
+    if ents:
+        return "_".join(m.group(0) for m in _BIDS_ENTITY.finditer(name))
+    return name.split(".", 1)[0]
 
 
 class CheckpointSink:
@@ -598,30 +812,36 @@ class CheckpointWatcher(threading.Thread):
     def sweep(self, *, final: bool = False) -> list[Checkpoint]:
         """Evaluate every artefact that is new or changed since the last sweep."""
         produced: list[Checkpoint] = []
-        for check in (self.checks if not final else self.checks):
-            artifact = resolve_artifact(check.artifact, self.context)
-            if artifact is None or not artifact.exists():
-                continue
-            try:
-                mtime = artifact.stat().st_mtime
-            except OSError:
-                continue
-            # Skip files still being written (mtime within the last poll).
-            if not final and time.time() - mtime < min(self.poll_interval, 5.0):
-                continue
-            if self._seen.get(check.step) == mtime:
-                continue
-            self._seen[check.step] = mtime
-            cp = evaluate(check, artifact, run_id=self.run_id, node=self.node,
-                          subject=self.subject, sequence=self.sequence)
-            self.sink.write(cp)
-            self.results.append(cp)
-            produced.append(cp)
-            if cp.verdict == "bad" and self.on_bad is not None:
+        import dataclasses
+        for check in self.checks:
+            artifacts = resolve_artifacts(check.artifact, self.context)
+            many = any(ch in check.artifact for ch in _GLOB_CHARS)
+            for artifact in artifacts:
+                if not artifact.exists():
+                    continue
                 try:
-                    self.on_bad(cp)
-                except Exception:
-                    logger.exception("on_bad handler failed")
+                    mtime = artifact.stat().st_mtime
+                except OSError:
+                    continue
+                # Skip files still being written (mtime within the last poll).
+                if not final and time.time() - mtime < min(self.poll_interval, 5.0):
+                    continue
+                key = f"{check.step}|{artifact}"
+                if self._seen.get(key) == mtime:
+                    continue
+                self._seen[key] = mtime
+                # One check over several runs: each file gets its own record, same norms.
+                effective = dataclasses.replace(check, step=f"{check.step}[{substep_label(artifact)}]", norms_key=check.key) if many else check
+                cp = evaluate(effective, artifact, run_id=self.run_id, node=self.node,
+                              subject=self.subject, sequence=self.sequence)
+                self.sink.write(cp)
+                self.results.append(cp)
+                produced.append(cp)
+                if cp.verdict == "bad" and self.on_bad is not None:
+                    try:
+                        self.on_bad(cp)
+                    except Exception:
+                        logger.exception("on_bad handler failed")
         return produced
 
     def run(self) -> None:

@@ -29,7 +29,12 @@ from fmriflow.preproc.backends.fmriprep_params import (
 from fmriflow.preproc.checkpoints import (
     Check,
     aseg_stats_metrics,
+    bold_integrity_metrics,
     brain_volume_metrics,
+    compcor_components_metrics,
+    confounds_motion_metrics,
+    fieldmap_stats_metrics,
+    phasediff_delta_te_metrics,
     surface_metrics,
     thickness_metrics,
     volume_intensity_metrics,
@@ -78,6 +83,22 @@ class FmriprepNode:
         Check(step="lh.thickness", artifact="{fs_subject_dir}/surf/lh.thickness", metrics=thickness_metrics),
         Check(step="rh.thickness", artifact="{fs_subject_dir}/surf/rh.thickness", metrics=thickness_metrics),
         Check(step="aseg.stats", artifact="{fs_subject_dir}/stats/aseg.stats", metrics=aseg_stats_metrics),
+        # ── functional outputs, one record per run (glob templates) ──
+        # General integrity of the preprocessed BOLD.
+        Check(step="bold_nan_inf", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-preproc_bold.nii.gz", metrics=bold_integrity_metrics),
+        Check(step="bold_spikes", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-preproc_bold.nii.gz", metrics=bold_integrity_metrics),
+        # Head-motion correction, read from the confounds fmriprep writes.
+        Check(step="hmc_framewise_displacement", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-confounds_timeseries.tsv", metrics=confounds_motion_metrics),
+        Check(step="hmc_rigid_body", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-confounds_timeseries.tsv", metrics=confounds_motion_metrics),
+        # Fieldmap unwarping: only fires when the dataset has fieldmaps.
+        Check(step="sdc_fieldmap_range", artifact="{derivatives_dir}/sub-{subject}/**/fmap/*_desc-preproc_fieldmap.nii.gz", metrics=fieldmap_stats_metrics),
+        Check(step="sdc_delta_te", artifact="{bids_dir}/sub-{subject}/**/fmap/*_phasediff.json", metrics=phasediff_delta_te_metrics),
+        # The per-run reference volume.
+        Check(step="boldref_single_volume", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-coreg_boldref.nii.gz", metrics=bold_integrity_metrics),
+        Check(step="boldref_integrity", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-coreg_boldref.nii.gz", metrics=bold_integrity_metrics),
+        # CompCor regressors.
+        Check(step="compcor_components_valid", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-confounds_timeseries.tsv", metrics=compcor_components_metrics),
+        Check(step="compcor_variance_explained", artifact="{derivatives_dir}/sub-{subject}/**/func/*_desc-confounds_timeseries.tsv", metrics=compcor_components_metrics),
     ]
 
     INPUTS = {
@@ -173,7 +194,8 @@ class FmriprepNode:
             "node_dir": str(out_dir),
             "derivatives_dir": output_dir,
             "work_dir": work_dir,
-            "subject": subject,
+            "bids_dir": str(inputs.get("bids_dir") or ""),
+            "subject": subject[4:] if subject.startswith("sub-") else subject,
             "fs_subjects_dir": str(fs_root),
             "fs_subject_dir": str(fs_root / label),
             "sequence": str(params.get("sequence") or ""),

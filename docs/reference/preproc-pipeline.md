@@ -219,8 +219,15 @@ other nodes evaluate them when they finish.
         norms: {soft: {n_unique: [">", 30]}}
 ```
 
+An artifact template may use glob wildcards (`*`, `**`) for outputs that exist once per
+run; every match gets its own record, named `step[ses-01_task-x_run-2]`, judged by the
+step's norms. fmriprep's built-in checks use this for the functional outputs.
+
 Metrics: `volume_intensity`, `brain_volume`, `wm_volume`, `surface`, `thickness`,
-`aseg_stats`, `output_file`, and the all-purpose `nifti_stats` (shape, voxel size,
+`aseg_stats`, `output_file`, `bold_integrity` (NaN/Inf, dead volumes, negative values,
+flat voxels, RF-spike volumes), `confounds_motion` (FD, DVARS, rigid-body extremes from
+the confounds TSV), `fieldmap_stats`, `phasediff_delta_te` (from a GRE fieldmap JSON),
+`compcor_components` (CompCor columns + variance explained), and the all-purpose `nifti_stats` (shape, voxel size,
 non-zero fraction, mean/std, percentiles, `n_unique`, `tsnr_median` for 4-D). Your own
 metric is a decorated function in `$FMRIFLOW_HOME/addons/checks/*.py`:
 

@@ -56,6 +56,26 @@ HARD_NORMS: dict[str, StepNorms] = {
         "hard": {"etiv_cm3": ("between", (900.0, 2200.0))},
         "soft": {"etiv_cm3": ("between", (1100.0, 1900.0))},
     },
+    # fmriprep functional outputs (one record per run).
+    # General output integrity: no NaN/Inf anywhere; a dead volume or a flat map is a failure.
+    "bold_nan_inf": {"hard": {"n_nan_inf": ("==", 0)}, "soft": {"n_negative": ("==", 0)}},
+    # RF spikes: global mean beyond median ± 5·MAD; a few is suspicious, many means the run is unusable.
+    "bold_spikes": {"hard": {"n_zero_volumes": ("==", 0), "n_spike_volumes": ("<", 10)}, "soft": {"n_spike_volumes": ("<", 1), "flat_voxel_fraction": ("<", 0.05)}},
+    # Head motion (Power 2012): FD ≤ 0.2 mm per volume is the reference; runs with many
+    # >0.5 mm volumes or a 3 mm / 3° excursion are usually rejected.
+    "hmc_framewise_displacement": {"hard": {"frac_fd_over_0p5": ("<", 0.25)}, "soft": {"mean_fd": ("<", 0.2), "frac_fd_over_0p5": ("<", 0.05)}},
+    "hmc_rigid_body": {"hard": {"max_abs_trans_mm": ("<", 5.0), "max_abs_rot_deg": ("<", 5.0)}, "soft": {"max_abs_trans_mm": ("<", 1.5), "max_abs_rot_deg": ("<", 1.5)}},
+    # Fieldmap unwarping: the estimated field must vary and stay physically plausible at 3 T.
+    "sdc_fieldmap_range": {"hard": {"finite_fraction": (">", 0.99), "std_hz": (">", 0.0), "max_abs_hz": ("<", 1000.0)}, "soft": {"p99_abs_hz": ("<", 300.0)}},
+    # GRE fieldmap acquisition: ΔTE ≈ 1–3 ms and near a multiple of the fat-water period (Cusack 2003).
+    "sdc_delta_te": {"hard": {"has_both_echoes": ("==", True), "echoes_ordered": ("==", True), "delta_te_ms": ("between", (0.5, 5.0))},
+                     "soft": {"delta_te_ms": ("between", (1.0, 3.0)), "fat_period_offset_ms": ("<", 0.4)}},
+    # The per-run reference volume: exactly one volume, finite, not flat.
+    "boldref_single_volume": {"hard": {"is_4d": ("==", False), "n_trs": ("==", 1)}, "soft": {}},
+    "boldref_integrity": {"hard": {"n_nan_inf": ("==", 0), "n_zero_volumes": ("==", 0)}, "soft": {"spatial_std": (">", 0.0)}},
+    # CompCor regressors: present, finite, not flat; retained components explain a sensible share.
+    "compcor_components_valid": {"hard": {"n_acompcor": (">", 0), "n_nan_inf_components": ("==", 0), "n_constant_components": ("==", 0)}, "soft": {"max_abs_component_correlation": ("<", 0.3)}},
+    "compcor_variance_explained": {"hard": {}, "soft": {"acompcor_cumulative_variance": ("between", (0.2, 0.99))}},
     # Generic per-output checks attached to every nifti output port.
     "output": {
         "hard": {"exists": ("==", True), "size_bytes": (">", 0)},
