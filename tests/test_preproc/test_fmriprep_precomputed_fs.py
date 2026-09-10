@@ -51,13 +51,13 @@ def test_precomputed_subject_is_staged_as_a_copy(tmp_path):
 
 
 def test_missing_or_incomplete_precomputed_subject_fails_fast(tmp_path):
-    root = tmp_path / "fs"; _recon(root, "sub01fs"); (root / "sub-01").mkdir()
+    root = tmp_path / "fs"; _recon(root, "sub01fs"); (root / "sub-02").mkdir()
     bids = tmp_path / "bids"; bids.mkdir()
     node = FmriprepNode()
     inputs = {"bids_dir": str(bids), "subject": "01", "fs_subjects_dir": str(root)}
     errs = node.validate(inputs, {"mode": "func_precomputed_anat"})            # expects sub-01, absent
     assert any("no precomputed FreeSurfer subject 'sub-01'" in e and "sub01fs" in e for e in errs), errs
-    errs = node.validate(inputs, {"mode": "func_precomputed_anat", "fs_subject": "sub-01"})   # present but empty
+    errs = node.validate(inputs, {"mode": "func_precomputed_anat", "fs_subject": "sub-02"})   # present but empty
     assert any("incomplete" in e and "surf/lh.white" in e for e in errs), errs
     errs = node.validate(inputs, {"mode": "func_precomputed_anat", "fs_subject": "sub01fs"})
     assert not any("precomputed" in e for e in errs), errs
