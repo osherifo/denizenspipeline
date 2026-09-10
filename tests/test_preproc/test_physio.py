@@ -307,7 +307,7 @@ def test_norms_cover_the_physio_steps():
 
 
 def test_physio_chain_runs_as_a_pipeline(acq_file, tmp_path, registry):
-    """derivatives_source → physio_regressors (block × in_file in lockstep) → physio_clean, with checkpoints."""
+    """derivatives_source → physio_regressors (whole BOLD list, run i ↔ block i) → physio_clean ×N, with checkpoints."""
     from fmriflow.preproc.graph import Pipeline, PipelineRunRequest
     from fmriflow.preproc.pipeline_runner import PipelineRunner
 
@@ -327,8 +327,7 @@ def test_physio_chain_runs_as_a_pipeline(acq_file, tmp_path, registry):
              "data": {"params": {}, "bindings": {"derivatives_dir": "$inputs.derivatives_dir", "subject": "$inputs.subject"}},
              "position": {"x": 0, "y": 0}},
             {"id": "physio", "type": "physio_regressors", "kind": "interface",
-             "data": {"params": {"tr": 0}, "literal_inputs": {"physio_file": str(acq_file), "block": [0, 1]},
-                      "iter": {"handles": ["in_file", "block"]}},
+             "data": {"params": {"tr": 0}, "literal_inputs": {"physio_file": str(acq_file)}},
              "position": {"x": 300, "y": 0}},
             {"id": "clean", "type": "physio_clean", "kind": "interface",
              "data": {"params": {"auto_trim": True}, "iter": {"handles": ["in_file", "regressors_file"]}},
@@ -356,8 +355,62 @@ def test_physio_chain_runs_as_a_pipeline(acq_file, tmp_path, registry):
     cps = [json.loads(line) for line in (tmp_path / "checkpoints.jsonl").read_text().splitlines()]
     steps = {c["step"].split("[")[0] for c in cps}
     assert {"physio_blocks", "physio_regressors", "physio_clean"} <= steps
-    # one record per iteration, labelled by the mapped node's folder
-    assert sorted(c["step"] for c in cps if c["step"].startswith("physio_blocks")) == ["physio_blocks[physio0]", "physio_blocks[physio1]"]
+    # one record per run, labelled by the run's BIDS entities
+    steps = sorted(c["step"] for c in cps if c["step"].startswith("physio_blocks"))
+    assert steps == ["physio_blocks[task-x_run-1]", "physio_blocks[task-x_run-2]"]
     blocks = {c["step"]: c["metrics"] for c in cps if c["step"].startswith("physio_blocks")}
-    assert blocks["physio_blocks[physio0]"]["selected_block"] == 0 and blocks["physio_blocks[physio1]"]["selected_block"] == 1
+    assert [blocks[st]["selected_block"] for st in steps] == [0, 1]
+    assert sorted(c["step"] for c in cps if c["step"].startswith("physio_clean")) == ["physio_clean[clean0]", "physio_clean[clean1]"]
     assert all(c["verdict"] in ("ok", "suspicious") for c in cps), [(c["step"], c["reasons"]) for c in cps if c["verdict"] == "bad"]
+
+
+# ── pairing runs with recordings ────────────────────────────────────
+
+
+def test_pair_runs_one_recording_and_per_session():
+    from fmriflow.preproc.physio.pairing import pair_runs
+    bolds = ["/d/sub-01_ses-01_task-a_run-1_bold.nii.gz", "/d/sub-01_ses-01_task-a_run-2_bold.nii.gz",
+             "/d/sub-01_ses-02_task-a_run-1_bold.nii.gz"]
+    one = pair_runs(bolds, ["/p/all.acq"])
+    assert [(p.block, p.physio_file) for p in one] == [(0, "/p/all.acq"), (1, "/p/all.acq"), (2, "/p/all.acq")]
+
+    # matched by ses- label regardless of the order the files were given in
+    two = pair_runs(bolds, ["/p/sub-01_ses-02_physio.acq", "/p/sub-01_ses-01_physio.acq"])
+    assert [(p.block, Path(p.physio_file).name, p.session) for p in two] == [
+        (0, "sub-01_ses-01_physio.acq", "01"), (1, "sub-01_ses-01_physio.acq", "01"), (0, "sub-01_ses-02_physio.acq", "02")]
+
+    # no ses- in the recording names: sorted order
+    by_order = pair_runs(bolds, ["/p/b.acq", "/p/a.acq"])
+    assert [Path(p.physio_file).name for p in by_order] == ["a.acq", "a.acq", "b.acq"]
+
+    explicit = pair_runs(bolds, ["/p/all.acq"], blocks=[1, 2, 4])
+    assert [p.block for p in explicit] == [1, 2, 4]
+    with pytest.raises(ValueError, match="one per run"):
+        pair_runs(bolds, ["/p/all.acq"], blocks=[1])
+    with pytest.raises(ValueError, match="2 physio recording\\(s\\) for 1 session"):
+        pair_runs(bolds[:2], ["/p/a.acq", "/p/b.acq"])
+
+
+def test_regressors_node_pairs_a_bold_list(acq_file, tmp_path, registry):
+    rng = np.random.default_rng(7)
+    bolds = []
+    for r, n in zip((1, 2), N_TRS):
+        img = nib.Nifti1Image((1000 + 10 * rng.standard_normal((4, 4, 3, n))).astype("float32"), np.eye(4))
+        img.header.set_zooms((3.0, 3.0, 3.0, TR))
+        f = tmp_path / f"sub-01_task-x_run-{r}_desc-preproc_bold.nii.gz"
+        img.to_filename(str(f)); bolds.append(str(f))
+    node = registry.get("physio_regressors")
+    out_dir = tmp_path / "node"
+    res = node.run({"physio_file": str(acq_file), "in_file": bolds}, out_dir, {"tr": 0})
+    assert [p.name for p in res["regressors_file"]] == [
+        "physio_regressors_sub-01_task-x_run-1_desc-preproc_bold.tsv", "physio_regressors_sub-01_task-x_run-2_desc-preproc_bold.tsv"]
+    assert [read_regressors(p)[0].shape[0] for p in res["regressors_file"]] == list(N_TRS)
+    assert [json.loads(p.read_text())["selected"]["index"] for p in res["blocks_file"]] == [0, 1]
+
+    # three runs but the recording has two blocks: refused, with both sides listed
+    with pytest.raises(ValueError, match=r"splits into 2 block\(s\) .* but 3 BOLD run\(s\) .* set 'blocks'"):
+        node.run({"physio_file": str(acq_file), "in_file": bolds + [bolds[0]]}, tmp_path / "n2", {"tr": 0})
+    # ... unless the mapping is explicit
+    res = node.run({"physio_file": str(acq_file), "in_file": bolds}, tmp_path / "n3", {"tr": 0, "blocks": [1, 0]})
+    assert [json.loads(p.read_text())["selected"]["index"] for p in res["blocks_file"]] == [1, 0]
+

@@ -1568,7 +1568,7 @@ docker or apptainer container is not supported at present.</p>
 </code></pre></div>
 <h2 id="workflow-1-the-easy-path-fmriprep-from-a-template">Workflow 1: the easy path — fmriprep from a template<a class="headerlink" href="#workflow-1-the-easy-path-fmriprep-from-a-template" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Build → Templates → <code>fmriprep_full</code></strong> (or <code>fmriprep_anat_only</code>, <code>fmriprep_func_precomputed_anat</code>).
+<li><strong>Build → Templates → <code>fmriprep_full</code></strong> (or <code>fmriprep_anat_only</code>, <code>fmriprep_func_precomputed_anat</code>, <code>fmriprep_physio</code>).
    The pipeline is a single <code>fmriprep</code> node.</li>
 <li>Click the node. Parameters are grouped — <strong>Mode</strong> (full / anat_only / func_only /
    func_precomputed_anat), <strong>Anatomical</strong>, <strong>Functional</strong>,
@@ -1618,7 +1618,7 @@ path the server cannot see gets a warning under the field; bindings such as
   the manifest's BOLD files should point at (<code>bold from</code>).</li>
 </ul>
 <p><strong>Validate</strong> checks ports, kinds, doubly fed inputs and cycles before you run.</p>
-<p>The shipped templates are the three fmriprep ones. Anything else — smoothing or
+<p>The shipped templates are the fmriprep ones (plus <code>fmriprep_physio</code>, fmriprep followed by physio correction). Anything else — smoothing or
 confound regression on derivatives produced elsewhere (<code>derivatives_source</code> →
 <code>smooth</code> → <code>regress_confounds</code>), or a hand-written nipype workflow such as the
 <code>reference_fsl_ants</code> composite node — is built from the palette and saved as a
@@ -1781,14 +1781,20 @@ TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoin
 </tr>
 </tbody>
 </table>
-<p>A recording usually covers a whole session, one block per run. Wire the nodes so they
-iterate in lockstep: connect the BOLD list to <code>in_file</code> of <code>physio_regressors</code>, press
-<strong>×N</strong> on <code>in_file</code> and on <code>block</code>, and type the block list into <code>block</code> (<code>0, 1, 2</code>; a
-literal on an iterated port is one item per iteration). Then iterate <code>physio_clean</code> over
-<code>in_file</code> and <code>regressors_file</code>. The TR is read from the BOLD header when <code>tr</code> is 0 (a value
-above 10 is taken as milliseconds). Physio and BOLD TR counts must agree after
-trimming: <code>auto_trim</code> drops the surplus at the end, or set <code>trim_begin</code> / <code>trim_end</code>.
-A wrong block index fails with the list of blocks and their durations.</p>
+<p><strong>After fmriprep</strong> the wiring is two edges, and the <code>fmriprep_physio</code> template has it
+ready: fmriprep's <code>bold_preproc</code> list goes to <code>physio_regressors</code> <strong>without ×N</strong>, which
+pairs run <em>i</em> with block <em>i</em> of the recording and returns one regressor TSV per run; then
+<code>physio_clean</code> iterates (×N) over <code>in_file</code> and <code>regressors_file</code>. Browse to the <code>.acq</code>
+on the <code>physio_file</code> port of <code>physio_regressors</code>; with one recording per session, give
+them all (names carrying <code>ses-</code> are matched to the runs' sessions, otherwise they pair in
+sorted order). The manifest's BOLD files point at the cleaned runs.</p>
+<p>The recording must split into exactly as many blocks as runs pair with it; if it does
+not (an aborted run, a localizer that also sent triggers), the node stops and lists both
+sides, and <code>blocks</code> maps runs to block indices explicitly. For one run at a time, give a
+single <code>in_file</code> and <code>block</code>, or iterate <code>in_file</code> and <code>block</code> in lockstep. The TR is
+read from the BOLD header when <code>tr</code> is 0 (a value above 10 is taken as milliseconds).
+Physio and BOLD TR counts must agree after trimming: <code>auto_trim</code> drops the surplus at the
+end, or set <code>trim_begin</code> / <code>trim_end</code>.</p>
 <p>Checkpoints: <code>physio_blocks</code> (how many blocks, and the chosen block's TR surplus over
 the BOLD), <code>physio_regressors</code> (NaNs, constant columns, collinearity),
 <code>physio_weights</code>, <code>physio_clean</code> (variance removed, NaNs). The node needs the

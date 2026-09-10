@@ -7,7 +7,7 @@ import pytest
 from fmriflow.preproc.node_registry import NodeRegistry
 from fmriflow.preproc.templates import list_templates, load_template, template_names
 
-EXPECTED = {"fmriprep_full", "fmriprep_anat_only", "fmriprep_func_precomputed_anat"}
+EXPECTED = {"fmriprep_full", "fmriprep_anat_only", "fmriprep_func_precomputed_anat", "fmriprep_physio"}
 
 
 def test_expected_templates_exist():
@@ -34,6 +34,15 @@ def test_list_templates_summary():
     assert rows["fmriprep_full"]["node_types"] == ["fmriprep"]
     assert set(rows) >= EXPECTED
     assert all(rows[n]["tier"] == "bundled" for n in EXPECTED)
+
+
+def test_fmriprep_physio_template_wiring():
+    p = load_template("fmriprep_physio")
+    assert [n.type for n in p.nodes] == ["fmriprep", "physio_regressors", "physio_clean"]
+    clean = p.node("physio_clean")
+    assert clean.iter == {"handles": ["in_file", "regressors_file"]}
+    assert p.node("physio_regressors").iter is None            # takes fmriprep's whole list
+    assert p.manifest == {"backend_node": "fmriprep", "bold_from": "physio_clean.out_file", "confounds_from": "fmriprep.confounds"}
 
 
 def test_unknown_template():

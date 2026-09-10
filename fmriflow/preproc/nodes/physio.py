@@ -8,9 +8,14 @@ Three nodes so every stage is a checkpoint and can be inspected on its own:
 * ``physio_clean`` — remove the fitted contribution (estimating the weights
   itself when none are connected).
 
-Typical wiring with one BOLD run per block: iterate ``physio_regressors``
-over ``in_file`` and ``block`` in lockstep (``block`` given literal values
-``[0, 1, 2, …]``), and ``physio_clean`` over ``in_file`` + ``regressors_file``.
+After fmriprep: feed its ``bold_preproc`` list to ``physio_regressors``
+(no iteration — it pairs run *i* with block *i* of the recording, per
+session when there is one recording per session) and iterate
+``physio_clean`` over ``in_file`` + ``regressors_file``. The bundled
+``fmriprep_physio`` template is exactly that.
+
+One run at a time still works: a single ``in_file`` with ``block`` (param
+or port), or ``in_file`` + ``block`` iterated in lockstep.
 """
 
 from __future__ import annotations
@@ -133,20 +138,24 @@ class PhysioRegressorsNode:
     )
 
     INPUTS = {
-        "physio_file": {"kind": "file", "required": True, "description": "BIOPAC .acq recording"},
+        "physio_file": {"kind": "file", "required": True,
+                        "description": "BIOPAC .acq recording — or one per session (matched by ses- in the file name)"},
         "block": {"kind": "any", "required": False,
-                  "description": "block index (overrides the param; iterate it in lockstep with in_file)"},
+                  "description": "block index for a single in_file (overrides the param; may iterate in lockstep with it)"},
         "in_file": {"kind": "nifti", "required": False,
-                    "description": "the run's BOLD — supplies the TR when tr=0 and the TR count for the block check"},
+                    "description": "the run's BOLD, or fmriprep's whole list (run i ↔ block i); supplies the TR when tr=0"},
     }
     OUTPUTS = {
-        "regressors_file": {"kind": "tsv", "description": "one column per regressor, one row per TR"},
-        "blocks_file": {"kind": "json", "description": "how the recording split into blocks"},
+        "regressors_file": {"kind": "tsv", "description": "one column per regressor, one row per TR (a list when in_file is a list)"},
+        "blocks_file": {"kind": "json", "description": "how the recording split into blocks and which block this run got"},
     }
 
     PARAM_SCHEMA: dict[str, Any] = {
         "block": {"type": "int", "default": 0, "min": 0, "group": "Block",
-                  "description": "Which scan block of the recording this run is (0-based)."},
+                  "description": "Which scan block of the recording a single in_file is (0-based)."},
+        "blocks": {"type": "list[int]", "default": [], "group": "Block",
+                   "description": "With a list of BOLDs: explicit block index per run, in list order, when the recording "
+                                  "has extra blocks. Empty = run i is block i."},
         "tr": {"type": "float", "default": 0.0, "min": 0.0, "group": "Block",
                "description": "TR in seconds; 0 reads it from in_file's header (values > 10 are taken as ms)."},
         "model": {"type": "list[string]", "default": list(MODEL_TERMS), "enum": list(MODEL_TERMS), "group": "Model",
@@ -170,21 +179,74 @@ class PhysioRegressorsNode:
     CONTAINER: str | None = None
 
     CHECKS = [
-        Check(step="physio_blocks", artifact="{node_dir}/**/" + BLOCKS_NAME, metrics=physio_blocks_metrics, live=False),
-        Check(step="physio_regressors", artifact="{node_dir}/**/" + REGRESSORS_NAME, metrics=physio_regressors_metrics, live=False),
+        Check(step="physio_blocks", artifact="{node_dir}/**/physio_blocks*.json", metrics=physio_blocks_metrics, live=False),
+        Check(step="physio_regressors", artifact="{node_dir}/**/physio_regressors*.tsv", metrics=physio_regressors_metrics, live=False),
     ]
 
     def run(self, inputs: dict[str, Any], out_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
+        from fmriflow.preproc.physio.pairing import pair_runs
+
+        physio_in = inputs["physio_file"]
+        physio_files = [str(p) for p in (physio_in if isinstance(physio_in, (list, tuple)) else [physio_in])]
+        bold_in = inputs.get("in_file")
+        many = isinstance(bold_in, (list, tuple))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        splits: dict[str, acq_mod.AcqSplit] = {}
+
+        def split(path: str) -> acq_mod.AcqSplit:
+            if path not in splits:
+                splits[path] = acq_mod.split_acq(
+                    path,
+                    ppg_channel=int(params.get("ppg_channel", acq_mod.DEFAULT_PPG_CHANNEL)),
+                    resp_channel=int(params.get("resp_channel", acq_mod.DEFAULT_RESP_CHANNEL)),
+                    ttl_channel=int(params.get("ttl_channel", acq_mod.DEFAULT_TTL_CHANNEL)),
+                    run_gap_s=float(params.get("run_gap_s", acq_mod.DEFAULT_RUN_GAP_S)),
+                    ttl_threshold=float(params.get("ttl_threshold", acq_mod.DEFAULT_TTL_THRESHOLD)),
+                )
+            return splits[path]
+
+        if not many:
+            block_in = inputs.get("block")
+            block = int(block_in) if block_in not in (None, "") else int(params.get("block") or 0)
+            if len(physio_files) != 1:
+                raise ValueError("physio_regressors: several recordings need a list of BOLDs to pair them with")
+            reg, blk = self._one(split(physio_files[0]), block, bold_in, out_dir, params, suffix="")
+            return {"regressors_file": reg, "blocks_file": blk}
+
+        bolds = [str(b) for b in bold_in]
+        explicit = [int(x) for x in (params.get("blocks") or [])] or None
+        pairs = pair_runs(bolds, physio_files, explicit)
+        # Every recording must split into exactly the runs it is paired with,
+        # unless the caller mapped blocks explicitly.
+        if explicit is None:
+            per_file: dict[str, list[str]] = {}
+            for pr in pairs:
+                per_file.setdefault(pr.physio_file, []).append(pr.bold)
+            for path, runs in per_file.items():
+                sp = split(path)
+                if len(sp.blocks) != len(runs):
+                    have = ", ".join(f"#{b.index} {b.duration_s:.0f}s/{b.summary()['n_trs']} TRs" for b in sp.blocks)
+                    want = ", ".join(f"{Path(r).name} ({_tr_from_header(Path(r))[1]} TRs)" for r in runs)
+                    raise ValueError(
+                        f"physio_regressors: {Path(path).name} splits into {len(sp.blocks)} block(s) [{have}] but "
+                        f"{len(runs)} BOLD run(s) pair with it [{want}]; set 'blocks' to map runs to blocks explicitly, "
+                        f"or adjust run_gap_s / ttl_threshold"
+                    )
+        regs: list[Path] = []
+        blks: list[Path] = []
+        for pr in pairs:
+            reg, blk = self._one(split(pr.physio_file), pr.block, pr.bold, out_dir, params, suffix="_" + _stem(Path(pr.bold)))
+            regs.append(reg)
+            blks.append(blk)
+        return {"regressors_file": regs, "blocks_file": blks}
+
+    def _one(self, split: acq_mod.AcqSplit, block: int, in_file: Any, out_dir: Path, params: dict[str, Any], *, suffix: str) -> tuple[Path, Path]:
+        """Regressors for one BOLD from ``block`` of ``split``; files named with ``suffix``."""
         from fmriflow.preproc.physio.phlem import build_regressors
         from fmriflow.preproc.physio.regress import write_regressors
 
-        physio_file = Path(inputs["physio_file"])
-        block_in = inputs.get("block")
-        block = int(block_in) if block_in not in (None, "") else int(params.get("block") or 0)
-
         tr = float(params.get("tr") or 0.0)
         bold_n_trs = None
-        in_file = inputs.get("in_file")
         if in_file:
             header_tr, bold_n_trs = _tr_from_header(Path(in_file))
             if tr <= 0:
@@ -194,14 +256,7 @@ class PhysioRegressorsNode:
         if tr > 10:      # the lab's convention: values above 10 are milliseconds
             tr = tr / 1000.0
 
-        split = acq_mod.split_acq(
-            physio_file,
-            ppg_channel=int(params.get("ppg_channel", acq_mod.DEFAULT_PPG_CHANNEL)),
-            resp_channel=int(params.get("resp_channel", acq_mod.DEFAULT_RESP_CHANNEL)),
-            ttl_channel=int(params.get("ttl_channel", acq_mod.DEFAULT_TTL_CHANNEL)),
-            run_gap_s=float(params.get("run_gap_s", acq_mod.DEFAULT_RUN_GAP_S)),
-            ttl_threshold=float(params.get("ttl_threshold", acq_mod.DEFAULT_TTL_THRESHOLD)),
-        )
+        physio_file = Path(split.source)
         if not 0 <= block < len(split.blocks):
             raise ValueError(
                 f"physio_regressors: block {block} requested but {physio_file.name} has "
@@ -218,17 +273,16 @@ class PhysioRegressorsNode:
             resp_peak_rise=float(params["resp_peak_rise"]) if params.get("resp_peak_rise") is not None else None,
         )
 
-        out_dir.mkdir(parents=True, exist_ok=True)
-        regressors_file = write_regressors(out_dir / REGRESSORS_NAME, X, names)
+        regressors_file = write_regressors(out_dir / f"physio_regressors{suffix}.tsv", X, names)
         summary = split.summary()
         summary.update({
             "selected": {**blk.summary(), "n_trs": int(X.shape[0])},
             "tr_s": tr, "bold_file": str(in_file or ""), "bold_n_trs": bold_n_trs,
             "regressors": names, "n_regressors": int(X.shape[1]),
         })
-        blocks_file = out_dir / BLOCKS_NAME
+        blocks_file = out_dir / f"physio_blocks{suffix}.json"
         blocks_file.write_text(json.dumps(summary, indent=2))
-        return {"regressors_file": regressors_file, "blocks_file": blocks_file}
+        return regressors_file, blocks_file
 
 
 @preproc_node("physio_estimate")

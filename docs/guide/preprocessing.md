@@ -48,7 +48,7 @@ fmriflow preproc doctor        # preflight every node: tools, env vars, python d
 
 ## Workflow 1: the easy path — fmriprep from a template
 
-1. **Build → Templates → `fmriprep_full`** (or `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`).
+1. **Build → Templates → `fmriprep_full`** (or `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`, `fmriprep_physio`).
    The pipeline is a single `fmriprep` node.
 2. Click the node. Parameters are grouped — **Mode** (full / anat_only / func_only /
    func_precomputed_anat), **Anatomical**, **Functional**,
@@ -108,7 +108,7 @@ For each node the side panel shows:
 
 **Validate** checks ports, kinds, doubly fed inputs and cycles before you run.
 
-The shipped templates are the three fmriprep ones. Anything else — smoothing or
+The shipped templates are the fmriprep ones (plus `fmriprep_physio`, fmriprep followed by physio correction). Anything else — smoothing or
 confound regression on derivatives produced elsewhere (`derivatives_source` →
 `smooth` → `regress_confounds`), or a hand-written nipype workflow such as the
 `reference_fsl_ants` composite node — is built from the palette and saved as a
@@ -274,14 +274,21 @@ TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoin
 | `physio_estimate` | `in_file`, `regressors_file` | `weights_file` | Per-voxel OLS weights of the regressors. |
 | `physio_clean` | `in_file`, `regressors_file`, optional `weights_file` | `out_file`, `weights_file`, `summary_file` | Subtracts regressors × weights per voxel, z-scores the residual and restores the voxel mean. Estimates the weights itself when none are connected. |
 
-A recording usually covers a whole session, one block per run. Wire the nodes so they
-iterate in lockstep: connect the BOLD list to `in_file` of `physio_regressors`, press
-**×N** on `in_file` and on `block`, and type the block list into `block` (`0, 1, 2`; a
-literal on an iterated port is one item per iteration). Then iterate `physio_clean` over
-`in_file` and `regressors_file`. The TR is read from the BOLD header when `tr` is 0 (a value
-above 10 is taken as milliseconds). Physio and BOLD TR counts must agree after
-trimming: `auto_trim` drops the surplus at the end, or set `trim_begin` / `trim_end`.
-A wrong block index fails with the list of blocks and their durations.
+**After fmriprep** the wiring is two edges, and the `fmriprep_physio` template has it
+ready: fmriprep's `bold_preproc` list goes to `physio_regressors` **without ×N**, which
+pairs run *i* with block *i* of the recording and returns one regressor TSV per run; then
+`physio_clean` iterates (×N) over `in_file` and `regressors_file`. Browse to the `.acq`
+on the `physio_file` port of `physio_regressors`; with one recording per session, give
+them all (names carrying `ses-` are matched to the runs' sessions, otherwise they pair in
+sorted order). The manifest's BOLD files point at the cleaned runs.
+
+The recording must split into exactly as many blocks as runs pair with it; if it does
+not (an aborted run, a localizer that also sent triggers), the node stops and lists both
+sides, and `blocks` maps runs to block indices explicitly. For one run at a time, give a
+single `in_file` and `block`, or iterate `in_file` and `block` in lockstep. The TR is
+read from the BOLD header when `tr` is 0 (a value above 10 is taken as milliseconds).
+Physio and BOLD TR counts must agree after trimming: `auto_trim` drops the surplus at the
+end, or set `trim_begin` / `trim_end`.
 
 Checkpoints: `physio_blocks` (how many blocks, and the chosen block's TR surplus over
 the BOLD), `physio_regressors` (NaNs, constant columns, collinearity),

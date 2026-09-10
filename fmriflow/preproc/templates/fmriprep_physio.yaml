@@ -1,0 +1,40 @@
+schema_version: 1
+name: fmriprep_physio
+description: fmriprep functional preprocessing on a precomputed FreeSurfer subject, then physiological-noise correction of every run from a BIOPAC recording.
+inputs:
+  bids_dir: {kind: dir, description: BIDS root}
+  subject: {kind: str, description: participant label}
+  output_dir: {kind: dir, description: derivatives root}
+  fs_subjects_dir: {kind: dir, description: precomputed FreeSurfer SUBJECTS_DIR}
+nodes:
+  - id: fmriprep
+    type: fmriprep
+    kind: container_app
+    data:
+      params: {mode: func_precomputed_anat, output_spaces: [T1w]}
+      bindings:
+        bids_dir: $inputs.bids_dir
+        subject: $inputs.subject
+        output_dir: $inputs.output_dir
+        fs_subjects_dir: $inputs.fs_subjects_dir
+    position: {x: 0, y: 0}
+  - id: physio_regressors
+    type: physio_regressors
+    kind: interface
+    data:
+      # Set physio_file on this node (browse to the .acq; one per session if you have several).
+      params: {}
+      literal_inputs: {}
+    position: {x: 360, y: -120}
+  - id: physio_clean
+    type: physio_clean
+    kind: interface
+    data:
+      params: {auto_trim: true}
+      iter: {handles: [in_file, regressors_file]}
+    position: {x: 720, y: 0}
+edges:
+  - {id: e1, source: fmriprep, sourceHandle: bold_preproc, target: physio_regressors, targetHandle: in_file}
+  - {id: e2, source: fmriprep, sourceHandle: bold_preproc, target: physio_clean, targetHandle: in_file}
+  - {id: e3, source: physio_regressors, sourceHandle: regressors_file, target: physio_clean, targetHandle: regressors_file}
+manifest: {backend_node: fmriprep, bold_from: physio_clean.out_file, confounds_from: fmriprep.confounds}
