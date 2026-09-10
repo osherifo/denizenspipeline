@@ -1666,9 +1666,10 @@ path the server cannot see gets a warning under the field; bindings such as
 <p>For each node the side panel shows:</p>
 <ul>
 <li><strong>Inputs</strong> — each input port is either connected (an edge), bound to a pipeline input
-  (<code>$inputs.bids_dir</code>), or given a literal value. <strong>×N</strong> on a port makes the node
-  iterate over the list arriving there (one nipype <code>MapNode</code> per item — e.g. clean
-  every BOLD run).</li>
+  (<code>$inputs.bids_dir</code>), or given a literal value. A node iterates over a list arriving
+  on a port (one nipype <code>MapNode</code> per item, e.g. clean every BOLD run) when its
+  pipeline says so (<code>iter:</code> in the YAML); the templates set this up, and the Build tab
+  does not expose it at the moment.</li>
 <li><strong>Parameters</strong> — a schema-driven form, grouped when the node declares groups.</li>
 <li><strong>Manifest role</strong> — which node's outputs define the manifest (★), and which port
   the manifest's BOLD files should point at (<code>bold from</code>).</li>
@@ -1842,10 +1843,9 @@ TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoin
 </tbody>
 </table>
 <p><strong>After fmriprep</strong> the wiring is three edges, and the <code>fmriprep_physio</code> template has it
-ready: fmriprep's <code>bold_preproc</code> list goes to <code>physio_regressors</code> <strong>without ×N</strong>, which
+ready: fmriprep's <code>bold_preproc</code> list goes to <code>physio_regressors</code> as a whole, which
 pairs each run with its block and returns one regressor TSV per run plus <code>bold_files</code>,
-the runs it covered in the same order; <code>physio_clean</code> iterates (×N) over those two
-lists. The manifest's BOLD files point at the cleaned runs. On <code>physio_regressors</code>:</p>
+the runs it covered in the same order; <code>physio_clean</code> iterates over those two lists. The manifest's BOLD files point at the cleaned runs. On <code>physio_regressors</code>:</p>
 <ul>
 <li><strong><code>physio_file</code></strong>: browse to the <code>.acq</code>; with one recording per session give them all,
   and list the session each covers in <code>sessions</code> (<code>01, 02</code>). Runs from sessions without

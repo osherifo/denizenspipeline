@@ -55,7 +55,7 @@ Convert raw DICOM images to BIDS format. Six tabs cover the full workflow. The c
 
 One page, four tabs, over one pipeline graph. See the [Preprocessing guide](preprocessing.md).
 
-**Build** — Templates (`fmriprep_full`, `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`) and saved pipelines on the left; the graph editor in the middle (click a palette node to add it, drag ports to connect); the selected node's grouped parameters, input bindings, ×N iteration and manifest role on the right, above the **Run** panel (subject, paths, plugin, cache, rerun-from, abort-on-bad-checkpoint).
+**Build** — Templates (`fmriprep_full`, `fmriprep_anat_only`, `fmriprep_func_precomputed_anat`) and saved pipelines on the left; the graph editor in the middle (click a palette node to add it, drag ports to connect); the selected node's grouped parameters, input bindings and manifest role on the right, above the **Run** panel (subject, paths, plugin, cache, rerun-from, abort-on-bad-checkpoint).
 
 **Runs** — Every pipeline run. The detail shows the graph with live node status, the checkpoint filmstrip (verdict-coloured frames with thumbnails and the metric / bound table), a node's outputs drawer (NIfTI viewer, reports, JSON, pickles, crash files), the fmriprep node's **Inner DAG**, the log, the event stream, and a **Resume / Restart** choice for lost or failed runs.
 

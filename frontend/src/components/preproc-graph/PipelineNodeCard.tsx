@@ -83,7 +83,6 @@ function PipelineNodeCardInner({ data, selected }: NodeProps & { data: PipelineN
           {KIND_LABELS[data.kind] ?? data.kind}
         </span>
         <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{data.label}</span>
-        {data.iterating && <span title="iterates over a list" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>×N</span>}
         {data.isBackend && <span title="manifest backend node" style={{ fontSize: 10, color: base }}>★</span>}
         {data.status === 'cached' && <span title="cache hit" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>⟲</span>}
         {data.checkpointVerdict && (

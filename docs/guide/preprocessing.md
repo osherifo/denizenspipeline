@@ -99,9 +99,10 @@ path the server cannot see gets a warning under the field; bindings such as
 For each node the side panel shows:
 
 - **Inputs** — each input port is either connected (an edge), bound to a pipeline input
-  (`$inputs.bids_dir`), or given a literal value. **×N** on a port makes the node
-  iterate over the list arriving there (one nipype `MapNode` per item — e.g. clean
-  every BOLD run).
+  (`$inputs.bids_dir`), or given a literal value. A node iterates over a list arriving
+  on a port (one nipype `MapNode` per item, e.g. clean every BOLD run) when its
+  pipeline says so (`iter:` in the YAML); the templates set this up, and the Build tab
+  does not expose it at the moment.
 - **Parameters** — a schema-driven form, grouped when the node declares groups.
 - **Manifest role** — which node's outputs define the manifest (★), and which port
   the manifest's BOLD files should point at (`bold from`).
@@ -280,10 +281,9 @@ TTL trigger) to a cleaned BOLD series, one stage per node so each is a checkpoin
 | `physio_clean` | `in_file`, `regressors_file`, optional `weights_file` | `out_file`, `weights_file`, `summary_file` | Subtracts regressors × weights per voxel, z-scores the residual and restores the voxel mean. Estimates the weights itself when none are connected. |
 
 **After fmriprep** the wiring is three edges, and the `fmriprep_physio` template has it
-ready: fmriprep's `bold_preproc` list goes to `physio_regressors` **without ×N**, which
+ready: fmriprep's `bold_preproc` list goes to `physio_regressors` as a whole, which
 pairs each run with its block and returns one regressor TSV per run plus `bold_files`,
-the runs it covered in the same order; `physio_clean` iterates (×N) over those two
-lists. The manifest's BOLD files point at the cleaned runs. On `physio_regressors`:
+the runs it covered in the same order; `physio_clean` iterates over those two lists. The manifest's BOLD files point at the cleaned runs. On `physio_regressors`:
 
 - **`physio_file`**: browse to the `.acq`; with one recording per session give them all,
   and list the session each covers in `sessions` (`01, 02`). Runs from sessions without

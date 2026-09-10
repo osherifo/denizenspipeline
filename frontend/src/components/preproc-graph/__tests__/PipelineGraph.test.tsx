@@ -12,7 +12,6 @@ describe('PipelineGraph', () => {
     expect(screen.getByText('derivatives_dir')).toBeInTheDocument()
     expect(screen.getByText('out_file')).toBeInTheDocument()
     expect(screen.getAllByText('node').length).toBeGreaterThan(0)
-    expect(screen.getByText('×N')).toBeInTheDocument()       // smooth iterates
     expect(screen.getByText('★')).toBeInTheDocument()        // source is the backend node
   })
 

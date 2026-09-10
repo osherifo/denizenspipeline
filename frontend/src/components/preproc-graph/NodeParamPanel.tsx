@@ -72,16 +72,7 @@ export function NodeParamPanel({ node, info }: Props) {
     updateNodeData(node.id, { bindings, literal_inputs: literal })
   }
 
-  const toggleIter = (port: string) => {
-    const on = !iterHandles.includes(port)
-    const next = on ? [...iterHandles, port] : iterHandles.filter((h) => h !== port)
-    const literal = { ...(node.data.literal_inputs ?? {}) }
-    // A literal on the port changes shape with the toggle: list while iterated, text otherwise.
-    if (port in literal && !fedByEdge.has(port)) {
-      literal[port] = on ? parseIterLiteral(formatIterLiteral(literal[port])) : formatIterLiteral(literal[port])
-    }
-    updateNodeData(node.id, { iter: next.length ? (next.length === 1 ? { handle: next[0] } : { handles: next }) : null, literal_inputs: literal })
-  }
+  // Iteration (×N) is set by templates / YAML for now; the toggles are parked (see the board).
 
   return (
     <div style={panel}>
@@ -133,25 +124,11 @@ export function NodeParamPanel({ node, info }: Props) {
                     <datalist id={`inputs-${node.id}-${port}`}>
                       {pipelineInputs.map((n) => <option key={n} value={`$inputs.${n}`} />)}
                     </datalist>
-                    {spec.kind !== 'str' && spec.kind !== 'int' && spec.kind !== 'float' && spec.kind !== 'bool' && kind !== 'composite' && (
-                      <button
-                        title="iterate over a list arriving on this port"
-                        onClick={() => toggleIter(port)}
-                        style={{ ...input, width: 'auto', cursor: 'pointer', padding: '3px 6px', color: iterHandles.includes(port) ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}
-                      >×N</button>
-                    )}
                   </div>
                 )}
               </div>
             )
           })}
-          {inputs.some(([p]) => fedByEdge.has(p)) && kind !== 'composite' && (
-            <div style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
-              Iterate (×N) over: {inputs.filter(([p]) => fedByEdge.has(p)).map(([p]) => (
-                <button key={p} onClick={() => toggleIter(p)} style={{ ...input, width: 'auto', display: 'inline-block', marginRight: 4, padding: '2px 6px', cursor: 'pointer', color: iterHandles.includes(p) ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>{p}</button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
