@@ -14,6 +14,14 @@ import type { CheckpointRecord, PipelineEvent, PipelineRunDetail, PipelineRunSum
 
 const TERMINAL = new Set(['done', 'failed', 'cancelled', 'lost'])
 
+// Not store state — bumping it must never trigger a re-render. Every select()
+// and disconnect() call increments this; a select() in flight captures the
+// value right after it calls disconnect() and treats a mismatch at each
+// post-await checkpoint as "superseded" (a later select(), or a disconnect()
+// from elsewhere, such as a modal's unmount cleanup) — it backs off instead
+// of clobbering fresher state or leaving an untracked socket connected.
+let selectToken = 0
+
 interface RunsState {
   runs: PipelineRunSummary[]
   runsLoading: boolean
@@ -56,6 +64,7 @@ export const usePreprocRunsStore = create<RunsState>((set, get) => ({
 
   select: async (runId) => {
     get().disconnect()
+    const token = ++selectToken
     if (!runId) {
       set({ selectedRunId: null, detail: null, events: [], checkpoints: [] })
       return
@@ -63,9 +72,10 @@ export const usePreprocRunsStore = create<RunsState>((set, get) => ({
     set({ selectedRunId: runId, detail: null, events: [], checkpoints: [], error: null })
     try {
       const [detail, cps] = await Promise.all([fetchPipelineRun(runId), fetchRunCheckpoints(runId)])
+      if (token !== selectToken) return   // superseded while these were in flight
       set({ detail, checkpoints: cps.checkpoints })
     } catch (e) {
-      set({ error: (e as Error).message })
+      if (token === selectToken) set({ error: (e as Error).message })
       return
     }
     // The socket replays events.jsonl from the start, then tails it while the run is live.
@@ -73,6 +83,13 @@ export const usePreprocRunsStore = create<RunsState>((set, get) => ({
     try {
       ws = openPipelineRunSocket(runId)
     } catch {
+      return
+    }
+    if (token !== selectToken) {
+      // Superseded (a newer select(), or a disconnect() — e.g. the owning
+      // modal unmounted) while the socket was being created. Nothing will
+      // track or close this one otherwise, so close it here.
+      try { ws.close() } catch { /* ignore */ }
       return
     }
     ws.onmessage = (msg) => {
@@ -159,6 +176,7 @@ export const usePreprocRunsStore = create<RunsState>((set, get) => ({
   },
 
   disconnect: () => {
+    selectToken++   // invalidate any select() currently in flight
     const ws = get().socket
     if (ws) {
       try { ws.close() } catch { /* ignore */ }
