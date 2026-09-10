@@ -154,7 +154,7 @@ export async function fetchRunCrash(runId: string, name: string): Promise<{ name
 
 // ── checkpoints from the UI ──
 
-export async function fetchCheckMetrics(): Promise<{ metrics: MetricInfo[]; addons_dir?: string }> {
+export async function fetchCheckMetrics(): Promise<{ metrics: MetricInfo[]; addons_dir?: string; hidden?: number }> {
   return json(`${BASE}/preproc/checks/metrics`)
 }
 

@@ -1,7 +1,7 @@
 """Checkpoints from the UI: the metric catalog, the editable norms overlay,
 and a try-it evaluation of a check against a finished run's node.
 
-  GET  /preproc/checks/metrics            registered metric functions (built-in + user)
+  GET  /preproc/checks/metrics            metrics the live checks use + user metrics (?all=1 for every built-in)
   GET  /preproc/checks/metrics/scaffold   starter code for a new user metric
   GET  /preproc/checks/metrics/{name}     one metric with its source
   PUT  /preproc/checks/metrics/{name}     create / update a user metric ({code})
@@ -43,10 +43,23 @@ class EvaluateBody(BaseModel):
     sequence: str | None = None
 
 
+def _metric_listing(request: Request, all: bool = False) -> dict[str, Any]:
+    """Built-in metrics the live checks use, plus every user metric (``all`` = parked built-ins too)."""
+    from fmriflow.preproc.checkpoints import active_metric_names, addon_checks_dir, metric_catalog
+    rows = metric_catalog()
+    hidden = 0
+    if not all:
+        live = active_metric_names(request.app.state.node_registry)
+        keep = [m for m in rows if m["tier"] != "builtin" or m["name"] in live]
+        hidden = len(rows) - len(keep)
+        rows = keep
+    return {"metrics": rows, "addons_dir": str(addon_checks_dir()), "hidden": hidden}
+
+
 @router.get("/preproc/checks/metrics")
-async def list_metrics():
-    from fmriflow.preproc.checkpoints import addon_checks_dir, metric_catalog
-    return {"metrics": metric_catalog(), "addons_dir": str(addon_checks_dir())}
+async def list_metrics(request: Request, all: bool = False):
+    """``?all=1`` lists the parked built-ins too."""
+    return _metric_listing(request, all)
 
 
 @router.get("/preproc/checks/metrics/scaffold")
@@ -69,25 +82,25 @@ async def get_metric_source(name: str):
 
 
 @router.put("/preproc/checks/metrics/{name}")
-async def put_metric(name: str, body: MetricCodeBody):
-    from fmriflow.preproc.checkpoints import metric_catalog, save_user_metric
+async def put_metric(request: Request, name: str, body: MetricCodeBody):
+    from fmriflow.preproc.checkpoints import save_user_metric
     try:
         path = save_user_metric(name, body.code)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"saved": True, "name": name, "path": str(path), "metrics": metric_catalog()}
+    return {"saved": True, "name": name, "path": str(path), **_metric_listing(request)}
 
 
 @router.delete("/preproc/checks/metrics/{name}")
-async def delete_metric(name: str):
-    from fmriflow.preproc.checkpoints import delete_user_metric, metric_catalog
+async def delete_metric(request: Request, name: str):
+    from fmriflow.preproc.checkpoints import delete_user_metric
     try:
         path = delete_user_metric(name)
     except ValueError as e:
         raise HTTPException(403, str(e))
     except KeyError as e:
         raise HTTPException(404, str(e))
-    return {"deleted": True, "path": str(path), "metrics": metric_catalog()}
+    return {"deleted": True, "path": str(path), **_metric_listing(request)}
 
 
 @router.post("/preproc/checks/metrics/{name}/run")

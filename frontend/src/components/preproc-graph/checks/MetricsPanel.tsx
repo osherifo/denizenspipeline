@@ -24,11 +24,12 @@ type EditorState = { name: string; code: string; readOnly: boolean; isNew: boole
 export function MetricsPanel() {
   const [metrics, setMetrics] = useState<MetricInfo[]>([])
   const [addonsDir, setAddonsDir] = useState('')
+  const [hidden, setHidden] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [editor, setEditor] = useState<EditorState>(null)
   const dlg = useDialog()
 
-  const load = () => fetchCheckMetrics().then((r) => { setMetrics(r.metrics); setAddonsDir(r.addons_dir ?? '') }).catch((e) => setError(String(e)))
+  const load = () => fetchCheckMetrics().then((r) => { setMetrics(r.metrics); setAddonsDir(r.addons_dir ?? ''); setHidden(r.hidden ?? 0) }).catch((e) => setError(String(e)))
   useEffect(() => { void load() }, [])
 
   const open = async (m: MetricInfo) => {
@@ -65,7 +66,7 @@ export function MetricsPanel() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Checkpoint metrics</span>
         <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-          a metric turns an artifact into numbers; norms below put bounds on them · user metrics live in {addonsDir || '$FMRIFLOW_HOME/addons/checks/'}
+          a metric turns an artifact into numbers; norms below put bounds on them · user metrics live in {addonsDir || '$FMRIFLOW_HOME/addons/checks/'}{hidden > 0 && ` · ${hidden} built-in metric${hidden === 1 ? '' : 's'} of parked checks hidden`}
         </span>
         <span style={{ flex: 1 }} />
         <button style={btn} onClick={() => void create()}>+ New metric</button>

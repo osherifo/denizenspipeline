@@ -246,7 +246,9 @@ all-purpose `nifti_stats` (shape, voxel size,
 non-zero fraction, mean/std, percentiles, `n_unique`, `tsnr_median` for 4-D). Your own
 metric is a decorated function in `$FMRIFLOW_HOME/addons/checks/*.py`, written by hand or
 from **Library → Checkpoint metrics** (new from a scaffold, duplicate a built-in, edit, try
-on a file, delete; one file per metric, named after it; built-ins are read-only):
+on a file, delete; one file per metric, named after it; built-ins are read-only). The table
+lists the built-in metrics the live checks use plus your own; `GET /api/preproc/checks/metrics?all=1`
+lists the parked ones too:
 
 ```python
 from fmriflow.preproc.checkpoints import checkpoint_metric

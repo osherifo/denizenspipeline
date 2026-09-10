@@ -248,6 +248,33 @@ def metric_catalog() -> list[dict[str, Any]]:
     return out
 
 
+def active_metric_names(registry: Any | None = None) -> set[str]:
+    """Names of the built-in metrics the live checks use: the generic output metric
+    when a generic output step is active, plus every metric behind a node's active
+    ``CHECKS`` (``registry`` supplies the node classes; without one only the built-in
+    package is scanned)."""
+    from fmriflow.preproc.norms import is_active_step
+    names: set[str] = set()
+    if is_active_step("bold_output") or is_active_step("output"):
+        names.add("output_file")
+    classes: list[type] = []
+    if registry is not None:
+        classes = [registry.cls(n) for n in registry.names()]
+    else:
+        try:
+            from fmriflow.preproc.node_registry import NodeRegistry
+            reg = NodeRegistry(user_dirs=[]).discover()
+            classes = [reg.cls(n) for n in reg.names()]
+        except Exception:
+            classes = []
+    for cls in classes:
+        for c in resolve_checks(cls, [], None):
+            n = c.metric or _metric_name(c.metrics)
+            if n:
+                names.add(n)
+    return names
+
+
 def metric_source(name: str) -> str:
     """The Python source behind a metric: its addon file, or the built-in function."""
     import inspect

@@ -246,7 +246,9 @@ def test_metric_routes(home, tmp_path):
     r = c.put("/api/preproc/checks/metrics/file_size", json={"code": GOOD})
     assert r.status_code == 200 and r.json()["path"].endswith("addons/checks/file_size.py")
     assert {m["name"]: m["tier"] for m in r.json()["metrics"]}["file_size"] == "user"
-    assert c.get("/api/preproc/checks/metrics").json()["addons_dir"].endswith("addons/checks")
+    listing = c.get("/api/preproc/checks/metrics").json()
+    assert listing["addons_dir"].endswith("addons/checks") and listing["hidden"] == 0    # this module runs with every check live
+    assert {m["name"] for m in listing["metrics"]} >= {"file_size", "nifti_stats"}
     assert c.get("/api/preproc/checks/metrics/file_size").json()["source"] == GOOD
     assert c.put("/api/preproc/checks/metrics/nifti_stats", json={"code": GOOD}).status_code == 400
     assert c.put("/api/preproc/checks/metrics/x", json={"code": "def (:"}).status_code == 400
@@ -277,6 +279,9 @@ def test_default_allow_list_keeps_three_checks_live(monkeypatch):
     # a pipeline-authored check on a parked step still runs, with its own bounds
     c = ck.Check.from_dict({"step": "bold_spikes", "artifact": "{node_dir}/x", "metric": "nifti_stats", "norms": {"hard": {"n_trs": [">", 1]}}})
     assert [x.step for x in ck.resolve_checks(SmoothTransform, [c.to_dict()], {})] == ["bold_spikes"]
+    # the metric list follows: only the metrics behind the live checks (+ user metrics)
+    reg = NodeRegistry(user_dirs=[]).discover()
+    assert ck.active_metric_names(reg) == {"output_file", "phasediff_delta_te"}
 
 
 def test_parked_records_are_hidden_on_read_and_pruned_on_disk(tmp_path, monkeypatch):
@@ -319,4 +324,19 @@ def test_parked_records_are_hidden_on_read_and_pruned_on_disk(tmp_path, monkeypa
     # a second prune changes nothing and keeps the first backup
     assert ck.prune_parked(run) == {"checkpoints": 0, "events": 0}
     assert (run / "checkpoints.jsonl.parked").read_text().count("\n") == 5
+
+
+def test_metric_listing_hides_parked_builtins(home, tmp_path, monkeypatch):
+    from fmriflow.preproc import norms as _norms
+    from fmriflow.server.app import create_app
+    monkeypatch.setattr(_norms, "ACTIVE_CHECKS", {"bold_output": ("is_4d", "n_trs"), "sdc_delta_te": ("has_both_echoes",)})
+    ck.save_user_metric("file_size", GOOD)
+    c = TestClient(create_app(derivatives_dir=str(tmp_path / "d")))
+    r = c.get("/api/preproc/checks/metrics").json()
+    assert {m["name"] for m in r["metrics"]} == {"output_file", "phasediff_delta_te", "file_size"}
+    assert r["hidden"] > 5
+    assert "nifti_stats" in {m["name"] for m in c.get("/api/preproc/checks/metrics?all=1").json()["metrics"]}
+    # save / delete answer with the same filtered listing
+    assert {m["name"] for m in c.put("/api/preproc/checks/metrics/file_size", json={"code": GOOD}).json()["metrics"]} == {"output_file", "phasediff_delta_te", "file_size"}
+    assert {m["name"] for m in c.delete("/api/preproc/checks/metrics/file_size").json()["metrics"]} == {"output_file", "phasediff_delta_te"}
 
