@@ -5,7 +5,7 @@
  *  path the server can actually open. Typed paths stay free-form; a small hint
  *  says when the server cannot see one.
  */
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { createFsDir, fetchFsExists, fetchFsListing, fetchFsRoots, type FsEntry, type FsRoot } from '../../api/fs'
 
@@ -41,16 +41,23 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [extraEnv, setExtraEnv] = useState('FMRIFLOW_BROWSE_ROOTS')
+  // Several places call open() without awaiting it (the ↑ up button, an extra-root
+  // chip, double-clicking into a folder) — a slower, earlier request must not land
+  // after and overwrite a faster, later one's listing. Not state: bumping it must
+  // not itself trigger a render.
+  const requestToken = useRef(0)
 
   const open = async (p: string) => {
+    const token = ++requestToken.current
     setError(null)
     try {
       // Files are always listed: in directory mode they are shown greyed and
       // unselectable, so a folder of DICOMs is distinguishable from an empty one.
       const l = await fetchFsListing(p, true)
+      if (token !== requestToken.current) return   // superseded by a newer open()
       setPath(l.path); setParent(l.parent); setEntries(l.entries); setSelected(null); setTruncated(Boolean(l.truncated))
     } catch (e) {
-      setError((e as Error).message)
+      if (token === requestToken.current) setError((e as Error).message)
     }
   }
 

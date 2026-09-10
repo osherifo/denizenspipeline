@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import { PathField, PathPickerModal } from '../PathPicker'
+import { server } from '../../../test/mocks/server'
 
 describe('PathPickerModal', () => {
   it('opens at the first root, navigates into a directory and picks it', async () => {
@@ -39,6 +41,55 @@ describe('PathPickerModal files in directory mode', () => {
     fireEvent.click(screen.getByText('sub01'))
     fireEvent.click(screen.getByText('Use selected'))
     expect(onPick).toHaveBeenCalledWith('/workspace/data/dicoms/sub01')
+  })
+})
+
+describe('PathPickerModal stale navigation', () => {
+  it('a slower earlier open() cannot overwrite a faster later one\'s listing', async () => {
+    let releaseSlow!: () => void
+    const slow = new Promise<void>((resolve) => { releaseSlow = resolve })
+    // Overrides the whole route (msw matches on the URL path, and every listing
+    // request shares the same path with a different ?path= query param), so the
+    // other two paths this test needs are reconstructed here rather than relying
+    // on any fallthrough to the base handler.
+    server.use(
+      http.get('/api/fs/list', async ({ request }) => {
+        const p = new URL(request.url).searchParams.get('path')
+        if (p === '/workspace/data/dicoms') {
+          await slow
+          return HttpResponse.json({ path: p, parent: '/workspace/data', entries: [
+            { name: 'sub01', path: '/workspace/data/dicoms/sub01', is_dir: true },
+            { name: 'README.txt', path: '/workspace/data/dicoms/README.txt', is_dir: false, size: 12 },
+          ], truncated: false })
+        }
+        if (p === '/workspace/data/bids') {
+          return HttpResponse.json({ path: p, parent: '/workspace/data', entries: [
+            { name: 'sub02', path: '/workspace/data/bids/sub02', is_dir: true },
+          ], truncated: false })
+        }
+        if (p === '/workspace/data') {
+          return HttpResponse.json({ path: p, parent: '/workspace', entries: [
+            { name: 'dicoms', path: '/workspace/data/dicoms', is_dir: true },
+            { name: 'bids', path: '/workspace/data/bids', is_dir: true },
+          ], truncated: false })
+        }
+        return HttpResponse.json({ detail: 'path is outside the browsable roots' }, { status: 403 })
+      }),
+    )
+    render(<PathPickerModal onPick={vi.fn()} onClose={() => {}} />)
+    await waitFor(() => expect(screen.getByText('dicoms')).toBeInTheDocument())
+
+    fireEvent.doubleClick(screen.getByText('dicoms'))   // slow: still awaiting `slow` above
+    fireEvent.doubleClick(screen.getByText('bids'))      // fast: resolves first
+    await waitFor(() => expect(screen.getByText('sub02')).toBeInTheDocument())
+
+    releaseSlow()
+    await new Promise((r) => setTimeout(r, 30))
+    // The listing must still be bids's — the stale dicoms response must not
+    // have landed on top of it.
+    expect(screen.getByText('sub02')).toBeInTheDocument()
+    expect(screen.queryByText('README.txt')).toBeNull()
+    expect(screen.getByText('/workspace/data/bids')).toBeInTheDocument()
   })
 })
 

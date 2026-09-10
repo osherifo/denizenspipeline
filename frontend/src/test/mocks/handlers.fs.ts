@@ -31,6 +31,11 @@ export const fsHandlers = [
         { name: 'ses1', path: '/workspace/data/dicoms/sub01/ses1', is_dir: true },
       ], truncated: false })
     }
+    if (p === '/workspace/data/bids') {
+      return HttpResponse.json({ path: p, parent: '/workspace/data', entries: [
+        { name: 'sub02', path: '/workspace/data/bids/sub02', is_dir: true },
+      ], truncated: false })
+    }
     // Matches the real backend: listing a file 400s (only a directory can be listed).
     if (p === '/workspace/data/dicoms/README.txt') {
       return HttpResponse.json({ detail: `not a directory: ${p}` }, { status: 400 })
