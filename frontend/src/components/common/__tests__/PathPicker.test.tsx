@@ -51,6 +51,27 @@ describe('PathPickerModal roots', () => {
   })
 })
 
+describe("PathPickerModal mode='any'", () => {
+  it('lets either a file or a folder be picked', async () => {
+    const onPick = vi.fn()
+    render(<PathPickerModal initialPath="/workspace/data/dicoms" mode="any" onPick={onPick} onClose={() => {}} />)
+    await waitFor(() => expect(screen.getByText('README.txt')).toBeInTheDocument())
+    expect(screen.getByText('Choose a file or folder')).toBeInTheDocument()
+
+    // a file can be selected and picked (unlike plain 'dir' mode, where files are inert)
+    fireEvent.click(screen.getByText('README.txt'))
+    fireEvent.click(screen.getByText('Use selected'))
+    expect(onPick).toHaveBeenCalledWith('/workspace/data/dicoms/README.txt')
+
+    // a folder can also be selected and picked (unlike plain 'file' mode, which
+    // disables the pick button once a directory is selected)
+    onPick.mockClear()
+    fireEvent.click(screen.getByText('sub01'))
+    fireEvent.click(screen.getByText('Use selected'))
+    expect(onPick).toHaveBeenCalledWith('/workspace/data/dicoms/sub01')
+  })
+})
+
 describe('PathField', () => {
   it('warns when the server cannot see a typed path', async () => {
     const onChange = vi.fn()

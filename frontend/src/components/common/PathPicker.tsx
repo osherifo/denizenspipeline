@@ -25,7 +25,9 @@ function fmtSize(n?: number): string {
 
 interface PickerProps {
   initialPath?: string
-  mode?: 'dir' | 'file'
+  /** 'dir' restricts to folders, 'file' to files; 'any' lets either be picked
+   *  (for a generic path parameter that may name either). */
+  mode?: 'dir' | 'file' | 'any'
   onPick: (path: string) => void
   onClose: () => void
 }
@@ -63,13 +65,13 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
     return () => { cancelled = true }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pickValue = selected ?? (mode === 'dir' ? path : null)
+  const pickValue = selected ?? (mode !== 'file' ? path : null)
 
   return (
     <div style={backdrop} onClick={onClose}>
       <div style={card} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-          <b>Choose a {mode === 'dir' ? 'directory' : 'file'}</b>
+          <b>Choose a {mode === 'dir' ? 'directory' : mode === 'any' ? 'file or folder' : 'file'}</b>
           <span style={{ flex: 1 }} />
           {/* Only extra roots (FMRIFLOW_BROWSE_ROOTS) get a shortcut: the data root is
               where the picker opens and ↑ up walks it, but an extra root lives elsewhere
@@ -81,7 +83,7 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
           <button style={btn} disabled={!parent} onClick={() => parent && open(parent)}>↑ up</button>
           <code style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{path ?? ''}</code>
-          {mode === 'dir' && path && (
+          {mode !== 'file' && path && (
             <button
               style={btn}
               title="create a new folder here"
@@ -107,6 +109,7 @@ export function PathPickerModal({ initialPath, mode = 'dir', onPick, onClose }: 
               {entries.filter((e) => e.is_dir).length} folders · {entries.filter((e) => !e.is_dir).length} files
               {truncated ? ' · listing capped, more not shown' : ''}
               {mode === 'dir' ? ' · pick a folder; files are shown for orientation only' : ''}
+              {mode === 'any' ? ' · pick a file or a folder' : ''}
             </div>
           )}
           {entries.map((e) => (
@@ -150,7 +153,7 @@ interface FieldProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
-  mode?: 'dir' | 'file'
+  mode?: 'dir' | 'file' | 'any'
   style?: CSSProperties
   /** Check whether the server can see a typed path and show a hint. */
   checkExists?: boolean

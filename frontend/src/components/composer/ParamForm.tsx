@@ -276,7 +276,7 @@ function FieldInput({
           onChange={(v) => onChange(v)}
           style={pathInputStyle}
           compact
-          mode={type === 'dir' ? 'dir' : 'file'}
+          mode={type === 'dir' ? 'dir' : type === 'path' ? 'any' : 'file'}
           placeholder="/path/to/..."
           list={listId}
         />
