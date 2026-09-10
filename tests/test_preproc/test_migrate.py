@@ -14,7 +14,7 @@ from fmriflow.preproc.node_registry import NodeRegistry
 
 
 def _reg():
-    return NodeRegistry(user_dirs=[]).discover()
+    return NodeRegistry(include_parked=True, user_dirs=[]).discover()
 
 
 def test_stack_preset_becomes_a_linear_pipeline():

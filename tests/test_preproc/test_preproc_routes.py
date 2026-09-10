@@ -17,6 +17,7 @@ nipype = pytest.importorskip("nipype")
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("FMRIFLOW_INCLUDE_PARKED_NODES", "1")
     install_parked_nodes(tmp_path / "home")
     from fmriflow.server.app import create_app
     app = create_app()

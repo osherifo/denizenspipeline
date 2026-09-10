@@ -28,7 +28,7 @@ def fixture_pipeline(name: str):
 
 @pytest.fixture(scope="module")
 def registry():
-    return NodeRegistry(user_dirs=[PARKED_DIR]).discover()
+    return NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR]).discover()
 
 
 @pytest.fixture
@@ -137,7 +137,7 @@ def test_composite_node_is_embedded_and_wired(registry, tmp_path):
                 return wf
             def to_manifest(self, config, outputs): return None
     '''))
-    reg = NodeRegistry(user_dirs=[PARKED_DIR, nodes_dir]).discover()
+    reg = NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR, nodes_dir]).discover()
     src = tmp_path / "in.nii.gz"
     nib.save(nib.Nifti1Image(np.zeros((2, 2, 2, 2), dtype="float32"), np.eye(4)), src)
     pipeline = Pipeline(

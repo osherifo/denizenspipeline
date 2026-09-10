@@ -26,11 +26,12 @@ from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 @pytest.fixture
 def manager(tmp_path, monkeypatch):
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("FMRIFLOW_INCLUDE_PARKED_NODES", "1")
     install_parked_nodes(tmp_path / "home")
     return PreprocRunManager(
         run_registry=RunRegistry(root=tmp_path / "runs"),
         pipeline_store=PipelineStore(tmp_path / "configs"),
-        node_registry=NodeRegistry(user_dirs=[PARKED_DIR]).discover(),
+        node_registry=NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR]).discover(),
     )
 
 

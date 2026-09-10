@@ -102,7 +102,7 @@ def test_pipeline_level_check_runs_on_an_interface_node(tmp_path, monkeypatch):
     deriv = tmp_path / "deriv" / "sub-01" / "func"; deriv.mkdir(parents=True)
     _nifti(deriv / "sub-01_task-x_run-1_desc-preproc_bold.nii.gz")
     (deriv / "sub-01_task-x_run-1_desc-confounds_timeseries.tsv").write_text("trans_x\n" + "0.1\n" * 6)
-    registry = NodeRegistry(user_dirs=[]).discover()
+    registry = NodeRegistry(include_parked=True, user_dirs=[]).discover()
     pipeline = Pipeline(name="p", inputs={"derivatives_dir": {"kind": "dir"}, "subject": {"kind": "str"}}, nodes=[
         PipelineNode(id="source", type="derivatives_source", kind="source", bindings={"derivatives_dir": "$inputs.derivatives_dir", "subject": "$inputs.subject"}),
         PipelineNode(id="smooth", type="smooth", kind="interface", params={"fwhm": 2.0}, iter={"handle": "in_file"},
@@ -121,6 +121,7 @@ def test_pipeline_level_check_runs_on_an_interface_node(tmp_path, monkeypatch):
 
 
 def test_checks_routes(tmp_path, monkeypatch):
+    monkeypatch.setenv("FMRIFLOW_INCLUDE_PARKED_NODES", "1")
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
     nm._user_cache = None
     from fmriflow.server.app import create_app
@@ -173,6 +174,7 @@ def file_size(path: Path):
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("FMRIFLOW_INCLUDE_PARKED_NODES", "1")     # these routes run smooth pipelines
     ck.load_addon_metrics(reload=True)
     yield tmp_path / "home"
     ck.load_addon_metrics(reload=True)
@@ -280,7 +282,7 @@ def test_default_allow_list_keeps_three_checks_live(monkeypatch):
     c = ck.Check.from_dict({"step": "bold_spikes", "artifact": "{node_dir}/x", "metric": "nifti_stats", "norms": {"hard": {"n_trs": [">", 1]}}})
     assert [x.step for x in ck.resolve_checks(SmoothTransform, [c.to_dict()], {})] == ["bold_spikes"]
     # the metric list follows: only the metrics behind the live checks (+ user metrics)
-    reg = NodeRegistry(user_dirs=[]).discover()
+    reg = NodeRegistry(include_parked=True, user_dirs=[]).discover()
     assert ck.active_metric_names(reg) == {"output_file", "phasediff_delta_te"}
 
 

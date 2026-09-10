@@ -38,6 +38,7 @@ tier's imports, infer the source of pre-existing registrations from
 from __future__ import annotations
 
 import importlib
+import os
 import importlib.util
 import logging
 import pkgutil
@@ -266,15 +267,29 @@ def _infer_source(cls: type, pip_modules: dict[str, str]) -> NodeSource:
 
 # ── Registry ───────────────────────────────────────────────────────
 
+# Built-in nodes kept out of the library until they earn their place (no pipeline
+# uses them). They still register and their tests still run; a registry built
+# with ``include_parked=True`` (or ``FMRIFLOW_INCLUDE_PARKED_NODES=1``) lists them.
+PARKED_NODE_NAMES: frozenset[str] = frozenset({
+    "smooth", "regress_confounds", "physio_estimate", "manifest_source",
+})
+
+
+def _include_parked_default() -> bool:
+    return os.environ.get("FMRIFLOW_INCLUDE_PARKED_NODES", "").strip().lower() in ("1", "true", "yes")
+
+
 @dataclass
 class NodeRegistry:
     """Discovers and serves the node library.
 
     ``user_dirs`` defaults to ``$FMRIFLOW_HOME/addons/{nodes,workflows,transforms}``;
     tests pass explicit paths to stay out of the developer's real home.
+    ``include_parked`` keeps the built-ins in :data:`PARKED_NODE_NAMES` in the library.
     """
 
     user_dirs: list[Path] | None = None
+    include_parked: bool | None = None
     _entries: dict[str, _Entry] = field(default_factory=dict)
     _shadowed: list[tuple[str, NodeSource]] = field(default_factory=list)
     _pip_modules: dict[str, str] = field(default_factory=dict)
@@ -288,6 +303,11 @@ class NodeRegistry:
         self._discover_builtin()
         self._discover_entry_points()
         self._discover_user_dirs()
+        keep = self.include_parked if self.include_parked is not None else _include_parked_default()
+        if not keep:
+            for name in list(self._entries):
+                if name in PARKED_NODE_NAMES and self._entries[name].source == "built-in":
+                    del self._entries[name]
         return self
 
     def _claim_diff(self, pre: dict[str, type], source: NodeSource) -> None:

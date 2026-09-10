@@ -85,7 +85,7 @@ node on the graph opens its work directory, where a container app's own output i
 
 The editor is the graph: click a node in the palette to add it, drag from an output
 port to an input port to connect, Backspace deletes the selection. A plain chain such as
-*fmriprep → smooth → regress confounds* is just a graph with one edge per node.
+*fmriprep → physio regressors → physio clean* is just a graph with one edge per port.
 
 Every path you type in the Build tab has a **…** button next to it that opens the
 server-side directory browser: the Run panel's `output_dir`, `bids_dir`,
@@ -100,7 +100,7 @@ For each node the side panel shows:
 
 - **Inputs** — each input port is either connected (an edge), bound to a pipeline input
   (`$inputs.bids_dir`), or given a literal value. **×N** on a port makes the node
-  iterate over the list arriving there (one nipype `MapNode` per item — e.g. smooth
+  iterate over the list arriving there (one nipype `MapNode` per item — e.g. clean
   every BOLD run).
 - **Parameters** — a schema-driven form, grouped when the node declares groups.
 - **Manifest role** — which node's outputs define the manifest (★), and which port
@@ -108,10 +108,12 @@ For each node the side panel shows:
 
 **Validate** checks ports, kinds, doubly fed inputs and cycles before you run.
 
-The shipped templates are the fmriprep ones (plus `fmriprep_physio`, fmriprep followed by physio correction). Anything else — smoothing or
-confound regression on derivatives produced elsewhere (`derivatives_source` →
-`smooth` → `regress_confounds`), or a nipype workflow you import as a composite node —
-is built from the palette and saved as a pipeline of your own.
+The shipped templates are the fmriprep ones (plus `fmriprep_physio`, fmriprep followed by physio correction). Anything else — a nipype
+workflow you import as a composite node, or a node of your own — is built from the
+palette and saved as a pipeline of your own. The library is deliberately small at the
+moment: a few built-in nodes (`smooth`, `regress_confounds`, `physio_estimate`,
+`manifest_source`, and several others) are parked until a pipeline needs them; set
+`FMRIFLOW_INCLUDE_PARKED_NODES=1` to list them again.
 
 ### Your own templates
 
@@ -253,9 +255,8 @@ response:
 
 ## Confound regression
 
-Either put a `regress_confounds` node in the pipeline (it takes the confounds TSV on its
-`confounds_file` port and regresses the chosen columns out per voxel), or apply
-regression when the analysis pipeline loads the data:
+Apply regression when the analysis pipeline loads the data (a `regress_confounds`
+preprocessing node exists but is parked, see above):
 
 ```yaml
 response:

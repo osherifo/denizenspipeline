@@ -31,7 +31,7 @@ def test_stage_config_with_inline_pipeline_runs(tmp_path, monkeypatch):
     install_parked_nodes(tmp_path / "home")
     mgr = PreprocRunManager(run_registry=RunRegistry(root=tmp_path / "runs"),
                             pipeline_store=PipelineStore(tmp_path / "cfg"),
-                            node_registry=NodeRegistry(user_dirs=[PARKED_DIR]).discover())
+                            node_registry=NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR]).discover())
     src = tmp_path / "in.nii.gz"
     nib.save(nib.Nifti1Image(np.zeros((2, 2, 2, 2), dtype="float32"), np.eye(4)), src)
     cfg = tmp_path / "stage.yaml"

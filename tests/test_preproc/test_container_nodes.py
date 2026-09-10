@@ -150,7 +150,7 @@ def _tiny_nifti(tmp_path: Path) -> Path:
 
 
 def test_registry_lists_the_three_container_apps():
-    reg = NodeRegistry(user_dirs=[PARKED_DIR]).discover()
+    reg = NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR]).discover()
     assert {"fmriprep", "bids_app", "custom_shell"} <= set(reg.names())
     assert all(reg.kind(n) == "container_app" for n in ("fmriprep", "bids_app", "custom_shell"))
 

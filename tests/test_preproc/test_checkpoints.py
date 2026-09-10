@@ -172,7 +172,7 @@ def test_abort_on_bad_terminates_the_app(tmp_path):
 
 @pytest.fixture(scope="module")
 def registry():
-    return NodeRegistry(user_dirs=[PARKED_DIR]).discover()
+    return NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR]).discover()
 
 
 def _chain(tmp_path):
@@ -216,7 +216,7 @@ class Flat:
         nib.save(nib.Nifti1Image(np.ones((2, 2, 2), dtype="float32"), np.eye(4)), p)
         return {"out_file": p}
 ''')
-    reg = NodeRegistry(user_dirs=[PARKED_DIR, nodes_dir]).discover()
+    reg = NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR, nodes_dir]).discover()
     src = tmp_path / "in.nii.gz"
     nib.save(nib.Nifti1Image(np.ones((2, 2, 2, 2), dtype="float32"), np.eye(4)), src)
     pipeline = Pipeline(name="ab", nodes=[PipelineNode(id="f", type="flat3d", literal_inputs={"in_file": str(src)})], manifest={})

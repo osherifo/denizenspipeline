@@ -35,7 +35,7 @@ def test_build_function_file_becomes_a_composite_node(tmp_path):
     assert node_file == dest / "my_clean.py"
     assert (dest / "_my_clean_source.py").exists()
 
-    reg = NodeRegistry(user_dirs=[dest]).discover()
+    reg = NodeRegistry(include_parked=True, user_dirs=[dest]).discover()
     assert reg.kind("my_clean") == "composite" and reg.source("my_clean") == "user"
     ins, outs = reg.ports("my_clean")
     assert set(ins) == {"t1w"} and set(outs) == {"cleaned"}

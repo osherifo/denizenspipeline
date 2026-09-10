@@ -16,7 +16,7 @@ def test_expected_templates_exist():
 
 @pytest.mark.parametrize("name", sorted(EXPECTED))
 def test_template_validates(name):
-    reg = NodeRegistry(user_dirs=[]).discover()
+    reg = NodeRegistry(include_parked=True, user_dirs=[]).discover()
     p = load_template(name)
     assert p.validate(reg) == []
     assert p.manifest.get("backend_node")

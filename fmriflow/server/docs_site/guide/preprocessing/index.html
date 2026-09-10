@@ -1598,7 +1598,7 @@ node on the graph opens its work directory, where a container app's own output i
 <h2 id="workflow-2-build-a-pipeline">Workflow 2: build a pipeline<a class="headerlink" href="#workflow-2-build-a-pipeline" title="Permanent link">&para;</a></h2>
 <p>The editor is the graph: click a node in the palette to add it, drag from an output
 port to an input port to connect, Backspace deletes the selection. A plain chain such as
-<em>fmriprep → smooth → regress confounds</em> is just a graph with one edge per node.</p>
+<em>fmriprep → physio regressors → physio clean</em> is just a graph with one edge per port.</p>
 <p>Every path you type in the Build tab has a <strong>…</strong> button next to it that opens the
 server-side directory browser: the Run panel's <code>output_dir</code>, <code>bids_dir</code>,
 <code>derivatives_dir</code> and <code>work_dir</code>, any node input port that names a directory or
@@ -1611,17 +1611,19 @@ path the server cannot see gets a warning under the field; bindings such as
 <ul>
 <li><strong>Inputs</strong> — each input port is either connected (an edge), bound to a pipeline input
   (<code>$inputs.bids_dir</code>), or given a literal value. <strong>×N</strong> on a port makes the node
-  iterate over the list arriving there (one nipype <code>MapNode</code> per item — e.g. smooth
+  iterate over the list arriving there (one nipype <code>MapNode</code> per item — e.g. clean
   every BOLD run).</li>
 <li><strong>Parameters</strong> — a schema-driven form, grouped when the node declares groups.</li>
 <li><strong>Manifest role</strong> — which node's outputs define the manifest (★), and which port
   the manifest's BOLD files should point at (<code>bold from</code>).</li>
 </ul>
 <p><strong>Validate</strong> checks ports, kinds, doubly fed inputs and cycles before you run.</p>
-<p>The shipped templates are the fmriprep ones (plus <code>fmriprep_physio</code>, fmriprep followed by physio correction). Anything else — smoothing or
-confound regression on derivatives produced elsewhere (<code>derivatives_source</code> →
-<code>smooth</code> → <code>regress_confounds</code>), or a nipype workflow you import as a composite node —
-is built from the palette and saved as a pipeline of your own.</p>
+<p>The shipped templates are the fmriprep ones (plus <code>fmriprep_physio</code>, fmriprep followed by physio correction). Anything else — a nipype
+workflow you import as a composite node, or a node of your own — is built from the
+palette and saved as a pipeline of your own. The library is deliberately small at the
+moment: a few built-in nodes (<code>smooth</code>, <code>regress_confounds</code>, <code>physio_estimate</code>,
+<code>manifest_source</code>, and several others) are parked until a pipeline needs them; set
+<code>FMRIFLOW_INCLUDE_PARKED_NODES=1</code> to list them again.</p>
 <h3 id="your-own-templates">Your own templates<a class="headerlink" href="#your-own-templates" title="Permanent link">&para;</a></h3>
 <p><strong>Save as template</strong> in the Build toolbar keeps the current graph as a starting point
 of your own. It lands in <code>$FMRIFLOW_HOME/addons/pipelines/&lt;name&gt;.yaml</code> and shows up in
@@ -1740,9 +1742,8 @@ exposes a module-level <code>Workflow</code>. It becomes a composite node with t
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">mask_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">thick</span>
 </code></pre></div>
 <h2 id="confound-regression">Confound regression<a class="headerlink" href="#confound-regression" title="Permanent link">&para;</a></h2>
-<p>Either put a <code>regress_confounds</code> node in the pipeline (it takes the confounds TSV on its
-<code>confounds_file</code> port and regresses the chosen columns out per voxel), or apply
-regression when the analysis pipeline loads the data:</p>
+<p>Apply regression when the analysis pipeline loads the data (a <code>regress_confounds</code>
+preprocessing node exists but is parked, see above):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">response</span><span class="p">:</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">loader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preproc</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">manifest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manifest.json</span>

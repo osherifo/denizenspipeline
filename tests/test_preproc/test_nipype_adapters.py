@@ -27,7 +27,7 @@ from fmriflow.preproc.nodes._parked import PARKED_DIR  # noqa: E402
 
 @pytest.fixture(scope="module")
 def registry():
-    return NodeRegistry(user_dirs=[PARKED_DIR]).discover()
+    return NodeRegistry(include_parked=True, user_dirs=[PARKED_DIR]).discover()
 
 
 @pytest.fixture

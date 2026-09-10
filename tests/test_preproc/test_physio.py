@@ -236,7 +236,7 @@ def test_clean_rejects_mismatched_weights(tmp_path):
 @pytest.fixture
 def registry():
     from fmriflow.preproc.node_registry import NodeRegistry
-    return NodeRegistry(user_dirs=[]).discover()
+    return NodeRegistry(include_parked=True, user_dirs=[]).discover()
 
 
 def test_nodes_registered_with_checks(registry):

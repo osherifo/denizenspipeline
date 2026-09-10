@@ -13,6 +13,7 @@ from fmriflow.server.services.run_registry import RunStateFile
 @pytest.fixture
 def app_with_fmriprep_run(tmp_path, monkeypatch):
     monkeypatch.setenv("FMRIFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("FMRIFLOW_INCLUDE_PARKED_NODES", "1")
     from fmriflow.server.app import create_app
 
     wf = "p__sub_01"
