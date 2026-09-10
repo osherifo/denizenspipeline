@@ -14,9 +14,17 @@ export const VERDICT_COLORS: Record<string, string> = {
 // `contain: inline-size` makes the cards invisible to layout above this box, so the
 // box is exactly as wide as its parent and the row scrolls inside it.
 const host: CSSProperties = { width: '100%', minWidth: 0, maxWidth: '100%', overflow: 'hidden', contain: 'inline-size' }
-const strip: CSSProperties = { display: 'flex', gap: 8, overflowX: 'auto', overflowY: 'hidden', padding: '6px 2px', width: '100%', boxSizing: 'border-box' }
+// Cards wrap into rows inside a box as wide as the graph above; past a few rows the
+// box scrolls vertically, so a run with a hundred checkpoints stays a fixed-size panel.
+const strip: CSSProperties = {
+  display: 'flex', flexWrap: 'wrap', alignContent: 'flex-start', gap: 8, padding: '6px 2px',
+  width: '100%', boxSizing: 'border-box', maxHeight: 340, overflowY: 'auto', overflowX: 'hidden',
+  border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)',
+}
+const CARD_W = 200
 const frame = (verdict: string, open: boolean): CSSProperties => ({
-  minWidth: 150, flexShrink: 0, border: `1px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`, borderTop: `4px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`,
+  width: CARD_W, flex: `0 0 ${CARD_W}px`, minWidth: 0, boxSizing: 'border-box',
+  border: `1px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`, borderTop: `4px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`,
   borderRadius: 6, background: 'var(--bg-card)', padding: 8, fontSize: 11, cursor: 'pointer',
   boxShadow: open ? `0 0 8px ${VERDICT_COLORS[verdict]}66` : undefined,
 })
@@ -53,7 +61,7 @@ export function CheckpointFilmstrip({ runId, checkpoints, nodeFilter }: Props) {
         {rows.map(({ cp, i }) => (
           <div key={i} style={frame(cp.verdict, open === i)} onClick={() => setOpen(open === i ? null : i)} title={cp.reasons.join('\n')}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-              <span style={{ fontWeight: 700 }}>{cp.step}</span>
+              <span style={{ fontWeight: 700, minWidth: 0, overflowWrap: 'anywhere' }}>{cp.step}</span>
               <span style={{ color: VERDICT_COLORS[cp.verdict], fontWeight: 700, textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5 }}>{cp.verdict}</span>
             </div>
             <div style={{ color: 'var(--text-secondary)', fontSize: 10, marginBottom: 4 }}>{cp.node.split('.').slice(-1)[0]}</div>
