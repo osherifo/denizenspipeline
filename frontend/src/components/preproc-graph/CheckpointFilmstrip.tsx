@@ -11,8 +11,10 @@ export const VERDICT_COLORS: Record<string, string> = {
 // The strip scrolls inside its host instead of widening it: the host gets
 // minWidth 0 (a grid/flex child otherwise sizes to the cards' total width)
 // and the cards refuse to shrink so they stay readable.
-const host: CSSProperties = { minWidth: 0, maxWidth: '100%' }
-const strip: CSSProperties = { display: 'flex', gap: 8, overflowX: 'auto', padding: '6px 2px' }
+// `contain: inline-size` makes the cards invisible to layout above this box, so the
+// box is exactly as wide as its parent and the row scrolls inside it.
+const host: CSSProperties = { width: '100%', minWidth: 0, maxWidth: '100%', overflow: 'hidden', contain: 'inline-size' }
+const strip: CSSProperties = { display: 'flex', gap: 8, overflowX: 'auto', overflowY: 'hidden', padding: '6px 2px', width: '100%', boxSizing: 'border-box' }
 const frame = (verdict: string, open: boolean): CSSProperties => ({
   minWidth: 150, flexShrink: 0, border: `1px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`, borderTop: `4px solid ${VERDICT_COLORS[verdict] ?? '#9ca3af'}`,
   borderRadius: 6, background: 'var(--bg-card)', padding: 8, fontSize: 11, cursor: 'pointer',
