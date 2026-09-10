@@ -218,7 +218,7 @@ export function DicomScanner() {
               </thead>
               <tbody>
                 {scanResult.series.map((s) => (
-                  <tr key={s.number}>
+                  <tr key={s.series_instance_uid || s.number}>
                     <td style={tdStyle}>{cell(s.number)}</td>
                     <td style={tdStyle}>{cell(s.description)}</td>
                     <td style={tdStyle}>{cell(s.n_images)}</td>

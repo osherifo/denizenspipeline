@@ -598,6 +598,8 @@ export interface ConvertRunRecord {
 
 export interface DicomSeriesInfo {
   number: number
+  /** SeriesInstanceUID — the real identity; `number` alone repeats across studies/sessions. */
+  series_instance_uid: string
   description: string
   n_images: number
   modality?: string | null

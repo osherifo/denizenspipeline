@@ -24,9 +24,16 @@ class SeriesInfo:
     Every field except ``n_images`` is a DICOM attribute read verbatim
     from the series' own first file (so a directory holding sessions from
     different scanners reports each correctly); nothing is inferred.
+
+    ``series_instance_uid`` is what actually identifies a series — DICOM
+    only guarantees ``SeriesNumber`` is unique *within one study*, and a
+    directory scanned here may hold several studies/sessions that each
+    restart their own numbering (the exact case this scan is meant to
+    surface, e.g. two sessions both containing a "series 3").
     """
 
     number: int          # SeriesNumber
+    series_instance_uid: str  # SeriesInstanceUID (0020,000E) — the real identity
     description: str     # SeriesDescription
     n_images: int        # files counted in the series
     modality: str | None = None      # Modality (0008,0060)
@@ -102,11 +109,14 @@ def list_series(
         return []
 
     root = Path(dicom_dir)
-    series: dict[int, dict] = {}  # series_number → {description, count}
+    series: dict[str, dict] = {}  # series_instance_uid → {number, description, count, ...}
 
-    # Tags we need: SeriesNumber (0020,0011), SeriesDescription (0008,103E),
-    # plus the scanner identity for the first file of each series.
+    # Tags we need: SeriesInstanceUID (0020,000E) is the real per-series key —
+    # SeriesNumber is only unique *within one study*, and this directory may
+    # hold several. SeriesNumber, SeriesDescription (0008,103E), plus the
+    # scanner identity, are read from the first file of each series.
     T = pydicom.tag.Tag
+    SERIES_UID_TAG = T(0x0020, 0x000E)
     SERIES_NUMBER_TAG = T(0x0020, 0x0011)
     SERIES_DESC_TAG = T(0x0008, 0x103E)
     SCANNER_TAGS = [
@@ -132,12 +142,18 @@ def list_series(
         try:
             ds = pydicom.dcmread(
                 dcm_path, stop_before_pixels=True,
-                specific_tags=[SERIES_NUMBER_TAG, SERIES_DESC_TAG, *SCANNER_TAGS],
+                specific_tags=[SERIES_UID_TAG, SERIES_NUMBER_TAG, SERIES_DESC_TAG, *SCANNER_TAGS],
             )
+            uid = getattr(ds, "SeriesInstanceUID", None)
             num = int(getattr(ds, "SeriesNumber", 0))
+            # Fall back to (SeriesNumber, first file's directory) when a file is
+            # somehow missing the UID — keeps series from different studies apart
+            # even without one, instead of silently merging on SeriesNumber alone.
+            key = str(uid) if uid else f"num-{num}:{dcm_path.parent}"
             desc = getattr(ds, "SeriesDescription", "unknown")
-            if num not in series:
-                series[num] = {
+            if key not in series:
+                series[key] = {
+                    "number": num, "series_instance_uid": str(uid) if uid else "",
                     "description": str(desc), "count": 0,
                     "modality": _as_str(getattr(ds, "Modality", None)),
                     "image_type": _as_str(getattr(ds, "ImageType", None)),
@@ -150,7 +166,7 @@ def list_series(
                     "study_date": _as_str(getattr(ds, "StudyDate", None)),
                     "protocol_name": _as_str(getattr(ds, "ProtocolName", None)),
                 }
-            series[num]["count"] += 1
+            series[key]["count"] += 1
             dicoms_seen += 1
         except Exception:
             continue
@@ -158,10 +174,14 @@ def list_series(
         on_progress({"files_seen": files_seen, "dicoms_seen": dicoms_seen, "series_found": len(series), "current_dir": str(root)})
 
     results = []
-    for num in sorted(series):
-        info = series[num]
+    # Numeric SeriesNumber first (the familiar order within a session), study
+    # date and UID break ties between series from different studies/sessions
+    # that share a number.
+    for key in sorted(series, key=lambda k: (series[k]["number"], series[k].get("study_date") or "", k)):
+        info = series[key]
         results.append(SeriesInfo(
-            number=num,
+            number=info["number"],
+            series_instance_uid=info["series_instance_uid"],
             description=info["description"],
             n_images=info["count"],
             modality=info.get("modality"), image_type=info.get("image_type"),
