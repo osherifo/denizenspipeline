@@ -15,7 +15,7 @@ def test_copy_config_keeps_body_and_description_under_a_new_name(tmp_path):
     data = yaml.safe_load((tmp_path / "convert" / "second.yaml").read_text())
     assert data["convert"] == {"subject": "01", "heuristic": "h", "bids_dir": "/b"}
     assert data["_meta"]["name"] == "second" and data["_meta"]["description"] == "first"
-    assert data["_meta"]["created"] != yaml.safe_load((tmp_path / "convert" / "orig.yaml").read_text())["_meta"]["created"] or True
+    assert data["_meta"]["created"] != yaml.safe_load((tmp_path / "convert" / "orig.yaml").read_text())["_meta"]["created"]
     # the original is untouched
     assert yaml.safe_load((tmp_path / "convert" / "orig.yaml").read_text())["_meta"]["name"] == "orig"
 
