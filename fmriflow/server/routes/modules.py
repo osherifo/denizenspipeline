@@ -10,7 +10,12 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from fmriflow.orchestrator import ALL_STAGES
+from fmriflow.core.stages import (
+    GROUP_MODULE_STAGES,
+    STAGE_MODULE_CATEGORIES,
+    STUDY_MODULE_STAGES,
+    SUBJECT_STAGES as ALL_STAGES,
+)
 from fmriflow.server.routes import _registry
 
 
@@ -33,19 +38,6 @@ STAGE_DESCRIPTIONS = {
     'study_report': 'Study-level reports (HTML, combined figures)',
 }
 
-STAGE_MODULE_CATEGORIES = {
-    'stimuli': ['stimulus_loaders'],
-    'responses': ['response_loaders', 'response_readers'],
-    'features': ['feature_extractors', 'feature_sources'],
-    'prepare': ['preparers', 'preparation_steps'],
-    'model': ['models'],
-    'analyze': ['analyzers'],
-    'report': ['reporters'],
-    'group_analyze': ['group_analyzers'],
-    'group_report': ['group_reporters'],
-    'study_analyze': ['study_analyzers'],
-    'study_report': ['study_reporters'],
-}
 
 STAGE_COLORS = {
     'stimuli': '#00e5ff',
@@ -66,8 +58,8 @@ STAGE_COLORS = {
 # ``groups_fanout``) that are orchestrator-only — they hold no
 # user-pluggable modules and are intentionally omitted from
 # /api/stages so the module browser doesn't show empty columns.
-GROUP_STAGES = ['group_analyze', 'group_report']
-STUDY_STAGES = ['study_analyze', 'study_report']
+GROUP_STAGES = list(GROUP_MODULE_STAGES)
+STUDY_STAGES = list(STUDY_MODULE_STAGES)
 
 # stage_name → ``'subject' | 'group' | 'study'`` — drives the
 # scope-tab filter in the frontend ModuleBrowser.

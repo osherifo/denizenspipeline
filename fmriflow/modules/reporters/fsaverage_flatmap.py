@@ -78,20 +78,7 @@ class FsaverageFlatmapReporter:
 # ─── shared helpers ────────────────────────────────────────────
 
 
-def _resolve_key(ctx, key: str) -> Any | None:
-    # Try literal full-key first (analyzers commonly put under 'analysis.foo'),
-    # then fall back to attribute walking ('result.scores' → ModelResult.scores).
-    if ctx.has(key):
-        return ctx.get(key)
-    parts = key.split(".")
-    if not ctx.has(parts[0]):
-        return None
-    obj = ctx.get(parts[0])
-    for part in parts[1:]:
-        if obj is None:
-            return None
-        obj = obj.get(part) if isinstance(obj, dict) else getattr(obj, part, None)
-    return obj
+from fmriflow.core.context_keys import resolve_context_key as _resolve_key  # noqa: E402
 
 
 def _render_fsaverage_png(*, data: np.ndarray, output_dir: Path, filename: str,

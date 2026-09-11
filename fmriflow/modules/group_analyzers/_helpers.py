@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fmriflow.context import PipelineContext
+from fmriflow.core.context_keys import resolve_context_key
 
 
 def resolve_subject_key(ctx: PipelineContext | None, key: str) -> Any | None:
@@ -22,24 +23,7 @@ def resolve_subject_key(ctx: PipelineContext | None, key: str) -> Any | None:
     This helper tries (1) first, then falls back to (2). Returns ``None`` if
     neither path resolves.
     """
-    if ctx is None:
-        return None
-    # 1. Literal full-key lookup
-    if ctx.has(key):
-        return ctx.get(key)
-    # 2. Attribute / dict-item walk from the first segment
-    parts = key.split(".")
-    if not ctx.has(parts[0]):
-        return None
-    obj: Any = ctx.get(parts[0])
-    for part in parts[1:]:
-        if obj is None:
-            return None
-        if isinstance(obj, dict):
-            obj = obj.get(part)
-        else:
-            obj = getattr(obj, part, None)
-    return obj
+    return resolve_context_key(ctx, key)
 
 
 def my_cfg(config: dict, name: str) -> dict:

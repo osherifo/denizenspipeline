@@ -62,9 +62,7 @@ def _import_joblib():
 # Stages the orchestrator can hand off to dump(). The literal names are
 # the same as the orchestrator's stage names so configs can request
 # them by stage. ``True`` in ``save:`` expands to this set.
-SAVEABLE_STAGES: tuple[str, ...] = (
-    'stimuli', 'responses', 'features', 'prepare', 'model',
-)
+from fmriflow.core.stages import SAVEABLE_STAGES  # noqa: E402,F401
 
 _LZ4_WARNED = False
 

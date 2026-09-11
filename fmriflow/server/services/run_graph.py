@@ -121,15 +121,12 @@ def _plugin_source(registry: ModuleRegistry, kind: str,
 # ── subject (7-stage) graph ────────────────────────────────────────────
 
 
-SUBJECT_STAGES = [
-    ('stimuli', 'Stimuli'),
-    ('responses', 'Responses'),
-    ('features', 'Features'),
-    ('prepare', 'Prepare'),
-    ('model', 'Model'),
-    ('analyze', 'Analyze'),
-    ('report', 'Report'),
-]
+from fmriflow.core.stages import (  # noqa: E402
+    STAGE_LABELS as _STAGE_LABELS,
+    SUBJECT_STAGES as _SUBJECT_STAGE_NAMES,
+)
+
+SUBJECT_STAGES = [(s, _STAGE_LABELS[s]) for s in _SUBJECT_STAGE_NAMES]
 
 
 def _stage_status(stage_records: list, name: str) -> tuple[str, float | None, str]:
