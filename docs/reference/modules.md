@@ -53,6 +53,7 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | `preproc` | Load from a PreprocManifest (fmriprep outputs) |
 | `nsd` | Single-trial GLM betas (one pseudo-run per session), masked to an ROI and scaled; carries the 3-D ROI mask for surface reporters |
 | `algonauts2023` | Algonauts 2023 fsaverage-surface fMRI (LH+RH `.npy` concatenated to a 2-D matrix); carries a seeded validation split (`split.test_trials: val`) and fsaverage vertex masks for surface reporters |
+| `train_val_hdf` | Per-subject training/validation HDF5 files (`{subject}_{modality}_fmri_data_{split}.hdf`, one `(time, voxels)` dataset per story; repeated stories `(repeats, time, voxels)` averaged, first, or kept as `<story>_rep<N>`); `drop_last_trs` drops end-of-run TRs that the features don't cover; records each run's split and the subject's mapper file in metadata. Pair with the `grouped_hdf` feature source and `split.test_runs` for the validation stories |
 
 ## Preparers
 

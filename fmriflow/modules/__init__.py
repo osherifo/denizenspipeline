@@ -25,6 +25,7 @@ def register_builtins(registry):
     import fmriflow.modules.response_loaders.algonauts2023  # noqa: F401
     import fmriflow.modules.response_loaders.readers  # noqa: F401
     import fmriflow.modules.response_loaders.multiphase_hdf  # noqa: F401
+    import fmriflow.modules.response_loaders.train_val_hdf  # noqa: F401
     try:
         import fmriflow.modules.response_loaders.study_hdf  # noqa: F401
     except ImportError:
