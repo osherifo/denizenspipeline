@@ -652,6 +652,45 @@ def describe() -> dict[str, str]:
     return out
 
 
+def pycortex_store() -> dict[str, object]:
+    """Where pycortex will look for subjects, resolved the way pycortex does.
+
+    pycortex reads ``filestore`` from its package ``defaults.cfg`` and then the
+    user's ``pycortex/options.cfg`` (``$XDG_CONFIG_HOME`` or ``~/.config``).
+    Resolved without importing ``cortex``, which is slow.
+    """
+    import configparser
+    import importlib.util
+
+    spec = importlib.util.find_spec("cortex")
+    if spec is None or not spec.origin:
+        return {"installed": False}
+    pkg_dir = Path(spec.origin).parent
+    appdirs_spec = importlib.util.spec_from_file_location("_pycortex_appdirs", pkg_dir / "appdirs.py")
+    appdirs = importlib.util.module_from_spec(appdirs_spec)
+    appdirs_spec.loader.exec_module(appdirs)
+    config_file = Path(appdirs.user_data_dir("pycortex", "JamesGao")) / "options.cfg"
+
+    cfg = configparser.ConfigParser()
+    cfg.read(pkg_dir / "defaults.cfg")
+    from_user = bool(cfg.read(config_file)) and cfg.has_option("basic", "filestore")
+    if cfg.has_option("basic", "filestore"):
+        filestore = Path(cfg.get("basic", "filestore"))
+    else:
+        filestore = (pkg_dir.parent / "filestore" / "db").resolve()
+    subjects = sorted(d.name for d in filestore.iterdir() if d.is_dir()) if filestore.is_dir() else []
+    return {
+        "installed": True,
+        "filestore": str(filestore),
+        "filestore_exists": filestore.is_dir(),
+        "config_file": str(config_file),
+        "config_exists": config_file.is_file(),
+        "source": "user config" if from_user else "pycortex default",
+        "n_subjects": len(subjects),
+        "subjects": subjects,
+    }
+
+
 def settings_snapshot() -> dict[str, object]:
     """Return a structured view for the Settings UI.
 
@@ -692,4 +731,8 @@ def settings_snapshot() -> dict[str, object]:
             snapshot["subjects_db_count"] = len([k for k in obj if not k.startswith("_")])
         except Exception:
             snapshot["subjects_db_count"] = None
+    try:
+        snapshot["pycortex"] = pycortex_store()
+    except Exception as exc:
+        snapshot["pycortex"] = {"installed": True, "error": str(exc)}
     return snapshot

@@ -401,6 +401,45 @@ export function Settings() {
                 : 'not present'}
             </td>
           </tr>
+          {snapshot.pycortex && (
+            snapshot.pycortex.installed === false ? (
+              <tr>
+                <td style={resolvedKey}>pycortex_store</td>
+                <td style={resolvedTd}>pycortex not installed</td>
+              </tr>
+            ) : snapshot.pycortex.error ? (
+              <tr>
+                <td style={resolvedKey}>pycortex_store</td>
+                <td style={resolvedTd}>could not resolve: {snapshot.pycortex.error}</td>
+              </tr>
+            ) : (
+              <>
+                <tr>
+                  <td style={resolvedKey}>pycortex_store</td>
+                  <td style={resolvedTd}>
+                    {snapshot.pycortex.filestore}
+                    {snapshot.pycortex.filestore_exists
+                      ? ` (${snapshot.pycortex.n_subjects} subjects)`
+                      : ' (missing)'}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={resolvedKey}>pycortex_config</td>
+                  <td style={resolvedTd}>
+                    {snapshot.pycortex.config_file}
+                    {snapshot.pycortex.config_exists ? '' : ' (not created yet)'}
+                    {` — store from ${snapshot.pycortex.source}; edit the filestore line and restart to change it`}
+                  </td>
+                </tr>
+                {!!snapshot.pycortex.subjects?.length && (
+                  <tr>
+                    <td style={resolvedKey}>pycortex_subjects</td>
+                    <td style={resolvedTd}>{snapshot.pycortex.subjects.join(', ')}</td>
+                  </tr>
+                )}
+              </>
+            )
+          )}
         </tbody>
       </table>
 

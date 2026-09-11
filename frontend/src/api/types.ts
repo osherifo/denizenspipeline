@@ -943,8 +943,22 @@ export interface SettingsSnapshot {
   license_file_exists: boolean
   subjects_db_exists: boolean
   subjects_db_count?: number | null
+  pycortex?: PycortexStore
   restart_required?: boolean
   created?: string[]
+}
+
+/** Where pycortex looks for subjects (resolved like pycortex does). */
+export interface PycortexStore {
+  installed: boolean
+  error?: string
+  filestore?: string
+  filestore_exists?: boolean
+  config_file?: string
+  config_exists?: boolean
+  source?: 'user config' | 'pycortex default'
+  n_subjects?: number
+  subjects?: string[]
 }
 
 export type SettingsUpdate = Partial<Record<SettingsKey, string>> & {
