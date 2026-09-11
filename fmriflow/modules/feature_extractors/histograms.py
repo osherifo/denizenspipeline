@@ -17,7 +17,7 @@ from fmriflow.modules._decorators import feature_extractor
 
 # ARPAbet phoneme set (39 phonemes)
 ARPABET_PHONEMES = [
-    'AA', 'AE', 'sub20', 'AO', 'AW', 'AY', 'B', 'CH', 'D', 'DH',
+    'AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'B', 'CH', 'D', 'DH',
     'EH', 'ER', 'EY', 'F', 'G', 'HH', 'IH', 'IY', 'JH', 'K',
     'L', 'M', 'N', 'NG', 'OW', 'OY', 'P', 'R', 'S', 'SH',
     'T', 'TH', 'UH', 'UW', 'V', 'W', 'Y', 'Z', 'ZH',
@@ -125,7 +125,7 @@ class PhonemeHistogramExtractor:
             # Build per-phoneme histograms
             embeddings = np.zeros((len(phonseq.data), self.n_dims))
             for i, phone in enumerate(phonseq.data):
-                # Strip stress markers (e.g., 'AH0' -> 'sub20')
+                # Strip stress markers (e.g., 'AH0' -> 'AH')
                 p = str(phone).strip().upper().rstrip('012')
                 if p in phone_to_idx:
                     embeddings[i, phone_to_idx[p]] = 1.0

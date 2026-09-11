@@ -36,7 +36,7 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 
 | Module | Description |
 |--------|-------------|
-| `textgrid` | Load from Praat TextGrid files (long, short, and chronological formats) |
+| `textgrid` | Load from Praat TextGrid files (long, short, and chronological formats). Without TR report files, `n_trs` (per run) and `tr` synthesize evenly spaced triggers; `sound_start` (or per-run `sound_starts`) sets the seconds from the first trigger to stimulus onset, e.g. silence before a story; `file_suffix` strips a suffix such as `_en` from file names |
 | `audio` | Load audio (.wav) stimulus files |
 | `video` | Load video stimulus files (metadata only) |
 | `nsd` | Per-trial image references for an event-related image-viewing dataset (emits one image sequence per session) |

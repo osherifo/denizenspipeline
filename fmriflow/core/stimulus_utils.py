@@ -217,7 +217,7 @@ def parse_grid(grid, remove_bad_words=False, replace_bad_words=True,
         Parsed transcript entries.
     """
     if bad_words is None:
-        bad_words = {"", "sp", "SIL", "{SL}", "{sub23}", "{NS}", "{BR}", "{CG}"}
+        bad_words = {"", "sp", "SIL", "{SL}", "{LG}", "{NS}", "{BR}", "{CG}"}
 
     # Get word tier (typically tier index 1)
     word_tier = grid.tiers[1] if len(grid.tiers) > 1 else grid.tiers[0]

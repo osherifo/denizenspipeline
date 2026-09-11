@@ -22,16 +22,27 @@ from fmriflow.modules._decorators import stimulus_loader
 class _SyntheticTRFile:
     """Stand-in TRFile with evenly spaced trigger times.
 
-    Used when no .report files exist (e.g. reading experiments where
-    TRs are uniform).  Requires ``n_trs`` and ``tr`` in the stimulus
-    config.
+    Used when no .report files exist.  Requires ``n_trs`` and ``tr`` in the
+    stimulus config.  ``sound_start`` is when the stimulus starts, in seconds
+    after the first trigger; trigger times are returned relative to it, as
+    :meth:`TRFile.get_reltriggertimes` does.
     """
 
-    def __init__(self, n_trs: int, tr: float = 2.0):
-        self._times = np.arange(n_trs) * tr
+    def __init__(self, n_trs: int, tr: float = 2.0, sound_start: float = 0.0):
+        self.expectedtr = float(tr)
+        self.soundstarttime = float(sound_start)
+        self.trtimes = np.arange(n_trs) * self.expectedtr
 
     def get_reltriggertimes(self):
-        return self._times
+        return self.trtimes - self.soundstarttime
+
+    @property
+    def avgtr(self):
+        return self.expectedtr
+
+    @property
+    def n_trs(self):
+        return len(self.trtimes)
 
 
 @stimulus_loader("textgrid")
@@ -60,6 +71,11 @@ class TextGridStimulusLoader:
         this per-run TR count.  Keys are run names, values are ints.
     tr : float, optional
         TR duration in seconds for synthetic triggers (default 2.0).
+    sound_start : float, optional
+        Seconds from the first synthetic trigger to stimulus onset (default 0),
+        e.g. the silence before a story starts.
+    sound_starts : dict[str, float], optional
+        Per-run ``sound_start`` overrides.
     """
 
     name = "textgrid"
@@ -73,6 +89,8 @@ class TextGridStimulusLoader:
         "trfile_subject": {"type": "string", "description": "Match TRFiles per-subject"},
         "n_trs": {"type": "dict", "description": "Synthetic TR counts per run (run_name → int)"},
         "tr": {"type": "float", "default": 2.0, "min": 0.1, "description": "TR duration in seconds for synthetic triggers"},
+        "sound_start": {"type": "float", "default": 0.0, "description": "Seconds from the first synthetic trigger to stimulus onset"},
+        "sound_starts": {"type": "dict", "description": "Per-run sound_start overrides (run_name → seconds)"},
     }
 
     def load(self, config: dict) -> StimulusData:
@@ -125,9 +143,12 @@ class TextGridStimulusLoader:
         # Synthesize TRFiles for any grid that has no matching .report
         n_trs_map = stim_cfg.get('n_trs', {})
         tr = stim_cfg.get('tr', 2.0)
+        sound_start = stim_cfg.get('sound_start', 0.0) or 0.0
+        sound_starts = stim_cfg.get('sound_starts') or {}
         for run_name in grids:
             if run_name not in trfiles and run_name in n_trs_map:
-                trfiles[run_name] = _SyntheticTRFile(n_trs_map[run_name], tr)
+                trfiles[run_name] = _SyntheticTRFile(
+                    n_trs_map[run_name], tr, sound_starts.get(run_name, sound_start))
 
         runs = {}
         for run_name in grids:
