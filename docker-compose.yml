@@ -31,6 +31,7 @@ services:
       - "8421:8421"
     environment:
       FMRIFLOW_HOME: /workspace
+      # PYCORTEX_FILESTORE: /workspace/pycortex   # default; pycortex subjects + transforms
       # Optional: uncomment to put $FMRIFLOW_DATA on a separate disk.
       # FMRIFLOW_DATA: /data
       FS_LICENSE: /workspace/secrets/freesurfer-license.txt

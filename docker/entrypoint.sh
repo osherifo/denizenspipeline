@@ -8,7 +8,10 @@
 #     so bind-mounted files don't end up root-owned on the host.
 #  3. Join the host docker socket's group, when one is mounted, so
 #     fmriprep can be launched as a sibling container.
-#  4. chown /workspace when its ownership is wrong, then drop
+#  4. Point pycortex at a store inside the workspace
+#     ($PYCORTEX_FILESTORE, default $FMRIFLOW_HOME/pycortex), so imported
+#     subjects and transforms survive container recreation.
+#  5. chown /workspace when its ownership is wrong, then drop
 #     privileges with gosu and exec the CMD under PID 1 (tini).
 
 set -euo pipefail
@@ -59,6 +62,20 @@ if [ "$(id -u)" = "0" ]; then
     # Materialise the $FMRIFLOW_HOME layout if the bind mount is
     # empty on first boot. ``fmriflow init`` is idempotent.
     gosu fmriflow fmriflow init >/dev/null 2>&1 || true
+
+    # pycortex reads its store from ~/.config/pycortex/options.cfg. That file
+    # lives in the container, not the workspace, and pycortex's own default is
+    # a store inside the image, so point it into the workspace on every start.
+    pycortex_store="${PYCORTEX_FILESTORE:-${FMRIFLOW_HOME:-/workspace}/pycortex}"
+    pycortex_cfg="$(getent passwd fmriflow | cut -d: -f6)/.config/pycortex/options.cfg"
+    mkdir -p "$pycortex_store" "$(dirname "$pycortex_cfg")"
+    if [ -f "$pycortex_cfg" ] && grep -q '^filestore' "$pycortex_cfg"; then
+        sed -i "s|^filestore *=.*|filestore = ${pycortex_store}|" "$pycortex_cfg"
+    else
+        printf '[basic]\nfilestore = %s\n' "$pycortex_store" > "$pycortex_cfg"
+    fi
+    chown fmriflow:fmriflow "$pycortex_store" 2>/dev/null || true
+    chown -R fmriflow:fmriflow "$(dirname "$(dirname "$pycortex_cfg")")" 2>/dev/null || true
 
     # Only recurse when ownership is actually wrong. $FMRIFLOW_HOME
     # holds the data subtree and can be hundreds of GB; walking all of

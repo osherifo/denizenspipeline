@@ -156,6 +156,18 @@ FS_LICENSE_TEXT="abc123\nyou@example.com\n0001\n..."
 The entrypoint writes it to `$FMRIFLOW_HOME/secrets/freesurfer-license.txt`
 on first boot.
 
+## Pycortex subjects
+
+Flatmap reporters and pycortex transforms read subjects from the pycortex
+*filestore*. The container points pycortex at `$FMRIFLOW_HOME/pycortex/`
+(`/workspace/pycortex` inside the container) on every start, so imported subjects and
+transforms live in your working directory and survive rebuilds. Put existing pycortex
+subject folders there, or import new ones with Autoflatten.
+
+To use another location, set `PYCORTEX_FILESTORE` in the compose `environment:` block
+to a path visible inside the container (for example a bind-mounted store). The
+**Settings** page shows the store pycortex is using and the subjects in it.
+
 ## Browsing other locations
 
 Path fields in the UI can **Browse…** the server's filesystem, but only under the data
