@@ -250,6 +250,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
+def _report_run_error(exc: BaseException) -> None:
+    """Send a run's fatal error, with traceback, to the events stream the web UI reads."""
+    import traceback as _traceback
+    ui.emit_event({
+        "event": "run_error",
+        "error": f"{type(exc).__name__}: {exc}",
+        "traceback": "".join(_traceback.format_exception(type(exc), exc, exc.__traceback__)),
+    })
+
+
 def _cmd_run(args) -> int:
     """Run the pipeline."""
     from fmriflow.pipeline import Pipeline
@@ -258,6 +268,7 @@ def _cmd_run(args) -> int:
         pipeline = Pipeline.from_yaml(args.config)
     except Exception as e:
         ui.error_panel(str(e))
+        _report_run_error(e)
         return 1
 
     # Override subject if specified
@@ -321,6 +332,7 @@ def _cmd_run(args) -> int:
         stage = getattr(e, 'stage', None)
         logger.error("Pipeline failed: %s", e, exc_info=True)
         ui.error_panel(str(e), stage=stage)
+        _report_run_error(e)
         ui.log_hint(str(log_path))
         if logger.isEnabledFor(logging.DEBUG):
             ui.console.print_exception()
@@ -341,6 +353,7 @@ def _cmd_run_group(args) -> int:
         group_config = load_group_config(args.config)
     except Exception as e:
         ui.error_panel(str(e))
+        _report_run_error(e)
         return 1
 
     registry = ModuleRegistry()
@@ -366,6 +379,7 @@ def _cmd_run_group(args) -> int:
     except Exception as e:
         ui.error_panel(str(e))
         logger.error("Group run failed: %s", e, exc_info=True)
+        _report_run_error(e)
         return 1
 
     ok = len(result.subjects_by_status('ok'))
@@ -389,6 +403,7 @@ def _cmd_run_study(args) -> int:
         study_config = load_study_config(args.config)
     except Exception as e:
         ui.error_panel(str(e))
+        _report_run_error(e)
         return 1
 
     registry = ModuleRegistry()
@@ -414,6 +429,7 @@ def _cmd_run_study(args) -> int:
     except Exception as e:
         ui.error_panel(str(e))
         logger.error("Study run failed: %s", e, exc_info=True)
+        _report_run_error(e)
         return 1
 
     n_groups = len(result.groups)

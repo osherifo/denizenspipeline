@@ -196,6 +196,11 @@ export interface RunEvent {
   log_tail?: string
   log_path?: string
   traceback?: string
+  // node_fail events: which plugin failed (its error is in `error`)
+  node_id?: string
+  name?: string
+  // run_failed events: isolated plugin failures that happened earlier in the run
+  node_errors?: Array<{ node: string; error: string }>
 }
 
 // ── Module Editor types ──

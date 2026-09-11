@@ -107,6 +107,10 @@ function formatEventLine(event: RunEvent): string {
     }
     case 'run_failed':
       return `\u2717 Run failed: ${event.error || ''}`
+    case 'run_error':
+      return `\u2717 ${event.error || 'error'}`
+    case 'node_fail':
+      return `\u2717 ${event.node_id || event.name || 'module'}: ${event.error || 'failed'}`
     case 'log':
       return event.message || ''
     case 'started':
@@ -357,7 +361,8 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
        *  run_failed event, since failures often happen before
        *  run_summary.json is written and completedRun stays null. */}
       {isFailed && (() => {
-        const failed = events.slice().reverse().find((e) => e.event === 'run_failed')
+        const failures = events.filter((e) => e.event === 'run_failed')
+        const failed = failures.slice().reverse().find((e) => e.log_tail || e.traceback) ?? failures[failures.length - 1]
         const tail = failed?.log_tail || completedRun?.log_tail || ''
         const tb = failed?.traceback || ''
         const path = failed?.log_path || ''
@@ -395,7 +400,7 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
               // node_* events are emitted per-plugin and surface in
               // the live graph viewer; in this textual log they'd
               // just spam the column.
-              .filter((e) => !e.event.startsWith('node_'))
+              .filter((e) => !e.event.startsWith('node_') || e.event === 'node_fail')
               .map((event, i) => (
               <div key={i} style={eventLine}>
                 <span style={{ color: 'var(--text-secondary)', marginRight: 8 }}>
@@ -403,7 +408,8 @@ export function LiveProgress({ runId, events, stageStatuses, startTime, complete
                 </span>
                 <span style={{
                   color:
-                    event.event === 'stage_fail' || event.event === 'run_failed' ? 'var(--accent-red)' :
+                    event.event === 'stage_fail' || event.event === 'run_failed' ||
+                    event.event === 'run_error' || event.event === 'node_fail' ? 'var(--accent-red)' :
                     event.event === 'stage_done' || event.event === 'run_done' ? 'var(--accent-green)' :
                     event.event === 'stage_start' ? 'var(--accent-cyan)' :
                     'var(--text-secondary)',

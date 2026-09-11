@@ -45,14 +45,17 @@ async def run_websocket(websocket: WebSocket, run_id: str):
         for event in final_events:
             await websocket.send_json(event)
 
-        # Send terminal event
-        if handle.status == 'done':
-            await websocket.send_json({'event': 'run_done'})
-        elif handle.status == 'failed':
-            await websocket.send_json({
-                'event': 'run_failed',
-                'error': handle.error,
-            })
+        # Send a terminal event only if the run manager didn't already push one:
+        # a second, bare run_failed would replace the one carrying the log tail.
+        already_final = any(e.get('event') in ('run_done', 'run_failed') for e in handle.events)
+        if not already_final:
+            if handle.status == 'done':
+                await websocket.send_json({'event': 'run_done'})
+            elif handle.status == 'failed':
+                await websocket.send_json({
+                    'event': 'run_failed',
+                    'error': handle.error,
+                })
 
     except WebSocketDisconnect:
         pass

@@ -692,6 +692,12 @@ class RunManager:
                     events_tailer.start()
 
                 proc.wait()
+                # Drain both tailers before finalizing: the final status ends the
+                # dashboard stream, and the last log lines hold the traceback.
+                if tailer is not None:
+                    tailer.stop_and_join(timeout=10.0)
+                if events_tailer is not None:
+                    events_tailer.stop_and_join(timeout=10.0)
                 self._finalize_from_output(handle, proc.returncode)
             finally:
                 if tailer is not None:
@@ -1311,13 +1317,45 @@ def _apply_summary_to_handle(
         else:
             handle.error = 'pipeline ended in an unknown state'
 
+    run_error, node_errors = _failure_events(getattr(handle, 'events_path', None))
+    if run_error and (summary is None or not handle.error):
+        handle.error = run_error.get('error') or handle.error
+    if node_errors and handle.error:
+        first = node_errors[0]
+        handle.error = f"{handle.error} (earlier failure: {first['node']}: {first['error']})"
+
     handle.push_event({
         'event': 'run_failed',
         'error': handle.error,
         'elapsed': now - handle.started_at,
         'log_tail': _read_tail(handle.log_path, n=200),
         'log_path': handle.log_path,
+        'traceback': (run_error or {}).get('traceback'),
+        'node_errors': node_errors,
     })
+
+
+def _failure_events(events_path: str | None) -> tuple[dict | None, list[dict]]:
+    """The last ``run_error`` event and every ``node_fail`` from a run's events.jsonl."""
+    run_error: dict | None = None
+    node_errors: list[dict] = []
+    if not events_path or not Path(events_path).is_file():
+        return run_error, node_errors
+    try:
+        with open(events_path, encoding='utf-8', errors='replace') as f:
+            for line in f:
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue
+                if ev.get('event') == 'run_error':
+                    run_error = ev
+                elif ev.get('event') == 'node_fail':
+                    node_errors.append({'node': ev.get('node_id') or ev.get('name') or '?',
+                                        'error': ev.get('error') or 'failed'})
+    except OSError:
+        pass
+    return run_error, node_errors
 
 
 # Known pipeline stages, in pipeline execution order.
