@@ -106,6 +106,50 @@ includes `qa_reporters` as a first-class creatable category: pick
 the category, pick the stage, name the module, and you land in the
 Monaco editor with a working template scaffold.
 
+## Modules as graph nodes
+
+Every module is also a node type for analysis graphs. The node type id is the category and the module
+name, so modules with the same name in different categories stay distinct:
+
+| Module category | Node type id | Inputs | Outputs |
+|---|---|---|---|
+| Stimulus loader | `stimulus_loader:<name>` | none | `stimuli` (StimulusData) |
+| Response loader | `response_loader:<name>` | none | `responses` (ResponseData) |
+| Feature extractor | `feature_extractor:<name>` | `stimuli`, optional `responses` | `feature` (FeatureSet) |
+| Feature source | `feature_source:<name>` | optional `stimuli`, optional `responses` | `feature` (FeatureSet) |
+| Preparer | `preparer:<name>` | `responses`, `features` (FeatureData) | `prepared` (PreparedData) |
+| Model | `model:<name>` | `prepared` | `result` (ModelResult) |
+| Analyzer | `analyzer:<name>` | `context`, several allowed | `context` |
+| Reporter | `reporter:<name>` | `context`, several allowed | `artifacts` |
+| QA reporter | `qa_reporter:<stage>.<name>` | `value` (the stage's data) | `artifacts` |
+| Group analyzer / reporter | `group_analyzer:<name>`, `group_reporter:<name>` | `group` | `group`, `artifacts` |
+| Study analyzer / reporter | `study_analyzer:<name>`, `study_reporter:<name>` | `groups`, `study` | `study`, `artifacts` |
+
+Existing modules need no changes. Each node receives its own parameters: the module sees a config in
+which only its own section (for example `analysis: [{name, params}]` or `reporting.<name>`) holds that
+node's values, so the same module can appear several times with different settings.
+
+Utility nodes connect the pieces: `utility:bundle_features` combines feature spaces in connection order,
+`utility:collect_context` places stage outputs under the context keys analyzers and reporters read
+(`result`, `prepared`, ...), and `utility:pick` takes one value out of a context.
+
+A module can instead declare its ports and a `run` method directly:
+
+```python
+@analyzer("scaled_scores")
+class ScaledScores:
+    """Multiply the prediction scores."""
+    name = "scaled_scores"
+    INPUTS = {"result": {"type": "ModelResult", "required": True}}
+    OUTPUTS = {"scores": {"type": "Array"}}
+    PARAM_SCHEMA = {"factor": {"type": "float", "default": 1.0}}
+
+    def run(self, inputs, params, env):
+        return {"scores": inputs["result"].scores * params["factor"]}
+```
+
+The node catalog and port types are served at `GET /api/analysis/nodes` and `GET /api/analysis/port-types`.
+
 ## Built-ins
 
 These ship out of the box (see `fmriflow/modules/` for the source).

@@ -735,6 +735,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#modules-as-graph-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modules as graph nodes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#built-ins" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1362,6 +1373,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#modules-as-graph-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modules as graph nodes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#built-ins" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1559,6 +1581,106 @@ failure-isolated — one raising doesn't kill the pipeline.</p>
 includes <code>qa_reporters</code> as a first-class creatable category: pick
 the category, pick the stage, name the module, and you land in the
 Monaco editor with a working template scaffold.</p>
+<h2 id="modules-as-graph-nodes">Modules as graph nodes<a class="headerlink" href="#modules-as-graph-nodes" title="Permanent link">&para;</a></h2>
+<p>Every module is also a node type for analysis graphs. The node type id is the category and the module
+name, so modules with the same name in different categories stay distinct:</p>
+<table>
+<thead>
+<tr>
+<th>Module category</th>
+<th>Node type id</th>
+<th>Inputs</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stimulus loader</td>
+<td><code>stimulus_loader:&lt;name&gt;</code></td>
+<td>none</td>
+<td><code>stimuli</code> (StimulusData)</td>
+</tr>
+<tr>
+<td>Response loader</td>
+<td><code>response_loader:&lt;name&gt;</code></td>
+<td>none</td>
+<td><code>responses</code> (ResponseData)</td>
+</tr>
+<tr>
+<td>Feature extractor</td>
+<td><code>feature_extractor:&lt;name&gt;</code></td>
+<td><code>stimuli</code>, optional <code>responses</code></td>
+<td><code>feature</code> (FeatureSet)</td>
+</tr>
+<tr>
+<td>Feature source</td>
+<td><code>feature_source:&lt;name&gt;</code></td>
+<td>optional <code>stimuli</code>, optional <code>responses</code></td>
+<td><code>feature</code> (FeatureSet)</td>
+</tr>
+<tr>
+<td>Preparer</td>
+<td><code>preparer:&lt;name&gt;</code></td>
+<td><code>responses</code>, <code>features</code> (FeatureData)</td>
+<td><code>prepared</code> (PreparedData)</td>
+</tr>
+<tr>
+<td>Model</td>
+<td><code>model:&lt;name&gt;</code></td>
+<td><code>prepared</code></td>
+<td><code>result</code> (ModelResult)</td>
+</tr>
+<tr>
+<td>Analyzer</td>
+<td><code>analyzer:&lt;name&gt;</code></td>
+<td><code>context</code>, several allowed</td>
+<td><code>context</code></td>
+</tr>
+<tr>
+<td>Reporter</td>
+<td><code>reporter:&lt;name&gt;</code></td>
+<td><code>context</code>, several allowed</td>
+<td><code>artifacts</code></td>
+</tr>
+<tr>
+<td>QA reporter</td>
+<td><code>qa_reporter:&lt;stage&gt;.&lt;name&gt;</code></td>
+<td><code>value</code> (the stage's data)</td>
+<td><code>artifacts</code></td>
+</tr>
+<tr>
+<td>Group analyzer / reporter</td>
+<td><code>group_analyzer:&lt;name&gt;</code>, <code>group_reporter:&lt;name&gt;</code></td>
+<td><code>group</code></td>
+<td><code>group</code>, <code>artifacts</code></td>
+</tr>
+<tr>
+<td>Study analyzer / reporter</td>
+<td><code>study_analyzer:&lt;name&gt;</code>, <code>study_reporter:&lt;name&gt;</code></td>
+<td><code>groups</code>, <code>study</code></td>
+<td><code>study</code>, <code>artifacts</code></td>
+</tr>
+</tbody>
+</table>
+<p>Existing modules need no changes. Each node receives its own parameters: the module sees a config in
+which only its own section (for example <code>analysis: [{name, params}]</code> or <code>reporting.&lt;name&gt;</code>) holds that
+node's values, so the same module can appear several times with different settings.</p>
+<p>Utility nodes connect the pieces: <code>utility:bundle_features</code> combines feature spaces in connection order,
+<code>utility:collect_context</code> places stage outputs under the context keys analyzers and reporters read
+(<code>result</code>, <code>prepared</code>, ...), and <code>utility:pick</code> takes one value out of a context.</p>
+<p>A module can instead declare its ports and a <code>run</code> method directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nd">@analyzer</span><span class="p">(</span><span class="s2">&quot;scaled_scores&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">ScaledScores</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Multiply the prediction scores.&quot;&quot;&quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;scaled_scores&quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">INPUTS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ModelResult&quot;</span><span class="p">,</span> <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}}</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">OUTPUTS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;scores&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;Array&quot;</span><span class="p">}}</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">PARAM_SCHEMA</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;factor&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;float&quot;</span><span class="p">,</span> <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">}}</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;scores&quot;</span><span class="p">:</span> <span class="n">inputs</span><span class="p">[</span><span class="s2">&quot;result&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">scores</span> <span class="o">*</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;factor&quot;</span><span class="p">]}</span>
+</code></pre></div>
+<p>The node catalog and port types are served at <code>GET /api/analysis/nodes</code> and <code>GET /api/analysis/port-types</code>.</p>
 <h2 id="built-ins">Built-ins<a class="headerlink" href="#built-ins" title="Permanent link">&para;</a></h2>
 <p>These ship out of the box (see <code>fmriflow/modules/</code> for the source).</p>
 <p><strong>Feature sources:</strong> <code>compute</code>, <code>filesystem</code>, <code>cloud</code>, <code>grouped_hdf</code>,
@@ -1608,21 +1730,21 @@ are not built in — they load as user addon modules from
 <code>$FMRIFLOW_HOME/addons/modules/</code>.</p>
 <h2 id="param_schema">PARAM_SCHEMA<a class="headerlink" href="#param_schema" title="Permanent link">&para;</a></h2>
 <p>Define discoverable parameters with <code>PARAM_SCHEMA</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">PARAM_SCHEMA</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="s2">&quot;window_size&quot;</span><span class="p">:</span> <span class="p">{</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;int&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Sliding window size in TRs&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="p">},</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="s2">&quot;model_name&quot;</span><span class="p">:</span> <span class="p">{</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>        <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="s2">&quot;bert-base-uncased&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>        <span class="s2">&quot;enum&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;bert-base-uncased&quot;</span><span class="p">,</span> <span class="s2">&quot;bert-large-uncased&quot;</span><span class="p">],</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;HuggingFace model name&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="p">},</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">PARAM_SCHEMA</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="s2">&quot;window_size&quot;</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;int&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Sliding window size in TRs&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="p">},</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="s2">&quot;model_name&quot;</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>        <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="s2">&quot;bert-base-uncased&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="s2">&quot;enum&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;bert-base-uncased&quot;</span><span class="p">,</span> <span class="s2">&quot;bert-large-uncased&quot;</span><span class="p">],</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;HuggingFace model name&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="p">},</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="p">}</span>
 </code></pre></div>
 <p>The schema is used by the web UI to auto-generate parameter forms and by <code>validate_config()</code> for type checking.</p>
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from fmriflow.core.types import (
     FeatureData, PreparedData, PreparationState, ResponseData,
@@ -61,7 +62,18 @@ class PipelinePreparer:
 
             step = step_cls()
             logger.debug("Running preparation step: %s", step_name)
-            step.apply(state, params)
+            # Optional per-step callback (set by the graph engine to record
+            # real per-step timings): on_step(step_name, elapsed_s, error|None).
+            on_step = getattr(self, "on_step", None)
+            t0 = time.perf_counter()
+            try:
+                step.apply(state, params)
+            except Exception as exc:
+                if on_step is not None:
+                    on_step(step_name, time.perf_counter() - t0, exc)
+                raise
+            if on_step is not None:
+                on_step(step_name, time.perf_counter() - t0, None)
 
         return state.to_prepared_data()
 

@@ -166,6 +166,8 @@ def create_app(
     # /modules/user/{name} is matched before /modules/{category}/{name}
     app.include_router(editor_router, prefix="/api")
     app.include_router(module_router, prefix="/api")
+    from fmriflow.server.routes.analysis_nodes import router as analysis_nodes_router
+    app.include_router(analysis_nodes_router, prefix="/api")
     app.include_router(config_router, prefix="/api")
     app.include_router(run_router, prefix="/api")
     app.include_router(artifact_router, prefix="/api")
