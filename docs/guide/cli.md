@@ -16,9 +16,19 @@ fmriflow run experiment.yaml --resume-from features
 # Dry run (show what would execute)
 fmriflow run experiment.yaml --dry-run
 
+# Run on the node-graph engine instead of the stage orchestrator
+fmriflow run experiment.yaml --engine graph
+
 # Validate config without running
 fmriflow validate experiment.yaml
 ```
+
+### Engines
+
+`--engine graph` compiles the stage config into a graph of nodes, one per module, and runs it in-process.
+It writes the same run summary, events, intermediates and reports as the default stage orchestrator, plus
+`graph.json` with the executed graph. Set `FMRIFLOW_ENGINE=graph` to make it the default. The graph engine
+always runs the whole pipeline, so `--stages` and `--resume-from` still need `--engine legacy`.
 
 ## Group and study runs
 

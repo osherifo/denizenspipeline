@@ -598,6 +598,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#engines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1236,6 +1253,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#engines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1328,9 +1362,17 @@
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Dry run (show what would execute)</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>experiment.yaml<span class="w"> </span>--dry-run
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># Validate config without running</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>fmriflow<span class="w"> </span>validate<span class="w"> </span>experiment.yaml
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># Run on the node-graph engine instead of the stage orchestrator</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>experiment.yaml<span class="w"> </span>--engine<span class="w"> </span>graph
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># Validate config without running</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>fmriflow<span class="w"> </span>validate<span class="w"> </span>experiment.yaml
 </code></pre></div>
+<h3 id="engines">Engines<a class="headerlink" href="#engines" title="Permanent link">&para;</a></h3>
+<p><code>--engine graph</code> compiles the stage config into a graph of nodes, one per module, and runs it in-process.
+It writes the same run summary, events, intermediates and reports as the default stage orchestrator, plus
+<code>graph.json</code> with the executed graph. Set <code>FMRIFLOW_ENGINE=graph</code> to make it the default. The graph engine
+always runs the whole pipeline, so <code>--stages</code> and <code>--resume-from</code> still need <code>--engine legacy</code>.</p>
 <h2 id="group-and-study-runs">Group and study runs<a class="headerlink" href="#group-and-study-runs" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Run a group (subjects) or a study (groups)</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>fmriflow<span class="w"> </span>run-group<span class="w"> </span>group.yaml

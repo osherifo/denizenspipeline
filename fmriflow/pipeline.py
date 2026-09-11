@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fmriflow.config.loader import load_config
@@ -22,15 +23,18 @@ class Pipeline:
     >>> result = pipeline.run(stages=["features", "preprocess"])
     """
 
-    def __init__(self, config: dict, registry: ModuleRegistry | None = None):
+    def __init__(self, config: dict, registry: ModuleRegistry | None = None,
+                 engine: str | None = None):
         self.config = config
         self.registry = registry or ModuleRegistry()
         self.registry.discover()
+        self.engine = resolve_engine(engine)
         self.last_context: PipelineContext | None = None
 
     @classmethod
     def from_yaml(cls, path: str | Path,
-                  registry: ModuleRegistry | None = None) -> Pipeline:
+                  registry: ModuleRegistry | None = None,
+                  engine: str | None = None) -> Pipeline:
         """Create a Pipeline from a YAML config file.
 
         Parameters
@@ -45,7 +49,7 @@ class Pipeline:
         Pipeline
         """
         config = load_config(path)
-        return cls(config, registry=registry)
+        return cls(config, registry=registry, engine=engine)
 
     def run(self, stages: list[str] | None = None,
             resume_from: str | None = None,
@@ -66,6 +70,9 @@ class Pipeline:
         PipelineContext
             Context containing all outputs and artifacts.
         """
+        if self.engine == "graph":
+            return self._run_graph(stages, resume_from, context)
+
         orchestrator = PipelineOrchestrator(self.config, self.registry)
 
         if resume_from is not None:
@@ -84,3 +91,28 @@ class Pipeline:
         finally:
             self.last_context = orchestrator.ctx
         return ctx
+
+    def _run_graph(self, stages, resume_from, context) -> PipelineContext:
+        if stages is not None or resume_from is not None or context is not None:
+            raise ConfigError(
+                "the graph engine runs the whole pipeline; --stages, --resume-from "
+                "and continuing a context need --engine legacy")
+        from fmriflow.analysis.catalog import NodeCatalog
+        from fmriflow.analysis.executor import GraphExecutor, run_subject_config
+
+        executor = GraphExecutor(NodeCatalog(self.registry).discover())
+        try:
+            return run_subject_config(self.config, self.registry, write_graph=True, executor=executor)
+        finally:
+            self.last_context = executor.last_context
+
+
+ENGINES: tuple[str, ...] = ("legacy", "graph")
+
+
+def resolve_engine(engine: str | None = None) -> str:
+    """The engine to run with: the argument, else ``$FMRIFLOW_ENGINE``, else ``legacy``."""
+    value = (engine or os.environ.get("FMRIFLOW_ENGINE") or "legacy").strip().lower()
+    if value not in ENGINES:
+        raise ConfigError(f"unknown engine {value!r}; expected one of {', '.join(ENGINES)}")
+    return value

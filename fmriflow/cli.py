@@ -81,6 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         '--dry-run', action='store_true',
         help='Resolve config and show what would execute, without running',
     )
+    run_parser.add_argument(
+        '--engine', choices=['legacy', 'graph'], default=None,
+        help='Execution engine: legacy stage orchestrator or the node-graph '
+             'engine (default: $FMRIFLOW_ENGINE, else legacy)',
+    )
 
     # ── run-group ──
     rg_parser = subparsers.add_parser(
@@ -282,7 +287,8 @@ def _cmd_run(args) -> int:
     from fmriflow.pipeline import Pipeline
 
     try:
-        pipeline = Pipeline.from_yaml(args.config, registry=_build_registry())
+        pipeline = Pipeline.from_yaml(args.config, registry=_build_registry(),
+                                      engine=getattr(args, 'engine', None))
     except Exception as e:
         ui.error_panel(str(e))
         return 1
