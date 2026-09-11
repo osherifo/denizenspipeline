@@ -259,3 +259,9 @@ def test_resume_skips_already_ok_subjects(tmp_path, monkeypatch):
     s1 = next(sr for sr in result.subjects if sr.subject == 'S1')
     assert s1.context is None
     assert s1.status == 'ok'
+
+
+def test_validate_group_config_rejects_top_level_analysis(tmp_path):
+    cfg = _group_cfg(tmp_path, analysis=[{'name': 'project_to_subspace'}])
+    errors = validate_group_config(cfg)
+    assert any("subject_template" in e and "'analysis'" in e for e in errors)

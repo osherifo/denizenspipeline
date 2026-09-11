@@ -36,7 +36,13 @@ def common_subjects(
     """Index each group's subjects by name; return per-group dicts and
     the sorted list of subjects present in both with an in-memory
     context. Subjects without a context (resumed-from-disk runs) can't
-    be cross-correlated and are silently dropped."""
+    be cross-correlated; they are dropped with a warning naming them."""
+    dropped = sorted({sr.subject for sr in (*group_a.subjects, *group_b.subjects)
+                      if sr.context is None})
+    if dropped:
+        logger.warning(
+            "Left out of the cross-group comparison (no in-memory results, "
+            "resumed from disk): %s", ', '.join(dropped))
     a_by = {sr.subject: sr for sr in group_a.subjects if sr.context is not None}
     b_by = {sr.subject: sr for sr in group_b.subjects if sr.context is not None}
     return a_by, b_by, sorted(set(a_by) & set(b_by))

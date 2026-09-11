@@ -30,6 +30,7 @@ from fmriflow.core.run_summary import (
 from fmriflow.core.study_types import StudyResult
 from fmriflow.exceptions import ConfigError
 from fmriflow.group_orchestrator import GroupOrchestrator, _make_run_id
+from fmriflow.group_orchestrator import latest_run_id
 from fmriflow.orchestrator import _record
 from fmriflow.registry import ModuleRegistry
 
@@ -56,7 +57,7 @@ def _status_from_nodes(nodes: list[NodeRecord]) -> str:
     statuses = [n.status for n in nodes]
     n_failed = sum(1 for s in statuses if s == 'failed')
     if n_failed == 0:
-        return 'ok'
+        return 'warning' if 'warning' in statuses else 'ok'
     if n_failed == len(statuses):
         return 'failed'
     return 'warning'
@@ -171,6 +172,21 @@ class StudyOrchestrator:
         self.parent_dir, self.study_dir = self._resolve_study_dir()
         self.study: StudyResult = StudyResult(study_name=self.study_name)
         self._stage_records: list[StageRecord] = []
+
+    @classmethod
+    def resolve_resume_run_id(cls, study_config: dict) -> str | None:
+        """Run id of this study's most recent run, for ``run-study --resume``.
+
+        Group run directories are ``<study run>/groups/<label>/<run_id>__<label>``,
+        so reusing the study run id is what lets each group find its finished
+        subjects.
+        """
+        name = study_config.get('study') or study_config.get('study_name')
+        out = study_config.get('output_dir')
+        if not out and not name:
+            return None
+        parent = Path(out) if out else paths.study_runs_root() / name
+        return latest_run_id(parent)
 
     # ── public API ──────────────────────────────────────────────
 
@@ -514,12 +530,27 @@ class StudyOrchestrator:
                              analyzers: list[tuple[str, object]],
                              nodes: list[NodeRecord]) -> None:
         idgen = NodeIdGen('study_analyze')
+        missing = sorted(
+            f"{g.study_label or g.group_name}/{sr.subject}"
+            for g in self.study.groups for sr in g.subjects
+            if sr.context is None
+        )
+        if missing:
+            logger.warning(
+                "Study analyzers cannot use %d subject(s) without in-memory "
+                "results (resumed from disk): %s", len(missing), ', '.join(missing))
         for name, sa in analyzers:
             with _record(nodes, idgen, 'study_analyzer', name,
                          isolate=True) as rec:
                 try:
                     sa.analyze(self.study, self.config)
-                    rec.detail = 'ok'
+                    if missing:
+                        rec.status = 'warning'
+                        rec.detail = (
+                            f"{len(missing)} subject(s) without in-memory results "
+                            f"(resumed from disk) could not contribute: {', '.join(missing)}")
+                    else:
+                        rec.detail = 'ok'
                 except Exception as exc:
                     logger.error("Study analyzer '%s' failed: %s",
                                  name, exc, exc_info=True)

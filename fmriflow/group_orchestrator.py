@@ -130,6 +130,20 @@ class GroupOrchestrator:
         self.group: GroupResult = GroupResult(group_name=self.group_name)
         self._stage_records: list[StageRecord] = []
 
+    @classmethod
+    def resolve_resume_run_id(cls, group_config: dict) -> str | None:
+        """Run id of this group's most recent run, for ``run-group --resume``.
+
+        Without it a resumed run would get a fresh timestamped directory and
+        never find the subjects that already finished.
+        """
+        name = group_config.get('group') or group_config.get('group_name')
+        out = group_config.get('output_dir')
+        if not out and not name:
+            return None
+        parent = Path(out) if out else paths.group_runs_root() / name
+        return latest_run_id(parent)
+
     # ── public API ──────────────────────────────────────────────
 
     def run(self, resume: bool = False) -> GroupResult:
@@ -389,10 +403,21 @@ class GroupOrchestrator:
                              analyzers: list[tuple[str, object]],
                              nodes: list[NodeRecord]) -> None:
         idgen = NodeIdGen('group_analyze')
+        missing = [sr.subject for sr in self.group.subjects if sr.context is None]
+        if missing:
+            logger.warning(
+                "Group analyzers cannot use %d subject(s) without in-memory "
+                "results (resumed from disk): %s", len(missing), ', '.join(missing))
         for name, ga in analyzers:
             with _record(nodes, idgen, 'group_analyzer', name) as rec:
                 ga.analyze(self.group, self.config)
-                rec.detail = 'ok'
+                if missing:
+                    rec.status = 'warning'
+                    rec.detail = (
+                        f"{len(missing)} subject(s) without in-memory results "
+                        f"(resumed from disk) could not contribute: {', '.join(missing)}")
+                else:
+                    rec.detail = 'ok'
 
     # ── second pass ─────────────────────────────────────────────
 
@@ -420,6 +445,8 @@ class GroupOrchestrator:
             except Exception:
                 logger.error("Second pass failed for %s", sr.subject,
                              exc_info=True)
+            finally:
+                _merge_second_pass_summary(sr, ctx)
 
     # ── group_report ────────────────────────────────────────────
 
@@ -473,8 +500,9 @@ class GroupOrchestrator:
         try:
             out = fn(nodes) if capture_nodes else fn()
             elapsed = round(time.time() - t0, 3)
+            status = 'warning' if any(n.status == 'warning' for n in nodes) else 'ok'
             self._stage_records.append(StageRecord(
-                name=name, status='ok',
+                name=name, status=status,
                 elapsed_s=elapsed, detail='',
                 nodes=list(nodes),
             ))
@@ -503,6 +531,55 @@ class GroupOrchestrator:
 
 
 # ─── module helpers ─────────────────────────────────────────────
+
+def latest_run_id(parent: Path) -> str | None:
+    """Name of the most recent run directory under *parent*, or ``None``.
+
+    Prefers the ``latest`` symlink the orchestrators maintain; falls back to
+    the lexically greatest run directory (run ids are sortable UTC stamps).
+    Never creates directories.
+    """
+    parent = Path(parent)
+    if not parent.is_dir():
+        return None
+    link = parent / 'latest'
+    if link.is_symlink():
+        target = link.resolve()
+        if target.is_dir():
+            return target.name
+    runs = sorted(
+        p.name for p in parent.iterdir()
+        if p.is_dir() and not p.is_symlink() and p.name != 'latest'
+    )
+    return runs[-1] if runs else None
+
+
+def _merge_second_pass_summary(sr: SubjectResult, ctx: PipelineContext) -> None:
+    """Fold a second pass's analyze/report records into the subject summary.
+
+    ``PipelineOrchestrator.run`` replaces ``ctx.run_summary`` with a summary
+    holding only the stages it just ran, and nothing re-saved the subject's
+    ``run_summary.json``, so the second pass left no record on disk. The
+    second-pass records replace the first-pass ones of the same name (the
+    second pass re-runs those stages in full) and the file is re-saved.
+    """
+    second = getattr(ctx, 'run_summary', None)
+    first = sr.run_summary
+    if second is None or second is first:
+        return
+    replaced = {rec.name: rec for rec in second.stages}
+    for rec in replaced.values():
+        rec.detail = f"second pass: {rec.detail}" if rec.detail else "second pass"
+    first.stages = [replaced.pop(s.name, s) for s in first.stages] + list(replaced.values())
+    first.finished_at = second.finished_at
+    first.total_elapsed_s = round(first.total_elapsed_s + second.total_elapsed_s, 3)
+    ctx.run_summary = first
+    try:
+        first.save_json(Path(sr.run_dir) / 'run_summary.json')
+    except Exception:
+        logger.warning("Failed to re-save run_summary.json for %s after the second pass",
+                       sr.subject, exc_info=True)
+
 
 def _subject_already_succeeded(run_dir: Path) -> bool:
     summary = run_dir / 'run_summary.json'

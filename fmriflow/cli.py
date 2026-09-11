@@ -88,7 +88,12 @@ def main(argv: list[str] | None = None) -> int:
     rg_parser.add_argument('config', help='Path to group YAML config')
     rg_parser.add_argument(
         '--resume', action='store_true',
-        help='Skip subjects whose run_summary.json shows status=ok',
+        help='Continue the most recent run (or --run-id): subjects whose '
+             'run_summary.json is ok are skipped',
+    )
+    rg_parser.add_argument(
+        '--run-id', type=str, default=None,
+        help='Run directory name to write to (default: new timestamp)',
     )
     rg_parser.add_argument(
         '--dry-run', action='store_true',
@@ -101,7 +106,12 @@ def main(argv: list[str] | None = None) -> int:
     rs_parser.add_argument('config', help='Path to study YAML config')
     rs_parser.add_argument(
         '--resume', action='store_true',
-        help='Skip groups whose all-subjects-ok summary exists on disk',
+        help='Continue the most recent run (or --run-id): subjects whose '
+             'run_summary.json is ok are skipped in every group',
+    )
+    rs_parser.add_argument(
+        '--run-id', type=str, default=None,
+        help='Run directory name to write to (default: new timestamp)',
     )
     rs_parser.add_argument(
         '--dry-run', action='store_true',
@@ -250,12 +260,29 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
+def _build_registry():
+    """Module registry with built-ins, entry points and user add-on modules.
+
+    Runs launched from the web server execute in this CLI process, so the
+    add-on modules have to be loaded here too, not only in the server.
+    """
+    from fmriflow.modules.user_modules import discover_user_modules
+    from fmriflow.registry import ModuleRegistry
+
+    registry = ModuleRegistry()
+    registry.discover()
+    n_user = discover_user_modules()
+    if n_user:
+        logger.info("Loaded %d user add-on module file(s)", n_user)
+    return registry
+
+
 def _cmd_run(args) -> int:
     """Run the pipeline."""
     from fmriflow.pipeline import Pipeline
 
     try:
-        pipeline = Pipeline.from_yaml(args.config)
+        pipeline = Pipeline.from_yaml(args.config, registry=_build_registry())
     except Exception as e:
         ui.error_panel(str(e))
         return 1
@@ -327,6 +354,19 @@ def _cmd_run(args) -> int:
         return 1
 
 
+def _resume_run_id(args, resolve, config: dict) -> str | None:
+    """Run id for run-group / run-study: --run-id, else the latest run on --resume."""
+    run_id = getattr(args, 'run_id', None)
+    if run_id or not getattr(args, 'resume', False):
+        return run_id
+    run_id = resolve(config)
+    if run_id:
+        ui.console.print(f"[bold]Resuming[/] run {run_id}")
+    else:
+        ui.console.print("No previous run found; starting a new run.")
+    return run_id
+
+
 def _cmd_run_group(args) -> int:
     """Run a group-scope (cross-subject) pipeline."""
     from fmriflow.config.loader import load_group_config
@@ -339,9 +379,9 @@ def _cmd_run_group(args) -> int:
         ui.error_panel(str(e))
         return 1
 
-    registry = ModuleRegistry()
-    registry.discover()
-    orch = GroupOrchestrator(group_config, registry)
+    registry = _build_registry()
+    run_id = _resume_run_id(args, GroupOrchestrator.resolve_resume_run_id, group_config)
+    orch = GroupOrchestrator(group_config, registry, run_id=run_id)
 
     if args.dry_run:
         ui.console.print(
@@ -387,9 +427,10 @@ def _cmd_run_study(args) -> int:
         ui.error_panel(str(e))
         return 1
 
-    registry = ModuleRegistry()
-    registry.discover()
-    orch = StudyOrchestrator(study_config, registry, config_path=args.config)
+    registry = _build_registry()
+    run_id = _resume_run_id(args, StudyOrchestrator.resolve_resume_run_id, study_config)
+    orch = StudyOrchestrator(study_config, registry, run_id=run_id,
+                             config_path=args.config)
 
     if args.dry_run:
         labels = [str(e.get('name')) for e in study_config.get('groups', [])]
@@ -454,8 +495,7 @@ def _cmd_validate(args) -> int:
         ui.validate_line(True, f"Subject: {config.get('subject')}")
 
         # Check modules
-        registry = ModuleRegistry()
-        registry.discover()
+        registry = _build_registry()
 
         stim_loader = config.get('stimulus', {}).get('loader', 'textgrid')
         try:
@@ -508,8 +548,7 @@ def _cmd_modules(args) -> int:
     """List available pipeline modules."""
     from fmriflow.registry import ModuleRegistry
 
-    registry = ModuleRegistry()
-    registry.discover()
+    registry = _build_registry()
     modules = registry.list_modules()
 
     ui.console.print()
@@ -519,17 +558,17 @@ def _cmd_modules(args) -> int:
 
 def _cmd_list(args) -> int:
     """List stages, all modules, or modules for a specific stage."""
-    from fmriflow.orchestrator import ALL_STAGES
+    from fmriflow.core.stages import STAGE_MODULE_CATEGORIES
+    from fmriflow.core.stages import SUBJECT_STAGES as ALL_STAGES
     from fmriflow.registry import ModuleRegistry
 
     what = args.what
 
     if what == 'stages':
-        ui.stages_table(ALL_STAGES)
+        ui.stages_table(list(ALL_STAGES))
         return 0
 
-    registry = ModuleRegistry()
-    registry.discover()
+    registry = _build_registry()
     modules = registry.list_modules()
 
     if what == 'modules':
@@ -538,15 +577,7 @@ def _cmd_list(args) -> int:
         return 0
 
     # Treat as a stage name — show modules for that stage
-    stage_module_map = {
-        'stimuli': ['stimulus_loaders'],
-        'responses': ['response_loaders', 'response_readers'],
-        'features': ['feature_extractors', 'feature_sources'],
-        'prepare': ['preparers', 'preparation_steps'],
-        'model': ['models'],
-        'analyze': ['analyzers'],
-        'report': ['reporters'],
-    }
+    stage_module_map = {s: STAGE_MODULE_CATEGORIES[s] for s in ALL_STAGES}
 
     if what not in stage_module_map:
         ui.error_panel(

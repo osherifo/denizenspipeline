@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fmriflow.config.loader import load_config
 from fmriflow.context import PipelineContext
-from fmriflow.orchestrator import PipelineOrchestrator
+from fmriflow.orchestrator import ALL_STAGES, ConfigError, PipelineOrchestrator
 from fmriflow.registry import ModuleRegistry
 
 
@@ -69,7 +69,15 @@ class Pipeline:
         orchestrator = PipelineOrchestrator(self.config, self.registry)
 
         if resume_from is not None:
+            if resume_from not in ALL_STAGES:
+                raise ConfigError(
+                    f"Unknown stage '{resume_from}' for resume_from "
+                    f"(known: {', '.join(ALL_STAGES)})")
             context = PipelineContext.from_checkpoint(self.config, resume_from)
+            if stages is None:
+                # The checkpoint is written after `resume_from` completes,
+                # so continue with the stages that follow it.
+                stages = ALL_STAGES[ALL_STAGES.index(resume_from) + 1:]
 
         try:
             ctx = orchestrator.run(stages=stages, context=context)

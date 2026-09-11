@@ -23,7 +23,9 @@ from fmriflow.registry import ModuleRegistry
 
 logger = logging.getLogger(__name__)
 
-ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
+from fmriflow.core.stages import SUBJECT_STAGES  # noqa: E402
+
+ALL_STAGES = list(SUBJECT_STAGES)
 
 
 @contextmanager
@@ -138,7 +140,9 @@ class PipelineOrchestrator:
         if context is not None:
             self.ctx = context
 
-        stages_to_run = stages or ALL_STAGES
+        # ``None`` means every stage; an explicit empty list runs nothing
+        # (e.g. resuming from the last stage's checkpoint).
+        stages_to_run = list(ALL_STAGES) if stages is None else list(stages)
 
         # Resolve modules
         modules = self._resolve_modules()

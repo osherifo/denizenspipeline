@@ -40,56 +40,12 @@ dev = ["fmriflow[all]", "pytest>=7.3", "pytest-cov>=4.1", "h5py>=3.8"]
 [project.scripts]
 fmriflow = "fmriflow.cli:main"
 
-# Built-in modules registered via entry points
-[project.entry-points."fmriflow.stimulus_loaders"]
-textgrid = "fmriflow.modules.stimulus_loaders.textgrid:TextGridStimulusLoader"
-audio = "fmriflow.modules.stimulus_loaders.audio:AudioStimulusLoader"
-video = "fmriflow.modules.stimulus_loaders.video:VideoStimulusLoader"
-
-[project.entry-points."fmriflow.response_loaders"]
-bids = "fmriflow.modules.response_loaders.bids:BidsResponseLoader"
-cloud = "fmriflow.modules.response_loaders.cloud:CloudResponseLoader"
-local = "fmriflow.modules.response_loaders.local:LocalResponseLoader"
-
-[project.entry-points."fmriflow.feature_extractors"]
-numwords = "fmriflow.modules.feature_extractors.basic:NumWordsExtractor"
-numletters = "fmriflow.modules.feature_extractors.basic:NumLettersExtractor"
-numphonemes = "fmriflow.modules.feature_extractors.basic:NumPhonemesExtractor"
-word_length_std = "fmriflow.modules.feature_extractors.basic:WordLengthStdExtractor"
-english1000 = "fmriflow.modules.feature_extractors.histograms:English1000Extractor"
-letters = "fmriflow.modules.feature_extractors.histograms:LetterHistogramExtractor"
-phonemes = "fmriflow.modules.feature_extractors.histograms:PhonemeHistogramExtractor"
-word2vec = "fmriflow.modules.feature_extractors.embeddings:Word2VecExtractor"
-bert = "fmriflow.modules.feature_extractors.embeddings:BERTExtractor"
-fasttext = "fmriflow.modules.feature_extractors.embeddings:FastTextExtractor"
-mel_spectrogram = "fmriflow.modules.feature_extractors.audio:MelSpectrogramExtractor"
-rms_energy = "fmriflow.modules.feature_extractors.audio:RMSEnergyExtractor"
-luminance = "fmriflow.modules.feature_extractors.visual:LuminanceExtractor"
-motion_energy = "fmriflow.modules.feature_extractors.visual:MotionEnergyExtractor"
-
-[project.entry-points."fmriflow.feature_sources"]
-compute = "fmriflow.modules.feature_sources.compute:ComputeSource"
-filesystem = "fmriflow.modules.feature_sources.filesystem:FilesystemSource"
-cloud = "fmriflow.modules.feature_sources.cloud:CloudSource"
-grouped_hdf = "fmriflow.modules.feature_sources.grouped_hdf:GroupedHDFSource"
-npz_concat = "fmriflow.modules.feature_sources.npz_concat:NpzConcatSource"
-
-[project.entry-points."fmriflow.preparers"]
-default = "fmriflow.modules.preparers.default:DefaultPreparer"
-pre_prepared = "fmriflow.modules.preparers.pre_prepared:PreparedDataLoader"
-
-[project.entry-points."fmriflow.models"]
-bootstrap_ridge = "fmriflow.modules.models.ridge:BootstrapRidgeModel"
-himalaya_ridge = "fmriflow.modules.models.himalaya:HimalayaRidgeModel"
-banded_ridge = "fmriflow.modules.models.himalaya:BandedRidgeModel"
-multiple_kernel_ridge = "fmriflow.modules.models.himalaya:MultipleKernelRidgeModel"
-
-[project.entry-points."fmriflow.reporters"]
-metrics = "fmriflow.modules.reporters.metrics:MetricsReporter"
-flatmap = "fmriflow.modules.reporters.flatmap:FlatmapReporter"
-weights = "fmriflow.modules.reporters.weights:WeightsReporter"
-histogram = "fmriflow.modules.reporters.histogram:HistogramReporter"
-webgl = "fmriflow.modules.reporters.webgl:WebGLReporter"
+# Built-in analysis modules are registered by
+# fmriflow.modules.register_builtins(). Third-party packages can add modules
+# through the entry-point groups fmriflow.stimulus_loaders,
+# fmriflow.response_loaders, fmriflow.feature_extractors, fmriflow.models,
+# fmriflow.reporters, ... (see docs/guide/modules.md); a name already taken by
+# a built-in is ignored.
 
 [tool.hatch.build.targets.wheel]
 packages = ["fmriflow"]

@@ -281,6 +281,15 @@ def validate_group_config(config: dict) -> list[str]:
     if overrides is not None and not isinstance(overrides, dict):
         errors.append("'subject_overrides' must be a dict keyed by subject id")
 
+    if "analysis" in config:
+        # Never read: subject configs are built from subject_template +
+        # subject_overrides only, and the second pass re-runs each subject's
+        # own config snapshot. Fail loudly instead of silently skipping it.
+        errors.append(
+            "'analysis' at the top level of a group config is ignored; move it "
+            "under 'subject_template' (subject analyzers also run in the "
+            "second pass when a group analyzer provides bindings)")
+
     for key in ("group_analyze", "group_report"):
         section = config.get(key)
         if section is None:

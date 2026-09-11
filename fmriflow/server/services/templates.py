@@ -167,7 +167,7 @@ class {class_name}:
         # Add parameters here
     }}
 
-    def load(self, config: dict, context) -> StimulusData:
+    def load(self, config: dict) -> StimulusData:
         # YOUR LOGIC HERE
         # Return a StimulusData object
         raise NotImplementedError("Implement your stimulus loading logic here")
@@ -192,7 +192,7 @@ class {class_name}:
         # Add parameters here
     }}
 
-    def load(self, config: dict, context) -> ResponseData:
+    def load(self, config: dict) -> ResponseData:
         # YOUR LOGIC HERE
         # Return a ResponseData object
         raise NotImplementedError("Implement your response loading logic here")
