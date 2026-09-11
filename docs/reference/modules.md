@@ -50,6 +50,7 @@ Run `fmriflow list modules` for the full list with descriptions. Summary by cate
 | `cloud` | Load from S3 |
 | `local` | Load from local filesystem |
 | `bids` | Load from BIDS-formatted dataset |
+| `bids_mult` | Preprocessed BIDS runs with one task per stimulus: one run per task (repeated tasks averaged, first, or kept separately), `desc` filter that skips per-echo and other images, 4-D NIfTI reordered to `(t, z, y, x)` and masked with the subject's pycortex transform (which must share the data's grid) |
 | `preproc` | Load from a PreprocManifest (fmriprep outputs) |
 | `nsd` | Single-trial GLM betas (one pseudo-run per session), masked to an ROI and scaled; carries the 3-D ROI mask for surface reporters |
 | `algonauts2023` | Algonauts 2023 fsaverage-surface fMRI (LH+RH `.npy` concatenated to a 2-D matrix); carries a seeded validation split (`split.test_trials: val`) and fsaverage vertex masks for surface reporters |

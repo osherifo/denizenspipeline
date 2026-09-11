@@ -19,6 +19,7 @@ def register_builtins(registry):
     import fmriflow.modules.stimulus_loaders.algonauts2023  # noqa: F401
 
     import fmriflow.modules.response_loaders.bids  # noqa: F401
+    import fmriflow.modules.response_loaders.bids_mult  # noqa: F401
     import fmriflow.modules.response_loaders.cloud  # noqa: F401
     import fmriflow.modules.response_loaders.local  # noqa: F401
     import fmriflow.modules.response_loaders.nsd  # noqa: F401
