@@ -47,6 +47,7 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
+from fmriflow.graph.ports import normalize_ports as _normalize_ports
 from fmriflow.preproc.graph import NODE_KINDS
 from fmriflow.preproc.preflight import PreflightResult, preflight
 
@@ -123,18 +124,9 @@ def normalize_ports(spec: Any, *, default_kind: str = "file") -> dict[str, PortS
     """Coerce ``INPUTS`` / ``OUTPUTS`` into ``{port: {"kind", "required"}}``.
 
     Accepts a dict of port specs, a list of port names, or ``None``.
+    Preprocessing ports default to ``kind: "file"``.
     """
-    if not spec:
-        return {}
-    if isinstance(spec, dict):
-        out: dict[str, PortSpec] = {}
-        for port, ps in spec.items():
-            ps = dict(ps or {})
-            ps.setdefault("kind", default_kind)
-            ps.setdefault("required", False)
-            out[str(port)] = ps
-        return out
-    return {str(p): {"kind": default_kind, "required": False} for p in spec}
+    return _normalize_ports(spec, default_kind=default_kind)
 
 
 def node_ports(cls: type) -> tuple[dict[str, PortSpec], dict[str, PortSpec]]:

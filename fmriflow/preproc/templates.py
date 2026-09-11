@@ -15,30 +15,28 @@ Two tiers, like heuristics:
 
 A user template may not shadow a bundled name — saving under one is
 refused so the two lists never disagree about what a name means.
+
+The tier mechanics live in :class:`fmriflow.graph.templates.TemplateTiers`;
+this module binds them to the preprocessing directories.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from pathlib import Path
-from typing import Any
-
-import yaml
 
 from fmriflow.core import paths
+from fmriflow.graph.templates import (  # noqa: F401  (re-exported)
+    _SLUG_RE,
+    TemplateTiers,
+    concrete_path_warnings,
+    validate_slug,
+)
 from fmriflow.preproc.graph import Pipeline
 
 logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
-_SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_\-]*$")
-
-
-def validate_slug(name: str) -> str:
-    if not name or not _SLUG_RE.match(name):
-        raise ValueError(f"invalid template name {name!r}: letters, digits, '_' and '-' only")
-    return name
 
 Tier = str  # "bundled" | "user"
 
@@ -47,99 +45,44 @@ def user_templates_dir() -> Path:
     return paths.addons_dir("pipelines")
 
 
+# The lambda looks the function up at call time, so patching
+# ``user_templates_dir`` still redirects the user tier.
+_TIERS = TemplateTiers(
+    bundled_dir=TEMPLATES_DIR,
+    user_dir=lambda: user_templates_dir(),
+    graph_cls=Pipeline,
+)
+
+
 def bundled_template_names() -> list[str]:
-    return sorted(p.stem for p in TEMPLATES_DIR.glob("*.yaml"))
+    return _TIERS.bundled_names()
 
 
 def _is_pipeline_file(path: Path) -> bool:
     """True when the YAML is a pipeline (not a pre-redesign stack preset
     that ``fmriflow preproc migrate`` reads from the same folder)."""
-    try:
-        data = yaml.safe_load(path.read_text()) or {}
-    except Exception:
-        return False
-    if not isinstance(data, dict):
-        return False
-    if "pipeline" in data and isinstance(data["pipeline"], dict) and "nodes" not in data:
-        data = data["pipeline"]
-    return "nodes" in data
+    return _TIERS.is_graph_file(path)
 
 
 def user_template_names() -> list[str]:
-    root = user_templates_dir()
-    files = sorted(root.glob("*.yaml")) + sorted(root.glob("*.yml"))
-    return sorted({p.stem for p in files if _is_pipeline_file(p)})
+    return _TIERS.user_names()
 
 
 def template_names() -> list[str]:
-    return sorted(set(bundled_template_names()) | set(user_template_names()))
+    return _TIERS.names()
 
 
 def template_path(name: str) -> tuple[Path, Tier]:
     """Resolve ``name`` to ``(path, tier)``; ``KeyError`` when unknown."""
-    bundled = TEMPLATES_DIR / f"{name}.yaml"
-    if bundled.exists():
-        return bundled, "bundled"
-    root = user_templates_dir()
-    for cand in (root / f"{name}.yaml", root / f"{name}.yml"):
-        if cand.exists() and _is_pipeline_file(cand):
-            return cand, "user"
-    raise KeyError(f"unknown template {name!r}; available: {', '.join(template_names())}")
+    return _TIERS.path(name)
 
 
 def load_template(name: str) -> Pipeline:
-    path, _ = template_path(name)
-    p = Pipeline.load(path)
-    if p.name == "untitled":
-        p.name = name
-    return p
+    return _TIERS.load(name)
 
 
 def list_templates() -> list[dict]:
-    out = []
-    for name in template_names():
-        path, tier = template_path(name)
-        try:
-            p = load_template(name)
-        except Exception as e:  # a hand-edited user file that no longer parses
-            logger.warning("template %s unreadable: %s", path, e)
-            out.append({"name": name, "tier": tier, "description": "", "n_nodes": 0,
-                        "node_types": [], "inputs": {}, "error": str(e)})
-            continue
-        out.append({
-            "name": name,
-            "tier": tier,
-            "description": p.description,
-            "n_nodes": len(p.nodes),
-            "node_types": [n.type for n in p.nodes],
-            "inputs": p.inputs,
-            "error": None,
-        })
-    return out
-
-
-# ── user tier ────────────────────────────────────────────────────────
-
-
-def concrete_path_warnings(pipeline: Pipeline) -> list[str]:
-    """Node params / literal inputs holding an absolute path.
-
-    A template should take its paths from pipeline inputs (bound at run
-    time); a literal ``/data/...`` typed into a node only works on the
-    machine and dataset it was typed for.
-    """
-    def looks_like_path(v: Any) -> bool:
-        return isinstance(v, str) and (v.startswith("/") or v.startswith("~"))
-
-    out: list[str] = []
-    for node in pipeline.nodes:
-        for where, values in (("param", node.params), ("literal input", node.literal_inputs)):
-            for key, v in values.items():
-                candidates = v if isinstance(v, list) else [v]
-                hits = [x for x in candidates if looks_like_path(x)]
-                if hits:
-                    out.append(f"{node.id}.{key} ({where}) holds a concrete path: {hits[0]}")
-    return out
+    return _TIERS.list()
 
 
 def save_user_template(name: str, pipeline: Pipeline) -> Path:
@@ -147,25 +90,9 @@ def save_user_template(name: str, pipeline: Pipeline) -> Path:
 
     ``ValueError`` for a bad slug or a bundled name.
     """
-    validate_slug(name)
-    if name in bundled_template_names():
-        raise ValueError(f"{name!r} is a bundled template; pick another name")
-    pipeline.name = name
-    pipeline.run_defaults = {}
-    root = user_templates_dir()
-    path = root / f"{name}.yaml"
-    path.write_text(pipeline.to_yaml())
-    return path
+    return _TIERS.save_user(name, pipeline)
 
 
 def delete_user_template(name: str) -> bool:
     """Remove a user template; ``False`` when absent, ``ValueError`` for bundled."""
-    validate_slug(name)
-    if name in bundled_template_names():
-        raise ValueError(f"{name!r} is a bundled template and cannot be deleted")
-    root = user_templates_dir()
-    for cand in (root / f"{name}.yaml", root / f"{name}.yml"):
-        if cand.exists():
-            cand.unlink()
-            return True
-    return False
+    return _TIERS.delete_user(name)
