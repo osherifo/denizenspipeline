@@ -48,11 +48,14 @@ ctx = pipeline.run(
 
 ## Pipeline stages
 
-| Stage | Module type | Input | Output |
-|-------|-------------|-------|--------|
-| 1. Load Stimuli | `StimulusLoader` | Config | `StimulusData` |
-| 2. Load Responses | `ResponseLoader` | Config | `ResponseData` |
-| 3. Load/Extract Features | `FeatureSource` + `FeatureExtractor` | `StimulusData` | `FeatureData` |
-| 4. Prepare | `Preparer` | `ResponseData` + `FeatureData` | `PreparedData` |
-| 5. Fit Model | `Model` | `PreparedData` | `ModelResult` |
-| 6. Report | `Reporter` | `ModelResult` | Artifacts (files) |
+| Stage | Module type | Input | Output (context key) |
+|-------|-------------|-------|----------------------|
+| 1. `stimuli` | `StimulusLoader` | Config | `StimulusData` (`stimuli`) |
+| 2. `responses` | `ResponseLoader` | Config | `ResponseData` (`responses`) |
+| 3. `features` | `FeatureSource` / `FeatureExtractor` | Run names (+ `StimulusData` for extractors) | `FeatureData` (`features`) |
+| 4. `prepare` | `Preparer` | `ResponseData` + `FeatureData` | `PreparedData` (`prepared`) |
+| 5. `model` | `Model` | `PreparedData` | `ModelResult` (`result`) |
+| 6. `analyze` | `Analyzer` | The context | New keys, e.g. `analysis.variance_partition` |
+| 7. `report` | `Reporter` | `ModelResult` + the context | Artifacts (files) |
+
+See [Stage data types](../reference/stage-data.md) for the fields of each type and what you can change.

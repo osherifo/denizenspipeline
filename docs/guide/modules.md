@@ -57,6 +57,9 @@ The Module Editor in the web UI lets you write, validate, and register modules d
 
 ## Module types
 
+For what each subject stage passes to its modules and the fields of every data type, see
+[Stage data types](../reference/stage-data.md).
+
 | Type | Decorator | Scope | Required methods |
 |------|-----------|-------|-----------------|
 | Feature Extractor | `@feature_extractor` | subject | `extract(stimuli, run_names, config)` |

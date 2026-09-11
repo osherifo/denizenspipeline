@@ -62,6 +62,7 @@ nav:
     - Artifact Hub: guide/artifact-hub.md
   - Reference:
     - Built-in Modules: reference/modules.md
+    - Stage data types: reference/stage-data.md
     - Config Reference: reference/config.md
     - Defaults: reference/defaults.md
     - Hub Store Schema: reference/hub-store-schema.md
