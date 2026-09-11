@@ -80,6 +80,75 @@ class ConfigSummary:
     group_subjects: list[str] = field(default_factory=list)
     # For study configs only: list of study-scope group labels.
     study_groups: list[str] = field(default_factory=list)
+    # 'stage' for a stage-section config; 'graph' for an analysis graph
+    # (``nodes:`` + ``edges:``), whose kind is its ``scope``.
+    format: str = "stage"
+
+
+def _input_value(value: Any, run_inputs: dict) -> Any:
+    """A ``$inputs.<name>`` reference shown as its saved run value (or blank)."""
+    if isinstance(value, str) and value.startswith("$inputs."):
+        return run_inputs.get(value[len("$inputs."):], "")
+    return value
+
+
+def _graph_summary(path: Path, config: dict, group: str) -> ConfigSummary:
+    """Browser metadata for an analysis graph YAML, read from its nodes and globals."""
+    from fmriflow.analysis.graph import AnalysisGraph
+
+    doc = AnalysisGraph.unwrap(config)
+    glob = doc.get("globals") if isinstance(doc.get("globals"), dict) else {}
+    run_inputs = (doc.get("run_defaults") or {}).get("inputs") or {}
+    nodes = [n for n in doc.get("nodes") or [] if isinstance(n, dict)]
+    types = [str(n.get("type") or "") for n in nodes]
+
+    def first(category: str) -> str:
+        for t in types:
+            if t.startswith(category + ":"):
+                return t.split(":", 1)[1]
+        return ""
+
+    features = []
+    for node, t in zip(nodes, types):
+        if t.startswith(("feature_extractor:", "feature_source:")):
+            params = (node.get("data") or {}).get("params") or {}
+            name = _input_value(params.get("feature_name") or params.get("name"), run_inputs)
+            features.append(str(name or node.get("id")))
+    reporting = glob.get("reporting") if isinstance(glob.get("reporting"), dict) else {}
+    scope = str(doc.get("scope") or "subject")
+    experiment = _input_value(glob.get("experiment"), run_inputs) or doc.get("name") or path.stem
+    return ConfigSummary(
+        filename=path.name,
+        path=str(path.resolve()),
+        experiment=str(experiment),
+        subject=str(_input_value(glob.get("subject"), run_inputs) or run_inputs.get("subject") or ""),
+        model_type=first("model"),
+        features=features,
+        output_dir=str(_input_value(reporting.get("output_dir"), run_inputs) or ""),
+        group=group,
+        preparation_type=first("preparer") or "default",
+        stimulus_loader=first("stimulus_loader"),
+        response_loader=first("response_loader"),
+        kind=scope if scope in ("subject", "group", "study") else "subject",
+        format="graph",
+    )
+
+
+def _validate_graph_document(raw: dict, registry: Any = None) -> dict[str, Any]:
+    from fmriflow.analysis.catalog import NodeCatalog
+    from fmriflow.analysis.executor import check_graph
+    from fmriflow.analysis.graph import AnalysisGraph
+
+    try:
+        graph = AnalysisGraph.from_dict(AnalysisGraph.unwrap(raw))
+    except Exception as e:
+        return {'valid': False, 'errors': [f'invalid graph: {e}']}
+    if registry is None:
+        from fmriflow.registry import ModuleRegistry
+        registry = ModuleRegistry()
+        registry.discover()
+    errors = check_graph(graph, NodeCatalog(registry).discover())
+    return {'valid': not errors, 'errors': errors}
 
 
 class ConfigStore:
@@ -189,6 +258,10 @@ class ConfigStore:
         stem = path.stem
         parts = stem.split('_')
         group = parts[0] if len(parts) > 1 else stem
+
+        from fmriflow.server.services.analysis_graph_store import is_graph_document
+        if is_graph_document(config):
+            return _graph_summary(path, config, group)
 
         # Kind detection. Order matters: study takes precedence over
         # group (a malformed YAML that has both top-level study: and
@@ -511,7 +584,7 @@ class ConfigStore:
             'rebranded_to': new_stem if old_name and old_name != new_stem else None,
         }
 
-    def validate_config(self, filename: str) -> dict[str, Any]:
+    def validate_config(self, filename: str, registry: Any = None) -> dict[str, Any]:
         """Run full validation on a config file.
 
         Routes to the right schema validator based on the YAML's shape:
@@ -533,6 +606,10 @@ class ConfigStore:
             return {'valid': False, 'errors': [f'YAML parse error: {e}']}
         if not isinstance(raw, dict):
             return {'valid': False, 'errors': ['Config must be a YAML mapping']}
+
+        from fmriflow.server.services.analysis_graph_store import is_graph_document
+        if is_graph_document(raw):
+            return _validate_graph_document(raw, registry)
 
         is_study = (
             isinstance(raw.get('study'), str)

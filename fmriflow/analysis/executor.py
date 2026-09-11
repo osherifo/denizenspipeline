@@ -43,6 +43,7 @@ from fmriflow.context import PipelineContext
 from fmriflow.core.run_summary import NodeIdGen, NodeRecord, RunSummary, StageRecord
 from fmriflow.core.stages import GROUP_MODULE_STAGES, STUDY_MODULE_STAGES, SUBJECT_STAGES
 from fmriflow.exceptions import ConfigError, StageError
+from fmriflow.graph.model import INPUT_REF_PREFIX
 from fmriflow.graph.ports import accepts_many
 from fmriflow.orchestrator import _record, _relativize
 
@@ -55,6 +56,72 @@ _EMPTY_STAGE_DETAIL = {"features": "0 feature(s)", "analyze": "skipped (none con
 
 class Cancelled(RuntimeError):
     """The run was cancelled between nodes."""
+
+
+def _substitute(value: Any, inputs: dict[str, Any], used: set[str]) -> Any:
+    if isinstance(value, str) and value.startswith(INPUT_REF_PREFIX):
+        name = value[len(INPUT_REF_PREFIX):]
+        used.add(name)
+        return inputs.get(name)
+    if isinstance(value, dict):
+        return {k: _substitute(v, inputs, used) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_substitute(v, inputs, used) for v in value]
+    return value
+
+
+def resolve_graph_inputs(graph: AnalysisGraph, inputs: dict[str, Any] | None = None) -> tuple[AnalysisGraph, dict[str, Any]]:
+    """Bind graph inputs: ``"$inputs.<name>"`` strings in globals, node params
+    and literal inputs become the given values (or the input's ``default``).
+
+    Returns the bound copy and the resolved inputs. ``ConfigError`` lists
+    references to undeclared inputs and required inputs without a value.
+    """
+    given = dict(inputs or {})
+    resolved: dict[str, Any] = {}
+    for name, spec in graph.inputs.items():
+        if name in given and given[name] not in (None, ""):
+            resolved[name] = given[name]
+        elif isinstance(spec, dict) and spec.get("default") is not None:
+            resolved[name] = spec["default"]
+    for name, value in given.items():
+        if name not in graph.inputs and value not in (None, ""):
+            resolved[name] = value
+
+    bound = AnalysisGraph.from_dict(graph.to_dict())
+    used: set[str] = set()
+    bound.globals = _substitute(bound.globals, resolved, used)
+    for node in bound.nodes:
+        node.params = _substitute(node.params, resolved, used)
+        node.literal_inputs = _substitute(node.literal_inputs, resolved, used)
+    used.update(ref[len(INPUT_REF_PREFIX):] for n in bound.nodes for ref in n.bindings.values()
+                if isinstance(ref, str) and ref.startswith(INPUT_REF_PREFIX))
+
+    errors = [f"'$inputs.{name}' is used but the graph declares no input {name!r}"
+              for name in sorted(used) if name not in graph.inputs]
+    for name, spec in graph.inputs.items():
+        required = not isinstance(spec, dict) or spec.get("required", True)
+        if name in used and required and resolved.get(name) is None:
+            errors.append(f"graph input {name!r} needs a value")
+    if errors:
+        raise ConfigError(errors)
+    return bound, resolved
+
+
+def check_graph(graph: AnalysisGraph, catalog: Any, inputs: dict[str, Any] | None = None) -> list[str]:
+    """Every problem that would stop ``graph`` from running: structure and port
+    types, input bindings (``run_defaults.inputs`` overlaid with ``inputs``), and
+    each module's own config check on the bound graph."""
+    errors = graph.validate(catalog)
+    if errors:
+        return errors
+    given = dict((graph.run_defaults or {}).get("inputs") or {})
+    given.update(inputs or {})
+    try:
+        bound, _ = resolve_graph_inputs(graph, given)
+    except ConfigError as e:
+        return list(getattr(e, "errors", None) or [str(e)])
+    return GraphExecutor(catalog).validate(bound)
 
 
 class _FixedId:
@@ -135,9 +202,9 @@ class GraphExecutor:
 
     def run(self, graph: AnalysisGraph, *, write_graph: bool = False,
             inputs: dict[str, Any] | None = None) -> PipelineContext:
+        graph, self._run_inputs = resolve_graph_inputs(graph, inputs)
         run_ctx = PipelineContext(graph.globals)
         self.last_context = run_ctx
-        self._run_inputs = dict(inputs or {})
 
         errors = self.validate(graph)
         if errors:
@@ -145,8 +212,6 @@ class GraphExecutor:
             raise ConfigError(errors)
         order = self.schedule(graph)
 
-        if graph.globals.get("checkpoint"):
-            logger.warning("checkpoint: true is not written by the graph engine; use --engine legacy for checkpoints")
         output_dir = (graph.globals.get("reporting") or {}).get("output_dir")
         if write_graph and output_dir:
             Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -166,18 +231,18 @@ class GraphExecutor:
                 node_stage = self.catalog.stage(node.type)
                 if stage is None or node_stage != stage.name:
                     if stage is not None:
-                        records.append(self._guard(stage, records, lambda s=stage: self._close_stage(s, run_ctx)))
+                        self._append(graph, records, self._guard(stage, records, lambda s=stage: self._close_stage(s, run_ctx)), run_ctx)
                     for empty in self._declared_before(graph, records, node_stage):
-                        records.append(self._empty_stage(empty))
+                        self._append(graph, records, self._empty_stage(empty), run_ctx)
                     stage = _Stage(name=node_stage, t0=fui.stage_start(node_stage))
                 current = stage
                 self._guard(current, records, lambda n=node, s=current: self._run_node(graph, n, s, values, run_ctx, failed))
             if stage is not None:
-                records.append(self._guard(stage, records, lambda s=stage: self._close_stage(s, run_ctx)))
+                self._append(graph, records, self._guard(stage, records, lambda s=stage: self._close_stage(s, run_ctx)), run_ctx)
             recorded = {r.name for r in records}
             for name in graph.stages:
                 if name not in recorded:
-                    records.append(self._empty_stage(name))
+                    self._append(graph, records, self._empty_stage(name), run_ctx)
         finally:
             run_ctx.run_summary = RunSummary(
                 experiment=graph.globals.get("experiment", ""),
@@ -189,6 +254,14 @@ class GraphExecutor:
                 config_snapshot=copy.deepcopy(graph.globals),
             )
         return run_ctx
+
+    def _append(self, graph: AnalysisGraph, records: list[StageRecord], record: StageRecord,
+                run_ctx: PipelineContext) -> None:
+        """Record a finished stage and, with ``checkpoint: true``, save the context
+        like the stage orchestrator does after every successful stage."""
+        records.append(record)
+        if graph.globals.get("checkpoint") and record.status != "failed":
+            run_ctx.save_checkpoint(record.name)
 
     def _guard(self, stage: _Stage, records: list[StageRecord], fn):
         """Run ``fn``; on failure record the stage as failed like the stage orchestrator."""

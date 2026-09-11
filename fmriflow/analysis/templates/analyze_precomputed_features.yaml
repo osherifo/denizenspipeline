@@ -1,0 +1,214 @@
+schema_version: 1
+name: analyze_precomputed_features
+description: 'One subject''s encoding model on features computed elsewhere: responses
+  name the runs, features load from per-run files, then bootstrap ridge and reports.'
+scope: subject
+inputs:
+  experiment:
+    kind: str
+    description: experiment name; loaders file data under it
+  subject:
+    kind: str
+    description: subject id
+  responses_path:
+    kind: file
+    description: response file (HDF5 or numpy), or a directory of per-run files
+  features_dir:
+    kind: dir
+    description: directory of per-run feature files
+  feature_name:
+    kind: str
+    description: name of the feature space
+    required: false
+    default: features
+  test_runs:
+    kind: list
+    description: runs held out for testing
+  output_dir:
+    kind: dir
+    description: where reports are written
+  surface:
+    kind: str
+    description: pycortex subject for flatmaps
+    required: false
+    default: ''
+  transform:
+    kind: str
+    description: pycortex transform for flatmaps
+    required: false
+    default: ''
+outputs: {}
+globals:
+  experiment: $inputs.experiment
+  subject: $inputs.subject
+  subject_config:
+    surface: $inputs.surface
+    transform: $inputs.transform
+  reporting:
+    output_dir: $inputs.output_dir
+nodes:
+- id: stimuli:skip
+  type: stimulus_loader:skip
+  data:
+    params: {}
+  position:
+    x: 60
+    y: 60
+- id: responses:local
+  type: response_loader:local
+  data:
+    params:
+      path: $inputs.responses_path
+      mask_type: thick
+  position:
+    x: 60
+    y: 320
+- id: features:filesystem
+  type: feature_source:filesystem
+  data:
+    params:
+      path: $inputs.features_dir
+      feature_name: $inputs.feature_name
+      format: npz
+      file_pattern: '{run}'
+      npz_key: data
+  position:
+    x: 340
+    y: 60
+- id: utility:bundle_features
+  type: utility:bundle_features
+  data:
+    params: {}
+  position:
+    x: 620
+    y: 60
+- id: prepare:default
+  type: preparer:default
+  data:
+    params:
+      trim_start: 5
+      trim_end: 5
+      delays:
+      - 1
+      - 2
+      - 3
+      - 4
+      zscore: true
+      split:
+        test_runs: $inputs.test_runs
+  position:
+    x: 900
+    y: 60
+- id: model:bootstrap_ridge
+  type: model:bootstrap_ridge
+  data:
+    params:
+      alphas: logspace(1,3,20)
+      n_boots: 50
+      chunk_len: 40
+      n_chunks: 20
+  position:
+    x: 1180
+    y: 60
+- id: utility:collect_context
+  type: utility:collect_context
+  data:
+    params: {}
+  position:
+    x: 1460
+    y: 60
+- id: report:metrics
+  type: reporter:metrics
+  data:
+    params: {}
+  position:
+    x: 2020
+    y: 60
+- id: report:histogram
+  type: reporter:histogram
+  data:
+    params: {}
+  position:
+    x: 2020
+    y: 190
+- id: report:flatmap
+  type: reporter:flatmap
+  data:
+    params:
+      cmap: inferno
+      vmin: 0.0
+      vmax: 0.5
+  position:
+    x: 2020
+    y: 320
+edges:
+- id: e1
+  source: stimuli:skip
+  target: features:filesystem
+  sourceHandle: stimuli
+  targetHandle: stimuli
+- id: e2
+  source: responses:local
+  target: features:filesystem
+  sourceHandle: responses
+  targetHandle: responses
+- id: e3
+  source: features:filesystem
+  target: utility:bundle_features
+  sourceHandle: feature
+  targetHandle: features
+- id: e4
+  source: responses:local
+  target: prepare:default
+  sourceHandle: responses
+  targetHandle: responses
+- id: e5
+  source: utility:bundle_features
+  target: prepare:default
+  sourceHandle: features
+  targetHandle: features
+- id: e6
+  source: prepare:default
+  target: model:bootstrap_ridge
+  sourceHandle: prepared
+  targetHandle: prepared
+- id: e7
+  source: stimuli:skip
+  target: utility:collect_context
+  sourceHandle: stimuli
+  targetHandle: stimuli
+- id: e8
+  source: responses:local
+  target: utility:collect_context
+  sourceHandle: responses
+  targetHandle: responses
+- id: e9
+  source: utility:bundle_features
+  target: utility:collect_context
+  sourceHandle: features
+  targetHandle: features
+- id: e10
+  source: prepare:default
+  target: utility:collect_context
+  sourceHandle: prepared
+  targetHandle: prepared
+- id: e11
+  source: model:bootstrap_ridge
+  target: utility:collect_context
+  sourceHandle: result
+  targetHandle: result
+- id: e12
+  source: utility:collect_context
+  target: report:metrics
+  sourceHandle: context
+  targetHandle: context
+- id: e13
+  source: utility:collect_context
+  target: report:histogram
+  sourceHandle: context
+  targetHandle: context
+- id: e14
+  source: utility:collect_context
+  target: report:flatmap
+  sourceHandle: context
+  targetHandle: context

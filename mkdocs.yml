@@ -48,6 +48,7 @@ nav:
     - Docker: guide/docker.md
   - User Guide:
     - Configuration: guide/configuration.md
+    - Analysis Graphs: guide/analysis-graphs.md
     - CLI Reference: guide/cli.md
     - Python API: guide/python-api.md
     - Writing Modules: guide/modules.md
@@ -63,6 +64,7 @@ nav:
   - Reference:
     - Built-in Modules: reference/modules.md
     - Config Reference: reference/config.md
+    - Analysis graph: reference/analysis-graph.md
     - Defaults: reference/defaults.md
     - Hub Store Schema: reference/hub-store-schema.md
     - Preprocessing pipeline: reference/preproc-pipeline.md

@@ -210,6 +210,71 @@ def build_subject_graph(config_snapshot: dict, stage_records: list,
     return RunGraph(nodes=nodes, edges=edges)
 
 
+def build_graph_run_graph(graph_doc: dict, stage_records: list,
+                          registry: ModuleRegistry) -> RunGraph:
+    """Run graph for a run executed from an analysis graph (its ``graph.json``).
+
+    Same shape as :func:`build_subject_graph` (stage nodes with module nodes
+    as children, stages chained) so run views need no change; module nodes
+    come from the graph instead of being re-derived from a stage config.
+    """
+    from fmriflow.analysis.catalog import NodeCatalog
+    from fmriflow.analysis.graph import AnalysisGraph
+    from fmriflow.core.stages import (
+        GROUP_MODULE_STAGES, STAGE_LABELS, STUDY_MODULE_STAGES,
+        SUBJECT_STAGES as _SUBJECT_STAGE_NAMES,
+    )
+
+    graph = AnalysisGraph.from_dict(graph_doc)
+    catalog = NodeCatalog(registry).discover()
+    rank = {s: i for i, s in enumerate((*_SUBJECT_STAGE_NAMES, *GROUP_MODULE_STAGES, *STUDY_MODULE_STAGES))}
+
+    def stage_of(node) -> str:
+        return catalog.stage(node.type) if catalog.has(node.type) else node.type.split(':', 1)[0]
+
+    order: list[str] = list(graph.stages)
+    extra = sorted({stage_of(n) for n in graph.nodes} - set(order), key=lambda s: (rank.get(s, 99), s))
+    order.extend(extra)
+
+    nodes: list[GraphNode] = []
+    edges: list[GraphEdge] = []
+    stage_ids: list[str] = []
+    for stage in order:
+        status, elapsed, detail = _stage_status(stage_records, stage)
+        plugin_nodes: list[GraphNode] = []
+        for node in graph.nodes:
+            if stage_of(node) != stage:
+                continue
+            if catalog.has(node.type):
+                category = catalog.kind(node.type)
+                module = catalog.module_name(node.type)
+                kind = 'utility' if category == 'utility' else catalog.adapter(node.type).prefix
+                try:
+                    source = str(Path(inspect.getfile(catalog.module_class(node.type))).resolve())
+                except (TypeError, OSError):
+                    source = None
+            else:
+                kind, _, module = node.type.partition(':')
+                source = None
+            label = module if node.id.endswith(f':{module}') else f'{module} ({node.id})'
+            plugin_nodes.append(GraphNode(
+                id=node.id, label=label, kind=kind, stage=stage, status=status,
+                source_path=source, plugin_name=module, params=dict(node.params),
+            ))
+        _merge_recorded(plugin_nodes, _stage_recorded_nodes(stage_records, stage))
+        sid = f'stage:{stage}'
+        nodes.append(GraphNode(
+            id=sid, label=STAGE_LABELS.get(stage, stage), kind='stage', stage=stage,
+            status=status, elapsed_s=elapsed, detail=detail,
+            children=[n.id for n in plugin_nodes],
+        ))
+        nodes.extend(plugin_nodes)
+        stage_ids.append(sid)
+    for a, b in zip(stage_ids, stage_ids[1:]):
+        edges.append(GraphEdge(source=a, target=b))
+    return RunGraph(nodes=nodes, edges=edges)
+
+
 def _merge_recorded(plugin_nodes: list[GraphNode],
                     recorded: dict[str, dict]) -> None:
     """Overlay recorded per-plugin info onto config-derived plugin nodes.

@@ -16,6 +16,7 @@ from fmriflow.server.services.run_store import RunStore
 from fmriflow.server.services.run_manager import RunManager
 from fmriflow.server.services.module_loader import discover_user_modules
 from fmriflow.server.services.config_store import ConfigStore
+from fmriflow.server.services.analysis_graph_store import AnalysisGraphStore
 from fmriflow.server.services.convert_manager import ConvertManager
 from fmriflow.server.services.convert_config_store import ConvertConfigStore
 from fmriflow.server.services.autoflatten_manager import AutoflattenManager
@@ -122,6 +123,7 @@ def create_app(
     app.state.run_store = run_store
     app.state.run_manager = run_manager
     app.state.config_store = config_store
+    app.state.analysis_graph_store = AnalysisGraphStore(config_store.configs_dir)
     app.state.preproc_outputs = preproc_outputs
     app.state.convert_manager = convert_manager
     app.state.convert_config_store = convert_config_store
@@ -167,7 +169,9 @@ def create_app(
     app.include_router(editor_router, prefix="/api")
     app.include_router(module_router, prefix="/api")
     from fmriflow.server.routes.analysis_nodes import router as analysis_nodes_router
+    from fmriflow.server.routes.analysis_graphs import router as analysis_graphs_router
     app.include_router(analysis_nodes_router, prefix="/api")
+    app.include_router(analysis_graphs_router, prefix="/api")
     app.include_router(config_router, prefix="/api")
     app.include_router(run_router, prefix="/api")
     app.include_router(artifact_router, prefix="/api")

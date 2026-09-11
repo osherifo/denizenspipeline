@@ -83,6 +83,7 @@ async def list_configs(request: Request):
             'response_loader': cfg.response_loader,
             'n_runs': n_runs,
             'kind': cfg.kind,
+            'format': cfg.format,
             'group_subjects': cfg.group_subjects,
             'study_groups': cfg.study_groups,
         })
@@ -111,7 +112,8 @@ async def get_config(request: Request, filename: str):
 async def validate_config_file(request: Request, filename: str):
     """Validate a config file."""
     store = request.app.state.config_store
-    return store.validate_config(filename)
+    from fmriflow.server.routes import _registry
+    return store.validate_config(filename, registry=_registry(request))
 
 
 @router.put("/configs/{filename}")

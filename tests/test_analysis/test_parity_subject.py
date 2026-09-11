@@ -265,3 +265,22 @@ def test_pipeline_api_graph_engine(tmp_path, monkeypatch):
     monkeypatch.setenv("FMRIFLOW_ENGINE", "bogus")
     with pytest.raises(ConfigError):
         Pipeline(cfg, registry=_make_registry())
+
+
+def test_checkpoints_match(tmp_path, monkeypatch):
+    import pickle
+
+    config = _make_config()
+    config["checkpoint"] = True
+    legacy_out = _run("legacy", config, tmp_path, monkeypatch)[3]
+    graph_out = _run("graph", config, tmp_path, monkeypatch)[3]
+
+    def names(out):
+        return sorted(p.name for p in (out / ".checkpoints").glob("*.pkl"))
+
+    assert names(legacy_out) == names(graph_out)
+    assert len(names(legacy_out)) == 7
+    for name in names(legacy_out):
+        a = pickle.loads((legacy_out / ".checkpoints" / name).read_bytes())
+        b = pickle.loads((graph_out / ".checkpoints" / name).read_bytes())
+        assert sorted(a) == sorted(b), name

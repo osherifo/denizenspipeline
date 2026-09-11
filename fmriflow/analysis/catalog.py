@@ -127,6 +127,9 @@ class NodeCatalog:
     def module_name(self, node_type: str) -> str:
         return self._entry(node_type).module
 
+    def module_class(self, node_type: str) -> type:
+        return self._entry(node_type).cls
+
     def stage(self, node_type: str) -> str:
         e = self._entry(node_type)
         return e.qa_stage or e.adapter.stage

@@ -1,0 +1,226 @@
+schema_version: 1
+name: analyze
+description: 'One subject''s encoding model: TextGrid stimuli, word and letter rate
+  features, bootstrap ridge, then metrics, score histogram and flatmap reports.'
+scope: subject
+inputs:
+  experiment:
+    kind: str
+    description: experiment name; loaders file data under it
+  subject:
+    kind: str
+    description: subject id
+  responses_path:
+    kind: file
+    description: response file (HDF5 or numpy), or a directory of per-run files
+  textgrid_dir:
+    kind: dir
+    description: directory of TextGrid files
+  trfile_dir:
+    kind: dir
+    description: directory of TR files
+  test_runs:
+    kind: list
+    description: runs held out for testing
+  output_dir:
+    kind: dir
+    description: where reports are written
+  surface:
+    kind: str
+    description: pycortex subject for flatmaps
+    required: false
+    default: ''
+  transform:
+    kind: str
+    description: pycortex transform for flatmaps
+    required: false
+    default: ''
+outputs: {}
+globals:
+  experiment: $inputs.experiment
+  subject: $inputs.subject
+  subject_config:
+    surface: $inputs.surface
+    transform: $inputs.transform
+  reporting:
+    output_dir: $inputs.output_dir
+nodes:
+- id: stimuli:textgrid
+  type: stimulus_loader:textgrid
+  data:
+    params:
+      language: en
+      modality: reading
+      _section:
+        textgrid_dir: $inputs.textgrid_dir
+        trfile_dir: $inputs.trfile_dir
+  position:
+    x: 60
+    y: 60
+- id: responses:local
+  type: response_loader:local
+  data:
+    params:
+      path: $inputs.responses_path
+      mask_type: thick
+  position:
+    x: 60
+    y: 320
+- id: features:numwords
+  type: feature_extractor:numwords
+  data:
+    params:
+      feature_name: numwords
+  position:
+    x: 340
+    y: 60
+- id: features:numletters
+  type: feature_extractor:numletters
+  data:
+    params:
+      feature_name: numletters
+  position:
+    x: 340
+    y: 190
+- id: utility:bundle_features
+  type: utility:bundle_features
+  data:
+    params: {}
+  position:
+    x: 620
+    y: 60
+- id: prepare:default
+  type: preparer:default
+  data:
+    params:
+      trim_start: 5
+      trim_end: 5
+      delays:
+      - 1
+      - 2
+      - 3
+      - 4
+      zscore: true
+      split:
+        test_runs: $inputs.test_runs
+  position:
+    x: 900
+    y: 60
+- id: model:bootstrap_ridge
+  type: model:bootstrap_ridge
+  data:
+    params:
+      alphas: logspace(1,3,20)
+      n_boots: 50
+      chunk_len: 40
+      n_chunks: 20
+  position:
+    x: 1180
+    y: 60
+- id: utility:collect_context
+  type: utility:collect_context
+  data:
+    params: {}
+  position:
+    x: 1460
+    y: 60
+- id: report:metrics
+  type: reporter:metrics
+  data:
+    params: {}
+  position:
+    x: 2020
+    y: 60
+- id: report:histogram
+  type: reporter:histogram
+  data:
+    params: {}
+  position:
+    x: 2020
+    y: 190
+- id: report:flatmap
+  type: reporter:flatmap
+  data:
+    params:
+      cmap: inferno
+      vmin: 0.0
+      vmax: 0.5
+  position:
+    x: 2020
+    y: 320
+edges:
+- id: e1
+  source: stimuli:textgrid
+  target: features:numwords
+  sourceHandle: stimuli
+  targetHandle: stimuli
+- id: e2
+  source: stimuli:textgrid
+  target: features:numletters
+  sourceHandle: stimuli
+  targetHandle: stimuli
+- id: e3
+  source: features:numwords
+  target: utility:bundle_features
+  sourceHandle: feature
+  targetHandle: features
+- id: e4
+  source: features:numletters
+  target: utility:bundle_features
+  sourceHandle: feature
+  targetHandle: features
+- id: e5
+  source: responses:local
+  target: prepare:default
+  sourceHandle: responses
+  targetHandle: responses
+- id: e6
+  source: utility:bundle_features
+  target: prepare:default
+  sourceHandle: features
+  targetHandle: features
+- id: e7
+  source: prepare:default
+  target: model:bootstrap_ridge
+  sourceHandle: prepared
+  targetHandle: prepared
+- id: e8
+  source: stimuli:textgrid
+  target: utility:collect_context
+  sourceHandle: stimuli
+  targetHandle: stimuli
+- id: e9
+  source: responses:local
+  target: utility:collect_context
+  sourceHandle: responses
+  targetHandle: responses
+- id: e10
+  source: utility:bundle_features
+  target: utility:collect_context
+  sourceHandle: features
+  targetHandle: features
+- id: e11
+  source: prepare:default
+  target: utility:collect_context
+  sourceHandle: prepared
+  targetHandle: prepared
+- id: e12
+  source: model:bootstrap_ridge
+  target: utility:collect_context
+  sourceHandle: result
+  targetHandle: result
+- id: e13
+  source: utility:collect_context
+  target: report:metrics
+  sourceHandle: context
+  targetHandle: context
+- id: e14
+  source: utility:collect_context
+  target: report:histogram
+  sourceHandle: context
+  targetHandle: context
+- id: e15
+  source: utility:collect_context
+  target: report:flatmap
+  sourceHandle: context
+  targetHandle: context

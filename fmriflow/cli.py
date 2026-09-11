@@ -82,9 +82,14 @@ def main(argv: list[str] | None = None) -> int:
         help='Resolve config and show what would execute, without running',
     )
     run_parser.add_argument(
+        '--input', action='append', default=[], metavar='NAME=VALUE',
+        help='Value for a graph input (graph files only; repeatable)',
+    )
+    run_parser.add_argument(
         '--engine', choices=['legacy', 'graph'], default=None,
         help='Execution engine: legacy stage orchestrator or the node-graph '
-             'engine (default: $FMRIFLOW_ENGINE, else legacy)',
+             'engine (default: $FMRIFLOW_ENGINE, else graph; --stages and '
+             '--resume-from fall back to legacy)',
     )
 
     # ── run-group ──
@@ -122,6 +127,20 @@ def main(argv: list[str] | None = None) -> int:
         '--dry-run', action='store_true',
         help='Resolve groups and print plan without running',
     )
+
+    # ── graph ──
+    graph_parser = subparsers.add_parser('graph', help='Analysis graph tools')
+    graph_sub = graph_parser.add_subparsers(dest='graph_command')
+    graph_compile = graph_sub.add_parser(
+        'compile', help='Compile a stage config into an analysis graph YAML')
+    graph_compile.add_argument('config', help='Path to a subject stage config')
+    graph_compile.add_argument('-o', '--output', default=None,
+                               help='Write the graph here (default: stdout)')
+    graph_validate = graph_sub.add_parser(
+        'validate', help='Validate an analysis graph, or the graph a stage config compiles to')
+    graph_validate.add_argument('config', help='Path to a graph YAML or a stage config')
+    graph_validate.add_argument('--input', action='append', default=[], metavar='NAME=VALUE',
+                                help='Value for a graph input (repeatable)')
 
     # ── validate ──
     validate_parser = subparsers.add_parser(
@@ -234,6 +253,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_run_study(args)
     elif args.command == 'validate':
         return _cmd_validate(args)
+    elif args.command == 'graph':
+        return _cmd_graph(args)
     elif args.command == 'modules':
         return _cmd_modules(args)
     elif args.command == 'list':
@@ -282,9 +303,166 @@ def _build_registry():
     return registry
 
 
+def _yaml_mapping(path: str) -> dict | None:
+    import yaml
+    try:
+        data = yaml.safe_load(Path(path).read_text()) or {}
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _is_graph_file(path: str) -> bool:
+    """True for an analysis graph YAML (``nodes:``, optionally under ``graph:``)."""
+    data = _yaml_mapping(path)
+    if not data:
+        return False
+    if isinstance(data.get('graph'), dict) and 'nodes' not in data:
+        data = data['graph']
+    return 'nodes' in data
+
+
+def _parse_inputs(items: list[str]) -> dict:
+    """``NAME=VALUE`` pairs; values parse as YAML so lists and numbers work."""
+    import yaml
+    out: dict = {}
+    for item in items or []:
+        name, sep, value = item.partition('=')
+        if not sep or not name.strip():
+            raise ValueError(f"--input expects NAME=VALUE, got {item!r}")
+        try:
+            out[name.strip()] = yaml.safe_load(value)
+        except Exception:
+            out[name.strip()] = value
+    return out
+
+
+def _cmd_run_graph_file(args) -> int:
+    """Run an analysis graph YAML on the graph engine."""
+    import os as _os
+
+    from fmriflow.analysis.catalog import NodeCatalog
+    from fmriflow.analysis.executor import GraphExecutor, resolve_graph_inputs
+    from fmriflow.analysis.graph import AnalysisGraph
+    from fmriflow.core import paths
+
+    if getattr(args, 'engine', None) == 'legacy':
+        ui.error_panel("Graph files run on the graph engine; drop --engine legacy.")
+        return 1
+    if args.stages or args.resume_from:
+        ui.error_panel("--stages and --resume-from apply to stage configs, not graph files.")
+        return 1
+    try:
+        graph = AnalysisGraph.load(args.config)
+        inputs = _parse_inputs(getattr(args, 'input', []))
+        if args.subject and 'subject' in graph.inputs:
+            inputs.setdefault('subject', args.subject)
+        bound, _ = resolve_graph_inputs(graph, inputs)
+    except Exception as e:
+        ui.error_panel(str(e))
+        return 1
+    if graph.scope != 'subject':
+        ui.error_panel(f"{graph.scope} graphs cannot run yet; only subject graphs do.")
+        return 1
+    if args.subject and 'subject' not in graph.inputs:
+        bound.globals['subject'] = args.subject
+
+    reporting = bound.globals.setdefault('reporting', {})
+    output_dir = reporting.get('output_dir') or str(paths.results_root())
+    output_dir = _os.path.expanduser(_os.path.expandvars(str(output_dir)))
+    reporting['output_dir'] = output_dir
+    log_path = _setup_file_logging(output_dir)
+    logger.info("Graph run started — graph: %s", args.config)
+
+    if args.dry_run:
+        ui.console.print(f"\n[bold]Graph:[/] {bound.name} ({bound.scope})")
+        for node in bound.nodes:
+            ui.console.print(f"  {node.id:<32} {node.type}")
+        return 0
+
+    ui.header(bound.globals.get('experiment') or bound.name, bound.globals.get('subject', '?'), bound.globals)
+    ui.console.print()
+    executor = GraphExecutor(NodeCatalog(_build_registry()).discover())
+    ctx = None
+    try:
+        ctx = executor.run(bound, write_graph=True)
+        ui.success("Graph run completed successfully.")
+        if ctx.has('result'):
+            from fmriflow.core.types import ModelResult
+            result = ctx.get('result', ModelResult)
+            ui.results_panel(mean_score=result.scores.mean(), max_score=result.scores.max(),
+                             n_voxels=result.n_voxels)
+        if ctx.artifacts:
+            ui.artifacts_panel(ctx.artifacts)
+        _save_run_summary(ctx, output_dir)
+        return 0
+    except Exception as e:
+        logger.error("Graph run failed: %s", e, exc_info=True)
+        ui.error_panel(str(e), stage=getattr(e, 'stage', None))
+        ui.log_hint(str(log_path))
+        _save_run_summary(executor.last_context, output_dir)
+        return 1
+
+
+def _cmd_graph(args) -> int:
+    """fmriflow graph compile | validate."""
+    import sys as _sys
+
+    from fmriflow.analysis.catalog import NodeCatalog
+    from fmriflow.analysis.compile_legacy import compile_subject_config
+    from fmriflow.analysis.executor import GraphExecutor, resolve_graph_inputs
+    from fmriflow.analysis.graph import AnalysisGraph
+    from fmriflow.config.loader import load_config
+    from fmriflow.exceptions import ConfigError
+
+    if args.graph_command == 'compile':
+        try:
+            graph = compile_subject_config(load_config(args.config))
+        except Exception as e:
+            ui.error_panel(str(e))
+            return 1
+        text = graph.to_yaml()
+        if args.output:
+            Path(args.output).write_text(text)
+            ui.success(f"Wrote {args.output}: {len(graph.nodes)} nodes, {len(graph.edges)} edges.")
+        else:
+            _sys.stdout.write(text)
+        return 0
+
+    if args.graph_command == 'validate':
+        try:
+            if _is_graph_file(args.config):
+                graph = AnalysisGraph.load(args.config)
+            else:
+                graph = compile_subject_config(load_config(args.config))
+            catalog = NodeCatalog(_build_registry()).discover()
+            errors = graph.validate(catalog)
+            if not errors:
+                try:
+                    bound, _ = resolve_graph_inputs(graph, _parse_inputs(args.input))
+                except ConfigError as e:
+                    errors = list(e.errors)
+                else:
+                    errors = GraphExecutor(catalog).validate(bound)
+        except Exception as e:
+            ui.error_panel(str(e))
+            return 1
+        if errors:
+            ui.config_error(errors)
+            return 1
+        ui.success(f"Graph is valid: {len(graph.nodes)} nodes, {len(graph.edges)} edges.")
+        return 0
+
+    ui.error_panel("usage: fmriflow graph {compile,validate} ...")
+    return 1
+
+
 def _cmd_run(args) -> int:
     """Run the pipeline."""
     from fmriflow.pipeline import Pipeline
+
+    if _is_graph_file(args.config):
+        return _cmd_run_graph_file(args)
 
     try:
         pipeline = Pipeline.from_yaml(args.config, registry=_build_registry(),

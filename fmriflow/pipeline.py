@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import os
 from pathlib import Path
 
@@ -10,6 +12,8 @@ from fmriflow.context import PipelineContext
 from fmriflow.orchestrator import ALL_STAGES, ConfigError, PipelineOrchestrator
 from fmriflow.registry import ModuleRegistry
 
+
+logger = logging.getLogger(__name__)
 
 class Pipeline:
     """User-facing API for configuring and running pipelines.
@@ -29,6 +33,8 @@ class Pipeline:
         self.registry = registry or ModuleRegistry()
         self.registry.discover()
         self.engine = resolve_engine(engine)
+        # A default choice may fall back to legacy for partial runs; an explicit one may not.
+        self.engine_explicit = bool(engine or os.environ.get("FMRIFLOW_ENGINE"))
         self.last_context: PipelineContext | None = None
 
     @classmethod
@@ -70,8 +76,11 @@ class Pipeline:
         PipelineContext
             Context containing all outputs and artifacts.
         """
-        if self.engine == "graph":
+        partial = stages is not None or resume_from is not None or context is not None
+        if self.engine == "graph" and not (partial and not self.engine_explicit):
             return self._run_graph(stages, resume_from, context)
+        if self.engine == "graph":
+            logger.info("stages, resume_from or a context given: running on the legacy engine")
 
         orchestrator = PipelineOrchestrator(self.config, self.registry)
 
@@ -108,11 +117,12 @@ class Pipeline:
 
 
 ENGINES: tuple[str, ...] = ("legacy", "graph")
+DEFAULT_ENGINE = "graph"
 
 
 def resolve_engine(engine: str | None = None) -> str:
-    """The engine to run with: the argument, else ``$FMRIFLOW_ENGINE``, else ``legacy``."""
-    value = (engine or os.environ.get("FMRIFLOW_ENGINE") or "legacy").strip().lower()
+    """The engine to run with: the argument, else ``$FMRIFLOW_ENGINE``, else ``graph``."""
+    value = (engine or os.environ.get("FMRIFLOW_ENGINE") or DEFAULT_ENGINE).strip().lower()
     if value not in ENGINES:
         raise ConfigError(f"unknown engine {value!r}; expected one of {', '.join(ENGINES)}")
     return value

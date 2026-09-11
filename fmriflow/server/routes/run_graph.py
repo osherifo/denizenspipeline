@@ -30,6 +30,7 @@ from fastapi.responses import FileResponse
 
 from fmriflow.core import paths
 from fmriflow.server.services.run_graph import (
+    build_graph_run_graph,
     GraphNode,
     build_group_graph,
     build_study_graph,
@@ -145,6 +146,24 @@ def _resolve_study_group_run_dir(study_run_dir: Path, group_label: str) -> Path:
             detail=f"no group_summary.json for '{group_label}'")
     candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return candidates[0]
+
+
+def _subject_run_graph(request: Request, run: dict) -> dict:
+    """Run graph dict for a subject run: from the executed ``graph.json`` when
+    the run has one (graph engine), else re-derived from the config snapshot."""
+    summary = run['summary']
+    records = [s.__dict__ if hasattr(s, '__dict__') else s for s in summary.stages]
+    graph_json = Path(run['output_dir']) / 'graph.json'
+    if graph_json.is_file():
+        try:
+            doc = json.loads(graph_json.read_text())
+            out = build_graph_run_graph(doc, records, _registry(request)).to_dict()
+            out['graph_doc'] = doc
+            return out
+        except Exception:
+            logger.warning("Could not build the run graph from %s; using the config snapshot",
+                           graph_json, exc_info=True)
+    return build_subject_graph(summary.config_snapshot, records, _registry(request)).to_dict()
 
 
 def _find_node(graph: dict, node_id: str) -> dict:
@@ -726,29 +745,19 @@ async def config_subject_node_source(request: Request, filename: str,
 async def subject_run_graph(request: Request, run_id: str):
     run = _find_run_or_404(request, run_id)
     summary = run['summary']
-    graph = build_subject_graph(
-        summary.config_snapshot,
-        [s.__dict__ if hasattr(s, '__dict__') else s for s in summary.stages],
-        _registry(request),
-    )
     return {
         'run_id': run_id,
         'experiment': summary.experiment,
         'subject': summary.subject,
         'output_dir': run['output_dir'],
-        **graph.to_dict(),
+        **_subject_run_graph(request, run),
     }
 
 
 @router.get("/runs/{run_id}/node/{node_id:path}/source")
 async def subject_node_source(request: Request, run_id: str, node_id: str):
     run = _find_run_or_404(request, run_id)
-    summary = run['summary']
-    graph = build_subject_graph(
-        summary.config_snapshot,
-        [s.__dict__ if hasattr(s, '__dict__') else s for s in summary.stages],
-        _registry(request),
-    ).to_dict()
+    graph = _subject_run_graph(request, run)
     node = _find_node(graph, node_id)
     if not node.get('source_path'):
         raise HTTPException(
@@ -761,12 +770,7 @@ async def subject_node_source(request: Request, run_id: str, node_id: str):
 @router.get("/runs/{run_id}/node/{node_id:path}/outputs")
 async def subject_node_outputs(request: Request, run_id: str, node_id: str):
     run = _find_run_or_404(request, run_id)
-    summary = run['summary']
-    graph = build_subject_graph(
-        summary.config_snapshot,
-        [s.__dict__ if hasattr(s, '__dict__') else s for s in summary.stages],
-        _registry(request),
-    ).to_dict()
+    graph = _subject_run_graph(request, run)
     node = _find_node(graph, node_id)
     output_dir = Path(run['output_dir'])
     files = list_node_outputs(output_dir, GraphNode(**{

@@ -321,6 +321,15 @@ def kind_from_state(state: RunStateFile) -> tuple[bool, bool]:
     return is_group, is_study
 
 
+def _graph_document(data: dict) -> dict | None:
+    """The analysis graph in a loaded YAML (``nodes:``, optionally under ``graph:``), else None."""
+    if not isinstance(data, dict):
+        return None
+    if isinstance(data.get('graph'), dict) and 'nodes' not in data:
+        data = data['graph']
+    return data if 'nodes' in data else None
+
+
 def _apply_per_run_output_dir(config: dict, run_id: str) -> dict:
     """Rewrite ``config['reporting']['output_dir']`` to a per-run
     subdirectory so repeat runs of the same experiment don't clobber
@@ -482,6 +491,10 @@ class RunManager:
                 if v is not None:
                     base[k] = v
 
+        graph_doc = _graph_document(base)
+        if graph_doc is not None:
+            return self._start_graph_run(run_id, graph_doc, config_path, overrides)
+
         is_study = (
             isinstance(base.get('study'), str)
             and isinstance(base.get('groups'), list)
@@ -518,6 +531,48 @@ class RunManager:
             "study" if is_study else ("group" if is_group else "subject"),
             run_id, config_path,
         )
+        return run_id
+
+    def start_graph_run(self, graph_doc: dict, inputs: dict | None = None,
+                        overrides: dict | None = None, source: str = "inline graph") -> str:
+        """Launch an analysis graph given as a dict (the builder's draft or a saved graph)."""
+        doc = _graph_document(graph_doc)
+        if doc is None:
+            raise ValueError("start_graph_run needs an analysis graph (a mapping with 'nodes')")
+        run_id = uuid.uuid4().hex[:12]
+        merged = dict(overrides or {})
+        if inputs:
+            merged["inputs"] = dict(inputs)
+        return self._start_graph_run(run_id, doc, source, merged)
+
+    def _start_graph_run(self, run_id: str, doc: dict, source_path: str,
+                         overrides: dict | None = None) -> str:
+        """Launch an analysis graph YAML: bind its inputs, give it a per-run
+        output directory, and spawn ``fmriflow run`` on the bound graph."""
+        from fmriflow.analysis.executor import resolve_graph_inputs
+        from fmriflow.analysis.graph import AnalysisGraph
+
+        graph = AnalysisGraph.from_dict(doc)
+        if graph.scope != 'subject':
+            raise ValueError(f"{graph.scope} graphs cannot run yet; only subject graphs do")
+        overrides = dict(overrides or {})
+        inputs = dict((graph.run_defaults or {}).get('inputs') or {})
+        inputs.update(overrides.pop('inputs', None) or {})
+        bound, _ = resolve_graph_inputs(graph, inputs)
+        for key, value in overrides.items():
+            if value is not None:
+                bound.globals[key] = value
+        bound.globals = _apply_per_run_output_dir(bound.globals, run_id)
+
+        tmp = tempfile.NamedTemporaryFile(mode='w', suffix=f"_{run_id}.yaml", delete=False)
+        yaml.safe_dump(bound.to_dict(), tmp, sort_keys=False, allow_unicode=True)
+        tmp.close()
+        view = {**bound.globals, 'experiment': bound.globals.get('experiment') or bound.name}
+        handle = self._register_handle(
+            run_id=run_id, config=view, config_path=tmp.name, temp_config_path=tmp.name,
+        )
+        self._spawn_and_track(handle)
+        logger.info("Started graph run %s from %s", run_id, source_path)
         return run_id
 
     # ── Registry + spawn helpers ────────────────────────────────────

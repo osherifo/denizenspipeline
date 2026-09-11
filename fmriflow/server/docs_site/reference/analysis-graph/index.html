@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../defaults/">
+        <link rel="prev" href="../config/">
       
       
-        <link rel="next" href="../preproc-pipeline/">
+        <link rel="next" href="../defaults/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>Hub Store Schema - fMRIflow</title>
+        <title>Analysis graph - fMRIflow</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#hub-store-schema" class="md-skip">
+        <a href="#analysis-graph-reference" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Hub Store Schema
+              Analysis graph
             
           </span>
         </div>
@@ -1001,10 +1001,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../analysis-graph/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis graph
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1020,6 +1047,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#graph-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graph file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inputs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nodes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#edges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edges
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run outputs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#http-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTTP API
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1057,37 +1170,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Hub Store Schema
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../hub-store-schema/" class="md-nav__link">
         
   
   
@@ -1103,131 +1189,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#repository-layout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Repository layout
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-pull-and-push-use-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How pull and push use it
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#hubjson" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        hub.json
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="hub.json">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#top-level" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Top level
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#artifact-entry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Artifact entry
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#artifact-kinds" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Artifact kinds
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Validation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#self-documenting-stores" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Self-documenting stores
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#compatibility" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Compatibility
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1323,10 +1284,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#repository-layout" class="md-nav__link">
+  <a href="#graph-file" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Repository layout
+        Graph file
       
     </span>
   </a>
@@ -1334,10 +1295,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#how-pull-and-push-use-it" class="md-nav__link">
+  <a href="#inputs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How pull and push use it
+        Inputs
       
     </span>
   </a>
@@ -1345,49 +1306,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#hubjson" class="md-nav__link">
+  <a href="#nodes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        hub.json
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="hub.json">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#top-level" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Top level
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#artifact-entry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Artifact entry
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#artifact-kinds" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Artifact kinds
+        Nodes
       
     </span>
   </a>
@@ -1395,10 +1317,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#validation" class="md-nav__link">
+  <a href="#edges" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Validation
+        Edges
       
     </span>
   </a>
@@ -1406,10 +1328,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#self-documenting-stores" class="md-nav__link">
+  <a href="#run-outputs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Self-documenting stores
+        Run outputs
       
     </span>
   </a>
@@ -1417,10 +1339,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#compatibility" class="md-nav__link">
+  <a href="#http-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Compatibility
+        HTTP API
       
     </span>
   </a>
@@ -1447,260 +1369,297 @@
   
 
 
-<h1 id="hub-store-schema">Hub store schema<a class="headerlink" href="#hub-store-schema" title="Permanent link">&para;</a></h1>
-<p>An <strong>artifact-hub store</strong> is a git repository laid out to a fixed contract so
-fMRIflow knows exactly what to <strong>pull</strong> and where to <strong>push</strong>. This page is the
-formal spec; the <a href="../../guide/artifact-hub/">Artifact Hub guide</a> is the how-to.</p>
-<p>The machine-readable JSON Schema ships in the package at
-<code>fmriflow/hub/hub.schema.json</code>.</p>
-<h2 id="repository-layout">Repository layout<a class="headerlink" href="#repository-layout" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;store repo&gt;/
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── hub.json                 ← the manifest: the index fMRIflow reads
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── .gitattributes           ← LFS rule for kinds/feature_array/**
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── README.md                ← (auto-generated) describes the store
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>└── kinds/
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    ├── error/0026_....yaml
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    ├── module/....py
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    ├── analysis_config/....yaml
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    ├── workflow_config/....yaml
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    ├── stack_preset/....yaml
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    ├── heuristic/....py (+ ....yaml sidecar)
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    ├── transform/....py
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    ├── workflow/....py
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    └── feature_array/....npz         ← git-LFS tracked
-</code></pre></div>
-<p>Artifact files live under <strong><code>kinds/&lt;kind&gt;/&lt;name&gt;.&lt;ext&gt;</code></strong>. <code>README.md</code> and
-<code>.gitattributes</code> are written automatically on the first publish (see
-<a href="#self-documenting-stores">Self-documenting stores</a>).</p>
-<h2 id="how-pull-and-push-use-it">How pull and push use it<a class="headerlink" href="#how-pull-and-push-use-it" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Pull</strong> — <code>sync</code> clones the repo and reads <strong><code>hub.json</code></strong>. The catalog and
-  install operate entirely from the manifest's <code>files</code> lists; fMRIflow does
-  <strong>not</strong> scan the tree to discover artifacts. A repo with no <code>hub.json</code> (e.g. a
-  brand-new empty repo) simply has an empty catalog.</li>
-<li><strong>Push</strong> — <code>publish</code> copies your file into <code>kinds/&lt;kind&gt;/&lt;name&gt;</code>, regenerates
-  that artifact's entry in <code>hub.json</code> (recomputing <code>sha256</code> + <code>size</code>), commits,
-  and pushes. The first publish to an empty repo initialises it on the base
-  branch.</li>
-</ul>
-<p>So <strong><code>hub.json</code> is the single source of truth</strong> for what a store contains.</p>
-<h2 id="hubjson"><code>hub.json</code><a class="headerlink" href="#hubjson" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;schema&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;artifacts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;error&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0026_fmriprep_no_t1w&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">&quot;files&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;kinds/error/0026_fmriprep_no_t1w.yaml&quot;</span><span class="p">],</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">&quot;sha256&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;hex&gt;&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">&quot;size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1234</span><span class="p">,</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fMRIPrep aborts when a subject has no T1w&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="nt">&quot;author&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;you@lab&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">      </span><span class="nt">&quot;tags&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;fmriprep&quot;</span><span class="p">],</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">      </span><span class="nt">&quot;lfs&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">      </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="p">}</span>
-</code></pre></div>
-<h3 id="top-level">Top level<a class="headerlink" href="#top-level" title="Permanent link">&para;</a></h3>
+<h1 id="analysis-graph-reference">Analysis graph reference<a class="headerlink" href="#analysis-graph-reference" title="Permanent link">&para;</a></h1>
+<p>The YAML format for analysis graphs and the HTTP API that manages them. See the
+<a href="../../guide/analysis-graphs/">analysis graphs guide</a> for an introduction.</p>
+<h2 id="graph-file">Graph file<a class="headerlink" href="#graph-file" title="Permanent link">&para;</a></h2>
+<p>A graph file is a mapping. It may also be wrapped under a top-level <code>graph:</code> key.</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
+<th>Key</th>
 <th>Type</th>
-<th>Required</th>
-<th>Notes</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>schema</code></td>
-<td>integer</td>
-<td>✅</td>
-<td>Manifest version. Current: <strong>1</strong>.</td>
+<td><code>schema_version</code></td>
+<td>int</td>
+<td>Format version, currently <code>1</code>.</td>
 </tr>
 <tr>
-<td><code>artifacts</code></td>
-<td>array</td>
-<td>✅</td>
-<td>One entry per artifact.</td>
+<td><code>name</code></td>
+<td>str</td>
+<td>Graph name. Used as the run name when <code>globals.experiment</code> is empty.</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>str</td>
+<td>Free text.</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td>str</td>
+<td><code>subject</code>. <code>group</code> and <code>study</code> are reserved and do not run yet.</td>
+</tr>
+<tr>
+<td><code>inputs</code></td>
+<td>mapping</td>
+<td>Values supplied at run time, see below.</td>
+</tr>
+<tr>
+<td><code>outputs</code></td>
+<td>mapping</td>
+<td>Reserved for sub-graphs; leave empty.</td>
+</tr>
+<tr>
+<td><code>globals</code></td>
+<td>mapping</td>
+<td>Run-level configuration every node's config is built from.</td>
+</tr>
+<tr>
+<td><code>nodes</code></td>
+<td>list</td>
+<td>Nodes, see below.</td>
+</tr>
+<tr>
+<td><code>edges</code></td>
+<td>list</td>
+<td>Edges, see below.</td>
+</tr>
+<tr>
+<td><code>stages</code></td>
+<td>list</td>
+<td>Stages always recorded in the run summary, in order, even with no node. Written by the compiler.</td>
+</tr>
+<tr>
+<td><code>run_defaults</code></td>
+<td>mapping</td>
+<td>Saved run values. <code>run_defaults.inputs</code> holds input values.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="artifact-entry">Artifact entry<a class="headerlink" href="#artifact-entry" title="Permanent link">&para;</a></h3>
+<h2 id="inputs">Inputs<a class="headerlink" href="#inputs" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">inputs</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">subject</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="nv">str</span><span class="p p-Indicator">,</span><span class="nt"> description</span><span class="p">:</span><span class="w"> </span><span class="nv">subject id</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">surface</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="nv">str</span><span class="p p-Indicator">,</span><span class="nt"> required</span><span class="p">:</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">,</span><span class="nt"> default</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p p-Indicator">}</span>
+</code></pre></div>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Required</th>
-<th>Notes</th>
+<th>Key</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>kind</code></td>
-<td>string (enum)</td>
-<td>✅</td>
-<td>One of the <a href="#artifact-kinds">artifact kinds</a>. Sets the local install destination.</td>
-</tr>
-<tr>
-<td><code>name</code></td>
-<td>string</td>
-<td>✅</td>
-<td>The identifier fMRIflow shows for that kind (config filename, module name, error <code>id</code>, heuristic name, …). Unique within a kind.</td>
-</tr>
-<tr>
-<td><code>files</code></td>
-<td>string[]</td>
-<td>✅</td>
-<td>Repo-relative paths under <code>kinds/&lt;kind&gt;/</code> (plus sidecars). Non-empty.</td>
-</tr>
-<tr>
-<td><code>sha256</code></td>
-<td>string</td>
-<td>✅</td>
-<td>Combined content hash. <strong>Verified on install — a mismatch is rejected (fail-closed).</strong></td>
-</tr>
-<tr>
-<td><code>size</code></td>
-<td>integer</td>
-<td>—</td>
-<td>Total bytes (informational).</td>
-</tr>
-<tr>
-<td><code>version</code></td>
-<td>string</td>
-<td>—</td>
-<td>Defaults to <code>"1"</code>.</td>
+<td>A hint for forms: <code>str</code>, <code>file</code>, <code>dir</code>, <code>list</code>, ...</td>
 </tr>
 <tr>
 <td><code>description</code></td>
-<td>string</td>
-<td>—</td>
-<td>Shown in the catalog.</td>
+<td>Shown next to the field.</td>
 </tr>
 <tr>
-<td><code>author</code></td>
-<td>string</td>
-<td>—</td>
-<td></td>
+<td><code>default</code></td>
+<td>Used when no value is given.</td>
 </tr>
 <tr>
-<td><code>tags</code></td>
-<td>string[]</td>
-<td>—</td>
-<td></td>
-</tr>
-<tr>
-<td><code>lfs</code></td>
-<td>boolean</td>
-<td>—</td>
-<td><code>true</code> when git-LFS-tracked (feature arrays).</td>
-</tr>
-<tr>
-<td><code>metadata</code></td>
-<td>object</td>
-<td>—</td>
-<td>Kind-specific extras. <strong><code>module</code> entries MUST set <code>metadata.category</code></strong> (the plugin category it installs into).</td>
+<td><code>required</code></td>
+<td>Defaults to <code>true</code>. A required input that is referenced and has no value is an error.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="artifact-kinds">Artifact kinds<a class="headerlink" href="#artifact-kinds" title="Permanent link">&para;</a></h2>
+<p><code>$inputs.&lt;name&gt;</code> strings in <code>globals</code>, node params and node literal inputs are replaced when the run
+starts. A reference to an undeclared input is an error.</p>
+<h2 id="nodes">Nodes<a class="headerlink" href="#nodes" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">model</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">model:bootstrap_ridge</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">data</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">params</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">n_boots</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">position</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">x</span><span class="p">:</span><span class="w"> </span><span class="nv">900</span><span class="p p-Indicator">,</span><span class="nt"> y</span><span class="p">:</span><span class="w"> </span><span class="nv">60</span><span class="p p-Indicator">}</span>
+</code></pre></div>
 <table>
 <thead>
 <tr>
-<th><code>kind</code></th>
-<th>File(s)</th>
-<th>Installs to (local user tier)</th>
+<th>Key</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>error</code></td>
-<td><code>&lt;id&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_ERRORS/</code></td>
+<td><code>id</code></td>
+<td>Unique within the graph.</td>
 </tr>
 <tr>
-<td><code>module</code></td>
-<td><code>&lt;name&gt;.py</code> (+ <code>metadata.category</code>)</td>
-<td><code>$FMRIFLOW_HOME/addons/modules/</code> (hot-registered)</td>
+<td><code>type</code></td>
+<td>Node type, <code>&lt;category&gt;:&lt;module&gt;</code>, or <code>qa_reporter:&lt;stage&gt;.&lt;name&gt;</code>, or <code>utility:&lt;name&gt;</code>.</td>
 </tr>
 <tr>
-<td><code>analysis_config</code></td>
-<td><code>&lt;filename&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_HOME/configs/analysis/</code></td>
+<td><code>data.params</code></td>
+<td>The node's params: its module's <code>PARAM_SCHEMA</code> fields, plus <code>_section</code> for undeclared section keys.</td>
 </tr>
 <tr>
-<td><code>workflow_config</code></td>
-<td><code>&lt;filename&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_HOME/configs/workflows/</code></td>
+<td><code>data.literal_inputs</code></td>
+<td>Constant values for input ports.</td>
 </tr>
 <tr>
-<td><code>convert_config</code></td>
-<td><code>&lt;filename&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_HOME/configs/convert/</code></td>
-</tr>
-<tr>
-<td><code>preproc_config</code></td>
-<td><code>&lt;filename&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_HOME/configs/preproc/</code></td>
-</tr>
-<tr>
-<td><code>autoflatten_config</code></td>
-<td><code>&lt;filename&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_HOME/configs/autoflatten/</code></td>
-</tr>
-<tr>
-<td><code>stack_preset</code></td>
-<td><code>&lt;name&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_HOME/addons/pipelines/</code></td>
-</tr>
-<tr>
-<td><code>heuristic</code></td>
-<td><code>&lt;name&gt;.py</code> + <code>&lt;name&gt;.yaml</code></td>
-<td><code>$FMRIFLOW_HOME/addons/heuristics/</code></td>
-</tr>
-<tr>
-<td><code>transform</code></td>
-<td><code>&lt;name&gt;.py</code></td>
-<td><code>$FMRIFLOW_HOME/addons/transforms/</code> (rescanned)</td>
-</tr>
-<tr>
-<td><code>workflow</code></td>
-<td><code>&lt;name&gt;.py</code></td>
-<td><code>$FMRIFLOW_HOME/addons/workflows/</code> (rescanned)</td>
-</tr>
-<tr>
-<td><code>feature_array</code></td>
-<td><code>&lt;name&gt;.npz</code> / <code>.hdf5</code> (LFS)</td>
-<td><code>$FMRIFLOW_DATA/hub_features/&lt;name&gt;/</code></td>
+<td><code>position</code></td>
+<td>Layout for graphical editors; optional.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h2>
-<p>fMRIflow validates a synced store against this schema. <code>sync</code> returns any
-problems as <code>warnings</code>, and <code>GET /api/hub/sources/{id}/validate</code> returns the full
-list. Checks: supported <code>schema</code>, known <code>kind</code>, unique <code>kind/name</code>, a non-empty
-<code>files</code> list whose entries are <strong>repo-relative and exist on disk</strong> (absolute
-paths and <code>..</code> traversal are rejected — a hub install never reads or writes
-outside the clone), a present <code>sha256</code>, and <code>metadata.category</code> on <code>module</code>
-entries. A non-empty repo missing <code>hub.json</code> is flagged too (only a
-commit-less/empty repo is exempt).</p>
-<h2 id="self-documenting-stores">Self-documenting stores<a class="headerlink" href="#self-documenting-stores" title="Permanent link">&para;</a></h2>
-<p>On the first publish to an empty repo, fMRIflow writes:</p>
-<ul>
-<li><strong><code>.gitattributes</code></strong> — <code>kinds/feature_array/** filter=lfs diff=lfs merge=lfs -text</code>
-  so binary feature arrays are LFS-tracked automatically.</li>
-<li><strong><code>README.md</code></strong> — a copy of this contract, so anyone browsing the repo (or a
-  maintainer reviewing a PR) sees the schema without leaving the store.</li>
-</ul>
-<h2 id="compatibility">Compatibility<a class="headerlink" href="#compatibility" title="Permanent link">&para;</a></h2>
-<p><code>schema</code> is an integer. A store with a <code>schema</code> this build doesn't support is
-flagged by validation and its artifacts are not offered for install. Bump the
-version only for breaking layout/field changes.</p>
+<p>Params that differ from a module's usual section shape:</p>
+<table>
+<thead>
+<tr>
+<th>Node type</th>
+<th>Param</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>feature_extractor:*</code>, <code>feature_source:*</code></td>
+<td><code>feature_name</code></td>
+<td>Name of the feature space.</td>
+</tr>
+<tr>
+<td><code>feature_extractor:*</code></td>
+<td><code>save_to</code></td>
+<td>Where to save the computed features.</td>
+</tr>
+<tr>
+<td><code>preparer:*</code></td>
+<td><code>split</code></td>
+<td>The train/test split, as in the stage config's <code>split:</code> section.</td>
+</tr>
+<tr>
+<td><code>model:*</code></td>
+<td>all params</td>
+<td>Become <code>model.params</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="edges">Edges<a class="headerlink" href="#edges" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="nv">e1</span><span class="p p-Indicator">,</span><span class="nt"> source</span><span class="p">:</span><span class="w"> </span><span class="nv">prepare</span><span class="p p-Indicator">,</span><span class="nt"> sourceHandle</span><span class="p">:</span><span class="w"> </span><span class="nv">prepared</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">model</span><span class="p p-Indicator">,</span><span class="nt"> targetHandle</span><span class="p">:</span><span class="w"> </span><span class="nv">prepared</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><code>sourceHandle</code> is an output port of <code>source</code>; <code>targetHandle</code> is an input port of <code>target</code>. Their types
+must be compatible. <code>any</code> matches everything, and a <code>Context</code> output feeds any <code>Context</code> input. A
+fan-in input takes several edges, in list order.</p>
+<h2 id="run-outputs">Run outputs<a class="headerlink" href="#run-outputs" title="Permanent link">&para;</a></h2>
+<p>A graph run writes to <code>globals.reporting.output_dir</code>:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>graph.json</code></td>
+<td>The executed graph with inputs bound.</td>
+</tr>
+<tr>
+<td><code>run_summary.json</code></td>
+<td>Stages with their node records, in the stage run's format.</td>
+</tr>
+<tr>
+<td><code>events.jsonl</code></td>
+<td>Stage and node events, including <code>node_skipped</code>.</td>
+</tr>
+<tr>
+<td>intermediates, QA, reports</td>
+<td>As in a stage run.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="http-api">HTTP API<a class="headerlink" href="#http-api" title="Permanent link">&para;</a></h2>
+<p>All paths are under <code>/api</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method and path</th>
+<th>Body</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /analysis/nodes</code></td>
+<td>none</td>
+<td>Every node type with ports, params, stage and error policy. <code>?include_hidden=true</code> adds hidden types.</td>
+</tr>
+<tr>
+<td><code>GET /analysis/nodes/{type}</code></td>
+<td>none</td>
+<td>One node type.</td>
+</tr>
+<tr>
+<td><code>GET /analysis/port-types</code></td>
+<td>none</td>
+<td>Port types and what each accepts.</td>
+</tr>
+<tr>
+<td><code>GET /analysis/graphs</code></td>
+<td>none</td>
+<td>Saved graphs: name, scope, description, node types, inputs.</td>
+</tr>
+<tr>
+<td><code>GET /analysis/graphs/{name}</code></td>
+<td>none</td>
+<td>One saved graph.</td>
+</tr>
+<tr>
+<td><code>PUT /analysis/graphs/{name}</code></td>
+<td><code>{graph}</code></td>
+<td>Saves the graph and returns structural <code>errors</code>. It saves even when invalid.</td>
+</tr>
+<tr>
+<td><code>DELETE /analysis/graphs/{name}</code></td>
+<td>none</td>
+<td>Deletes a saved graph. Stage configs cannot be deleted here.</td>
+</tr>
+<tr>
+<td><code>GET /analysis/graphs/templates</code></td>
+<td>none</td>
+<td>Bundled and user templates with their tier and scope.</td>
+</tr>
+<tr>
+<td><code>GET /analysis/graphs/templates/{name}</code></td>
+<td>none</td>
+<td>One template.</td>
+</tr>
+<tr>
+<td><code>POST /analysis/graphs/templates</code></td>
+<td><code>{name, graph}</code></td>
+<td>Saves a user template. Returns <code>errors</code> and <code>warnings</code>; warnings flag concrete paths in node params.</td>
+</tr>
+<tr>
+<td><code>DELETE /analysis/graphs/templates/{name}</code></td>
+<td>none</td>
+<td>Deletes a user template. Bundled templates return 403.</td>
+</tr>
+<tr>
+<td><code>POST /analysis/graphs/validate</code></td>
+<td><code>{graph, inputs}</code></td>
+<td><code>{ok, errors}</code>: structure, port types, inputs and module checks.</td>
+</tr>
+<tr>
+<td><code>POST /analysis/graphs/compile</code></td>
+<td><code>{filename}</code> or <code>{config}</code></td>
+<td>The graph a subject stage config compiles to.</td>
+</tr>
+<tr>
+<td><code>POST /analysis/graphs/run</code></td>
+<td><code>{graph}</code> or <code>{graph_name}</code>, plus <code>inputs</code></td>
+<td>Starts a run with its own output subdirectory and returns <code>{run_id}</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><code>POST /runs/from-config</code> also accepts a graph file path and runs it the same way.</p>
 
 
 

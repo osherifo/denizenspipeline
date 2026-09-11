@@ -32,6 +32,17 @@ SCHEMA_VERSION = 1
 INPUT_REF_PREFIX = "$inputs."
 
 
+class _NoAliasDumper(yaml.SafeDumper):
+    """Safe dumper that writes shared values out in full instead of ``&id001`` anchors.
+
+    A graph compiled from a config shares lists between node params and
+    ``globals``; anchors would make the YAML hard to read and edit by hand.
+    """
+
+    def ignore_aliases(self, data: Any) -> bool:
+        return True
+
+
 @dataclass
 class NodeSpec:
     id: str
@@ -180,7 +191,7 @@ class GraphSpec:
         )
 
     def to_yaml(self) -> str:
-        return yaml.safe_dump(self.to_dict(), sort_keys=False)
+        return yaml.dump(self.to_dict(), Dumper=_NoAliasDumper, sort_keys=False)
 
     @classmethod
     def unwrap(cls, data: dict[str, Any]) -> dict[str, Any]:

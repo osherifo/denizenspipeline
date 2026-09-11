@@ -16,8 +16,11 @@ fmriflow run experiment.yaml --resume-from features
 # Dry run (show what would execute)
 fmriflow run experiment.yaml --dry-run
 
-# Run on the node-graph engine instead of the stage orchestrator
-fmriflow run experiment.yaml --engine graph
+# Run on the stage orchestrator instead of the graph engine
+fmriflow run experiment.yaml --engine legacy
+
+# Run an analysis graph file, giving its inputs
+fmriflow run analysis.yaml --input subject=sub01 --input output_dir=/data/results/sub01
 
 # Validate config without running
 fmriflow validate experiment.yaml
@@ -25,10 +28,23 @@ fmriflow validate experiment.yaml
 
 ### Engines
 
-`--engine graph` compiles the stage config into a graph of nodes, one per module, and runs it in-process.
-It writes the same run summary, events, intermediates and reports as the default stage orchestrator, plus
-`graph.json` with the executed graph. Set `FMRIFLOW_ENGINE=graph` to make it the default. The graph engine
-always runs the whole pipeline, so `--stages` and `--resume-from` still need `--engine legacy`.
+Subject runs use the graph engine: the stage config is compiled into a graph of nodes, one per module,
+and run in-process. It writes the run summary, events, intermediates and reports, plus `graph.json` with
+the executed graph. `--engine legacy` or `FMRIFLOW_ENGINE=legacy` runs the stage orchestrator instead.
+`--stages` and `--resume-from` need the stage orchestrator and switch to it automatically unless
+`--engine graph` was given.
+
+### Analysis graphs
+
+```bash
+# Compile a stage config into the equivalent graph
+fmriflow graph compile experiment.yaml -o analysis.yaml
+
+# Check a graph (or the graph a stage config compiles to) without running it
+fmriflow graph validate analysis.yaml --input subject=sub01
+```
+
+See [Analysis graphs](analysis-graphs.md) for the file format.
 
 ## Group and study runs
 
