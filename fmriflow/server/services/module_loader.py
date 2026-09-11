@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -442,10 +444,13 @@ def discover_user_modules(modules_dir: Path | None = None) -> int:
     for py_file in sorted(modules_dir.glob('*.py')):
         try:
             code = py_file.read_text()
-            # Run each addon in its own module namespace; a bare exec() inside this
-            # function leaves the addon's imports and helpers invisible to its classes.
-            namespace = {"__name__": f"fmriflow_user_module_{py_file.stem}", "__file__": str(py_file)}
-            exec(compile(code, str(py_file), 'exec'), namespace)
+            # Run each addon as its own registered module: its imports and helpers
+            # stay visible to its classes, and inspect.getfile() finds the file
+            # (the web UI shows node sources through it).
+            module = types.ModuleType(f"fmriflow_user_module_{py_file.stem}")
+            module.__file__ = str(py_file)
+            sys.modules[module.__name__] = module
+            exec(compile(code, str(py_file), 'exec'), module.__dict__)
             logger.info("Loaded user module: %s", py_file.stem)
             loaded += 1
         except Exception as e:
