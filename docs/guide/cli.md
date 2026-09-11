@@ -7,10 +7,11 @@
 fmriflow run experiment.yaml
 
 # Run specific stages
-fmriflow run experiment.yaml --stages features,preprocess,model
+fmriflow run experiment.yaml --stages features,prepare,model
 
-# Resume from a checkpoint
-fmriflow run experiment.yaml --resume-from preprocess
+# Resume after a checkpointed stage (needs `checkpoint: true` in the config);
+# only the stages after `features` run
+fmriflow run experiment.yaml --resume-from features
 
 # Dry run (show what would execute)
 fmriflow run experiment.yaml --dry-run
@@ -19,6 +20,23 @@ fmriflow run experiment.yaml --dry-run
 fmriflow validate experiment.yaml
 ```
 
+## Group and study runs
+
+```bash
+# Run a group (subjects) or a study (groups)
+fmriflow run-group group.yaml
+fmriflow run-study study.yaml
+
+# Continue the most recent run: subjects whose run_summary.json is ok are skipped
+fmriflow run-group group.yaml --resume
+
+# Write to (or continue) a specific run directory
+fmriflow run-group group.yaml --resume --run-id 20260911T101500Z
+```
+
+Each run writes to `<output_dir>/<run_id>/`, with a `latest` link to the newest run.
+Subject modules from your add-on directory load for these commands too.
+
 ## Modules
 
 ```bash
@@ -26,7 +44,7 @@ fmriflow validate experiment.yaml
 fmriflow list modules
 
 # List modules for a specific stage
-fmriflow list preprocess
+fmriflow list prepare
 fmriflow list features
 fmriflow list model
 

@@ -156,8 +156,18 @@ new analyzer/reporter that should emit diagnostic warnings.
 
 | Flag | Meaning |
 |---|---|
-| `--resume` | When a previous run's `<run_id>/` is targeted (set via `output_dir`), skip subjects whose `run_summary.json` already shows every stage `ok`. Default behaviour with no `output_dir` override is to create a fresh timestamped run, so `--resume` is mostly relevant when you point at an existing run directory. |
+| `--resume` | Continue the most recent run of this group (the `latest` link under `output_dir`): subjects whose `run_summary.json` already shows every stage `ok` are skipped. Group stages always re-run. |
+| `--run-id` | Name of the run directory to write to or continue, instead of a new timestamp. |
 | `--dry-run` | Print the resolved group name, output directory, and subject list without running anything. |
+
+Subjects skipped by `--resume` are loaded from disk without their in-memory results. Group
+analyzers that read subject results cannot use them: the `group_analyze` stage is marked
+`warning` and its detail names the subjects that could not contribute.
+
+Subject-scope analyzers belong under `subject_template.analysis`. A top-level `analysis:` block in a
+group config is rejected, because it was never applied. Analyzers under `subject_template` also run
+in the second pass, and the second pass's analyze and report records are saved to each subject's
+`run_summary.json`.
 
 ## What ships today
 

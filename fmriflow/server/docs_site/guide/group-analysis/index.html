@@ -1858,7 +1858,11 @@ new analyzer/reporter that should emit diagnostic warnings.</p>
 <tbody>
 <tr>
 <td><code>--resume</code></td>
-<td>When a previous run's <code>&lt;run_id&gt;/</code> is targeted (set via <code>output_dir</code>), skip subjects whose <code>run_summary.json</code> already shows every stage <code>ok</code>. Default behaviour with no <code>output_dir</code> override is to create a fresh timestamped run, so <code>--resume</code> is mostly relevant when you point at an existing run directory.</td>
+<td>Continue the most recent run of this group (the <code>latest</code> link under <code>output_dir</code>): subjects whose <code>run_summary.json</code> already shows every stage <code>ok</code> are skipped. Group stages always re-run.</td>
+</tr>
+<tr>
+<td><code>--run-id</code></td>
+<td>Name of the run directory to write to or continue, instead of a new timestamp.</td>
 </tr>
 <tr>
 <td><code>--dry-run</code></td>
@@ -1866,6 +1870,13 @@ new analyzer/reporter that should emit diagnostic warnings.</p>
 </tr>
 </tbody>
 </table>
+<p>Subjects skipped by <code>--resume</code> are loaded from disk without their in-memory results. Group
+analyzers that read subject results cannot use them: the <code>group_analyze</code> stage is marked
+<code>warning</code> and its detail names the subjects that could not contribute.</p>
+<p>Subject-scope analyzers belong under <code>subject_template.analysis</code>. A top-level <code>analysis:</code> block in a
+group config is rejected, because it was never applied. Analyzers under <code>subject_template</code> also run
+in the second pass, and the second pass's analyze and report records are saved to each subject's
+<code>run_summary.json</code>.</p>
 <h2 id="what-ships-today">What ships today<a class="headerlink" href="#what-ships-today" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
