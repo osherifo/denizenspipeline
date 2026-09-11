@@ -19,6 +19,7 @@ import { ManifestBrowser } from '../components/preproc/ManifestBrowser'
 import { CollectForm } from '../components/preproc/CollectForm'
 import { KIND_COLORS, KIND_LABELS } from '../components/preproc-graph/PipelineNodeCard'
 import { useDialog } from '../components/common/Dialog'
+import { NodePalette, type PaletteItem } from '../components/graph/NodePalette'
 
 export type PreprocTab = 'build' | 'runs' | 'library' | 'outputs'
 
@@ -170,7 +171,7 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
         )}
         {(
           <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 8 }}>
-            <NodePalette library={s.library} onAdd={(t) => s.addNode(t)} />
+            <NodePalette items={paletteItems(s.library)} groupOrder={PALETTE_GROUPS} onAdd={(t) => s.addNode(t)} />
             <div>
               <div style={{ ...small, marginBottom: 6 }}>click a node in the palette to add it · drag ports to connect · Backspace deletes the selection</div>
               <PipelineGraph
@@ -207,35 +208,18 @@ function BuildTab({ onLaunched }: { onLaunched: (runId: string) => void }) {
 
 // ── Node palette (Build · Graph view) ─────────────────────────────
 
-function NodePalette({ library, onAdd }: { library: PreprocNodeInfo[]; onAdd: (type: string) => void }) {
-  const [filter, setFilter] = useState('')
-  const shown = library.filter((n) => !filter || `${n.name} ${n.description}`.toLowerCase().includes(filter.toLowerCase()))
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: 8, height: 480, overflowY: 'auto', boxSizing: 'border-box' }}>
-      <input style={{ ...input, width: '100%', boxSizing: 'border-box', marginBottom: 8 }} placeholder="find a node…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-      {(['source', 'container_app', 'composite', 'interface'] as const).map((k) => {
-        const items = shown.filter((n) => n.kind === k)
-        if (items.length === 0) return null
-        return (
-          <div key={k} style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: KIND_COLORS[k], marginBottom: 4 }}>{KIND_LABELS[k]}</div>
-            {items.map((n) => (
-              <div
-                key={n.name}
-                title={`${n.description}\n${Object.keys(n.inputs).join(', ') || '—'} → ${Object.keys(n.outputs).join(', ') || '—'}\nclick to add`}
-                onClick={() => onAdd(n.name)}
-                style={{ padding: '4px 6px', borderLeft: `3px solid ${KIND_COLORS[k]}`, borderRadius: 4, marginBottom: 3, cursor: 'pointer', fontSize: 12, background: 'var(--bg-primary)' }}
-              >
-                <div style={{ fontWeight: 600 }}>{n.name}{n.source === 'user' ? <span style={{ ...small, marginLeft: 4 }}>user</span> : null}</div>
-                <div style={{ ...small, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.description}</div>
-              </div>
-            ))}
-          </div>
-        )
-      })}
-      {shown.length === 0 && <div style={small}>no node matches</div>}
-    </div>
-  )
+const PALETTE_GROUPS = [KIND_LABELS.source, KIND_LABELS.container_app, KIND_LABELS.composite, KIND_LABELS.interface]
+
+function paletteItems(library: PreprocNodeInfo[]): PaletteItem[] {
+  return library.map((n) => ({
+    type: n.name,
+    label: n.name,
+    group: KIND_LABELS[n.kind],
+    color: KIND_COLORS[n.kind],
+    description: n.description,
+    detail: `${Object.keys(n.inputs).join(', ') || '—'} → ${Object.keys(n.outputs).join(', ') || '—'}`,
+    badge: n.source === 'user' ? 'user' : undefined,
+  }))
 }
 
 // ── Runs ──────────────────────────────────────────────────────────

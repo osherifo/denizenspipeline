@@ -999,6 +999,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Builder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#composer" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1647,6 +1658,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Builder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#composer" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2008,6 +2030,26 @@ enabled from the start. Save &amp; Reload writes the file to
 <code>$FMRIFLOW_HOME/addons/modules/</code> and registers the class in the live
 registry in one shot — the new module appears in the browser the
 moment you click <strong>Back</strong>.</p>
+<h3 id="builder">Builder<a class="headerlink" href="#builder" title="Permanent link">&para;</a></h3>
+<p>The Builder edits a subject analysis as a graph of nodes. See <a href="../analysis-graphs/">Analysis graphs</a> for
+the file format.</p>
+<ul>
+<li><strong>Templates and saved graphs</strong> are listed on the left. Opening a template gives an unsaved copy.
+  <strong>Open a stage config…</strong> compiles a saved stage config into the equivalent graph, and the Composer's
+  <strong>Open in builder</strong> button does the same for the config being edited.</li>
+<li><strong>The palette</strong> lists every node type by category. Click one to add it, then drag from an output port to
+  an input port. Port handles are coloured by type. A drag between incompatible types, or one that would
+  make a cycle, is refused. Backspace deletes the selected nodes or edges.</li>
+<li><strong>The side panel</strong> edits the selected node: what feeds each input, its parameters, the steps of the
+  pipeline preparer, and extra section keys. For the feature bundle, the order of the incoming edges is
+  the column order, and buttons reorder them. With no node selected, the panel edits the graph's inputs
+  and globals.</li>
+<li><strong>The YAML tab</strong> shows the whole graph as YAML, to edit and apply or to copy out.</li>
+<li><strong>Run</strong> takes a value for each graph input and launches the graph. Node cards then show running, done
+  and failed states from the run's events. The values are saved with the graph.</li>
+<li><strong>Save</strong> writes the graph next to stage configs, where the dashboard lists it. <strong>Save as template</strong> keeps
+  it as a starting point without the input values.</li>
+</ul>
 <h3 id="composer">Composer<a class="headerlink" href="#composer" title="Permanent link">&para;</a></h3>
 <p>Build encoding-model pipelines. A <strong>scope tab bar</strong> at the top
 switches between <strong>Subject</strong>, <strong>Group</strong>, and <strong>Study</strong> composers —

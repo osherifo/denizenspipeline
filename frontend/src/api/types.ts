@@ -184,6 +184,10 @@ export interface ValidationResult {
 export interface RunEvent {
   event: string
   stage?: string
+  /** node_start / node_done / node_fail / node_skipped */
+  node_id?: string
+  kind?: string
+  name?: string
   elapsed?: number
   detail?: string
   error?: string
@@ -1704,3 +1708,92 @@ export interface PhysioViewItem {
 }
 export interface PhysioNodeView { kind: 'regressors' | 'clean' | null; items: PhysioViewItem[]; work_dir?: string | null }
 
+// ── Analysis graphs ──────────────────────────────────────────────
+
+export interface AnalysisPortSpec {
+  type?: string
+  required?: boolean
+  /** Fan-in: the input takes several edges, in order. */
+  multiple?: boolean
+  description?: string
+}
+
+/** One node type of the analysis node catalog (/api/analysis/nodes). */
+export interface AnalysisNodeInfo {
+  type: string
+  category: string
+  module: string
+  stage: string
+  description: string
+  full_description?: string
+  inputs: Record<string, AnalysisPortSpec>
+  outputs: Record<string, AnalysisPortSpec>
+  params_schema: ParamSchema
+  error_policy: string
+  source?: string | null
+  native?: boolean
+  hidden?: boolean
+  qa_stage?: string | null
+  extra?: Record<string, unknown>
+}
+
+export interface AnalysisPortType {
+  name: string
+  parents: string[]
+  description: string
+}
+
+export interface AnalysisGraphInputSpec {
+  kind?: string
+  description?: string
+  required?: boolean
+  default?: unknown
+}
+
+export interface AnalysisGraphNodeDoc {
+  id: string
+  type: string
+  kind?: string
+  data: {
+    params: Record<string, unknown>
+    literal_inputs?: Record<string, unknown>
+    bindings?: Record<string, string>
+  }
+  position: { x: number; y: number }
+}
+
+export interface AnalysisGraphDoc {
+  schema_version?: number
+  name: string
+  description?: string
+  scope: 'subject' | 'group' | 'study'
+  inputs: Record<string, AnalysisGraphInputSpec>
+  outputs?: Record<string, unknown>
+  globals: Record<string, unknown>
+  stages?: string[]
+  nodes: AnalysisGraphNodeDoc[]
+  edges: PipelineEdgeDoc[]
+  run_defaults?: { inputs?: Record<string, unknown> } & Record<string, unknown>
+}
+
+export interface AnalysisGraphSummary {
+  name: string
+  path: string
+  scope: string
+  description: string
+  n_nodes: number
+  node_types: string[]
+  inputs: Record<string, AnalysisGraphInputSpec>
+  error: string | null
+}
+
+export interface AnalysisTemplateSummary {
+  name: string
+  tier: 'bundled' | 'user'
+  description: string
+  n_nodes: number
+  node_types: string[]
+  inputs: Record<string, AnalysisGraphInputSpec>
+  scope?: string
+  error: string | null
+}

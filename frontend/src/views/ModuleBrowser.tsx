@@ -2,6 +2,9 @@ import { useEffect, useState, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { useModuleStore } from '../stores/module-store'
 import { ModuleCard } from '../components/modules/ModuleCard'
+import { fetchAnalysisNodes } from '../api/analysis'
+import type { AnalysisNodeInfo } from '../api/types'
+import { nodeTypeForModule } from '../components/analysis-graph/describe'
 import { ModuleSourceEditor } from './ModuleSourceEditor'
 import {
   fetchTemplate, fetchTemplateCategories, fetchQaStages,
@@ -246,6 +249,13 @@ export function ModuleBrowser() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [templateCategories, setTemplateCategories] = useState<string[] | null>(null)
   const [qaStages, setQaStages] = useState<Record<string, string> | null>(null)
+  // Graph ports per module, from the analysis node catalog (modules that are not node types have none).
+  const [nodeCatalog, setNodeCatalog] = useState<Map<string, AnalysisNodeInfo>>(() => new Map())
+  useEffect(() => {
+    fetchAnalysisNodes()
+      .then(({ nodes }) => setNodeCatalog(new Map(nodes.map((n) => [n.type, n]))))
+      .catch(() => { /* ports are optional detail */ })
+  }, [])
 
   // Group modules by (scope, stage). Keying by scope alongside stage
   // keeps qa_reporters from leaking into the regular subject columns
@@ -410,6 +420,7 @@ export function ModuleBrowser() {
                       <ModuleCard
                         key={`${p.category}-${p.name}`}
                         module={p}
+                        ports={nodeCatalog.get(nodeTypeForModule(p))}
                         onEdit={(category, name) => setEditing({ category, name })}
                       />
                     ))}

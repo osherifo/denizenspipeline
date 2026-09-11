@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { ModuleInfo, ParamField } from '../../api/types'
+import type { AnalysisNodeInfo, AnalysisPortSpec, ModuleInfo, ParamField } from '../../api/types'
+import { PORT_TYPE_COLORS, portTitle } from '../analysis-graph/describe'
 import { fetchModuleCode, type ModuleCode } from '../../api/client'
 import { HubBadge } from '../hub/HubBadge'
 
 interface ModuleCardProps {
   module: ModuleInfo
   onEdit?: (category: string, name: string) => void
+  /** The module as a graph node type, when it is one: its typed input and output ports. */
+  ports?: AnalysisNodeInfo
 }
 
 const cardStyle: CSSProperties = {
@@ -135,6 +138,32 @@ function ParamTable({ params }: { params: Record<string, ParamField> }) {
   )
 }
 
+function GraphPorts({ info }: { info: AnalysisNodeInfo }) {
+  const label: CSSProperties = { ...thStyle, padding: 0, borderBottom: 'none', minWidth: 52 }
+  const row = (name: string, specs: Record<string, AnalysisPortSpec>) => (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
+      <span style={label}>{name}</span>
+      {Object.keys(specs).length === 0 && <span style={{ color: 'var(--text-secondary)' }}>none</span>}
+      {Object.entries(specs).map(([port, spec]) => (
+        <span key={port} title={portTitle(spec)} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>
+          <span style={{ width: 8, height: 8, borderRadius: 999, background: PORT_TYPE_COLORS[spec.type ?? 'any'] ?? '#9ca3af', display: 'inline-block' }} />
+          {port}
+          <span style={{ color: 'var(--text-secondary)' }}>{spec.type ?? 'any'}{spec.required ? ' *' : ''}</span>
+        </span>
+      ))}
+    </div>
+  )
+  return (
+    <div style={{ marginTop: 12, fontSize: 11 }}>
+      <div style={{ ...thStyle, padding: 0, borderBottom: 'none' }}>
+        Graph node <code style={{ textTransform: 'none', color: 'var(--accent-cyan)' }}>{info.type}</code>
+      </div>
+      {row('inputs', info.inputs)}
+      {row('outputs', info.outputs)}
+    </div>
+  )
+}
+
 const sourceToggleStyle: CSSProperties = {
   fontSize: 11,
   color: 'var(--accent-cyan)',
@@ -217,7 +246,7 @@ function SourceView({ code }: { code: ModuleCode }) {
   )
 }
 
-export function ModuleCard({ module, onEdit }: ModuleCardProps) {
+export function ModuleCard({ module, onEdit, ports }: ModuleCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [showSource, setShowSource] = useState(false)
@@ -273,6 +302,7 @@ export function ModuleCard({ module, onEdit }: ModuleCardProps) {
       {expanded && (
         <>
           <ParamTable params={module.params} />
+          {ports && <GraphPorts info={ports} />}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button type="button" style={sourceToggleStyle} onClick={toggleSource}>
               {showSource ? 'Hide source' : 'View source'}

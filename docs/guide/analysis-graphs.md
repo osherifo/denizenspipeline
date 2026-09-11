@@ -177,6 +177,7 @@ analyze stages.
 
 ## In the web server
 
+The [Builder](web-ui.md#builder) page edits graphs on a canvas, saves them and runs them.
 Saved graphs live in the analysis configs directory next to stage configs, and the config list shows
 them with `format: graph`. Run views of a graph run are built from its `graph.json`. The endpoints are
 listed in the [analysis graph reference](../reference/analysis-graph.md).
@@ -185,4 +186,3 @@ listed in the [analysis graph reference](../reference/analysis-graph.md).
 
 - Only `scope: subject` graphs run. Group and study analysis still use [group and study configs](group-analysis.md).
 - A graph file always runs whole; there is no partial run or resume.
-- There is no graphical builder for analysis graphs yet. Write the YAML, compile a stage config, or use the API.

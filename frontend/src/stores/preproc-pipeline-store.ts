@@ -22,6 +22,11 @@ import type {
   PipelineTemplateSummary,
   PreprocNodeInfo,
 } from '../api/types'
+import {
+  connect, disconnect, moveNodeTo, patchNodeData, removeNodeFrom, setNodeParams, topoOrder, uniqueId,
+} from './graph-edit-slice'
+
+export { topoOrder }
 
 
 export interface RunBinding {
@@ -75,36 +80,6 @@ export const EMPTY_PIPELINE: PipelineDoc = {
 const DEFAULT_BINDING: RunBinding = {
   subject: '', output_dir: '', bids_dir: '', derivatives_dir: '', work_dir: '', dataset: 'unknown',
   plugin: 'Linear', n_procs: null, use_cache: true, rerun_from: [], abort_on_bad: false,
-}
-
-/** Topological order (Kahn); falls back to declaration order on a cycle. */
-export function topoOrder(p: PipelineDoc): PipelineNodeDoc[] {
-  const indeg = new Map<string, number>(p.nodes.map((n) => [n.id, 0]))
-  const adj = new Map<string, string[]>(p.nodes.map((n) => [n.id, []]))
-  for (const e of p.edges) {
-    if (indeg.has(e.target)) indeg.set(e.target, (indeg.get(e.target) ?? 0) + 1)
-    adj.get(e.source)?.push(e.target)
-  }
-  const queue = p.nodes.filter((n) => indeg.get(n.id) === 0).map((n) => n.id)
-  const out: string[] = []
-  while (queue.length) {
-    const id = queue.shift()!
-    out.push(id)
-    for (const nxt of adj.get(id) ?? []) {
-      indeg.set(nxt, (indeg.get(nxt) ?? 0) - 1)
-      if (indeg.get(nxt) === 0) queue.push(nxt)
-    }
-  }
-  if (out.length !== p.nodes.length) return p.nodes
-  const byId = new Map(p.nodes.map((n) => [n.id, n]))
-  return out.map((id) => byId.get(id)!)
-}
-
-function uniqueId(base: string, taken: Set<string>): string {
-  if (!taken.has(base)) return base
-  let i = 2
-  while (taken.has(`${base}_${i}`)) i += 1
-  return `${base}_${i}`
 }
 
 interface PipelineState {
@@ -249,51 +224,23 @@ export const usePreprocPipelineStore = create<PipelineState>((set, get) => ({
       if ((manifest[k] ?? '').split('.')[0] === id) delete manifest[k]
     }
     set({
-      pipeline: {
-        ...p,
-        nodes: p.nodes.filter((n) => n.id !== id),
-        edges: p.edges.filter((e) => e.source !== id && e.target !== id),
-        manifest,
-      },
+      pipeline: { ...removeNodeFrom(p, id), manifest },
       dirty: true,
       selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
       validation: null,
     })
   },
 
-  updateNodeParams: (id, params) => {
-    const p = get().pipeline
-    set({
-      pipeline: { ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, params } } : n)) },
-      dirty: true, validation: null,
-    })
-  },
+  updateNodeParams: (id, params) => set({ pipeline: setNodeParams(get().pipeline, id, params), dirty: true, validation: null }),
 
-  updateNodeData: (id, patch) => {
-    const p = get().pipeline
-    set({
-      pipeline: { ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)) },
-      dirty: true, validation: null,
-    })
-  },
+  updateNodeData: (id, patch) => set({ pipeline: patchNodeData(get().pipeline, id, patch), dirty: true, validation: null }),
 
-  moveNode: (id, position) => {
-    const p = get().pipeline
-    set({ pipeline: { ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, position } : n)) } })
-  },
+  moveNode: (id, position) => set({ pipeline: moveNodeTo(get().pipeline, id, position) }),
 
-  addEdge: (edge) => {
-    const p = get().pipeline
-    // One feed per input port: replace an existing edge into the same target handle.
-    const kept = p.edges.filter((e) => !(e.target === edge.target && e.targetHandle === edge.targetHandle))
-    const id = uniqueId(`e_${edge.source}_${edge.target}_${edge.targetHandle}`, new Set(kept.map((e) => e.id)))
-    set({ pipeline: { ...p, edges: [...kept, { id, ...edge }] }, dirty: true, validation: null })
-  },
+  // One feed per input port: an edge into an already-fed input replaces the old one.
+  addEdge: (edge) => set({ pipeline: connect(get().pipeline, edge), dirty: true, validation: null }),
 
-  removeEdge: (id) => {
-    const p = get().pipeline
-    set({ pipeline: { ...p, edges: p.edges.filter((e) => e.id !== id) }, dirty: true, validation: null })
-  },
+  removeEdge: (id) => set({ pipeline: disconnect(get().pipeline, id), dirty: true, validation: null }),
 
   setPipelineMeta: (patch) => set({ pipeline: { ...get().pipeline, ...patch }, dirty: true, validation: null }),
 

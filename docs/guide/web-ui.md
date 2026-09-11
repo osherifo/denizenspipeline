@@ -142,6 +142,27 @@ enabled from the start. Save & Reload writes the file to
 registry in one shot — the new module appears in the browser the
 moment you click **Back**.
 
+### Builder
+
+The Builder edits a subject analysis as a graph of nodes. See [Analysis graphs](analysis-graphs.md) for
+the file format.
+
+- **Templates and saved graphs** are listed on the left. Opening a template gives an unsaved copy.
+  **Open a stage config…** compiles a saved stage config into the equivalent graph, and the Composer's
+  **Open in builder** button does the same for the config being edited.
+- **The palette** lists every node type by category. Click one to add it, then drag from an output port to
+  an input port. Port handles are coloured by type. A drag between incompatible types, or one that would
+  make a cycle, is refused. Backspace deletes the selected nodes or edges.
+- **The side panel** edits the selected node: what feeds each input, its parameters, the steps of the
+  pipeline preparer, and extra section keys. For the feature bundle, the order of the incoming edges is
+  the column order, and buttons reorder them. With no node selected, the panel edits the graph's inputs
+  and globals.
+- **The YAML tab** shows the whole graph as YAML, to edit and apply or to copy out.
+- **Run** takes a value for each graph input and launches the graph. Node cards then show running, done
+  and failed states from the run's events. The values are saved with the graph.
+- **Save** writes the graph next to stage configs, where the dashboard lists it. **Save as template** keeps
+  it as a starting point without the input values.
+
 ### Composer
 
 Build encoding-model pipelines. A **scope tab bar** at the top

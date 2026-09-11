@@ -11,6 +11,7 @@ import type { CSSProperties } from 'react'
 import { useThemeStore } from '../stores/theme-store'
 import { identityColor } from '../utils/status-colors'
 import { useConfigStore } from '../stores/config-store'
+import { useAnalysisGraphStore } from '../stores/analysis-graph-store'
 import { useModuleStore } from '../stores/module-store'
 import { StageCard } from '../components/composer/StageCard'
 import { YamlEditor } from '../components/composer/YamlEditor'
@@ -299,6 +300,12 @@ function SubjectComposerBody() {
     [setYamlDirect, applyYaml],
   )
 
+  // Compile the config being edited into the equivalent analysis graph and open it in the builder.
+  const openInBuilder = useCallback(async () => {
+    const ok = await useAnalysisGraphStore.getState().openStageConfig({ config: config as unknown as Record<string, unknown> })
+    if (ok) window.location.hash = '#builder'
+  }, [config])
+
   const handleExport = useCallback(async () => {
     const yaml = await exportYaml()
     try {
@@ -354,6 +361,7 @@ function SubjectComposerBody() {
           <button style={primaryBtn} onClick={() => validate()}>Validate</button>
           <button style={secondaryBtn} onClick={handleExport}>Copy YAML</button>
           <button style={secondaryBtn} onClick={reset}>Reset</button>
+          <button style={secondaryBtn} onClick={() => void openInBuilder()} title="Compile this config into an analysis graph and open it in the builder">Open in builder</button>
         </div>
 
         {/* Top — experiment + subject */}

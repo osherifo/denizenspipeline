@@ -1758,14 +1758,14 @@ the stage orchestrator automatically.</p>
 also writes <code>graph.json</code>, the graph it executed, and records its utility nodes inside the features and
 analyze stages.</p>
 <h2 id="in-the-web-server">In the web server<a class="headerlink" href="#in-the-web-server" title="Permanent link">&para;</a></h2>
-<p>Saved graphs live in the analysis configs directory next to stage configs, and the config list shows
+<p>The <a href="../web-ui/#builder">Builder</a> page edits graphs on a canvas, saves them and runs them.
+Saved graphs live in the analysis configs directory next to stage configs, and the config list shows
 them with <code>format: graph</code>. Run views of a graph run are built from its <code>graph.json</code>. The endpoints are
 listed in the <a href="../../reference/analysis-graph/">analysis graph reference</a>.</p>
 <h2 id="current-limits">Current limits<a class="headerlink" href="#current-limits" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Only <code>scope: subject</code> graphs run. Group and study analysis still use <a href="../group-analysis/">group and study configs</a>.</li>
 <li>A graph file always runs whole; there is no partial run or resume.</li>
-<li>There is no graphical builder for analysis graphs yet. Write the YAML, compile a stage config, or use the API.</li>
 </ul>
 
 

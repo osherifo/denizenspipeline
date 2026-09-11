@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { NavBar } from './components/layout/NavBar'
 import { ModuleBrowser } from './views/ModuleBrowser'
 import { AnalysisComposer } from './views/AnalysisComposer'
+import { AnalysisBuilder } from './views/AnalysisBuilder'
 import { RunManager } from './views/RunManager'
 import { ModuleEditor } from './views/ModuleEditor'
 import { ExperimentDashboard } from './views/ExperimentDashboard'
@@ -19,7 +20,7 @@ import { HubView } from './views/HubView'
 import { useModuleStore } from './stores/module-store'
 
 type Route =
-  | 'modules' | 'analysis' | 'runs' | 'editor' | 'dashboard'
+  | 'modules' | 'analysis' | 'builder' | 'runs' | 'editor' | 'dashboard'
   | 'preproc' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
   | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs' | 'hub'
 
@@ -28,6 +29,7 @@ export function getRoute(): Route {
   const raw = window.location.hash.replace(/^#\/?/, '')
   const hash = raw.split('/')[0]
   if (hash === 'modules') return 'modules'
+  if (hash === 'builder') return 'builder'
   // Legacy aliases — both `composer` and `graph` now point at the
   // unified analysis composer.
   if (hash === 'analysis' || hash === 'composer' || hash === 'graph') return 'analysis'
@@ -188,6 +190,7 @@ export function App() {
       <div style={contentStyle}>
         {route === 'modules' && <ModuleBrowser />}
         {route === 'analysis' && <AnalysisComposer />}
+        {route === 'builder' && <AnalysisBuilder />}
         {route === 'runs' && <RunManager />}
         {route === 'editor' && <ModuleEditor />}
         {route === 'dashboard' && <ExperimentDashboard />}

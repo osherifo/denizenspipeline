@@ -1,162 +1,77 @@
-/** The one ReactFlow renderer for a pipeline.
+/** A preprocessing pipeline on the shared graph canvas.
  *
  *  - ``editable``: drag nodes, connect ports (one feed per input), delete with
- *    Backspace; changes flow back through ``onChange``.
+ *    Backspace; changes flow back through the callbacks.
  *  - ``statusByNode`` / ``checkpointsByNode``: colour the nodes of a run.
  *
  *  Used by the Build tab (editable), the Runs tab and the Workflows view.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { CSSProperties } from 'react'
-import {
-  Background,
-  Controls,
-  ReactFlow,
-  ReactFlowProvider,
-  applyNodeChanges,
-  type Connection,
-  type Edge,
-  type Node,
-  type NodeChange,
-  type OnConnect,
-} from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
+import { useMemo } from 'react'
 import type { PipelineDoc, PreprocNodeInfo } from '../../api/types'
-import { PipelineNodeCard, type PipelineNodeCardData } from './PipelineNodeCard'
-import { layoutPositions, needsLayout } from './layout'
+import { GraphCanvas, type GraphCanvasProps, type GraphDocNode } from '../graph/GraphCanvas'
+import type { GraphBadge, GraphNodeCardData, NodeRunStatus } from '../graph/GraphNodeCard'
+import { KIND_COLORS, KIND_LABELS } from './PipelineNodeCard'
 
-const nodeTypes = { pipeline: PipelineNodeCard }
-
-export interface NodeRunStatus {
-  status: PipelineNodeCardData['status']
-  durationS?: number | null
-}
+export type { NodeRunStatus } from '../graph/GraphNodeCard'
 
 export interface NodeCheckpointStatus {
   worst: 'ok' | 'suspicious' | 'bad' | 'unknown'
   count: number
 }
 
-interface Props {
+const VERDICT_COLORS: Record<NodeCheckpointStatus['worst'], string> = {
+  ok: '#10b981', suspicious: '#f59e0b', bad: '#ef4444', unknown: '#9ca3af',
+}
+
+interface Props extends Omit<GraphCanvasProps, 'doc' | 'describeNode' | 'defaultSourceHandle' | 'defaultTargetHandle'> {
   pipeline: PipelineDoc
   library: PreprocNodeInfo[]
-  editable?: boolean
-  selectedNodeId?: string | null
-  onSelect?: (id: string | null) => void
-  /** Double-click on a node (the run view opens the node popup). */
-  onOpen?: (id: string) => void
-  onMove?: (id: string, position: { x: number; y: number }) => void
-  onConnectPorts?: (edge: { source: string; target: string; sourceHandle: string; targetHandle: string }) => void
-  onRemoveNodes?: (ids: string[]) => void
-  onRemoveEdges?: (ids: string[]) => void
   statusByNode?: Record<string, NodeRunStatus>
   checkpointsByNode?: Record<string, NodeCheckpointStatus>
-  height?: number | string
-  fitViewKey?: string
 }
 
-const wrap = (height: number | string): CSSProperties => ({
-  height, width: '100%', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-primary)',
-})
-
-function toFlow(
-  pipeline: PipelineDoc, library: PreprocNodeInfo[],
-  statusByNode?: Record<string, NodeRunStatus>, checkpointsByNode?: Record<string, NodeCheckpointStatus>,
-): { nodes: Node[]; edges: Edge[] } {
+export function describePipelineNode(
+  pipeline: PipelineDoc,
+  library: PreprocNodeInfo[],
+  statusByNode?: Record<string, NodeRunStatus>,
+  checkpointsByNode?: Record<string, NodeCheckpointStatus>,
+): (node: GraphDocNode) => GraphNodeCardData {
   const byName = new Map(library.map((n) => [n.name, n]))
-  const positions = needsLayout(pipeline)
-    ? layoutPositions(pipeline, (t) => {
-        const info = byName.get(t)
-        return { inputs: Object.keys(info?.inputs ?? {}).length, outputs: Object.keys(info?.outputs ?? {}).length }
+  const docs = new Map(pipeline.nodes.map((n) => [n.id, n]))
+  return (node) => {
+    const info = byName.get(node.type)
+    const kind = docs.get(node.id)?.kind ?? info?.kind ?? 'interface'
+    const color = KIND_COLORS[kind] ?? KIND_COLORS.interface
+    const st = statusByNode?.[node.id]
+    const cp = checkpointsByNode?.[node.id]
+    const badges: GraphBadge[] = []
+    if (pipeline.manifest?.backend_node === node.id) badges.push({ key: 'backend', content: '★', title: 'manifest backend node', color })
+    if (st?.status === 'cached') badges.push({ key: 'cached', content: '⟲', title: 'cache hit' })
+    if (cp) {
+      badges.push({
+        key: 'checkpoint',
+        title: `${cp.count} checkpoint(s), worst: ${cp.worst}`,
+        content: <span style={{ width: 9, height: 9, borderRadius: 999, background: VERDICT_COLORS[cp.worst], display: 'inline-block' }} />,
       })
-    : {}
-  const nodes: Node[] = pipeline.nodes.map((n) => {
-    const info = byName.get(n.type)
-    const st = statusByNode?.[n.id]
-    const cp = checkpointsByNode?.[n.id]
-    const data: PipelineNodeCardData = {
-      label: n.id,
-      nodeType: n.type,
-      kind: n.kind ?? info?.kind ?? 'interface',
-      inputs: Object.keys(info?.inputs ?? {}),
-      outputs: Object.keys(info?.outputs ?? {}),
-      iterating: Boolean(n.data?.iter),
-      isBackend: pipeline.manifest?.backend_node === n.id,
-      status: st?.status ?? null,
-      durationS: st?.durationS ?? null,
-      checkpointVerdict: cp?.worst ?? null,
-      checkpointCount: cp?.count ?? 0,
     }
     return {
-      id: n.id, type: 'pipeline', data,
-      position: positions[n.id] ?? n.position ?? { x: 0, y: 0 },
+      label: node.id,
+      title: node.type,
+      tag: KIND_LABELS[kind] ?? kind,
+      tagColor: color,
+      inputs: Object.entries(info?.inputs ?? {}).map(([name, spec]) => ({ name, title: `${spec.kind}${spec.required ? ' · required' : ''}` })),
+      outputs: Object.entries(info?.outputs ?? {}).map(([name, spec]) => ({ name, title: spec.kind })),
+      status: st?.status ?? null,
+      durationS: st?.durationS ?? null,
+      badges,
     }
-  })
-  const edges: Edge[] = pipeline.edges.map((e) => ({
-    id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
-    animated: statusByNode?.[e.target]?.status === 'running',
-    style: { stroke: 'var(--text-secondary)' },
-  }))
-  return { nodes, edges }
+  }
 }
 
-function Inner({
-  pipeline, library, editable = false, selectedNodeId, onSelect, onOpen, onMove, onConnectPorts,
-  onRemoveNodes, onRemoveEdges, statusByNode, checkpointsByNode, height = 420, fitViewKey,
-}: Props) {
-  const flow = useMemo(() => toFlow(pipeline, library, statusByNode, checkpointsByNode), [pipeline, library, statusByNode, checkpointsByNode])
-  const [nodes, setNodes] = useState<Node[]>(flow.nodes)
-  useEffect(() => {
-    setNodes(flow.nodes.map((n) => ({ ...n, selected: n.id === selectedNodeId })))
-  }, [flow.nodes, selectedNodeId])
-
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    setNodes((prev) => applyNodeChanges(changes, prev))
-    for (const c of changes) {
-      if (c.type === 'position' && c.position && !c.dragging && onMove) onMove(c.id, c.position)
-      if (c.type === 'remove' && onRemoveNodes) onRemoveNodes([c.id])
-    }
-  }, [onMove, onRemoveNodes])
-
-  const onConnect: OnConnect = useCallback((c: Connection) => {
-    if (!editable || !onConnectPorts || !c.source || !c.target) return
-    onConnectPorts({ source: c.source, target: c.target, sourceHandle: c.sourceHandle ?? 'out_file', targetHandle: c.targetHandle ?? 'in_file' })
-  }, [editable, onConnectPorts])
-
-  return (
-    <div style={wrap(height)}>
-      <ReactFlow
-        key={fitViewKey}
-        nodes={nodes}
-        edges={flow.edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onConnect={onConnect}
-        onEdgesDelete={(deleted) => onRemoveEdges?.(deleted.map((e) => e.id))}
-        onNodeClick={(_, n) => onSelect?.(n.id)}
-        onNodeDoubleClick={(_, n) => onOpen?.(n.id)}
-        zoomOnDoubleClick={false}
-        onPaneClick={() => onSelect?.(null)}
-        nodesDraggable={editable}
-        nodesConnectable={editable}
-        elementsSelectable
-        deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
-        fitView
-        fitViewOptions={{ padding: 0.25, maxZoom: 1.2 }}
-        proOptions={{ hideAttribution: true }}
-        minZoom={0.2}
-      >
-        <Background />
-        <Controls showInteractive={false} />
-      </ReactFlow>
-    </div>
+export function PipelineGraph({ pipeline, library, statusByNode, checkpointsByNode, ...rest }: Props) {
+  const describeNode = useMemo(
+    () => describePipelineNode(pipeline, library, statusByNode, checkpointsByNode),
+    [pipeline, library, statusByNode, checkpointsByNode],
   )
-}
-
-export function PipelineGraph(props: Props) {
-  return (
-    <ReactFlowProvider>
-      <Inner {...props} />
-    </ReactFlowProvider>
-  )
+  return <GraphCanvas doc={pipeline} describeNode={describeNode} defaultSourceHandle="out_file" defaultTargetHandle="in_file" {...rest} />
 }

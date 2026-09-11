@@ -107,6 +107,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     label: 'Analysis',
     items: [
       { key: 'dashboard', label: 'Dashboard', hash: '#dashboard' },
+      { key: 'builder', label: 'Builder', hash: '#builder' },
       { key: 'analysis', label: 'Composer', hash: '#analysis' },
       { key: 'modules', label: 'Modules', hash: '#modules' },
       { key: 'runs', label: 'Runs', hash: '#runs' },

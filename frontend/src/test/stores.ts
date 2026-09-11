@@ -8,6 +8,7 @@ import { useAutoflattenStore } from '../stores/autoflatten-store'
 import { useConvertStore } from '../stores/convert-store'
 import { usePreprocPipelineStore } from '../stores/preproc-pipeline-store'
 import { usePreprocRunsStore } from '../stores/preproc-runs-store'
+import { useAnalysisGraphStore } from '../stores/analysis-graph-store'
 
 type StoreApi = {
   getState: () => Record<string, unknown>
@@ -25,6 +26,7 @@ const allStores: StoreApi[] = [
   useConvertStore as unknown as StoreApi,
   usePreprocPipelineStore as unknown as StoreApi,
   usePreprocRunsStore as unknown as StoreApi,
+  useAnalysisGraphStore as unknown as StoreApi,
 ]
 
 const initialStates = new Map<StoreApi, Record<string, unknown>>()
