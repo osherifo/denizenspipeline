@@ -1,0 +1,514 @@
+{
+ "artifacts": {
+  "mock_report": {
+   "mock_artifact": "/tmp/mock.json"
+  }
+ },
+ "checkpoints": {
+  "analyze.pkl": [
+   "features",
+   "prepared",
+   "responses",
+   "result",
+   "stimuli"
+  ],
+  "features.pkl": [
+   "features",
+   "responses",
+   "stimuli"
+  ],
+  "model.pkl": [
+   "features",
+   "prepared",
+   "responses",
+   "result",
+   "stimuli"
+  ],
+  "prepare.pkl": [
+   "features",
+   "prepared",
+   "responses",
+   "stimuli"
+  ],
+  "report.pkl": [
+   "features",
+   "prepared",
+   "responses",
+   "result",
+   "stimuli"
+  ],
+  "responses.pkl": [
+   "responses",
+   "stimuli"
+  ],
+  "stimuli.pkl": [
+   "stimuli"
+  ]
+ },
+ "context": {
+  "features": {
+   "FeatureData": {
+    "features": {
+     "dict": [
+      [
+       "mock_feat",
+       {
+        "FeatureSet": {
+         "data": {
+          "dict": [
+           [
+            "story1",
+            {
+             "dtype": "float32",
+             "ndarray": [
+              50,
+              5
+             ],
+             "sha256": "672358eb8b20a8b70085c6fd1221d25e3642a25de66f938ab5a6e14b591d32f6"
+            }
+           ],
+           [
+            "story2",
+            {
+             "dtype": "float32",
+             "ndarray": [
+              50,
+              5
+             ],
+             "sha256": "e824552af8afdc508a4332e701173d1c2ce115b1f51e39bad2f4381db59276bd"
+            }
+           ],
+           [
+            "story3",
+            {
+             "dtype": "float32",
+             "ndarray": [
+              50,
+              5
+             ],
+             "sha256": "22a20a73448885dd6df8451244515587fb2cc3af07c56103e01d22660e3ca043"
+            }
+           ]
+          ]
+         },
+         "metadata": {
+          "dict": []
+         },
+         "n_dims": 5,
+         "name": "mock_feat"
+        }
+       }
+      ]
+     ]
+    }
+   }
+  },
+  "prepared": {
+   "PreparedData": {
+    "X_test": {
+     "dtype": "float32",
+     "ndarray": [
+      50,
+      20
+     ],
+     "sha256": "719c0f02b7af52182732b357360e212fbb5c6d1728f8769d436ab61452ce6e44"
+    },
+    "X_train": {
+     "dtype": "float32",
+     "ndarray": [
+      100,
+      20
+     ],
+     "sha256": "63d0061dc5c6f7550aedfe3eb19142631f471e8a02256cac3e128056b39e8ad8"
+    },
+    "Y_test": {
+     "dtype": "float32",
+     "ndarray": [
+      50,
+      20
+     ],
+     "sha256": "54c19f2a7b77ad684fccafa9446178965df91aac52d1fac210678f523a347b49"
+    },
+    "Y_train": {
+     "dtype": "float32",
+     "ndarray": [
+      100,
+      20
+     ],
+     "sha256": "4e7b7128ebdde9ef6c09f962850f44ffe44a521d9e7d49fb58e26681ebacafd6"
+    },
+    "delays": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "feature_dims": [
+     5
+    ],
+    "feature_names": [
+     "mock_feat"
+    ],
+    "metadata": {
+     "dict": []
+    },
+    "test_runs": [
+     "story3"
+    ],
+    "train_runs": [
+     "story1",
+     "story2"
+    ]
+   }
+  },
+  "responses": {
+   "ResponseData": {
+    "mask": {
+     "dtype": "bool",
+     "ndarray": [
+      20
+     ],
+     "sha256": "9b8f65607d891ebc9ee18add4f866748456ebce2d8f0bd9c9a8e508871617f27"
+    },
+    "metadata": {
+     "dict": []
+    },
+    "responses": {
+     "dict": [
+      [
+       "story1",
+       {
+        "dtype": "float32",
+        "ndarray": [
+         50,
+         20
+        ],
+        "sha256": "fed8fb6b21edff47e7f47061081a3b973ea06e10c936b586433f9e872f89b882"
+       }
+      ],
+      [
+       "story2",
+       {
+        "dtype": "float32",
+        "ndarray": [
+         50,
+         20
+        ],
+        "sha256": "13a4233eaf69acdcf017e8637b92cd5631b6ed57736c1ff16979a5555e1e3fe3"
+       }
+      ],
+      [
+       "story3",
+       {
+        "dtype": "float32",
+        "ndarray": [
+         50,
+         20
+        ],
+        "sha256": "b807e679de25f447350172a96fe1db9c4dc25d1446c8a5e649bbde9e820cfaa0"
+       }
+      ]
+     ]
+    },
+    "surface": "mock_surface",
+    "transform": "mock_transform"
+   }
+  },
+  "result": {
+   "ModelResult": {
+    "alphas": {
+     "dtype": "float64",
+     "ndarray": [
+      20
+     ],
+     "sha256": "8d4b63f6d83555fec93752bd5f7a0a77015125d0cf4cc97e4ea168dc28c51a81"
+    },
+    "delays": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "feature_dims": [
+     5
+    ],
+    "feature_names": [
+     "mock_feat"
+    ],
+    "metadata": {
+     "dict": []
+    },
+    "scores": {
+     "dtype": "float32",
+     "ndarray": [
+      20
+     ],
+     "sha256": "eba8a775d640690f3aa851b93bf7449932b464eb71b13185096ad8eae32be2fe"
+    },
+    "weights": {
+     "dtype": "float32",
+     "ndarray": [
+      20,
+      20
+     ],
+     "sha256": "210a378d401d4412a9c0360c71b787491903bafae754bfbdc00129f796110720"
+    }
+   }
+  },
+  "stimuli": {
+   "StimulusData": [
+    "story1",
+    "story2",
+    "story3"
+   ]
+  }
+ },
+ "error": null,
+ "events": [
+  [
+   "stage_start",
+   "stimuli",
+   null
+  ],
+  [
+   "node_start",
+   "stimuli:mock_stim",
+   null
+  ],
+  [
+   "node_done",
+   "stimuli:mock_stim",
+   "3 runs"
+  ],
+  [
+   "stage_done",
+   "stimuli",
+   "3 runs"
+  ],
+  [
+   "stage_start",
+   "responses",
+   null
+  ],
+  [
+   "node_start",
+   "responses:mock_resp",
+   null
+  ],
+  [
+   "node_done",
+   "responses:mock_resp",
+   "3 runs loaded"
+  ],
+  [
+   "stage_done",
+   "responses",
+   "3 runs loaded"
+  ],
+  [
+   "stage_start",
+   "features",
+   null
+  ],
+  [
+   "node_start",
+   "features:mock_source",
+   null
+  ],
+  [
+   "node_done",
+   "features:mock_source",
+   "mock_feat: 3 runs, 5 dims"
+  ],
+  [
+   "stage_done",
+   "features",
+   "1 feature(s)"
+  ],
+  [
+   "stage_start",
+   "prepare",
+   null
+  ],
+  [
+   "node_start",
+   "prepare:mock_prep",
+   null
+  ],
+  [
+   "node_done",
+   "prepare:mock_prep",
+   "train=100 test=50"
+  ],
+  [
+   "stage_done",
+   "prepare",
+   "train=100 test=50"
+  ],
+  [
+   "stage_start",
+   "model",
+   null
+  ],
+  [
+   "node_start",
+   "model:mock_model",
+   null
+  ],
+  [
+   "node_done",
+   "model:mock_model",
+   "mean=0.4519 max=0.9260"
+  ],
+  [
+   "stage_done",
+   "model",
+   "mean=0.4519 max=0.9260"
+  ],
+  [
+   "stage_start",
+   "analyze",
+   null
+  ],
+  [
+   "stage_done",
+   "analyze",
+   "skipped (none configured)"
+  ],
+  [
+   "stage_start",
+   "report",
+   null
+  ],
+  [
+   "node_start",
+   "report:mock_report",
+   null
+  ],
+  [
+   "node_done",
+   "report:mock_report",
+   "1 artifact(s)"
+  ],
+  [
+   "stage_done",
+   "report",
+   "1 artifact(s) saved"
+  ]
+ ],
+ "files": [
+  ".checkpoints/analyze.pkl",
+  ".checkpoints/features.pkl",
+  ".checkpoints/model.pkl",
+  ".checkpoints/prepare.pkl",
+  ".checkpoints/report.pkl",
+  ".checkpoints/responses.pkl",
+  ".checkpoints/stimuli.pkl"
+ ],
+ "summary": [
+  [
+   "stimuli",
+   "ok",
+   "3 runs",
+   [
+    [
+     "stimuli:mock_stim",
+     "stimulus_loader",
+     "mock_stim",
+     "ok",
+     "3 runs",
+     [],
+     []
+    ]
+   ]
+  ],
+  [
+   "responses",
+   "ok",
+   "3 runs loaded",
+   [
+    [
+     "responses:mock_resp",
+     "response_loader",
+     "mock_resp",
+     "ok",
+     "3 runs loaded",
+     [],
+     []
+    ]
+   ]
+  ],
+  [
+   "features",
+   "ok",
+   "1 feature(s)",
+   [
+    [
+     "features:mock_source",
+     "feature_source",
+     "mock_source",
+     "ok",
+     "mock_feat: 3 runs, 5 dims",
+     [],
+     []
+    ]
+   ]
+  ],
+  [
+   "prepare",
+   "ok",
+   "train=100 test=50",
+   [
+    [
+     "prepare:mock_prep",
+     "preparer",
+     "mock_prep",
+     "ok",
+     "train=100 test=50",
+     [],
+     []
+    ]
+   ]
+  ],
+  [
+   "model",
+   "ok",
+   "mean=0.4519 max=0.9260",
+   [
+    [
+     "model:mock_model",
+     "model",
+     "mock_model",
+     "ok",
+     "mean=0.4519 max=0.9260",
+     [],
+     []
+    ]
+   ]
+  ],
+  [
+   "analyze",
+   "ok",
+   "skipped (none configured)",
+   []
+  ],
+  [
+   "report",
+   "ok",
+   "1 artifact(s) saved",
+   [
+    [
+     "report:mock_report",
+     "reporter",
+     "mock_report",
+     "ok",
+     "1 artifact(s)",
+     [
+      "/tmp/mock.json"
+     ],
+     []
+    ]
+   ]
+  ]
+ ]
+}

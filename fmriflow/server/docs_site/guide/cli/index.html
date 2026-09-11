@@ -1440,21 +1440,18 @@
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Dry run (show what would execute)</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>experiment.yaml<span class="w"> </span>--dry-run
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># Run on the stage orchestrator instead of the graph engine</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>experiment.yaml<span class="w"> </span>--engine<span class="w"> </span>legacy
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># Run an analysis graph file, giving its inputs</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>analysis.yaml<span class="w"> </span>--input<span class="w"> </span><span class="nv">subject</span><span class="o">=</span>sub01<span class="w"> </span>--input<span class="w"> </span><span class="nv">output_dir</span><span class="o">=</span>/data/results/sub01
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># Run an analysis graph file, giving its inputs</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>analysis.yaml<span class="w"> </span>--input<span class="w"> </span><span class="nv">subject</span><span class="o">=</span>sub01<span class="w"> </span>--input<span class="w"> </span><span class="nv">output_dir</span><span class="o">=</span>/data/results/sub01
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># Validate config without running</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>fmriflow<span class="w"> </span>validate<span class="w"> </span>experiment.yaml
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># Validate config without running</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>fmriflow<span class="w"> </span>validate<span class="w"> </span>experiment.yaml
 </code></pre></div>
 <h3 id="engines">Engines<a class="headerlink" href="#engines" title="Permanent link">&para;</a></h3>
-<p>Subject runs use the graph engine: the stage config is compiled into a graph of nodes, one per module,
-and run in-process. It writes the run summary, events, intermediates and reports, plus <code>graph.json</code> with
-the executed graph. <code>--engine legacy</code> or <code>FMRIFLOW_ENGINE=legacy</code> runs the stage orchestrator instead.
-<code>--stages</code> and <code>--resume-from</code> need the stage orchestrator and switch to it automatically unless
-<code>--engine graph</code> was given.</p>
+<p>Every run uses the graph engine: a stage config is compiled into a graph of nodes, one per module, and run
+in-process. It writes the run summary, events, intermediates and reports, plus <code>graph.json</code> with the executed
+graph. <code>--stages</code> and <code>--resume-from</code> run only those stages, continuing the checkpointed context.</p>
+<p>The stage orchestrators were retired. <code>--engine</code> and <code>FMRIFLOW_ENGINE</code> are still accepted so existing
+scripts keep working; <code>legacy</code> logs a warning and runs on the graph engine.</p>
 <h3 id="analysis-graphs">Analysis graphs<a class="headerlink" href="#analysis-graphs" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Compile a stage config into the equivalent graph</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>fmriflow<span class="w"> </span>graph<span class="w"> </span>compile<span class="w"> </span>experiment.yaml<span class="w"> </span>-o<span class="w"> </span>analysis.yaml
@@ -1475,8 +1472,7 @@ the executed graph. <code>--engine legacy</code> or <code>FMRIFLOW_ENGINE=legacy
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>fmriflow<span class="w"> </span>run-group<span class="w"> </span>group.yaml<span class="w"> </span>--resume<span class="w"> </span>--run-id<span class="w"> </span>20260911T101500Z
 </code></pre></div>
 <p>Each run writes to <code>&lt;output_dir&gt;/&lt;run_id&gt;/</code>, with a <code>latest</code> link to the newest run.
-<code>--engine legacy</code> runs a group or study on the stage orchestrators instead of the graph engine; see
-<a href="../group-analysis/#engines">Group Analysis</a>.
+Groups and studies run on the graph engine too; see <a href="../group-analysis/#engines">Group Analysis</a>.
 Subject modules from your add-on directory load for these commands too.</p>
 <h2 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># List all modules (by category)</span>

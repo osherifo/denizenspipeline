@@ -65,33 +65,29 @@ def test_subjects_resumed_from_disk_mark_group_analyze_warning(tmp_path, monkeyp
 
 
 def test_second_pass_records_are_saved_to_subject_summary(tmp_path, monkeypatch):
-    import fmriflow.group_orchestrator as go
+    import fmriflow.analysis.scope_runners as runners
 
-    class _StubOrch:
-        def __init__(self, config, registry):
-            self.config = config
-            self.ctx = None
+    def _first_pass(config):
+        ctx = _fake_run(config)
+        ctx.run_summary.stages = [
+            StageRecord(name="model", status="ok", elapsed_s=0.01, detail="fit"),
+            StageRecord(name="analyze", status="ok", elapsed_s=0.01, detail="first"),
+        ]
+        return ctx
 
-        def run(self, stages=None, context=None):
-            if context is None:
-                self.ctx = _fake_run(self.config)
-                self.ctx.run_summary.stages = [
-                    StageRecord(name="model", status="ok", elapsed_s=0.01, detail="fit"),
-                    StageRecord(name="analyze", status="ok", elapsed_s=0.01, detail="first"),
-                ]
-                return self.ctx
-            # like PipelineOrchestrator.run: the summary is replaced by one
-            # holding only the stages that just ran
-            context.run_summary = RunSummary(
-                experiment="demo", subject=self.config["subject"],
-                started_at=_now(), finished_at=_now(), total_elapsed_s=0.02,
-                stages=[StageRecord(name="analyze", status="ok", elapsed_s=0.01, detail="projected"),
-                        StageRecord(name="report", status="ok", elapsed_s=0.01, detail="1 artifact")],
-                config_snapshot=dict(self.config),
-            )
-            return context
+    def _second_pass(config, catalog, stages, context, **kwargs):
+        # like a partial run: the summary is replaced by one holding only the stages that just ran
+        context.run_summary = RunSummary(
+            experiment="demo", subject=config["subject"],
+            started_at=_now(), finished_at=_now(), total_elapsed_s=0.02,
+            stages=[StageRecord(name="analyze", status="ok", elapsed_s=0.01, detail="projected"),
+                    StageRecord(name="report", status="ok", elapsed_s=0.01, detail="1 artifact")],
+            config_snapshot=dict(config),
+        )
+        return context
 
-    monkeypatch.setattr(go, "PipelineOrchestrator", _StubOrch)
+    _patch_pipeline_run(monkeypatch, behaviour=_first_pass)
+    monkeypatch.setattr(runners, "run_subject_stages", _second_pass)
     _group_analyzers["zz_binding_group"] = _BindingGroupAnalyzer
     try:
         cfg = _group_cfg(tmp_path, group_analyze=[{"name": "zz_binding_group"}])

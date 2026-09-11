@@ -32,8 +32,7 @@ fmriflow run my_analysis.yaml \
 ```
 
 `--input` values are parsed as YAML, so lists and numbers work. `--subject` fills a graph input named
-`subject`. A graph file always runs whole on the graph engine, so `--stages`, `--resume-from` and
-`--engine legacy` are refused.
+`subject`. A graph file always runs whole, so `--stages` and `--resume-from` are refused.
 
 Check a graph without running it:
 
@@ -167,11 +166,12 @@ carry `run_defaults`.
 
 ## Engines
 
-Subject runs use the graph engine by default. `--engine legacy` or `FMRIFLOW_ENGINE=legacy` selects the
-stage orchestrator. With a stage config and no engine chosen, `--stages` and `--resume-from` fall back to
-the stage orchestrator automatically.
+All runs use the graph engine. Stage configs compile to graphs, and `--stages` or `--resume-from` run only
+those stages of the compiled graph, continuing the checkpointed context. The stage orchestrators were
+retired; `--engine legacy` and `FMRIFLOW_ENGINE=legacy` are still accepted, log a warning, and run on the
+graph engine.
 
-Both engines write the same run summary, events, intermediates, QA outputs and reports. The graph engine
+The run summary, events, intermediates, QA outputs and reports keep the format they had. The graph engine
 also writes `graph.json`, the graph it executed, and records its utility nodes inside the features and
 analyze stages.
 

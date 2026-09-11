@@ -1,3 +1,4 @@
+import { SUBJECT_STAGES } from '../../utils/stages'
 import type { CSSProperties } from 'react'
 /** Vertical stage status tracker for live runs. */
 import type { StageStatus } from '../../api/types'
@@ -7,7 +8,7 @@ interface StageTrackerProps {
   stageStatuses: Record<string, StageStatus>
 }
 
-const ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
+const ALL_STAGES = SUBJECT_STAGES
 
 const containerStyle: CSSProperties = {
   display: 'flex',

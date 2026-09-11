@@ -63,7 +63,7 @@ def test_cli_graph_inputs_and_refused_flags(tmp_path, mock_cli):
     graph.globals["reporting"]["output_dir"] = "$inputs.out"
     graph.save(path)
     assert cli.main(["run", str(path)]) == 1
-    assert cli.main(["run", str(path), "--engine", "legacy"]) == 1
+    assert cli.main(["run", str(path), "--engine", "legacy", "--input", f"out={tmp_path / 'legacy_flag'}"]) == 0
     assert cli.main(["run", str(path), "--resume-from", "model"]) == 1
     bound = tmp_path / "bound"
     assert cli.main(["run", str(path), "--input", f"out={bound}"]) == 0

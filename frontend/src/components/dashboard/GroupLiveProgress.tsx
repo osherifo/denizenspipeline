@@ -13,6 +13,7 @@
  * ``subject`` field).
  */
 
+import { SUBJECT_STAGES } from '../../utils/stages'
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { RunEvent, StageStatus } from '../../api/types'
@@ -38,7 +39,6 @@ interface Props {
 }
 
 
-const SUBJECT_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
 
 
 // ── derived state ─────────────────────────────────────────────────────

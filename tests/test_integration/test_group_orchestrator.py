@@ -156,20 +156,18 @@ def test_build_subject_configs_missing_subjects(tmp_path):
 # ─── fan-out ──────────────────────────────────────────────────
 
 def _patch_pipeline_run(monkeypatch, behaviour=_fake_run):
-    """Stub out PipelineOrchestrator.run inside group_orchestrator."""
-    import fmriflow.group_orchestrator as go
+    """Stub out each subject's graph run inside the group runner."""
+    import fmriflow.analysis.scope_runners as runners
 
-    class _StubOrch:
-        def __init__(self, config, registry):
-            self.config = config
-            self.registry = registry
-            self.ctx = None
+    class _StubExecutor:
+        def __init__(self, catalog):
+            self.last_context = None
 
-        def run(self, stages=None, context=None):
-            self.ctx = behaviour(self.config)
-            return self.ctx
+        def run(self, graph, write_graph=False, **kwargs):
+            self.last_context = behaviour(graph.globals)
+            return self.last_context
 
-    monkeypatch.setattr(go, 'PipelineOrchestrator', _StubOrch)
+    monkeypatch.setattr(runners, 'GraphExecutor', _StubExecutor)
 
 
 def test_group_run_fans_out_and_writes_summary(tmp_path, monkeypatch):

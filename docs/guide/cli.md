@@ -16,9 +16,6 @@ fmriflow run experiment.yaml --resume-from features
 # Dry run (show what would execute)
 fmriflow run experiment.yaml --dry-run
 
-# Run on the stage orchestrator instead of the graph engine
-fmriflow run experiment.yaml --engine legacy
-
 # Run an analysis graph file, giving its inputs
 fmriflow run analysis.yaml --input subject=sub01 --input output_dir=/data/results/sub01
 
@@ -28,11 +25,12 @@ fmriflow validate experiment.yaml
 
 ### Engines
 
-Subject runs use the graph engine: the stage config is compiled into a graph of nodes, one per module,
-and run in-process. It writes the run summary, events, intermediates and reports, plus `graph.json` with
-the executed graph. `--engine legacy` or `FMRIFLOW_ENGINE=legacy` runs the stage orchestrator instead.
-`--stages` and `--resume-from` need the stage orchestrator and switch to it automatically unless
-`--engine graph` was given.
+Every run uses the graph engine: a stage config is compiled into a graph of nodes, one per module, and run
+in-process. It writes the run summary, events, intermediates and reports, plus `graph.json` with the executed
+graph. `--stages` and `--resume-from` run only those stages, continuing the checkpointed context.
+
+The stage orchestrators were retired. `--engine` and `FMRIFLOW_ENGINE` are still accepted so existing
+scripts keep working; `legacy` logs a warning and runs on the graph engine.
 
 ### Analysis graphs
 
@@ -61,8 +59,7 @@ fmriflow run-group group.yaml --resume --run-id 20260911T101500Z
 ```
 
 Each run writes to `<output_dir>/<run_id>/`, with a `latest` link to the newest run.
-`--engine legacy` runs a group or study on the stage orchestrators instead of the graph engine; see
-[Group Analysis](group-analysis.md#engines).
+Groups and studies run on the graph engine too; see [Group Analysis](group-analysis.md#engines).
 Subject modules from your add-on directory load for these commands too.
 
 ## Modules

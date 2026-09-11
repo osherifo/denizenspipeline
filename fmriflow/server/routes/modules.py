@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from fmriflow.core.stages import SUBJECT_STAGES
 from fmriflow.core.stages import (
     GROUP_MODULE_STAGES,
     STAGE_MODULE_CATEGORIES,
@@ -64,10 +65,7 @@ STUDY_STAGES = list(STUDY_MODULE_STAGES)
 # stage_name → ``'subject' | 'group' | 'study'`` — drives the
 # scope-tab filter in the frontend ModuleBrowser.
 STAGE_SCOPE = {
-    **{s: 'subject' for s in (
-        'stimuli', 'responses', 'features', 'prepare',
-        'model', 'analyze', 'report',
-    )},
+    **{s: 'subject' for s in SUBJECT_STAGES},
     **{s: 'group' for s in GROUP_STAGES},
     **{s: 'study' for s in STUDY_STAGES},
 }

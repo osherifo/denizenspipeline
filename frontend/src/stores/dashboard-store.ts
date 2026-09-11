@@ -1,4 +1,5 @@
 /** Experiment dashboard store. */
+import { SUBJECT_STAGES } from '../utils/stages'
 import { create } from 'zustand'
 import type {
   ConfigSummary, ConfigDetail, RunSummary, RunEvent, StageStatus,
@@ -17,7 +18,7 @@ import {
   connectRunWs,
 } from '../api/client'
 
-const ALL_STAGES = ['stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report']
+const ALL_STAGES = SUBJECT_STAGES
 
 // Tracks the WebSocket of the run we're currently attached to. If
 // attachToInFlightRun() fires again before the prior run finishes,

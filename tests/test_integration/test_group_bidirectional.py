@@ -218,46 +218,43 @@ def test_orchestrator_runs_bidirectional_round_trip(tmp_path, monkeypatch):
     """End-to-end: group analyzer with produces_subject_artifact=True
     drives the second pass with the binding actually arriving in
     subject contexts."""
-    import fmriflow.group_orchestrator as go
+    import fmriflow.analysis.scope_runners as runners
 
     rng = np.random.default_rng(7)
     n_rows = 10
     voxel_counts = {'S1': 50, 'S2': 60, 'S3': 40}
     second_pass_calls: list[tuple[str, list[str], bool]] = []
 
-    class _StubOrch:
-        def __init__(self, config, registry):
-            self.config = config
-            self.registry = registry
-            self.ctx: PipelineContext | None = None
+    class _StubExecutor:
+        """First pass: each subject's context holds a ModelResult."""
 
-        def run(self, stages=None, context=None):
-            subject = self.config['subject']
-            if context is None:
-                # First pass — build a fresh context with a ModelResult
-                ctx = PipelineContext(self.config)
-                nvox = voxel_counts[subject]
-                ctx.put('result', _model_result(
-                    rng.standard_normal((n_rows, nvox)), nvox))
-                now = datetime.now(timezone.utc).isoformat()
-                ctx.run_summary = RunSummary(
-                    experiment='demo', subject=subject,
-                    started_at=now, finished_at=now, total_elapsed_s=0.01,
-                    stages=[StageRecord(name='model', status='ok',
-                                        elapsed_s=0.01, detail='ok')],
-                    config_snapshot=dict(self.config),
-                )
-                self.ctx = ctx
-            else:
-                # Second pass — drive the project_to_subspace analyzer
-                second_pass_calls.append(
-                    (subject, list(stages or []),
-                     context.has('external.sem_basis')))
-                ProjectToSubspaceAnalyzer().analyze(context, self.config)
-                self.ctx = context
-            return self.ctx
+        def __init__(self, catalog):
+            self.last_context = None
 
-    monkeypatch.setattr(go, 'PipelineOrchestrator', _StubOrch)
+        def run(self, graph, write_graph=False, **kwargs):
+            config = graph.globals
+            subject = config['subject']
+            ctx = PipelineContext(config)
+            nvox = voxel_counts[subject]
+            ctx.put('result', _model_result(rng.standard_normal((n_rows, nvox)), nvox))
+            now = datetime.now(timezone.utc).isoformat()
+            ctx.run_summary = RunSummary(
+                experiment='demo', subject=subject,
+                started_at=now, finished_at=now, total_elapsed_s=0.01,
+                stages=[StageRecord(name='model', status='ok', elapsed_s=0.01, detail='ok')],
+                config_snapshot=dict(config),
+            )
+            self.last_context = ctx
+            return ctx
+
+    def _second_pass(config, catalog, stages, context, **kwargs):
+        """Second pass: drive the project_to_subspace analyzer on the subject context."""
+        second_pass_calls.append((config['subject'], list(stages), context.has('external.sem_basis')))
+        ProjectToSubspaceAnalyzer().analyze(context, config)
+        return context
+
+    monkeypatch.setattr(runners, 'GraphExecutor', _StubExecutor)
+    monkeypatch.setattr(runners, 'run_subject_stages', _second_pass)
 
     cfg = {
         'group': 'demo_group',

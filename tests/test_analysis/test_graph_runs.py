@@ -174,6 +174,6 @@ def test_default_engine_is_graph(monkeypatch):
 
     monkeypatch.delenv("FMRIFLOW_ENGINE", raising=False)
     assert resolve_engine() == "graph"
-    monkeypatch.setenv("FMRIFLOW_ENGINE", "legacy")
-    assert resolve_engine() == "legacy"
+    monkeypatch.setenv("FMRIFLOW_ENGINE", "legacy")          # retired: accepted, runs on the graph engine
+    assert resolve_engine() == "graph"
     assert resolve_engine("graph") == "graph"

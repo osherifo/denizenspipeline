@@ -95,9 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     run_parser.add_argument(
         '--engine', choices=['legacy', 'graph'], default=None,
-        help='Execution engine: legacy stage orchestrator or the node-graph '
-             'engine (default: $FMRIFLOW_ENGINE, else graph; --stages and '
-             '--resume-from fall back to legacy)',
+        help='Kept for compatibility: every run uses the graph engine (legacy is accepted with a warning)',
     )
 
     # ── run-group ──
@@ -105,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         'run-group', help='Run a group-scope (cross-subject) pipeline')
     rg_parser.add_argument(
         '--engine', choices=['legacy', 'graph'], default=None,
-        help='Execution engine (default: $FMRIFLOW_ENGINE, else graph)',
+        help='Kept for compatibility: every run uses the graph engine (legacy is accepted with a warning)',
     )
     rg_parser.add_argument('config', help='Path to group YAML config')
     rg_parser.add_argument(
@@ -127,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         'run-study', help='Run a study-scope (cross-group) pipeline')
     rs_parser.add_argument(
         '--engine', choices=['legacy', 'graph'], default=None,
-        help='Execution engine (default: $FMRIFLOW_ENGINE, else graph)',
+        help='Kept for compatibility: every run uses the graph engine (legacy is accepted with a warning)',
     )
     rs_parser.add_argument('config', help='Path to study YAML config')
     rs_parser.add_argument(
@@ -319,6 +317,23 @@ def _build_registry():
     return registry
 
 
+def _check_engine(args) -> bool:
+    """Resolve ``--engine`` / ``$FMRIFLOW_ENGINE``: say so when a retired engine is named; False on an unknown one."""
+    import os as _os
+
+    from fmriflow.pipeline import RETIRED_ENGINES, resolve_engine
+
+    named = (getattr(args, 'engine', None) or _os.environ.get('FMRIFLOW_ENGINE') or '').strip().lower()
+    try:
+        resolve_engine(named or None)
+    except Exception as e:
+        ui.error_panel(str(e))
+        return False
+    if named in RETIRED_ENGINES:
+        ui.console.print(f"[yellow]The {named} engine was retired; running on the graph engine.[/]")
+    return True
+
+
 def _yaml_mapping(path: str) -> dict | None:
     import yaml
     try:
@@ -362,8 +377,7 @@ def _cmd_run_graph_file(args) -> int:
     from fmriflow.analysis.graph import AnalysisGraph
     from fmriflow.core import paths
 
-    if getattr(args, 'engine', None) == 'legacy':
-        ui.error_panel("Graph files run on the graph engine; drop --engine legacy.")
+    if not _check_engine(args):
         return 1
     subject = getattr(args, 'subject', None)
     if getattr(args, 'stages', None) or getattr(args, 'resume_from', None):
@@ -531,6 +545,8 @@ def _cmd_run(args) -> int:
 
     if _is_graph_file(args.config):
         return _cmd_run_graph_file(args)
+    if not _check_engine(args):
+        return 1
 
     try:
         pipeline = Pipeline.from_yaml(args.config, registry=_build_registry(),
@@ -625,7 +641,6 @@ def _cmd_run_group(args) -> int:
         return _cmd_run_graph_file(args)
     from fmriflow.config.loader import load_group_config
     from fmriflow.group_orchestrator import GroupOrchestrator
-    from fmriflow.pipeline import resolve_engine
     from fmriflow.registry import ModuleRegistry
 
     try:
@@ -636,16 +651,9 @@ def _cmd_run_group(args) -> int:
 
     registry = _build_registry()
     run_id = _resume_run_id(args, GroupOrchestrator.resolve_resume_run_id, group_config)
-    try:
-        engine = resolve_engine(getattr(args, 'engine', None))
-    except Exception as e:
-        ui.error_panel(str(e))
+    if not _check_engine(args):
         return 1
-    if engine == 'graph':
-        from fmriflow.analysis.scope_runners import GroupGraphRunner as runner_cls
-    else:
-        runner_cls = GroupOrchestrator
-    orch = runner_cls(group_config, registry, run_id=run_id)
+    orch = GroupOrchestrator(group_config, registry, run_id=run_id)
 
     if args.dry_run:
         ui.console.print(
@@ -685,7 +693,6 @@ def _cmd_run_study(args) -> int:
         return _cmd_run_graph_file(args)
     from fmriflow.config.loader import load_study_config
     from fmriflow.study_orchestrator import StudyOrchestrator
-    from fmriflow.pipeline import resolve_engine
     from fmriflow.registry import ModuleRegistry
 
     try:
@@ -696,16 +703,9 @@ def _cmd_run_study(args) -> int:
 
     registry = _build_registry()
     run_id = _resume_run_id(args, StudyOrchestrator.resolve_resume_run_id, study_config)
-    try:
-        engine = resolve_engine(getattr(args, 'engine', None))
-    except Exception as e:
-        ui.error_panel(str(e))
+    if not _check_engine(args):
         return 1
-    if engine == 'graph':
-        from fmriflow.analysis.scope_runners import StudyGraphRunner as runner_cls
-    else:
-        runner_cls = StudyOrchestrator
-    orch = runner_cls(study_config, registry, run_id=run_id, config_path=args.config)
+    orch = StudyOrchestrator(study_config, registry, run_id=run_id, config_path=args.config)
 
     if args.dry_run:
         labels = [str(e.get('name')) for e in study_config.get('groups', [])]

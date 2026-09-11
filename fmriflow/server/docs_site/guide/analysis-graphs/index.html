@@ -1583,8 +1583,7 @@ the dashboard.</p>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--input<span class="w"> </span><span class="nv">output_dir</span><span class="o">=</span>/data/results/sub01
 </code></pre></div>
 <p><code>--input</code> values are parsed as YAML, so lists and numbers work. <code>--subject</code> fills a graph input named
-<code>subject</code>. A graph file always runs whole on the graph engine, so <code>--stages</code>, <code>--resume-from</code> and
-<code>--engine legacy</code> are refused.</p>
+<code>subject</code>. A graph file always runs whole, so <code>--stages</code> and <code>--resume-from</code> are refused.</p>
 <p>Check a graph without running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>fmriflow<span class="w"> </span>graph<span class="w"> </span>validate<span class="w"> </span>my_analysis.yaml<span class="w"> </span>--input<span class="w"> </span><span class="nv">subject</span><span class="o">=</span>sub01
 </code></pre></div>
@@ -1773,10 +1772,11 @@ also lists <code>group_*</code> and <code>study_*</code> node types; they do not
 templates live in <code>$FMRIFLOW_HOME/addons/analysis_pipelines/</code>. They cannot reuse a bundled name and never
 carry <code>run_defaults</code>.</p>
 <h2 id="engines">Engines<a class="headerlink" href="#engines" title="Permanent link">&para;</a></h2>
-<p>Subject runs use the graph engine by default. <code>--engine legacy</code> or <code>FMRIFLOW_ENGINE=legacy</code> selects the
-stage orchestrator. With a stage config and no engine chosen, <code>--stages</code> and <code>--resume-from</code> fall back to
-the stage orchestrator automatically.</p>
-<p>Both engines write the same run summary, events, intermediates, QA outputs and reports. The graph engine
+<p>All runs use the graph engine. Stage configs compile to graphs, and <code>--stages</code> or <code>--resume-from</code> run only
+those stages of the compiled graph, continuing the checkpointed context. The stage orchestrators were
+retired; <code>--engine legacy</code> and <code>FMRIFLOW_ENGINE=legacy</code> are still accepted, log a warning, and run on the
+graph engine.</p>
+<p>The run summary, events, intermediates, QA outputs and reports keep the format they had. The graph engine
 also writes <code>graph.json</code>, the graph it executed, and records its utility nodes inside the features and
 analyze stages.</p>
 <h2 id="in-the-web-server">In the web server<a class="headerlink" href="#in-the-web-server" title="Permanent link">&para;</a></h2>

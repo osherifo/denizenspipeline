@@ -1956,14 +1956,13 @@ group config is rejected, because it was never applied. Analyzers under <code>su
 in the second pass, and the second pass's analyze and report records are saved to each subject's
 <code>run_summary.json</code>.</p>
 <h3 id="engines">Engines<a class="headerlink" href="#engines" title="Permanent link">&para;</a></h3>
-<p><code>run-group</code> and <code>run-study</code> use the graph engine unless <code>--engine legacy</code> or <code>FMRIFLOW_ENGINE=legacy</code>
-selects the stage orchestrators. Both write the same run directories, summaries, logs and events. On the
-graph engine the group config is compiled into a group graph: a subject fan-out node, the group analyzers
+<p><code>run-group</code> and <code>run-study</code> run on the graph engine (the stage orchestrators were retired; <code>--engine legacy</code>
+is accepted and runs on the graph engine). The group config is compiled into a group graph: a subject fan-out node, the group analyzers
 in order, a second-pass node when an analyzer binds values into subjects, and the group reporters. Each
 subject runs as its own analysis graph and writes <code>graph.json</code> next to its <code>run_summary.json</code>. Each group
 or study module gets the params of its own entry, so listing the same module twice with different params
 works.</p>
-<p>Two group config keys only apply on the graph engine:</p>
+<p>Two group config keys control the second pass and resume:</p>
 <table>
 <thead>
 <tr>

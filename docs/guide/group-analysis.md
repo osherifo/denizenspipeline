@@ -171,15 +171,14 @@ in the second pass, and the second pass's analyze and report records are saved t
 
 ### Engines
 
-`run-group` and `run-study` use the graph engine unless `--engine legacy` or `FMRIFLOW_ENGINE=legacy`
-selects the stage orchestrators. Both write the same run directories, summaries, logs and events. On the
-graph engine the group config is compiled into a group graph: a subject fan-out node, the group analyzers
+`run-group` and `run-study` run on the graph engine (the stage orchestrators were retired; `--engine legacy`
+is accepted and runs on the graph engine). The group config is compiled into a group graph: a subject fan-out node, the group analyzers
 in order, a second-pass node when an analyzer binds values into subjects, and the group reporters. Each
 subject runs as its own analysis graph and writes `graph.json` next to its `run_summary.json`. Each group
 or study module gets the params of its own entry, so listing the same module twice with different params
 works.
 
-Two group config keys only apply on the graph engine:
+Two group config keys control the second pass and resume:
 
 | Key | Values | Meaning |
 |---|---|---|

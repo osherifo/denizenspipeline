@@ -117,10 +117,10 @@ def _fake_group_result(label: str, group_name: str,
 
 def _patch_group_orch(monkeypatch, *, fail_for: set[str] | None = None):
     """Stub out GroupOrchestrator inside study_orchestrator."""
-    import fmriflow.study_orchestrator as so
+    import fmriflow.analysis.scope_runners as so
 
     class _StubGroupOrch:
-        def __init__(self, config, registry, run_id=None):
+        def __init__(self, config, registry, run_id=None, **kwargs):
             self.config = config
             self.registry = registry
             self.run_id = run_id or 'stubrun'
@@ -137,7 +137,7 @@ def _patch_group_orch(monkeypatch, *, fail_for: set[str] | None = None):
                 raise RuntimeError(f"group {self.group_name} boom")
             return self.group
 
-    monkeypatch.setattr(so, 'GroupOrchestrator', _StubGroupOrch)
+    monkeypatch.setattr(so, 'GroupGraphRunner', _StubGroupOrch)
 
 
 # ─── validate_study_config ─────────────────────────────────────

@@ -1,3 +1,4 @@
+import { QA_STAGE_NAMES } from '../utils/stages'
 /** Run-graph endpoints — power the "View graph" modal in the dashboard.
  *
  * One module handles both subject and group runs. Each fetcher takes a
@@ -117,9 +118,7 @@ export interface QaArtifactsResponse {
 // Pipeline stages where QA reporters exist. Used both to gate the QA
 // tab in the node panel and to reject obvious "no plugins here" stages
 // (analyze / report) without a round-trip.
-export const QA_STAGES = new Set([
-  'stimuli', 'responses', 'features', 'prepare', 'model',
-])
+export const QA_STAGES = new Set<string>(QA_STAGE_NAMES)
 
 
 function urlFor(target: GraphTarget, suffix: string): string {

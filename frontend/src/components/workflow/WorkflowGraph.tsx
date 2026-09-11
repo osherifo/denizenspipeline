@@ -1,4 +1,5 @@
 /** ReactFlow graph for a single workflow run — one node per stage. */
+import { SUBJECT_STAGES } from '../../utils/stages'
 import { statusPalette, identityColor, nodeColors, runningNodeStyle } from '../../utils/status-colors'
 import { memo, useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
@@ -35,9 +36,7 @@ const STATUS = () => statusPalette()
 
 // Canonical order of analysis inner stages — used to stub out pending
 // rows when the events file doesn't list them yet.
-const ANALYSIS_INNER_STAGES: readonly string[] = [
-  'stimuli', 'responses', 'features', 'prepare', 'model', 'analyze', 'report',
-] as const
+const ANALYSIS_INNER_STAGES: readonly string[] = SUBJECT_STAGES
 
 // ── Node component ──────────────────────────────────────────────────────
 

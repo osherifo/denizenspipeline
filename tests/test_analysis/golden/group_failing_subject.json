@@ -1,0 +1,1661 @@
+{
+ "artifacts": [
+  "group.mean",
+  "group.offset",
+  "report.zz_group_report"
+ ],
+ "events": [
+  {
+   "event": "group_started",
+   "group": "g",
+   "n_subjects": 3,
+   "run_dir": "<root>/r1",
+   "run_id": "r1",
+   "subjects": [
+    "S1",
+    "S2",
+    "S3"
+   ]
+  },
+  {
+   "event": "group_stage_start",
+   "group": "g",
+   "stage": "group_collect"
+  },
+  {
+   "event": "group_stage_done",
+   "group": "g",
+   "stage": "group_collect"
+  },
+  {
+   "event": "group_stage_start",
+   "group": "g",
+   "stage": "subject_fanout"
+  },
+  {
+   "event": "group_subject_start",
+   "group": "g",
+   "subject": "S1"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "stimuli",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "stimulus_loader",
+   "name": "mock_stim",
+   "node_id": "stimuli:mock_stim",
+   "subject": "S1"
+  },
+  {
+   "detail": "3 runs",
+   "event": "node_done",
+   "group": "g",
+   "kind": "stimulus_loader",
+   "name": "mock_stim",
+   "node_id": "stimuli:mock_stim",
+   "subject": "S1"
+  },
+  {
+   "detail": "3 runs",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "stimuli",
+   "subject": "S1"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "responses",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "response_loader",
+   "name": "mock_resp",
+   "node_id": "responses:mock_resp",
+   "subject": "S1"
+  },
+  {
+   "detail": "3 runs loaded",
+   "event": "node_done",
+   "group": "g",
+   "kind": "response_loader",
+   "name": "mock_resp",
+   "node_id": "responses:mock_resp",
+   "subject": "S1"
+  },
+  {
+   "detail": "3 runs loaded",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "responses",
+   "subject": "S1"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "features",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "feature_source",
+   "name": "filesystem",
+   "node_id": "features:filesystem",
+   "subject": "S1"
+  },
+  {
+   "detail": "mock_feat: 3 runs, 5 dims",
+   "event": "node_done",
+   "group": "g",
+   "kind": "feature_source",
+   "name": "filesystem",
+   "node_id": "features:filesystem",
+   "subject": "S1"
+  },
+  {
+   "detail": "1 feature(s)",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "features",
+   "subject": "S1"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "prepare",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "preparer",
+   "name": "mock_prep",
+   "node_id": "prepare:mock_prep",
+   "subject": "S1"
+  },
+  {
+   "detail": "train=100 test=50",
+   "event": "node_done",
+   "group": "g",
+   "kind": "preparer",
+   "name": "mock_prep",
+   "node_id": "prepare:mock_prep",
+   "subject": "S1"
+  },
+  {
+   "detail": "train=100 test=50",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "prepare",
+   "subject": "S1"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "model",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "model",
+   "name": "mock_model",
+   "node_id": "model:mock_model",
+   "subject": "S1"
+  },
+  {
+   "detail": "mean=0.4519 max=0.9260",
+   "event": "node_done",
+   "group": "g",
+   "kind": "model",
+   "name": "mock_model",
+   "node_id": "model:mock_model",
+   "subject": "S1"
+  },
+  {
+   "detail": "mean=0.4519 max=0.9260",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "model",
+   "subject": "S1"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "analyze",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding",
+   "subject": "S1"
+  },
+  {
+   "detail": "ok",
+   "event": "node_done",
+   "group": "g",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding",
+   "subject": "S1"
+  },
+  {
+   "detail": "1 analyzer(s)",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "analyze",
+   "subject": "S1"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "report",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report",
+   "subject": "S1"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "group": "g",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report",
+   "subject": "S1"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter",
+   "subject": "S1"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "group": "g",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter",
+   "subject": "S1"
+  },
+  {
+   "detail": "2 artifact(s) saved",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "report",
+   "subject": "S1"
+  },
+  {
+   "event": "group_subject_done",
+   "group": "g",
+   "status": "ok",
+   "subject": "S1"
+  },
+  {
+   "event": "group_subject_start",
+   "group": "g",
+   "subject": "S2"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "stimuli",
+   "subject": "S2"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "stimulus_loader",
+   "name": "mock_stim",
+   "node_id": "stimuli:mock_stim",
+   "subject": "S2"
+  },
+  {
+   "detail": "3 runs",
+   "event": "node_done",
+   "group": "g",
+   "kind": "stimulus_loader",
+   "name": "mock_stim",
+   "node_id": "stimuli:mock_stim",
+   "subject": "S2"
+  },
+  {
+   "detail": "3 runs",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "stimuli",
+   "subject": "S2"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "responses",
+   "subject": "S2"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "response_loader",
+   "name": "mock_resp",
+   "node_id": "responses:mock_resp",
+   "subject": "S2"
+  },
+  {
+   "detail": "3 runs loaded",
+   "event": "node_done",
+   "group": "g",
+   "kind": "response_loader",
+   "name": "mock_resp",
+   "node_id": "responses:mock_resp",
+   "subject": "S2"
+  },
+  {
+   "detail": "3 runs loaded",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "responses",
+   "subject": "S2"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "features",
+   "subject": "S2"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "feature_source",
+   "name": "filesystem",
+   "node_id": "features:filesystem",
+   "subject": "S2"
+  },
+  {
+   "detail": "mock_feat: 3 runs, 5 dims",
+   "event": "node_done",
+   "group": "g",
+   "kind": "feature_source",
+   "name": "filesystem",
+   "node_id": "features:filesystem",
+   "subject": "S2"
+  },
+  {
+   "detail": "1 feature(s)",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "features",
+   "subject": "S2"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "prepare",
+   "subject": "S2"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "preparer",
+   "name": "mock_prep",
+   "node_id": "prepare:mock_prep",
+   "subject": "S2"
+  },
+  {
+   "detail": "train=100 test=50",
+   "event": "node_done",
+   "group": "g",
+   "kind": "preparer",
+   "name": "mock_prep",
+   "node_id": "prepare:mock_prep",
+   "subject": "S2"
+  },
+  {
+   "detail": "train=100 test=50",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "prepare",
+   "subject": "S2"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "model",
+   "subject": "S2"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "model",
+   "name": "zz_group_fail_model",
+   "node_id": "model:zz_group_fail_model",
+   "subject": "S2"
+  },
+  {
+   "error": "model boom",
+   "event": "node_fail",
+   "group": "g",
+   "kind": "model",
+   "name": "zz_group_fail_model",
+   "node_id": "model:zz_group_fail_model",
+   "subject": "S2"
+  },
+  {
+   "error": "model boom",
+   "event": "stage_fail",
+   "group": "g",
+   "stage": "model",
+   "subject": "S2"
+  },
+  {
+   "event": "group_subject_done",
+   "group": "g",
+   "status": "failed",
+   "subject": "S2"
+  },
+  {
+   "event": "group_subject_start",
+   "group": "g",
+   "subject": "S3"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "stimuli",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "stimulus_loader",
+   "name": "mock_stim",
+   "node_id": "stimuli:mock_stim",
+   "subject": "S3"
+  },
+  {
+   "detail": "3 runs",
+   "event": "node_done",
+   "group": "g",
+   "kind": "stimulus_loader",
+   "name": "mock_stim",
+   "node_id": "stimuli:mock_stim",
+   "subject": "S3"
+  },
+  {
+   "detail": "3 runs",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "stimuli",
+   "subject": "S3"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "responses",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "response_loader",
+   "name": "mock_resp",
+   "node_id": "responses:mock_resp",
+   "subject": "S3"
+  },
+  {
+   "detail": "3 runs loaded",
+   "event": "node_done",
+   "group": "g",
+   "kind": "response_loader",
+   "name": "mock_resp",
+   "node_id": "responses:mock_resp",
+   "subject": "S3"
+  },
+  {
+   "detail": "3 runs loaded",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "responses",
+   "subject": "S3"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "features",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "feature_source",
+   "name": "filesystem",
+   "node_id": "features:filesystem",
+   "subject": "S3"
+  },
+  {
+   "detail": "mock_feat: 3 runs, 5 dims",
+   "event": "node_done",
+   "group": "g",
+   "kind": "feature_source",
+   "name": "filesystem",
+   "node_id": "features:filesystem",
+   "subject": "S3"
+  },
+  {
+   "detail": "1 feature(s)",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "features",
+   "subject": "S3"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "prepare",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "preparer",
+   "name": "mock_prep",
+   "node_id": "prepare:mock_prep",
+   "subject": "S3"
+  },
+  {
+   "detail": "train=100 test=50",
+   "event": "node_done",
+   "group": "g",
+   "kind": "preparer",
+   "name": "mock_prep",
+   "node_id": "prepare:mock_prep",
+   "subject": "S3"
+  },
+  {
+   "detail": "train=100 test=50",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "prepare",
+   "subject": "S3"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "model",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "model",
+   "name": "mock_model",
+   "node_id": "model:mock_model",
+   "subject": "S3"
+  },
+  {
+   "detail": "mean=0.4519 max=0.9260",
+   "event": "node_done",
+   "group": "g",
+   "kind": "model",
+   "name": "mock_model",
+   "node_id": "model:mock_model",
+   "subject": "S3"
+  },
+  {
+   "detail": "mean=0.4519 max=0.9260",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "model",
+   "subject": "S3"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "analyze",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding",
+   "subject": "S3"
+  },
+  {
+   "detail": "ok",
+   "event": "node_done",
+   "group": "g",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding",
+   "subject": "S3"
+  },
+  {
+   "detail": "1 analyzer(s)",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "analyze",
+   "subject": "S3"
+  },
+  {
+   "event": "stage_start",
+   "group": "g",
+   "stage": "report",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report",
+   "subject": "S3"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "group": "g",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report",
+   "subject": "S3"
+  },
+  {
+   "event": "node_start",
+   "group": "g",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter",
+   "subject": "S3"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "group": "g",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter",
+   "subject": "S3"
+  },
+  {
+   "detail": "2 artifact(s) saved",
+   "event": "stage_done",
+   "group": "g",
+   "stage": "report",
+   "subject": "S3"
+  },
+  {
+   "event": "group_subject_done",
+   "group": "g",
+   "status": "ok",
+   "subject": "S3"
+  },
+  {
+   "event": "group_stage_done",
+   "group": "g",
+   "stage": "subject_fanout"
+  },
+  {
+   "event": "group_stage_start",
+   "group": "g",
+   "stage": "group_analyze"
+  },
+  {
+   "event": "node_start",
+   "kind": "group_analyzer",
+   "name": "zz_group_mean",
+   "node_id": "group_analyze:zz_group_mean"
+  },
+  {
+   "detail": "ok",
+   "event": "node_done",
+   "kind": "group_analyzer",
+   "name": "zz_group_mean",
+   "node_id": "group_analyze:zz_group_mean"
+  },
+  {
+   "event": "node_start",
+   "kind": "group_analyzer",
+   "name": "zz_group_bind",
+   "node_id": "group_analyze:zz_group_bind"
+  },
+  {
+   "detail": "ok",
+   "event": "node_done",
+   "kind": "group_analyzer",
+   "name": "zz_group_bind",
+   "node_id": "group_analyze:zz_group_bind"
+  },
+  {
+   "event": "group_stage_done",
+   "group": "g",
+   "stage": "group_analyze"
+  },
+  {
+   "event": "group_stage_start",
+   "group": "g",
+   "stage": "subject_second_pass"
+  },
+  {
+   "event": "stage_start",
+   "stage": "analyze"
+  },
+  {
+   "event": "node_start",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding"
+  },
+  {
+   "detail": "ok",
+   "event": "node_done",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding"
+  },
+  {
+   "detail": "1 analyzer(s)",
+   "event": "stage_done",
+   "stage": "analyze"
+  },
+  {
+   "event": "stage_start",
+   "stage": "report"
+  },
+  {
+   "event": "node_start",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report"
+  },
+  {
+   "event": "node_start",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter"
+  },
+  {
+   "detail": "2 artifact(s) saved",
+   "event": "stage_done",
+   "stage": "report"
+  },
+  {
+   "event": "stage_start",
+   "stage": "analyze"
+  },
+  {
+   "event": "node_start",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding"
+  },
+  {
+   "error": "'result' not found in context. Was the required stage run?",
+   "event": "node_fail",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding"
+  },
+  {
+   "detail": "0/1 analyzer(s) ok, failed: zz_use_binding",
+   "event": "stage_done",
+   "stage": "analyze"
+  },
+  {
+   "event": "stage_start",
+   "stage": "report"
+  },
+  {
+   "error": "'result' not found in context. Was the required stage run?",
+   "event": "stage_fail",
+   "stage": "report"
+  },
+  {
+   "event": "stage_start",
+   "stage": "analyze"
+  },
+  {
+   "event": "node_start",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding"
+  },
+  {
+   "detail": "ok",
+   "event": "node_done",
+   "kind": "analyzer",
+   "name": "zz_use_binding",
+   "node_id": "analyze:zz_use_binding"
+  },
+  {
+   "detail": "1 analyzer(s)",
+   "event": "stage_done",
+   "stage": "analyze"
+  },
+  {
+   "event": "stage_start",
+   "stage": "report"
+  },
+  {
+   "event": "node_start",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "kind": "reporter",
+   "name": "mock_report",
+   "node_id": "report:mock_report"
+  },
+  {
+   "event": "node_start",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "kind": "reporter",
+   "name": "zz_count_reporter",
+   "node_id": "report:zz_count_reporter"
+  },
+  {
+   "detail": "2 artifact(s) saved",
+   "event": "stage_done",
+   "stage": "report"
+  },
+  {
+   "event": "group_stage_done",
+   "group": "g",
+   "stage": "subject_second_pass"
+  },
+  {
+   "event": "group_stage_start",
+   "group": "g",
+   "stage": "group_report"
+  },
+  {
+   "event": "node_start",
+   "kind": "group_reporter",
+   "name": "zz_group_report",
+   "node_id": "group_report:zz_group_report"
+  },
+  {
+   "detail": "1 artifact(s)",
+   "event": "node_done",
+   "kind": "group_reporter",
+   "name": "zz_group_report",
+   "node_id": "group_report:zz_group_report"
+  },
+  {
+   "event": "group_stage_done",
+   "group": "g",
+   "stage": "group_report"
+  },
+  {
+   "event": "group_done",
+   "group": "g",
+   "run_id": "r1"
+  }
+ ],
+ "files": [
+  "group_report.json",
+  "group_summary.json",
+  "subjects/S1/count.json",
+  "subjects/S1/run_summary.json",
+  "subjects/S2/run_summary.json",
+  "subjects/S3/count.json",
+  "subjects/S3/run_summary.json"
+ ],
+ "group_mean": 0.9037514925003052,
+ "group_stages": [
+  [
+   "group_collect",
+   "ok",
+   "",
+   []
+  ],
+  [
+   "subject_fanout",
+   "ok",
+   "",
+   []
+  ],
+  [
+   "group_analyze",
+   "ok",
+   "",
+   [
+    [
+     "group_analyze:zz_group_mean",
+     "group_analyzer",
+     "zz_group_mean",
+     "ok",
+     "ok",
+     []
+    ],
+    [
+     "group_analyze:zz_group_bind",
+     "group_analyzer",
+     "zz_group_bind",
+     "ok",
+     "ok",
+     []
+    ]
+   ]
+  ],
+  [
+   "subject_second_pass",
+   "ok",
+   "",
+   []
+  ],
+  [
+   "group_report",
+   "ok",
+   "",
+   [
+    [
+     "group_report:zz_group_report",
+     "group_reporter",
+     "zz_group_report",
+     "ok",
+     "1 artifact(s)",
+     [
+      "group_report.json"
+     ]
+    ]
+   ]
+  ]
+ ],
+ "subject_runs": [
+  {
+   "on_disk": [
+    [
+     "stimuli",
+     "ok",
+     "3 runs",
+     [
+      [
+       "stimuli:mock_stim",
+       "stimulus_loader",
+       "mock_stim",
+       "ok",
+       "3 runs",
+       []
+      ]
+     ]
+    ],
+    [
+     "responses",
+     "ok",
+     "3 runs loaded",
+     [
+      [
+       "responses:mock_resp",
+       "response_loader",
+       "mock_resp",
+       "ok",
+       "3 runs loaded",
+       []
+      ]
+     ]
+    ],
+    [
+     "features",
+     "ok",
+     "1 feature(s)",
+     [
+      [
+       "features:filesystem",
+       "feature_source",
+       "filesystem",
+       "ok",
+       "mock_feat: 3 runs, 5 dims",
+       []
+      ]
+     ]
+    ],
+    [
+     "prepare",
+     "ok",
+     "train=100 test=50",
+     [
+      [
+       "prepare:mock_prep",
+       "preparer",
+       "mock_prep",
+       "ok",
+       "train=100 test=50",
+       []
+      ]
+     ]
+    ],
+    [
+     "model",
+     "ok",
+     "mean=0.4519 max=0.9260",
+     [
+      [
+       "model:mock_model",
+       "model",
+       "mock_model",
+       "ok",
+       "mean=0.4519 max=0.9260",
+       []
+      ]
+     ]
+    ],
+    [
+     "analyze",
+     "ok",
+     "second pass: 1 analyzer(s)",
+     [
+      [
+       "analyze:zz_use_binding",
+       "analyzer",
+       "zz_use_binding",
+       "ok",
+       "ok",
+       []
+      ]
+     ]
+    ],
+    [
+     "report",
+     "ok",
+     "second pass: 2 artifact(s) saved",
+     [
+      [
+       "report:mock_report",
+       "reporter",
+       "mock_report",
+       "ok",
+       "1 artifact(s)",
+       [
+        "/tmp/mock.json"
+       ]
+      ],
+      [
+       "report:zz_count_reporter",
+       "reporter",
+       "zz_count_reporter",
+       "ok",
+       "1 artifact(s)",
+       [
+        "count.json"
+       ]
+      ]
+     ]
+    ]
+   ],
+   "status": "ok",
+   "subject": "S1",
+   "summary": [
+    [
+     "stimuli",
+     "ok",
+     "3 runs",
+     [
+      [
+       "stimuli:mock_stim",
+       "stimulus_loader",
+       "mock_stim",
+       "ok",
+       "3 runs",
+       []
+      ]
+     ]
+    ],
+    [
+     "responses",
+     "ok",
+     "3 runs loaded",
+     [
+      [
+       "responses:mock_resp",
+       "response_loader",
+       "mock_resp",
+       "ok",
+       "3 runs loaded",
+       []
+      ]
+     ]
+    ],
+    [
+     "features",
+     "ok",
+     "1 feature(s)",
+     [
+      [
+       "features:filesystem",
+       "feature_source",
+       "filesystem",
+       "ok",
+       "mock_feat: 3 runs, 5 dims",
+       []
+      ]
+     ]
+    ],
+    [
+     "prepare",
+     "ok",
+     "train=100 test=50",
+     [
+      [
+       "prepare:mock_prep",
+       "preparer",
+       "mock_prep",
+       "ok",
+       "train=100 test=50",
+       []
+      ]
+     ]
+    ],
+    [
+     "model",
+     "ok",
+     "mean=0.4519 max=0.9260",
+     [
+      [
+       "model:mock_model",
+       "model",
+       "mock_model",
+       "ok",
+       "mean=0.4519 max=0.9260",
+       []
+      ]
+     ]
+    ],
+    [
+     "analyze",
+     "ok",
+     "second pass: 1 analyzer(s)",
+     [
+      [
+       "analyze:zz_use_binding",
+       "analyzer",
+       "zz_use_binding",
+       "ok",
+       "ok",
+       []
+      ]
+     ]
+    ],
+    [
+     "report",
+     "ok",
+     "second pass: 2 artifact(s) saved",
+     [
+      [
+       "report:mock_report",
+       "reporter",
+       "mock_report",
+       "ok",
+       "1 artifact(s)",
+       [
+        "/tmp/mock.json"
+       ]
+      ],
+      [
+       "report:zz_count_reporter",
+       "reporter",
+       "zz_count_reporter",
+       "ok",
+       "1 artifact(s)",
+       [
+        "count.json"
+       ]
+      ]
+     ]
+    ]
+   ],
+   "with_offset": 1.9518757462501526
+  },
+  {
+   "on_disk": [
+    [
+     "stimuli",
+     "ok",
+     "3 runs",
+     [
+      [
+       "stimuli:mock_stim",
+       "stimulus_loader",
+       "mock_stim",
+       "ok",
+       "3 runs",
+       []
+      ]
+     ]
+    ],
+    [
+     "responses",
+     "ok",
+     "3 runs loaded",
+     [
+      [
+       "responses:mock_resp",
+       "response_loader",
+       "mock_resp",
+       "ok",
+       "3 runs loaded",
+       []
+      ]
+     ]
+    ],
+    [
+     "features",
+     "ok",
+     "1 feature(s)",
+     [
+      [
+       "features:filesystem",
+       "feature_source",
+       "filesystem",
+       "ok",
+       "mock_feat: 3 runs, 5 dims",
+       []
+      ]
+     ]
+    ],
+    [
+     "prepare",
+     "ok",
+     "train=100 test=50",
+     [
+      [
+       "prepare:mock_prep",
+       "preparer",
+       "mock_prep",
+       "ok",
+       "train=100 test=50",
+       []
+      ]
+     ]
+    ],
+    [
+     "model",
+     "failed",
+     "model boom",
+     [
+      [
+       "model:zz_group_fail_model",
+       "model",
+       "zz_group_fail_model",
+       "failed",
+       "model boom",
+       []
+      ]
+     ]
+    ],
+    [
+     "analyze",
+     "ok",
+     "second pass: 0/1 analyzer(s) ok, failed: zz_use_binding",
+     [
+      [
+       "analyze:zz_use_binding",
+       "analyzer",
+       "zz_use_binding",
+       "failed",
+       "'result' not found in context. Was the required stage run?",
+       []
+      ]
+     ]
+    ],
+    [
+     "report",
+     "failed",
+     "second pass: 'result' not found in context. Was the required stage run?",
+     []
+    ]
+   ],
+   "status": "failed",
+   "subject": "S2",
+   "summary": [
+    [
+     "stimuli",
+     "ok",
+     "3 runs",
+     [
+      [
+       "stimuli:mock_stim",
+       "stimulus_loader",
+       "mock_stim",
+       "ok",
+       "3 runs",
+       []
+      ]
+     ]
+    ],
+    [
+     "responses",
+     "ok",
+     "3 runs loaded",
+     [
+      [
+       "responses:mock_resp",
+       "response_loader",
+       "mock_resp",
+       "ok",
+       "3 runs loaded",
+       []
+      ]
+     ]
+    ],
+    [
+     "features",
+     "ok",
+     "1 feature(s)",
+     [
+      [
+       "features:filesystem",
+       "feature_source",
+       "filesystem",
+       "ok",
+       "mock_feat: 3 runs, 5 dims",
+       []
+      ]
+     ]
+    ],
+    [
+     "prepare",
+     "ok",
+     "train=100 test=50",
+     [
+      [
+       "prepare:mock_prep",
+       "preparer",
+       "mock_prep",
+       "ok",
+       "train=100 test=50",
+       []
+      ]
+     ]
+    ],
+    [
+     "model",
+     "failed",
+     "model boom",
+     [
+      [
+       "model:zz_group_fail_model",
+       "model",
+       "zz_group_fail_model",
+       "failed",
+       "model boom",
+       []
+      ]
+     ]
+    ],
+    [
+     "analyze",
+     "ok",
+     "second pass: 0/1 analyzer(s) ok, failed: zz_use_binding",
+     [
+      [
+       "analyze:zz_use_binding",
+       "analyzer",
+       "zz_use_binding",
+       "failed",
+       "'result' not found in context. Was the required stage run?",
+       []
+      ]
+     ]
+    ],
+    [
+     "report",
+     "failed",
+     "second pass: 'result' not found in context. Was the required stage run?",
+     []
+    ]
+   ],
+   "with_offset": null
+  },
+  {
+   "on_disk": [
+    [
+     "stimuli",
+     "ok",
+     "3 runs",
+     [
+      [
+       "stimuli:mock_stim",
+       "stimulus_loader",
+       "mock_stim",
+       "ok",
+       "3 runs",
+       []
+      ]
+     ]
+    ],
+    [
+     "responses",
+     "ok",
+     "3 runs loaded",
+     [
+      [
+       "responses:mock_resp",
+       "response_loader",
+       "mock_resp",
+       "ok",
+       "3 runs loaded",
+       []
+      ]
+     ]
+    ],
+    [
+     "features",
+     "ok",
+     "1 feature(s)",
+     [
+      [
+       "features:filesystem",
+       "feature_source",
+       "filesystem",
+       "ok",
+       "mock_feat: 3 runs, 5 dims",
+       []
+      ]
+     ]
+    ],
+    [
+     "prepare",
+     "ok",
+     "train=100 test=50",
+     [
+      [
+       "prepare:mock_prep",
+       "preparer",
+       "mock_prep",
+       "ok",
+       "train=100 test=50",
+       []
+      ]
+     ]
+    ],
+    [
+     "model",
+     "ok",
+     "mean=0.4519 max=0.9260",
+     [
+      [
+       "model:mock_model",
+       "model",
+       "mock_model",
+       "ok",
+       "mean=0.4519 max=0.9260",
+       []
+      ]
+     ]
+    ],
+    [
+     "analyze",
+     "ok",
+     "second pass: 1 analyzer(s)",
+     [
+      [
+       "analyze:zz_use_binding",
+       "analyzer",
+       "zz_use_binding",
+       "ok",
+       "ok",
+       []
+      ]
+     ]
+    ],
+    [
+     "report",
+     "ok",
+     "second pass: 2 artifact(s) saved",
+     [
+      [
+       "report:mock_report",
+       "reporter",
+       "mock_report",
+       "ok",
+       "1 artifact(s)",
+       [
+        "/tmp/mock.json"
+       ]
+      ],
+      [
+       "report:zz_count_reporter",
+       "reporter",
+       "zz_count_reporter",
+       "ok",
+       "1 artifact(s)",
+       [
+        "count.json"
+       ]
+      ]
+     ]
+    ]
+   ],
+   "status": "ok",
+   "subject": "S3",
+   "summary": [
+    [
+     "stimuli",
+     "ok",
+     "3 runs",
+     [
+      [
+       "stimuli:mock_stim",
+       "stimulus_loader",
+       "mock_stim",
+       "ok",
+       "3 runs",
+       []
+      ]
+     ]
+    ],
+    [
+     "responses",
+     "ok",
+     "3 runs loaded",
+     [
+      [
+       "responses:mock_resp",
+       "response_loader",
+       "mock_resp",
+       "ok",
+       "3 runs loaded",
+       []
+      ]
+     ]
+    ],
+    [
+     "features",
+     "ok",
+     "1 feature(s)",
+     [
+      [
+       "features:filesystem",
+       "feature_source",
+       "filesystem",
+       "ok",
+       "mock_feat: 3 runs, 5 dims",
+       []
+      ]
+     ]
+    ],
+    [
+     "prepare",
+     "ok",
+     "train=100 test=50",
+     [
+      [
+       "prepare:mock_prep",
+       "preparer",
+       "mock_prep",
+       "ok",
+       "train=100 test=50",
+       []
+      ]
+     ]
+    ],
+    [
+     "model",
+     "ok",
+     "mean=0.4519 max=0.9260",
+     [
+      [
+       "model:mock_model",
+       "model",
+       "mock_model",
+       "ok",
+       "mean=0.4519 max=0.9260",
+       []
+      ]
+     ]
+    ],
+    [
+     "analyze",
+     "ok",
+     "second pass: 1 analyzer(s)",
+     [
+      [
+       "analyze:zz_use_binding",
+       "analyzer",
+       "zz_use_binding",
+       "ok",
+       "ok",
+       []
+      ]
+     ]
+    ],
+    [
+     "report",
+     "ok",
+     "second pass: 2 artifact(s) saved",
+     [
+      [
+       "report:mock_report",
+       "reporter",
+       "mock_report",
+       "ok",
+       "1 artifact(s)",
+       [
+        "/tmp/mock.json"
+       ]
+      ],
+      [
+       "report:zz_count_reporter",
+       "reporter",
+       "zz_count_reporter",
+       "ok",
+       "1 artifact(s)",
+       [
+        "count.json"
+       ]
+      ]
+     ]
+    ]
+   ],
+   "with_offset": 1.9518757462501526
+  }
+ ],
+ "subjects": [
+  "S1",
+  "S2",
+  "S3"
+ ]
+}

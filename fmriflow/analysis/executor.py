@@ -38,14 +38,14 @@ from fmriflow.analysis.adapters import NodeEnv
 from fmriflow.analysis.catalog import NodeCatalog
 from fmriflow.analysis.compile_legacy import compile_subject_config
 from fmriflow.analysis.graph import AnalysisGraph
-from fmriflow.analysis.values import ContextValue, merge_contexts
+from fmriflow.analysis.values import CANONICAL_KEYS, ContextValue, merge_contexts
 from fmriflow.context import PipelineContext
 from fmriflow.core.run_summary import NodeIdGen, NodeRecord, RunSummary, StageRecord
 from fmriflow.core.stages import GROUP_MODULE_STAGES, STUDY_MODULE_STAGES, SUBJECT_STAGES
 from fmriflow.exceptions import ConfigError, StageError
 from fmriflow.graph.model import INPUT_REF_PREFIX
 from fmriflow.graph.ports import accepts_many
-from fmriflow.orchestrator import _record, _relativize
+from fmriflow.core.records import _record, _relativize
 
 logger = logging.getLogger(__name__)
 
@@ -201,10 +201,14 @@ class GraphExecutor:
     # ── run ────────────────────────────────────────────────────────
 
     def run(self, graph: AnalysisGraph, *, write_graph: bool = False,
-            inputs: dict[str, Any] | None = None) -> PipelineContext:
+            inputs: dict[str, Any] | None = None,
+            context: PipelineContext | None = None) -> PipelineContext:
+        """Run ``graph``; with ``context`` the run continues that context (its keys,
+        artifacts and checkpoints) instead of starting an empty one."""
         graph, self._run_inputs = resolve_graph_inputs(graph, inputs)
-        run_ctx = PipelineContext(graph.globals)
+        run_ctx = context if context is not None else PipelineContext(graph.globals)
         self.last_context = run_ctx
+        self._artifact_labels: set[str] = set()
 
         errors = self.validate(graph)
         if errors:
@@ -486,7 +490,9 @@ class GraphExecutor:
             rec.detail = "ok"
         elif category == "reporters":
             artifacts = outputs.get("artifacts") or {}
-            label = module if module not in run_ctx._artifacts else node.id
+            # A second reporter of the same module in this run keeps its own label.
+            label = module if module not in self._artifact_labels else node.id
+            self._artifact_labels.add(label)
             run_ctx.add_artifacts(label, artifacts)
             rec.outputs = _relativize(list(artifacts.values()), env.output_dir)
             rec.detail = f"{len(artifacts)} artifact(s)"
@@ -509,17 +515,34 @@ def run_subject_stages(config: dict, catalog: NodeCatalog, stages: list[str], co
                        graph: AnalysisGraph | None = None) -> PipelineContext:
     """Run some stages of a subject config on the graph engine, continuing ``context``.
 
-    Used by a group's subject second pass. The compiled graph is cut down to the
-    nodes of ``stages`` (and, with ``only_types``, to those node types), the
-    context collector is seeded with ``context``, and what the run produces
-    (context keys, artifacts, the run summary) is written back onto ``context``.
-    ``graph`` replaces the graph compiled from ``config`` (a subject graph body);
-    it is copied, not modified.
+    The compiled graph (or a copy of ``graph``) is cut down to the nodes of
+    ``stages``, and with ``only_types`` to those node types plus the context
+    collector. What the cut-away nodes used to provide comes from ``context``:
+    typed values under their usual keys (``stimuli``, ``responses``, ``features``,
+    ``prepared``, ``result``) and the context collector's seed. A value the context
+    lacks is left out when optional and raises the context's missing-key error when
+    required. The run writes onto ``context``
+    itself: new keys, artifacts, checkpoints and the run summary.
+
+    Used for partial runs (``--stages``, ``--resume-from``) and the subject second
+    pass of a group run.
     """
     graph = AnalysisGraph.from_dict(graph.to_dict()) if graph is not None else compile_subject_config(config)
     keep = {n.id for n in graph.nodes
             if catalog.stage(n.type) in stages
             and (only_types is None or n.type in only_types or n.type == "utility:collect_context")}
+    by_id = {n.id: n for n in graph.nodes}
+    for edge in graph.edges:
+        if edge.source in keep or edge.target not in keep or edge.source_handle not in CANONICAL_KEYS:
+            continue
+        target = by_id[edge.target]
+        if not context.has(edge.source_handle):
+            # A missing optional value is left out (the stage decides, e.g. report without a result);
+            # a missing required one raises the context's own error.
+            if catalog.node_ports(target)[0].get(edge.target_handle, {}).get("required"):
+                context.get(edge.source_handle)
+            continue
+        target.literal_inputs = {**target.literal_inputs, edge.target_handle: context.get(edge.source_handle)}
     graph.nodes = [n for n in graph.nodes if n.id in keep]
     graph.edges = [e for e in graph.edges if e.source in keep and e.target in keep]
     graph.stages = [s for s in graph.stages if s in stages]
@@ -528,16 +551,5 @@ def run_subject_stages(config: dict, catalog: NodeCatalog, stages: list[str], co
         if node.type == "utility:collect_context":
             node.literal_inputs = {**node.literal_inputs, "seed": seed}
     executor = executor or GraphExecutor(catalog)
-    try:
-        executor.run(graph)
-    finally:
-        partial = executor.last_context
-        if partial is not None:
-            for key, value in partial._store.items():
-                if not context.has(key) or context._store[key] is not value:
-                    context.put(key, value)
-            context._artifacts.update(partial._artifacts)
-            if getattr(partial, "run_summary", None) is not None:
-                context.run_summary = partial.run_summary
+    executor.run(graph, context=context)
     return context
-

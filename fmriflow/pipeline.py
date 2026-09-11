@@ -33,8 +33,6 @@ class Pipeline:
         self.registry = registry or ModuleRegistry()
         self.registry.discover()
         self.engine = resolve_engine(engine)
-        # A default choice may fall back to legacy for partial runs; an explicit one may not.
-        self.engine_explicit = bool(engine or os.environ.get("FMRIFLOW_ENGINE"))
         self.last_context: PipelineContext | None = None
 
     @classmethod
@@ -76,14 +74,6 @@ class Pipeline:
         PipelineContext
             Context containing all outputs and artifacts.
         """
-        partial = stages is not None or resume_from is not None or context is not None
-        if self.engine == "graph" and not (partial and not self.engine_explicit):
-            return self._run_graph(stages, resume_from, context)
-        if self.engine == "graph":
-            logger.info("stages, resume_from or a context given: running on the legacy engine")
-
-        orchestrator = PipelineOrchestrator(self.config, self.registry)
-
         if resume_from is not None:
             if resume_from not in ALL_STAGES:
                 raise ConfigError(
@@ -95,34 +85,31 @@ class Pipeline:
                 # so continue with the stages that follow it.
                 stages = ALL_STAGES[ALL_STAGES.index(resume_from) + 1:]
 
+        orchestrator = PipelineOrchestrator(self.config, self.registry)
+        partial = stages is not None or context is not None
         try:
-            ctx = orchestrator.run(stages=stages, context=context)
+            return orchestrator.run(stages=stages, context=context, write_graph=not partial)
         finally:
             self.last_context = orchestrator.ctx
-        return ctx
-
-    def _run_graph(self, stages, resume_from, context) -> PipelineContext:
-        if stages is not None or resume_from is not None or context is not None:
-            raise ConfigError(
-                "the graph engine runs the whole pipeline; --stages, --resume-from "
-                "and continuing a context need --engine legacy")
-        from fmriflow.analysis.catalog import NodeCatalog
-        from fmriflow.analysis.executor import GraphExecutor, run_subject_config
-
-        executor = GraphExecutor(NodeCatalog(self.registry).discover())
-        try:
-            return run_subject_config(self.config, self.registry, write_graph=True, executor=executor)
-        finally:
-            self.last_context = executor.last_context
 
 
-ENGINES: tuple[str, ...] = ("legacy", "graph")
+ENGINES: tuple[str, ...] = ("graph",)
+# Engines that were retired; naming one still works and runs on the graph engine.
+RETIRED_ENGINES: tuple[str, ...] = ("legacy",)
 DEFAULT_ENGINE = "graph"
 
 
 def resolve_engine(engine: str | None = None) -> str:
-    """The engine to run with: the argument, else ``$FMRIFLOW_ENGINE``, else ``graph``."""
+    """The engine to run with: the argument, else ``$FMRIFLOW_ENGINE``, else ``graph``.
+
+    Only the graph engine remains. ``legacy`` (the retired stage orchestrators)
+    is accepted with a warning and runs on the graph engine.
+    """
     value = (engine or os.environ.get("FMRIFLOW_ENGINE") or DEFAULT_ENGINE).strip().lower()
+    if value in RETIRED_ENGINES:
+        logging.getLogger(__name__).warning(
+            "the %s engine was retired; running on the graph engine", value)
+        return "graph"
     if value not in ENGINES:
-        raise ConfigError(f"unknown engine {value!r}; expected one of {', '.join(ENGINES)}")
+        raise ConfigError(f"unknown engine {value!r}; expected {', '.join(ENGINES)}")
     return value

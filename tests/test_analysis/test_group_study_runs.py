@@ -1,9 +1,10 @@
-"""The graph engine reproduces group and study runs.
+"""Group and study runs, checked against golden records, plus graph-only behaviour.
 
-Each case runs the same config through the stage orchestrators and the graph
-runners and compares group and study summaries, subject summaries on disk,
-events, group artifacts, subject contexts after the second pass, and the files
-written. Utility nodes exist only in graph runs and are left out.
+The graph runners replaced the group and study orchestrators after matching them on
+the group and study cases below: group and study summaries, subject summaries in
+memory and on disk, events, group artifacts, subject contexts after the second pass,
+and the files written. Those orchestrator runs are kept as records in ``golden/``
+(see ``_golden.py``). Utility nodes exist only in graph runs and are left out.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from fmriflow.core.run_summary import RunSummary
 from fmriflow.group_orchestrator import GroupOrchestrator
 from fmriflow.modules import _decorators as deco
 from fmriflow.study_orchestrator import StudyOrchestrator
+from tests.test_analysis._golden import check_golden
 from tests.test_integration.test_pipeline import MockFeatureSource, _make_config, _make_registry
 
 REPORTS: list[str] = []
@@ -233,46 +235,51 @@ def _on_disk(sr):
     return _stages(RunSummary.from_json(Path(sr.run_dir) / "run_summary.json").stages)
 
 
-def _assert_group_parity(legacy, graph):
-    assert graph.group_summary.subjects == legacy.group_summary.subjects
-    assert _stages(graph.group_summary.group_stages) == _stages(legacy.group_summary.group_stages)
-    assert len(graph.subjects) == len(legacy.subjects)
-    for a, b in zip(legacy.subjects, graph.subjects):
-        assert (b.subject, b.status) == (a.subject, a.status)
-        assert _stages(b.run_summary.stages) == _stages(a.run_summary.stages)
-        assert _on_disk(b) == _on_disk(a)
-    assert set(graph.artifacts) == set(legacy.artifacts)
+def _engine() -> str:
+    return "graph"
+
+
+def _subject_runs(result):
+    return [{
+        "subject": sr.subject, "status": sr.status,
+        "summary": _stages(sr.run_summary.stages), "on_disk": _on_disk(sr),
+        "with_offset": (sr.context.get("analysis.with_offset")
+                        if sr.context is not None and sr.context.has("analysis.with_offset") else None),
+    } for sr in result.subjects]
+
+
+def _group_record(result, events, run_dir):
+    return {
+        "group_stages": _stages(result.group_summary.group_stages),
+        "subjects": result.group_summary.subjects,
+        "subject_runs": _subject_runs(result),
+        "artifacts": sorted(result.artifacts),
+        "group_mean": result.artifacts.get("group.mean"),
+        "events": _events(events, run_dir),
+        "files": _files(run_dir),
+    }
 
 
 # ── group ───────────────────────────────────────────────────────────
 
 
 def test_group_with_group_modules_and_second_pass(tmp_path, monkeypatch):
-    cfg = _group_cfg()
-    legacy, legacy_events, legacy_dir = _run_group("legacy", cfg, tmp_path, monkeypatch)
-    graph, graph_events, graph_dir = _run_group("graph", cfg, tmp_path, monkeypatch)
-
-    assert [s.name for s in legacy.group_summary.group_stages] == [
+    result, events, run_dir = _run_group(_engine(), _group_cfg(), tmp_path, monkeypatch)
+    assert events and [s.name for s in result.group_summary.group_stages] == [
         "group_collect", "subject_fanout", "group_analyze", "subject_second_pass", "group_report"]
-    _assert_group_parity(legacy, graph)
-    for a, b in zip(legacy.subjects, graph.subjects):
-        assert a.context.get("analysis.with_offset") is not None
-        assert b.context.get("analysis.with_offset") == pytest.approx(a.context.get("analysis.with_offset"))
-    assert graph.get("group.mean") == pytest.approx(legacy.get("group.mean"))
-    assert legacy_events and _events(graph_events, graph_dir) == _events(legacy_events, legacy_dir)
-    assert _files(graph_dir) == _files(legacy_dir)
-    assert (graph_dir / "subjects" / "S1" / "graph.json").is_file()
-    assert sorted(REPORTS) == sorted(["S1", "S2", "S3"] * 4)   # two engines, two passes each
+    for sr in result.subjects:
+        assert sr.context.get("analysis.with_offset") is not None
+    check_golden("group_second_pass", _group_record(result, events, run_dir))
+    if _engine() == "graph":
+        assert (run_dir / "subjects" / "S1" / "graph.json").is_file()
+    assert sorted(REPORTS) == sorted(["S1", "S2", "S3"] * 2)   # first pass and second pass
 
 
 def test_group_with_a_failing_subject(tmp_path, monkeypatch):
     cfg = _group_cfg(subject_overrides={"S2": {"model": {"type": "zz_group_fail_model"}}})
-    legacy, legacy_events, legacy_dir = _run_group("legacy", cfg, tmp_path, monkeypatch)
-    graph, graph_events, graph_dir = _run_group("graph", cfg, tmp_path, monkeypatch)
-    assert {sr.subject: sr.status for sr in legacy.subjects}["S2"] == "failed"
-    _assert_group_parity(legacy, graph)
-    assert _events(graph_events, graph_dir) == _events(legacy_events, legacy_dir)
-    assert _files(graph_dir) == _files(legacy_dir)
+    result, events, run_dir = _run_group(_engine(), cfg, tmp_path, monkeypatch)
+    assert {sr.subject: sr.status for sr in result.subjects}["S2"] == "failed"
+    check_golden("group_failing_subject", _group_record(result, events, run_dir))
 
 
 def test_minimal_second_pass_reruns_only_binding_consumers(tmp_path, monkeypatch):
@@ -325,18 +332,20 @@ def _study_cfg(root: Path) -> dict:
 
 def test_study(tmp_path, monkeypatch):
     cfg = _study_cfg(tmp_path / "configs")
-    legacy, legacy_events, legacy_dir = _run_study("legacy", cfg, tmp_path, monkeypatch)
-    graph, graph_events, graph_dir = _run_study("graph", cfg, tmp_path, monkeypatch)
-
-    assert legacy.study_summary.status == "ok"
-    assert graph.study_summary.status == legacy.study_summary.status
-    assert graph.study_summary.group_labels == legacy.study_summary.group_labels
-    assert _stages(graph.study_summary.study_stages) == _stages(legacy.study_summary.study_stages)
-    for a, b in zip(legacy.groups, graph.groups):
-        _assert_group_parity(a, b)
-    assert graph.get("study.n_subjects") == legacy.get("study.n_subjects") == 4
-    assert _events(graph_events, graph_dir) == _events(legacy_events, legacy_dir)
-    assert _files(graph_dir) == _files(legacy_dir)
+    result, events, run_dir = _run_study(_engine(), cfg, tmp_path, monkeypatch)
+    assert result.study_summary.status == "ok"
+    assert result.get("study.n_subjects") == 4
+    check_golden("study", {
+        "status": result.study_summary.status,
+        "labels": result.study_summary.group_labels,
+        "study_stages": _stages(result.study_summary.study_stages),
+        "groups": [{"group_stages": _stages(g.group_summary.group_stages), "subject_runs": _subject_runs(g)}
+                   for g in result.groups],
+        "artifacts": sorted(result.artifacts),
+        "n_subjects": result.get("study.n_subjects"),
+        "events": _events(events, run_dir),
+        "files": _files(run_dir),
+    })
 
 
 # ── graphs and the CLI ──────────────────────────────────────────────
@@ -365,7 +374,7 @@ def test_group_and_study_configs_compile_to_valid_graphs(tmp_path):
     assert any("belongs in a group graph" in e for e in subject.validate(catalog))
 
 
-def test_run_group_cli_picks_the_engine(tmp_path, monkeypatch):
+def test_run_group_cli_accepts_the_retired_engine_flag(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "_build_registry", _registry)
     monkeypatch.setenv("FMRIFLOW_EVENTS_FILE", str(tmp_path / "events.jsonl"))
     path = tmp_path / "group.yaml"
@@ -375,4 +384,4 @@ def test_run_group_cli_picks_the_engine(tmp_path, monkeypatch):
     assert (tmp_path / "out" / "cli_graph" / "subjects" / "S1" / "graph.json").is_file()
     assert cli.main(["run-group", str(path), "--engine", "legacy", "--run-id", "cli_legacy"]) == 0
     assert (tmp_path / "out" / "cli_legacy" / "group_summary.json").is_file()
-    assert not (tmp_path / "out" / "cli_legacy" / "subjects" / "S1" / "graph.json").exists()
+    assert (tmp_path / "out" / "cli_legacy" / "subjects" / "S1" / "graph.json").is_file()   # runs on the graph engine

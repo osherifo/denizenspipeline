@@ -30,6 +30,7 @@ from pathlib import Path
 
 import yaml
 
+from fmriflow.core.stages import SUBJECT_STAGES
 from fmriflow.core import paths
 from fmriflow.server.services.run_registry import RunRegistry, RunStateFile
 
@@ -1381,10 +1382,7 @@ def _apply_summary_to_handle(
 
 
 # Known pipeline stages, in pipeline execution order.
-_ANALYSIS_STAGES = (
-    'stimuli', 'responses', 'features',
-    'prepare', 'model', 'analyze', 'report',
-)
+_ANALYSIS_STAGES = SUBJECT_STAGES
 
 
 def _parse_events_file(path: str | None) -> list[dict]:

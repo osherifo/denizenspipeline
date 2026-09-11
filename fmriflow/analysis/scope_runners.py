@@ -1,22 +1,19 @@
 """Group and study runs on the graph engine.
 
-:class:`GroupGraphRunner` and :class:`StudyGraphRunner` keep the contracts of
-:class:`~fmriflow.group_orchestrator.GroupOrchestrator` and
-:class:`~fmriflow.study_orchestrator.StudyOrchestrator`: the same constructor,
-``run(resume=...)``, run-directory layout, events, logs and
-``group_summary.json`` / ``study_summary.json``. They reuse those classes' stage
-driver, so group and study stages keep their names, order and status rules;
-what runs inside each stage comes from a group or study graph, compiled from
-the config unless one is passed:
+:class:`GroupGraphRunner` runs a group: it compiles the group config into a group
+graph (or takes one), runs every subject as a subject graph, then the group
+analyzers, the subject second pass and the group reporters, and writes
+``<output_dir>/<run_id>/`` with ``group_summary.json``, logs, events and a
+``latest`` link. :class:`StudyGraphRunner` does the same one level up, running
+each group as a :class:`GroupGraphRunner`. They replaced the group and study
+orchestrators; ``fmriflow.group_orchestrator.GroupOrchestrator`` and
+``fmriflow.study_orchestrator.StudyOrchestrator`` now name these classes.
 
-- subjects run on the graph engine, one compiled subject graph each, and write
-  ``graph.json`` next to their run summary;
-- group and study modules each get their own node's params, so two entries of
-  the same module no longer share the first entry's params;
-- the subject second pass runs each subject's analyze and report stages seeded
-  with its context: all of them (``second_pass: legacy``, the default) or only
-  the modules marked ``binding_consumer`` (``second_pass: minimal``);
-- with ``resume_values: light`` each finished subject saves its model result and
+- Group and study modules each get their own node's params.
+- The subject second pass runs each subject's analyze and report stages seeded
+  with its context: all of them (``second_pass: legacy``, the default) or only the
+  modules marked ``binding_consumer`` (``second_pass: minimal``).
+- With ``resume_values: light`` each finished subject saves its model result and
   analysis keys, and a resumed subject brings them back for group analyzers.
 """
 
@@ -27,6 +24,7 @@ import dataclasses
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -37,16 +35,22 @@ from fmriflow.analysis.compile_legacy import compile_group_config, compile_study
 from fmriflow.analysis.executor import GraphExecutor, _FixedId, resolve_graph_inputs, run_subject_stages
 from fmriflow.analysis.graph import AnalysisGraph
 from fmriflow.analysis.persistence import load_light_values, save_light_values
-from fmriflow.core.group_types import SubjectResult
+from fmriflow.core import paths
+from fmriflow.core.group_types import GroupResult, SubjectResult
 from fmriflow.core.log_capture import capture_logs_to
-from fmriflow.core.run_summary import NodeRecord
+from fmriflow.core.run_summary import GroupRunSummary, NodeRecord, StageRecord, StudyRunSummary
+from fmriflow.core.study_types import StudyResult
 from fmriflow.exceptions import ConfigError
 from fmriflow.group_orchestrator import (
-    EXTERNAL_PREFIX, GroupOrchestrator, _empty_summary, _load_subject_result_from_disk,
-    _merge_second_pass_summary, _subject_already_succeeded, derive_subject_config, resolve_subject_list,
+    EXTERNAL_PREFIX, _empty_summary, _load_subject_result_from_disk, _make_run_id,
+    _merge_second_pass_summary, _subject_already_succeeded, derive_subject_config, latest_run_id,
+    resolve_subject_list,
 )
-from fmriflow.orchestrator import _record, _relativize
-from fmriflow.study_orchestrator import StudyOrchestrator, collect_study_groups, find_group_config
+from fmriflow.core.records import _record, _relativize
+from fmriflow.study_orchestrator import (
+    _aggregate_study_status, _group_status, _groups_fanout_status, _status_from_nodes,
+    collect_study_groups, find_group_config, group_config_candidates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +103,7 @@ def load_subject_body(body: Any, base_dir: Path | None = None) -> AnalysisGraph:
     return graph
 
 
-class GroupGraphRunner(GroupOrchestrator):
+class GroupGraphRunner:
     """A group run on the graph engine (see the module docstring)."""
 
     def __init__(self, group_config: dict, registry: Any, run_id: str | None = None, *,
@@ -110,9 +114,210 @@ class GroupGraphRunner(GroupOrchestrator):
         self._subject_graphs: dict[str, dict] = {}
         source = group_config.get("_source_path")
         self.base_dir = Path(source).parent if source else None
-        super().__init__(group_config, registry, run_id=run_id)
+        self.config = group_config
+        self.registry = registry
+        self.group_name = group_config.get('group') or group_config.get('group_name')
+        if not self.group_name:
+            raise ConfigError("Group config missing 'group' (name) field")
+        # ISO-ish UTC timestamp, path-safe. One run_id per orchestrator
+        # instance, so re-runs land in distinct timestamped subdirs.
+        self.run_id = run_id or group_config.get('run_id') or _make_run_id()
+        self.parent_dir, self.group_dir = self._resolve_group_dir()
+        self.group: GroupResult = GroupResult(group_name=self.group_name)
+        self._stage_records: list[StageRecord] = []
 
-    # ── graph lookups ───────────────────────────────────────────
+    @classmethod
+    def resolve_resume_run_id(cls, group_config: dict) -> str | None:
+        """Run id of this group's most recent run, for ``run-group --resume``.
+
+        Without it a resumed run would get a fresh timestamped directory and
+        never find the subjects that already finished.
+        """
+        name = group_config.get('group') or group_config.get('group_name')
+        out = group_config.get('output_dir')
+        if not out and not name:
+            return None
+        parent = Path(out) if out else paths.group_runs_root() / name
+        return latest_run_id(parent)
+
+    def run(self, resume: bool = False) -> GroupResult:
+        run_start = time.time()
+        started_at = datetime.now(timezone.utc).isoformat()
+
+        # Capture every root-logger record produced during the group run.
+        # Reporter warnings (e.g. flatmap skipped on mask mismatch) and
+        # subject failures all land in <group_dir>/group.log next to the
+        # summary JSON. Per-subject logs are written inside _run_one_subject.
+        subjects = self._resolve_subject_list_safe()
+        fui.emit_event({
+            'event': 'group_started',
+            'group': self.group_name,
+            'run_id': self.run_id,
+            'subjects': list(subjects),
+            'n_subjects': len(subjects),
+            'run_dir': str(self.group_dir),
+        })
+        with capture_logs_to(self.group_dir / 'group.log'):
+            logger.info("Group run '%s' (run_id=%s) starting — %d subject(s)",
+                        self.group_name, self.run_id, len(subjects))
+            try:
+                subject_configs = self._stage('group_collect',
+                                              self._build_subject_configs)
+                self.group.subjects = self._stage(
+                    'subject_fanout',
+                    lambda: self._run_subjects(subject_configs, resume=resume),
+                )
+
+                analyzers = self._resolve_group_analyzers()
+                if analyzers:
+                    self._stage(
+                        'group_analyze',
+                        lambda nodes: self._run_group_analyzers(analyzers, nodes),
+                        capture_nodes=True,
+                    )
+
+                second_pass = [
+                    (name, ga) for name, ga in analyzers
+                    if getattr(ga, 'produces_subject_artifact', False)
+                ]
+                if second_pass:
+                    self._stage(
+                        'subject_second_pass',
+                        lambda: self._rerun_subjects_with_bindings(
+                            [ga for _, ga in second_pass]),
+                    )
+
+                reporters = self._resolve_group_reporters()
+                if reporters:
+                    self._stage(
+                        'group_report',
+                        lambda nodes: self._run_group_reporters(reporters, nodes),
+                        capture_nodes=True,
+                    )
+            finally:
+                finished_at = datetime.now(timezone.utc).isoformat()
+                fui.emit_event({
+                    'event': 'group_done',
+                    'group': self.group_name,
+                    'run_id': self.run_id,
+                    'elapsed': round(time.time() - run_start, 3),
+                })
+                self.group.group_summary = GroupRunSummary(
+                    group_name=self.group_name,
+                    subjects=[sr.subject for sr in self.group.subjects],
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    total_elapsed_s=round(time.time() - run_start, 3),
+                    subject_summaries=[sr.run_summary for sr in self.group.subjects],
+                    group_stages=list(self._stage_records),
+                    config_snapshot=copy.deepcopy(self.config),
+                    run_id=self.run_id,
+                )
+                try:
+                    self.group.group_summary.save_json(
+                        self.group_dir / 'group_summary.json')
+                except Exception:
+                    logger.warning("Failed to save group_summary.json",
+                                   exc_info=True)
+
+        return self.group
+
+    def _resolve_group_dir(self) -> tuple[Path, Path]:
+        """Resolve the parent directory and the timestamped run directory.
+
+        ``output_dir`` in the group config (or
+        ``$FMRIFLOW_HOME/group_runs/<group_name>/``) is the **parent** — the
+        actual run lands in a timestamped subdirectory ``<run_id>/``
+        underneath it so re-runs don't clobber each other. A ``latest``
+        symlink in the parent points at this run.
+        """
+        out = self.config.get('output_dir')
+        parent = Path(out) if out else paths.group_runs_root() / self.group_name
+        parent.mkdir(parents=True, exist_ok=True)
+        run_dir = parent / self.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self._update_latest_symlink(parent, run_dir)
+        return parent, run_dir
+
+    @staticmethod
+    def _update_latest_symlink(parent: Path, target: Path) -> None:
+        link = parent / 'latest'
+        try:
+            if link.is_symlink() or link.exists():
+                link.unlink()
+            link.symlink_to(target.name, target_is_directory=True)
+        except OSError:
+            # Filesystem may not support symlinks (e.g. some network mounts).
+            # Not fatal — the run still completes; only the convenience link
+            # is missing.
+            logger.debug("Could not create 'latest' symlink at %s", link,
+                         exc_info=True)
+
+    def _subject_output_dir(self, subject: str) -> Path:
+        p = self.group_dir / 'subjects' / subject
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def _resolve_subject_list_safe(self) -> list[str]:
+        """Like ``_resolve_subject_list`` but returns [] on missing config.
+
+        Used by ``run()`` for an early log message; the strict version
+        runs later inside ``_build_subject_configs`` and raises properly.
+        """
+        try:
+            return self._resolve_subject_list()
+        except ConfigError:
+            return []
+
+    def _stage(self, name: str, fn, *, capture_nodes: bool = False):
+        """Time one group stage; optionally collect per-plugin NodeRecords.
+
+        When ``capture_nodes=True``, ``fn`` is called with a
+        ``list[NodeRecord]`` to populate; that list is then attached to
+        the StageRecord so the run-graph viewer can show per-plugin
+        timings and outputs.
+
+        Emits ``group_stage_start`` / ``group_stage_done`` events so the
+        dashboard's group-progress view can light up group-scope stages.
+        """
+        t0 = time.time()
+        fui.emit_event({
+            'event': 'group_stage_start',
+            'stage': name,
+            'group': self.group_name,
+        })
+        nodes: list[NodeRecord] = []
+        try:
+            out = fn(nodes) if capture_nodes else fn()
+            elapsed = round(time.time() - t0, 3)
+            status = 'warning' if any(n.status == 'warning' for n in nodes) else 'ok'
+            self._stage_records.append(StageRecord(
+                name=name, status=status,
+                elapsed_s=elapsed, detail='',
+                nodes=list(nodes),
+            ))
+            fui.emit_event({
+                'event': 'group_stage_done',
+                'stage': name,
+                'group': self.group_name,
+                'elapsed': elapsed,
+            })
+            return out
+        except Exception as e:
+            elapsed = round(time.time() - t0, 3)
+            self._stage_records.append(StageRecord(
+                name=name, status='failed',
+                elapsed_s=elapsed, detail=str(e),
+                nodes=list(nodes),
+            ))
+            fui.emit_event({
+                'event': 'group_stage_fail',
+                'stage': name,
+                'group': self.group_name,
+                'elapsed': elapsed,
+                'error': str(e),
+            })
+            raise
 
     def _module_nodes(self, prefix: str) -> list:
         return [n for n in self.graph.topo_order() if n.type.startswith(prefix)]
@@ -135,8 +340,6 @@ class GroupGraphRunner(GroupOrchestrator):
             if node.params.get(key) is not None:
                 cfg[key] = node.params[key]
         return cfg
-
-    # ── group_collect + subject fan-out ─────────────────────────
 
     def _resolve_subject_list(self) -> list[str]:
         return resolve_subject_list(self._subjects_config())
@@ -238,8 +441,6 @@ class GroupGraphRunner(GroupOrchestrator):
             return SubjectResult(subject=subject, experiment=subject_config.get("experiment", ""),
                                  run_dir=run_dir, run_summary=rs, context=ctx)
 
-    # ── group_analyze ───────────────────────────────────────────
-
     def _resolve_group_analyzers(self) -> list[tuple[str, object]]:
         return [(n.id, self.catalog.adapter(n.type).instance(self.catalog.module_name(n.type), self._env(n)))
                 for n in self._module_nodes("group_analyzer:")]
@@ -263,8 +464,6 @@ class GroupGraphRunner(GroupOrchestrator):
                         f"(resumed from disk) could not contribute: {', '.join(missing)}")
                 else:
                     rec.detail = "ok"
-
-    # ── subject second pass ─────────────────────────────────────
 
     def _second_pass_mode(self) -> str:
         node = next((n for n in self.graph.nodes if n.type == "control:subject_pass"), None)
@@ -304,8 +503,6 @@ class GroupGraphRunner(GroupOrchestrator):
             finally:
                 _merge_second_pass_summary(sr, ctx)
 
-    # ── group_report ────────────────────────────────────────────
-
     def _resolve_group_reporters(self) -> list[tuple[str, object]]:
         return [(n.id, self.catalog.adapter(n.type).instance(self.catalog.module_name(n.type), self._env(n)))
                 for n in self._module_nodes("group_reporter:")]
@@ -325,7 +522,7 @@ class GroupGraphRunner(GroupOrchestrator):
                     rec.detail = f"{len(artifacts)} artifact(s)"
 
 
-class StudyGraphRunner(StudyOrchestrator):
+class StudyGraphRunner:
     """A study run on the graph engine: its groups run as :class:`GroupGraphRunner`."""
 
     def __init__(self, study_config: dict, registry: Any, run_id: str | None = None,
@@ -333,7 +530,329 @@ class StudyGraphRunner(StudyOrchestrator):
                  graph: AnalysisGraph | None = None, catalog: NodeCatalog | None = None) -> None:
         self.catalog = catalog or NodeCatalog(registry).discover()
         self.graph = graph if graph is not None else compile_study_config(study_config)
-        super().__init__(study_config, registry, run_id=run_id, config_path=config_path)
+        self.config = study_config
+        self.registry = registry
+        self.study_name = study_config.get('study') or study_config.get('study_name')
+        if not self.study_name:
+            raise ConfigError("Study config missing 'study' (name) field")
+        self.run_id = run_id or study_config.get('run_id') or _make_run_id()
+        # Source YAML path is used to resolve relative ``groups[i].config``
+        # paths against the study file's own directory before falling
+        # back to canonical config locations.
+        path_value = (
+            config_path
+            if config_path is not None
+            else study_config.get('_source_path')
+        )
+        self.config_path = Path(path_value) if path_value else None
+        self.parent_dir, self.study_dir = self._resolve_study_dir()
+        self.study: StudyResult = StudyResult(study_name=self.study_name)
+        self._stage_records: list[StageRecord] = []
+
+    @classmethod
+    def resolve_resume_run_id(cls, study_config: dict) -> str | None:
+        """Run id of this study's most recent run, for ``run-study --resume``.
+
+        Group run directories are ``<study run>/groups/<label>/<run_id>__<label>``,
+        so reusing the study run id is what lets each group find its finished
+        subjects.
+        """
+        name = study_config.get('study') or study_config.get('study_name')
+        out = study_config.get('output_dir')
+        if not out and not name:
+            return None
+        parent = Path(out) if out else paths.study_runs_root() / name
+        return latest_run_id(parent)
+
+    def run(self, resume: bool = False) -> StudyResult:
+        run_start = time.time()
+        started_at = datetime.now(timezone.utc).isoformat()
+
+        labels = self._labels_safe()
+        fui.emit_event({
+            'event': 'study_started',
+            'study': self.study_name,
+            'run_id': self.run_id,
+            'groups': labels,
+            'n_groups': len(labels),
+            'run_dir': str(self.study_dir),
+        })
+
+        with capture_logs_to(self.study_dir / 'study.log'):
+            logger.info(
+                "Study run '%s' (run_id=%s) starting — %d group(s)",
+                self.study_name, self.run_id, len(labels),
+            )
+            try:
+                resolved = self._stage('study_collect', self._collect_groups)
+                self.study.groups = self._stage(
+                    'groups_fanout',
+                    lambda: self._fanout_groups(resolved, resume=resume),
+                    derive_status=lambda out, _nodes: _groups_fanout_status(out),
+                )
+
+                ok_groups = [g for g in self.study.groups
+                             if _group_status(g) == 'ok']
+                if not ok_groups:
+                    logger.error(
+                        "study: every group failed (%d/%d) — skipping "
+                        "study_analyze and study_report",
+                        len(self.study.groups), len(self.study.groups))
+                    self._record_skipped_stage(
+                        'study_analyze',
+                        "skipped: no group completed groups_fanout")
+                    self._record_skipped_stage(
+                        'study_report',
+                        "skipped: no group completed groups_fanout")
+                else:
+                    if len(ok_groups) < len(self.study.groups):
+                        logger.warning(
+                            "study: %d/%d group(s) failed — proceeding "
+                            "with the rest, but study analyzers that need "
+                            "every group will likely warn or skip",
+                            len(self.study.groups) - len(ok_groups),
+                            len(self.study.groups))
+                    analyzers = self._resolve_study_analyzers()
+                    if analyzers:
+                        self._stage(
+                            'study_analyze',
+                            lambda nodes: self._run_study_analyzers(analyzers, nodes),
+                            capture_nodes=True,
+                        )
+
+                    reporters = self._resolve_study_reporters()
+                    if reporters:
+                        self._stage(
+                            'study_report',
+                            lambda nodes: self._run_study_reporters(reporters, nodes),
+                            capture_nodes=True,
+                        )
+            finally:
+                finished_at = datetime.now(timezone.utc).isoformat()
+                fui.emit_event({
+                    'event': 'study_done',
+                    'study': self.study_name,
+                    'run_id': self.run_id,
+                    'elapsed': round(time.time() - run_start, 3),
+                })
+                group_summaries = [
+                    g.group_summary for g in self.study.groups
+                    if g.group_summary is not None
+                ]
+                stage_records = list(self._stage_records)
+                self.study.study_summary = StudyRunSummary(
+                    study_name=self.study_name,
+                    group_labels=[g.study_label or g.group_name
+                                  for g in self.study.groups],
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    total_elapsed_s=round(time.time() - run_start, 3),
+                    group_summaries=group_summaries,
+                    study_stages=stage_records,
+                    config_snapshot=copy.deepcopy(self.config),
+                    run_id=self.run_id,
+                    status=_aggregate_study_status(
+                        stage_records, group_summaries),
+                )
+                try:
+                    self.study.study_summary.save_json(
+                        self.study_dir / 'study_summary.json')
+                except Exception:
+                    logger.warning("Failed to save study_summary.json",
+                                   exc_info=True)
+
+        return self.study
+
+    def _resolve_study_dir(self) -> tuple[Path, Path]:
+        """Resolve the parent dir + the timestamped run dir.
+
+        ``output_dir`` in the study config (or
+        ``$FMRIFLOW_HOME/study_runs/<study_name>/``) is the *parent*;
+        the actual run lands in ``<parent>/<run_id>/`` so re-runs
+        don't clobber each other. A ``latest`` symlink in the parent
+        points at this run.
+        """
+        out = self.config.get('output_dir')
+        parent = Path(out) if out else paths.study_runs_root() / self.study_name
+        parent.mkdir(parents=True, exist_ok=True)
+        run_dir = parent / self.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self._update_latest_symlink(parent, run_dir)
+        return parent, run_dir
+
+    @staticmethod
+    def _update_latest_symlink(parent: Path, target: Path) -> None:
+        link = parent / 'latest'
+        try:
+            if link.is_symlink() or link.exists():
+                link.unlink()
+            link.symlink_to(target.name, target_is_directory=True)
+        except OSError:
+            logger.debug("Could not create 'latest' symlink at %s", link,
+                         exc_info=True)
+
+    def _group_output_dir(self, label: str) -> Path:
+        p = self.study_dir / 'groups' / label
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def _group_config_candidates(self, cfg_path: str) -> list[Path]:
+        return group_config_candidates(cfg_path, self.config_path)
+
+    def _find_group_config(self, cfg_path: str) -> Path | None:
+        return find_group_config(cfg_path, self.config_path)
+
+    def _fanout_groups(self, resolved: list[tuple[str, dict]],
+                       resume: bool = False) -> list[GroupResult]:
+        max_workers = (self.config.get('parallel') or {}).get('max_workers', 1)
+        results: list[GroupResult | None] = [None] * len(resolved)
+
+        # Study-level ``intermediates:`` and ``qa:`` apply to every group's
+        # subjects unless the referenced group YAML overrides them.
+        study_intermediates = self.config.get('intermediates')
+        study_qa = self.config.get('qa')
+
+        def _slot(idx: int, label: str, group_cfg: dict) -> GroupResult:
+            # Pin output_dir under <study_dir>/groups/<label>/ so the
+            # GroupOrchestrator's <output_dir>/<run_id>/ ends up at
+            # <study_dir>/groups/<label>/<group_run_id>/.
+            scfg = copy.deepcopy(group_cfg)
+            scfg['output_dir'] = str(self._group_output_dir(label))
+            if study_intermediates is not None and 'intermediates' not in scfg:
+                scfg['intermediates'] = copy.deepcopy(study_intermediates)
+            if study_qa is not None and 'qa' not in scfg:
+                scfg['qa'] = copy.deepcopy(study_qa)
+
+            t0 = time.time()
+            fui.emit_event({
+                'event': 'study_group_start',
+                'study': self.study_name,
+                'group_label': label,
+                'group_name': scfg.get('group') or label,
+            })
+            status = 'ok'
+            try:
+                with fui.event_context(study=self.study_name, group_label=label):
+                    sub_run_id = f"{self.run_id}__{label}"
+                    orch = self._make_group_runner(scfg, sub_run_id)
+                    gr = orch.run(resume=resume)
+            except Exception:
+                logger.error("Group '%s' failed inside study",
+                             label, exc_info=True)
+                gr = orch.group if 'orch' in locals() else GroupResult(
+                    group_name=scfg.get('group') or label,
+                )
+                status = 'failed'
+            gr.study_label = label
+            fui.emit_event({
+                'event': 'study_group_done',
+                'study': self.study_name,
+                'group_label': label,
+                'status': status,
+                'elapsed': round(time.time() - t0, 3),
+            })
+            return gr
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_slot, i, label, group_cfg): i
+                for i, (label, group_cfg) in enumerate(resolved)
+            }
+            for fut in futures:
+                idx = futures[fut]
+                results[idx] = fut.result()
+
+        return [r for r in results if r is not None]
+
+    def _record_skipped_stage(self, name: str, reason: str) -> None:
+        """Record a study stage as ``skipped`` without invoking its body.
+
+        Used when an earlier stage's failure makes later stages
+        impossible (e.g. no group completed groups_fanout → study
+        analyzers would just spam warnings about missing artifacts).
+        """
+        self._stage_records.append(StageRecord(
+            name=name, status='skipped',
+            elapsed_s=0.0, detail=reason,
+            nodes=[],
+        ))
+        fui.emit_event({
+            'event': 'study_stage_done',
+            'stage': name,
+            'study': self.study_name,
+            'elapsed': 0.0,
+            'status': 'skipped',
+            'detail': reason,
+        })
+
+    def _stage(self, name: str, fn, *, capture_nodes: bool = False,
+               derive_status=None):
+        """Time one study stage; optionally collect per-plugin NodeRecords.
+
+        Emits ``study_stage_start`` / ``study_stage_done`` events so
+        the dashboard's study-progress view can light up stages.
+
+        If ``derive_status`` is given it's called with ``fn``'s return
+        value and the captured ``nodes`` list and must return one of
+        ``'ok' | 'warning' | 'failed'``. Otherwise we infer the status
+        from per-node failures (any failed → 'failed', some succeeded →
+        'warning' when mixed) so that isolated plugin failures inside
+        ``study_analyze`` / ``study_report`` no longer silently mark
+        the surrounding stage 'ok'.
+        """
+        t0 = time.time()
+        fui.emit_event({
+            'event': 'study_stage_start',
+            'stage': name,
+            'study': self.study_name,
+        })
+        nodes: list[NodeRecord] = []
+        try:
+            out = fn(nodes) if capture_nodes else fn()
+            elapsed = round(time.time() - t0, 3)
+            if derive_status is not None:
+                status = derive_status(out, nodes)
+            else:
+                status = _status_from_nodes(nodes)
+            detail = ''
+            if status == 'failed':
+                failed_names = [n.name for n in nodes if n.status == 'failed']
+                if failed_names:
+                    detail = f"failed: {', '.join(failed_names)}"
+            elif status == 'warning':
+                failed_names = [n.name for n in nodes if n.status == 'failed']
+                if failed_names:
+                    detail = f"partial failure: {', '.join(failed_names)}"
+            self._stage_records.append(StageRecord(
+                name=name, status=status,
+                elapsed_s=elapsed, detail=detail,
+                nodes=list(nodes),
+            ))
+            fui.emit_event({
+                'event': ('study_stage_fail' if status == 'failed'
+                          else 'study_stage_done'),
+                'stage': name,
+                'study': self.study_name,
+                'elapsed': elapsed,
+                'status': status,
+                **({'error': detail} if status == 'failed' else {}),
+            })
+            return out
+        except Exception as e:
+            elapsed = round(time.time() - t0, 3)
+            self._stage_records.append(StageRecord(
+                name=name, status='failed',
+                elapsed_s=elapsed, detail=str(e),
+                nodes=list(nodes),
+            ))
+            fui.emit_event({
+                'event': 'study_stage_fail',
+                'stage': name,
+                'study': self.study_name,
+                'elapsed': elapsed,
+                'error': str(e),
+            })
+            raise
 
     def _group_nodes(self) -> list:
         return [n for n in self.graph.nodes if n.type == "control:group"]

@@ -16,7 +16,7 @@ from fmriflow.analysis.control import MapSubjects
 from fmriflow.analysis.executor import resolve_graph_inputs
 from fmriflow.analysis.templates import load_template
 from fmriflow.registry import ModuleRegistry
-from tests.test_analysis.test_parity_group import (  # noqa: F401  (scope_modules is an autouse fixture)
+from tests.test_analysis.test_group_study_runs import (  # noqa: F401  (scope_modules is an autouse fixture)
     _group_cfg, _registry, _run_group, _template, scope_modules,
 )
 
