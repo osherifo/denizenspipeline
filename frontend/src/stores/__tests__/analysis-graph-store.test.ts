@@ -123,4 +123,14 @@ describe('analysis graph store', () => {
     expect(get().graph.name).toBe('group_mean')
     expect(get().stack).toEqual([])
   })
+
+  it('swaps a node for another implementation and keeps it selected', async () => {
+    await get().loadCatalog()
+    await get().loadTemplate('analyze')
+    get().selectNode('bootstrap_ridge')
+    get().replaceNode('bootstrap_ridge', 'model:himalaya_ridge')
+    expect(get().selectedNodeId).toBe('himalaya_ridge')
+    expect(get().graph.edges.find((e) => e.targetHandle === 'prepared')?.target).toBe('himalaya_ridge')
+    expect(get().dirty).toBe(true)
+  })
 })

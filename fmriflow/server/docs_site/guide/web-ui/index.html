@@ -1962,7 +1962,11 @@ the file format.</p>
   an input port. Port handles are coloured by type. A drag between incompatible types, or one that would
   make a cycle, is refused. Backspace deletes the selected nodes or edges.</li>
 <li><strong>The side panel</strong> edits the selected node: what feeds each input, its parameters, the steps of the
-  pipeline preparer, and extra section keys. For the feature bundle, the order of the incoming edges is
+  pipeline preparer, and extra section keys. Its <strong>implementation</strong> list swaps the node for another module of
+  the same kind, such as another model or response loader, or precomputed features instead of an extractor.
+  Only modules whose ports fit the node's connections are listed. The connections stay, and params with the
+  same name carry over. A template is therefore a set of stages with a default module in each, and you pick
+  the implementations you want. For the feature bundle, the order of the incoming edges is
   the column order, and buttons reorder them. With no node selected, the panel edits the graph's inputs
   and globals.</li>
 <li><strong>The YAML tab</strong> shows the whole graph as YAML, to edit and apply or to copy out.</li>

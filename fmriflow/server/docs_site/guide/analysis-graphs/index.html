@@ -1768,7 +1768,8 @@ also lists <code>group_*</code> and <code>study_*</code> node types; they do not
 </tr>
 </tbody>
 </table>
-<p>Their dataset-specific values (subject, paths, test runs, output directory) are graph inputs. User
+<p>Their dataset-specific values (subject, paths, test runs, output directory) are graph inputs. In the Builder, each node's implementation list swaps its module for another of the same kind
+without rewiring, so a template works as a stage layout with defaults. User
 templates live in <code>$FMRIFLOW_HOME/addons/analysis_pipelines/</code>. They cannot reuse a bundled name and never
 carry <code>run_defaults</code>.</p>
 <h2 id="engines">Engines<a class="headerlink" href="#engines" title="Permanent link">&para;</a></h2>

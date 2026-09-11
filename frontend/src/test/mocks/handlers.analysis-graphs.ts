@@ -21,6 +21,8 @@ export const ANALYSIS_NODES: AnalysisNodeInfo[] = [
   nodeInfo('utility:bundle_features', 'features', { features: port('FeatureSet', { required: true, multiple: true }) }, { features: port('FeatureData') }),
   nodeInfo('preparer:default', 'prepare', { responses: port('ResponseData', { required: true }), features: port('FeatureData', { required: true }) }, { prepared: port('PreparedData') }, { delays: { type: 'list[int]', default: [1, 2, 3, 4] } }),
   nodeInfo('model:bootstrap_ridge', 'model', { prepared: port('PreparedData', { required: true }) }, { result: port('ModelResult') }, { n_boots: { type: 'int', default: 50 } }),
+  nodeInfo('model:himalaya_ridge', 'model', { prepared: port('PreparedData', { required: true }) }, { result: port('ModelResult') }, { alphas: { type: 'string', default: 'logspace(1,3,20)' } }),
+  nodeInfo('feature_extractor:numwords', 'features', { stimuli: port('StimulusData', { required: true }), responses: port('ResponseData') }, { feature: port('FeatureSet') }, { feature_name: { type: 'string' } }),
   nodeInfo('reporter:metrics', 'report', { context: port('Context', { required: true, multiple: true }) }, { artifacts: port('Artifacts') }, {}, 'isolate'),
   nodeInfo('control:map_subjects', 'subject_fanout', {}, { group: port('GroupRun') }, {
     subjects: { type: 'list[string]', required: true }, body: { type: 'string' }, inputs: { type: 'dict' },

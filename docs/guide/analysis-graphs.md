@@ -160,7 +160,8 @@ Two templates ship with the package:
 | `analyze` | TextGrid stimuli, word and letter rate features, bootstrap ridge, then metrics, a score histogram and a flatmap. |
 | `analyze_precomputed_features` | Responses name the runs, features load from per-run files, then bootstrap ridge and the same reports. |
 
-Their dataset-specific values (subject, paths, test runs, output directory) are graph inputs. User
+Their dataset-specific values (subject, paths, test runs, output directory) are graph inputs. In the Builder, each node's implementation list swaps its module for another of the same kind
+without rewiring, so a template works as a stage layout with defaults. User
 templates live in `$FMRIFLOW_HOME/addons/analysis_pipelines/`. They cannot reuse a bundled name and never
 carry `run_defaults`.
 

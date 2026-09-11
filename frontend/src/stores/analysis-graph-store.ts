@@ -30,6 +30,8 @@ import type {
 } from '../api/types'
 import type { GraphConnection } from '../components/graph/GraphCanvas'
 import type { NodeRunStatus } from '../components/graph/GraphNodeCard'
+import { nodeIdFor } from '../components/analysis-graph/describe'
+import { replaceNodeType } from '../components/analysis-graph/replace'
 import {
   connect as connectEdge,
   disconnect as disconnectEdge,
@@ -110,11 +112,7 @@ export function formatInputValue(value: unknown): string {
   return JSON.stringify(value)
 }
 
-/** Default node id for a node type: the module name (``model:bootstrap_ridge`` → ``bootstrap_ridge``). */
-export function nodeIdFor(type: string): string {
-  const tail = type.includes(':') ? type.slice(type.indexOf(':') + 1) : type
-  return tail.includes('.') ? tail.slice(tail.lastIndexOf('.') + 1) : tail
-}
+export { nodeIdFor } from '../components/analysis-graph/describe'
 
 function inputValuesFor(graph: AnalysisGraphDoc, saved?: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {}
@@ -172,6 +170,8 @@ interface AnalysisGraphState {
   selectNode: (id: string | null) => void
   addNode: (type: string, position?: { x: number; y: number }) => string | null
   removeNode: (id: string) => void
+  /** Swap a node for another implementation of its kind, keeping its connections and matching params. */
+  replaceNode: (id: string, type: string) => void
   updateNodeParams: (id: string, params: Record<string, unknown>) => void
   moveNode: (id: string, position: { x: number; y: number }) => void
   addEdge: (edge: GraphConnection) => void
@@ -336,6 +336,12 @@ export const useAnalysisGraphStore = create<AnalysisGraphState>((set, get) => ({
     graph: removeNodeFrom(get().graph, id), dirty: true, validation: null,
     selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
   }),
+
+  replaceNode: (id, type) => {
+    const { graph, nodeId } = replaceNodeType(get().graph, id, type, get().catalog)
+    const selected = get().selectedNodeId
+    set({ graph, dirty: true, validation: null, selectedNodeId: selected === id ? nodeId : selected })
+  },
 
   updateNodeParams: (id, params) => set({ graph: setNodeParams(get().graph, id, params), dirty: true, validation: null }),
 

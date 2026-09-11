@@ -26,4 +26,14 @@ describe('AnalysisBuilder', () => {
     expect(await screen.findByText('Run for each subject')).toBeInTheDocument()
     expect(await screen.findByLabelText('output_dir for every subject')).toHaveValue('/data/{subject}')
   })
+
+  it('swaps the selected node through its implementation list', async () => {
+    render(<DialogProvider><AnalysisBuilder /></DialogProvider>)
+    fireEvent.click(await screen.findByText('analyze'))
+    await waitFor(() => expect(useAnalysisGraphStore.getState().graph.name).toBe('analyze'))
+    await waitFor(() => expect(useAnalysisGraphStore.getState().catalog.length).toBeGreaterThan(0))
+    useAnalysisGraphStore.getState().selectNode('bootstrap_ridge')
+    fireEvent.change(await screen.findByLabelText('implementation'), { target: { value: 'model:himalaya_ridge' } })
+    expect(useAnalysisGraphStore.getState().graph.nodes.map((n) => n.type)).toContain('model:himalaya_ridge')
+  })
 })

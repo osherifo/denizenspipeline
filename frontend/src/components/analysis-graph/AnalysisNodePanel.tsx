@@ -6,7 +6,9 @@ import { ParamForm } from '../composer/ParamForm'
 import { useAnalysisGraphStore } from '../../stores/analysis-graph-store'
 import { useModuleStore } from '../../stores/module-store'
 import type { AnalysisGraphNodeDoc, AnalysisNodeInfo, ParamSchema } from '../../api/types'
-import { CATEGORY_COLORS, CATEGORY_LABELS, PORT_TYPE_COLORS, categoryOf } from './describe'
+import { CATEGORY_COLORS, CATEGORY_LABELS, PORT_TYPE_COLORS, categoryOf, nodeIdFor } from './describe'
+import { latticeFrom } from '../graph/connection'
+import { replacementsFor } from './replace'
 import { YamlField } from './YamlField'
 import { MapSubjectsSection, MAP_SUBJECTS_PARAMS } from './MapSubjectsSection'
 
@@ -72,6 +74,13 @@ interface Props {
 
 export function AnalysisNodePanel({ node, info }: Props) {
   const graph = useAnalysisGraphStore((s) => s.graph)
+  const catalog = useAnalysisGraphStore((s) => s.catalog)
+  const portTypes = useAnalysisGraphStore((s) => s.portTypes)
+  const replaceNode = useAnalysisGraphStore((s) => s.replaceNode)
+  const replacements = useMemo(
+    () => replacementsFor(graph, node.id, catalog, latticeFrom(portTypes)),
+    [graph, node.id, catalog, portTypes],
+  )
   const updateNodeParams = useAnalysisGraphStore((s) => s.updateNodeParams)
   const removeNode = useAnalysisGraphStore((s) => s.removeNode)
   const removeEdge = useAnalysisGraphStore((s) => s.removeEdge)
@@ -100,7 +109,22 @@ export function AnalysisNodePanel({ node, info }: Props) {
         <span style={{ fontWeight: 700, fontSize: 13, flex: 1, overflowWrap: 'anywhere' }}>{node.id}</span>
         <button onClick={() => removeNode(node.id)} title="remove node" style={{ ...iconBtn, padding: '3px 8px' }}>✕</button>
       </div>
-      <div style={small}>{node.type}</div>
+      {replacements.length > 0 ? (
+        <div>
+          <select style={{ ...input, width: '100%' }} aria-label="implementation" value={node.type}
+            onChange={(e) => replaceNode(node.id, e.target.value)}>
+            <option value={node.type}>{nodeIdFor(node.type)}</option>
+            {replacements.map((r) => (
+              <option key={r.type} value={r.type}>
+                {nodeIdFor(r.type)}{r.missingRequired.length ? ` (connect ${r.missingRequired.join(', ')})` : ''}
+              </option>
+            ))}
+          </select>
+          <div style={small}>Swap for another implementation: connections stay, params with the same name carry over.</div>
+        </div>
+      ) : (
+        <div style={small}>{node.type}</div>
+      )}
       {!info && <div style={{ color: 'var(--accent-red)' }}>This node type is not in the catalog. Check the module name or load its add-on.</div>}
       {info?.description && <div style={{ color: 'var(--text-secondary)' }}>{info.description}</div>}
       {info?.error_policy === 'isolate' && <div style={small}>A failure here is recorded and the run continues.</div>}

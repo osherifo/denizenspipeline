@@ -43,6 +43,12 @@ export function nodeTypeForModule(module: { category: string; name: string; stag
   return category === 'qa_reporter' ? `qa_reporter:${module.stage}.${module.name}` : `${category}:${module.name}`
 }
 
+/** Default node id for a node type: the module name (``model:bootstrap_ridge`` → ``bootstrap_ridge``). */
+export function nodeIdFor(type: string): string {
+  const tail = type.includes(':') ? type.slice(type.indexOf(':') + 1) : type
+  return tail.includes('.') ? tail.slice(tail.lastIndexOf('.') + 1) : tail
+}
+
 export function categoryOf(type: string): string {
   return type.includes(':') ? type.slice(0, type.indexOf(':')) : type
 }
