@@ -279,6 +279,10 @@ def _cmd_run(args) -> int:
     stages = None
     if args.stages:
         stages = [s.strip() for s in args.stages.split(',')]
+    elif pipeline.config.get('stages'):
+        # A config can limit its own stages (e.g. skip modelling), which also
+        # applies to runs launched from the web UI.
+        stages = [str(s) for s in pipeline.config['stages']]
 
     if args.dry_run:
         ui.dry_run_panel(pipeline.config, stages)
