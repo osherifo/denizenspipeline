@@ -319,7 +319,7 @@ def register_code(code: str) -> tuple[str, str, str]:
     qa_originals = _qa_take_snapshot()
 
     try:
-        exec(compile(code, '<user_module>', 'exec'))
+        exec(compile(code, '<user_module>', 'exec'), {"__name__": "fmriflow_user_module"})
     except Exception as e:
         _rollback(originals)
         _qa_rollback(qa_originals)
@@ -442,7 +442,10 @@ def discover_user_modules(modules_dir: Path | None = None) -> int:
     for py_file in sorted(modules_dir.glob('*.py')):
         try:
             code = py_file.read_text()
-            exec(compile(code, str(py_file), 'exec'))
+            # Run each addon in its own module namespace; a bare exec() inside this
+            # function leaves the addon's imports and helpers invisible to its classes.
+            namespace = {"__name__": f"fmriflow_user_module_{py_file.stem}", "__file__": str(py_file)}
+            exec(compile(code, str(py_file), 'exec'), namespace)
             logger.info("Loaded user module: %s", py_file.stem)
             loaded += 1
         except Exception as e:

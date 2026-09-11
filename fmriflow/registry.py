@@ -34,6 +34,9 @@ from fmriflow.modules._decorators import (
 logger = logging.getLogger(__name__)
 
 
+_USER_ADDONS_LOADED = False
+
+
 class ModuleRegistry:
     """Discovers and manages modules by type.
 
@@ -61,9 +64,22 @@ class ModuleRegistry:
         self._qa_reporters = _qa_reporters
 
     def discover(self) -> None:
-        """Discover modules from builtins and entry_points."""
+        """Discover modules from builtins, entry_points and user addons."""
         self._register_builtins()
         self._discover_entry_points()
+        self._discover_user_addons()
+
+    def _discover_user_addons(self) -> None:
+        """Load ``$FMRIFLOW_HOME/addons/modules/*.py`` once per process, so CLI runs see addons too."""
+        global _USER_ADDONS_LOADED
+        if _USER_ADDONS_LOADED:
+            return
+        _USER_ADDONS_LOADED = True
+        try:
+            from fmriflow.server.services.module_loader import discover_user_modules
+            discover_user_modules()
+        except Exception as exc:
+            logger.warning("Could not load user addon modules: %s", exc)
 
     def _register_builtins(self) -> None:
         """Register the built-in modules that ship with fmriflow."""
