@@ -505,15 +505,18 @@ def run_subject_config(config: dict, registry: Any, *, write_graph: bool = False
 
 def run_subject_stages(config: dict, catalog: NodeCatalog, stages: list[str], context: PipelineContext, *,
                        only_types: set[str] | None = None,
-                       executor: GraphExecutor | None = None) -> PipelineContext:
+                       executor: GraphExecutor | None = None,
+                       graph: AnalysisGraph | None = None) -> PipelineContext:
     """Run some stages of a subject config on the graph engine, continuing ``context``.
 
     Used by a group's subject second pass. The compiled graph is cut down to the
     nodes of ``stages`` (and, with ``only_types``, to those node types), the
     context collector is seeded with ``context``, and what the run produces
     (context keys, artifacts, the run summary) is written back onto ``context``.
+    ``graph`` replaces the graph compiled from ``config`` (a subject graph body);
+    it is copied, not modified.
     """
-    graph = compile_subject_config(config)
+    graph = AnalysisGraph.from_dict(graph.to_dict()) if graph is not None else compile_subject_config(config)
     keep = {n.id for n in graph.nodes
             if catalog.stage(n.type) in stages
             and (only_types is None or n.type in only_types or n.type == "utility:collect_context")}

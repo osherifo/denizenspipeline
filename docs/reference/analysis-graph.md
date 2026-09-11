@@ -12,7 +12,7 @@ A graph file is a mapping. It may also be wrapped under a top-level `graph:` key
 | `schema_version` | int | Format version, currently `1`. |
 | `name` | str | Graph name. Used as the run name when `globals.experiment` is empty. |
 | `description` | str | Free text. |
-| `scope` | str | `subject`. `group` and `study` are reserved and do not run yet. |
+| `scope` | str | `subject`, `group` or `study`. |
 | `inputs` | mapping | Values supplied at run time, see below. |
 | `outputs` | mapping | Reserved for sub-graphs; leave empty. |
 | `globals` | mapping | Run-level configuration every node's config is built from. |
@@ -65,6 +65,19 @@ Params that differ from a module's usual section shape:
 | `feature_extractor:*` | `save_to` | Where to save the computed features. |
 | `preparer:*` | `split` | The train/test split, as in the stage config's `split:` section. |
 | `model:*` | all params | Become `model.params`. |
+
+## Control nodes
+
+| Node type | Scope | Inputs | Outputs | Params |
+|-----------|-------|--------|---------|--------|
+| `control:map_subjects` | group | none | `group` (GroupRun) | `subjects`, `body` or `subject_template`, `inputs`, `subject_inputs`, `subject_overrides`, `max_workers` |
+| `control:subject_pass` | group | `group`, `bindings` (fan-in) | `group` | `mode`: `legacy` or `minimal` |
+| `control:group` | study | none | `group` (GroupRun) | `name`, `config` |
+| `control:study_groups` | study | `groups` (fan-in) | `study` (StudyRun) | none |
+
+Group analyzers take and pass on `group`; those that bind values into subjects also output `bindings`.
+Group reporters take `group`. Study analyzers take and pass on `study`; study reporters take `study`.
+A control node in a graph of another scope is a validation error.
 
 ## Edges
 

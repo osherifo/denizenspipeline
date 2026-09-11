@@ -547,14 +547,15 @@ class RunManager:
 
     def _start_graph_run(self, run_id: str, doc: dict, source_path: str,
                          overrides: dict | None = None) -> str:
-        """Launch an analysis graph YAML: bind its inputs, give it a per-run
-        output directory, and spawn ``fmriflow run`` on the bound graph."""
+        """Launch an analysis graph YAML: bind its inputs and spawn the CLI on the bound graph.
+
+        Subject graphs get a per-run output directory and run with ``fmriflow run``;
+        group and study graphs keep their own ``<name>/<run_id>/`` layout and run with
+        ``fmriflow run-group`` / ``run-study``, which accept graph files."""
         from fmriflow.analysis.executor import resolve_graph_inputs
         from fmriflow.analysis.graph import AnalysisGraph
 
         graph = AnalysisGraph.from_dict(doc)
-        if graph.scope != 'subject':
-            raise ValueError(f"{graph.scope} graphs cannot run yet; only subject graphs do")
         overrides = dict(overrides or {})
         inputs = dict((graph.run_defaults or {}).get('inputs') or {})
         inputs.update(overrides.pop('inputs', None) or {})
@@ -562,7 +563,10 @@ class RunManager:
         for key, value in overrides.items():
             if value is not None:
                 bound.globals[key] = value
-        bound.globals = _apply_per_run_output_dir(bound.globals, run_id)
+        if bound.scope in ('group', 'study'):
+            bound.globals.setdefault(bound.scope, bound.name)
+        else:
+            bound.globals = _apply_per_run_output_dir(bound.globals, run_id)
 
         tmp = tempfile.NamedTemporaryFile(mode='w', suffix=f"_{run_id}.yaml", delete=False)
         yaml.safe_dump(bound.to_dict(), tmp, sort_keys=False, allow_unicode=True)
@@ -570,6 +574,7 @@ class RunManager:
         view = {**bound.globals, 'experiment': bound.globals.get('experiment') or bound.name}
         handle = self._register_handle(
             run_id=run_id, config=view, config_path=tmp.name, temp_config_path=tmp.name,
+            is_group=bound.scope == 'group', is_study=bound.scope == 'study',
         )
         self._spawn_and_track(handle)
         logger.info("Started graph run %s from %s", run_id, source_path)

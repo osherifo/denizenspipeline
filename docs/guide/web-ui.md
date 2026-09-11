@@ -162,6 +162,11 @@ the file format.
   and failed states from the run's events. The values are saved with the graph.
 - **Save** writes the graph next to stage configs, where the dashboard lists it. **Save as template** keeps
   it as a starting point without the input values.
+- **Group and study graphs** start from **+ New group graph** / **+ New study graph** or the `group_mean` and
+  `study_group_delta` templates; the palette then offers that scope's node types. Selecting the subject
+  fan-out node shows its subjects, the subject graph to run for each, and a table of that graph's input
+  values for every subject and per subject. **Open subject graph** opens the body for editing, and **Back**
+  returns to the group graph. During a group run the panel shows each subject's status.
 
 ### Composer
 

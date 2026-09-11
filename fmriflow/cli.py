@@ -86,6 +86,14 @@ def main(argv: list[str] | None = None) -> int:
         help='Value for a graph input (graph files only; repeatable)',
     )
     run_parser.add_argument(
+        '--run-id', default=None,
+        help='Group and study graph files: run directory name (default: a new timestamp)',
+    )
+    run_parser.add_argument(
+        '--resume', action='store_true',
+        help='Group and study graph files: continue the latest run, skipping finished subjects',
+    )
+    run_parser.add_argument(
         '--engine', choices=['legacy', 'graph'], default=None,
         help='Execution engine: legacy stage orchestrator or the node-graph '
              'engine (default: $FMRIFLOW_ENGINE, else graph; --stages and '
@@ -357,23 +365,24 @@ def _cmd_run_graph_file(args) -> int:
     if getattr(args, 'engine', None) == 'legacy':
         ui.error_panel("Graph files run on the graph engine; drop --engine legacy.")
         return 1
-    if args.stages or args.resume_from:
+    subject = getattr(args, 'subject', None)
+    if getattr(args, 'stages', None) or getattr(args, 'resume_from', None):
         ui.error_panel("--stages and --resume-from apply to stage configs, not graph files.")
         return 1
     try:
         graph = AnalysisGraph.load(args.config)
-        inputs = _parse_inputs(getattr(args, 'input', []))
-        if args.subject and 'subject' in graph.inputs:
-            inputs.setdefault('subject', args.subject)
+        inputs = dict((graph.run_defaults or {}).get('inputs') or {})
+        inputs.update(_parse_inputs(getattr(args, 'input', [])))
+        if subject and 'subject' in graph.inputs:
+            inputs.setdefault('subject', subject)
         bound, _ = resolve_graph_inputs(graph, inputs)
     except Exception as e:
         ui.error_panel(str(e))
         return 1
-    if graph.scope != 'subject':
-        ui.error_panel(f"{graph.scope} graphs cannot run yet; only subject graphs do.")
-        return 1
-    if args.subject and 'subject' not in graph.inputs:
-        bound.globals['subject'] = args.subject
+    if bound.scope in ('group', 'study'):
+        return _run_scope_graph(args, bound)
+    if subject and 'subject' not in graph.inputs:
+        bound.globals['subject'] = subject
 
     reporting = bound.globals.setdefault('reporting', {})
     output_dir = reporting.get('output_dir') or str(paths.results_root())
@@ -410,6 +419,57 @@ def _cmd_run_graph_file(args) -> int:
         ui.log_hint(str(log_path))
         _save_run_summary(executor.last_context, output_dir)
         return 1
+
+
+def _run_scope_graph(args, graph) -> int:
+    """Run a group or study graph (inputs already bound) on the graph runners."""
+    import copy as _copy
+
+    from fmriflow.analysis.catalog import NodeCatalog
+    from fmriflow.analysis.executor import GraphExecutor
+    from fmriflow.analysis.scope_runners import GroupGraphRunner, StudyGraphRunner
+
+    registry = _build_registry()
+    # Structure, port types, the fan-out node's params and each module's own config check.
+    errors = GraphExecutor(NodeCatalog(registry).discover()).validate(graph)
+    if errors:
+        ui.config_error(errors)
+        return 1
+    config = _copy.deepcopy(graph.globals)
+    config.setdefault(graph.scope, graph.name)
+    config.setdefault('_source_path', str(Path(args.config).resolve()))
+    runner_cls = GroupGraphRunner if graph.scope == 'group' else StudyGraphRunner
+    run_id = _resume_run_id(args, runner_cls.resolve_resume_run_id, config)
+    try:
+        if graph.scope == 'group':
+            runner = GroupGraphRunner(config, registry, run_id=run_id, graph=graph)
+            name, run_dir = runner.group_name, runner.group_dir
+        else:
+            runner = StudyGraphRunner(config, registry, run_id=run_id, config_path=args.config, graph=graph)
+            name, run_dir = runner.study_name, runner.study_dir
+    except Exception as e:
+        ui.error_panel(str(e))
+        return 1
+    label = graph.scope.title()
+    if args.dry_run:
+        ui.console.print(f"\n[bold]{label} graph:[/] {name}\n[bold]Output dir:[/] {run_dir}\n")
+        return 0
+    ui.console.print(f"\n[bold bright_cyan]{label} run[/] {name} → {run_dir}\n")
+    try:
+        result = runner.run(resume=bool(getattr(args, 'resume', False)))
+    except Exception as e:
+        ui.error_panel(str(e))
+        logger.error("%s run failed: %s", label, e, exc_info=True)
+        return 1
+    if graph.scope == 'group':
+        failed = len(result.subjects_by_status('failed'))
+        ui.console.print(f"\n[bold]Done.[/] {len(result.subjects) - failed} ok, {failed} failed.\n"
+                         f"Group summary: {run_dir / 'group_summary.json'}\n")
+    else:
+        failed = len(result.groups_by_status('failed'))
+        ui.console.print(f"\n[bold]Done.[/] {len(result.groups) - failed} ok, {failed} failed.\n"
+                         f"Study summary: {run_dir / 'study_summary.json'}\n")
+    return 0 if failed == 0 else 1
 
 
 def _cmd_graph(args) -> int:
@@ -561,6 +621,8 @@ def _resume_run_id(args, resolve, config: dict) -> str | None:
 
 def _cmd_run_group(args) -> int:
     """Run a group-scope (cross-subject) pipeline."""
+    if _is_graph_file(args.config):
+        return _cmd_run_graph_file(args)
     from fmriflow.config.loader import load_group_config
     from fmriflow.group_orchestrator import GroupOrchestrator
     from fmriflow.pipeline import resolve_engine
@@ -619,6 +681,8 @@ def _cmd_run_group(args) -> int:
 
 def _cmd_run_study(args) -> int:
     """Run a study-scope (cross-group) pipeline."""
+    if _is_graph_file(args.config):
+        return _cmd_run_graph_file(args)
     from fmriflow.config.loader import load_study_config
     from fmriflow.study_orchestrator import StudyOrchestrator
     from fmriflow.pipeline import resolve_engine

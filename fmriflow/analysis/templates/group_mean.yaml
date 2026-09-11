@@ -1,0 +1,100 @@
+schema_version: 1
+name: group_mean
+description: Run a subject graph for every subject, then average prediction accuracy
+  across subjects, count per voxel how many subjects pass a threshold, and write arrays
+  and a summary page. Subjects must share a space, for example fsaverage.
+scope: group
+inputs:
+  group:
+    kind: str
+    description: group name
+  subjects:
+    kind: list
+    description: subject ids
+  body:
+    kind: str
+    description: 'subject graph run for each subject: a saved graph or template name'
+    required: false
+    default: analyze_precomputed_features
+  body_inputs:
+    kind: dict
+    description: values for the subject graph's inputs; {subject} becomes the subject
+      id
+    required: false
+    default: {}
+  output_dir:
+    kind: dir
+    description: where group runs are written
+outputs: {}
+globals:
+  group: $inputs.group
+  output_dir: $inputs.output_dir
+  parallel:
+    max_workers: 1
+nodes:
+- id: subjects
+  type: control:map_subjects
+  data:
+    params:
+      subjects: $inputs.subjects
+      body: $inputs.body
+      inputs: $inputs.body_inputs
+      max_workers: 1
+  position:
+    x: 60
+    y: 60
+- id: mean_scores
+  type: group_analyzer:voxelwise_mean
+  data:
+    params:
+      input_key: result.scores
+      output_key: group.mean_scores
+  position:
+    x: 340
+    y: 60
+- id: above_threshold
+  type: group_analyzer:significance_count
+  data:
+    params:
+      input_key: result.scores
+      threshold: 0.1
+      mode: above
+      output_key: group.n_above
+  position:
+    x: 620
+    y: 60
+- id: summary
+  type: group_reporter:group_summary_html
+  data:
+    params: {}
+  position:
+    x: 900
+    y: 60
+- id: arrays
+  type: group_reporter:group_npy_dump
+  data:
+    params: {}
+  position:
+    x: 900
+    y: 190
+edges:
+- id: e1
+  source: subjects
+  target: mean_scores
+  sourceHandle: group
+  targetHandle: group
+- id: e2
+  source: mean_scores
+  target: above_threshold
+  sourceHandle: group
+  targetHandle: group
+- id: e3
+  source: above_threshold
+  target: summary
+  sourceHandle: group
+  targetHandle: group
+- id: e4
+  source: above_threshold
+  target: arrays
+  sourceHandle: group
+  targetHandle: group

@@ -24,6 +24,7 @@ export function AnalysisRunPanel() {
   const lastRunId = useAnalysisGraphStore((s) => s.lastRunId)
   const runState = useAnalysisGraphStore((s) => s.runState)
   const runStatus = useAnalysisGraphStore((s) => s.runStatus)
+  const subjectStatus = useAnalysisGraphStore((s) => s.subjectStatus)
   const validation = useAnalysisGraphStore((s) => s.validation)
   const error = useAnalysisGraphStore((s) => s.error)
 
@@ -33,7 +34,9 @@ export function AnalysisRunPanel() {
     return spec.required !== false && spec.default === undefined
   }
   const missing = names.filter((n) => needsValue(n) && !(inputValues[n] ?? '').trim())
-  const runnable = graph.scope === 'subject' && graph.nodes.length > 0 && !launching && missing.length === 0
+  const runnable = graph.nodes.length > 0 && !launching && missing.length === 0
+  const subjectCounts: Record<string, number> = {}
+  for (const st of Object.values(subjectStatus)) subjectCounts[st] = (subjectCounts[st] ?? 0) + 1
   const counts: Record<string, number> = {}
   for (const st of Object.values(runStatus)) counts[st.status ?? 'pending'] = (counts[st.status ?? 'pending'] ?? 0) + 1
 
@@ -59,7 +62,6 @@ export function AnalysisRunPanel() {
           </div>
         )
       })}
-      {graph.scope !== 'subject' && <div style={{ ...note, color: 'var(--accent-yellow)' }}>{graph.scope} graphs cannot run yet</div>}
       {missing.length > 0 && <div style={note}>needs a value: {missing.join(', ')}</div>}
       {validation && !validation.ok && (
         <div style={{ color: 'var(--accent-red)', marginBottom: 8 }}>
@@ -68,13 +70,16 @@ export function AnalysisRunPanel() {
       )}
       {error && <div style={{ color: 'var(--accent-red)', marginBottom: 8 }}>{error}</div>}
       <button style={{ ...primary, opacity: runnable ? 1 : 0.5 }} disabled={!runnable} onClick={() => void launch()}>
-        {launching ? 'Launching…' : '▶ Run graph'}
+        {launching ? 'Launching…' : `▶ Run ${graph.scope} graph`}
       </button>
       {lastRunId && (
         <div style={{ marginTop: 10, fontSize: 11 }}>
           run <code>{lastRunId}</code> · {runState}
           {Object.entries(counts).map(([k, v]) => <span key={k} style={{ marginLeft: 8 }}>{k} {v}</span>)}
-          <a href="#runs" style={{ marginLeft: 8, color: 'var(--accent-cyan)' }}>open in Runs</a>
+          {Object.keys(subjectCounts).length > 0 && (
+            <div style={{ marginTop: 4 }}>subjects: {Object.entries(subjectCounts).map(([k, v]) => `${v} ${k}`).join(', ')}</div>
+          )}
+          <a href={graph.scope === 'subject' ? '#runs' : `#${graph.scope}-runs`} style={{ marginLeft: 8, color: 'var(--accent-cyan)' }}>open in {graph.scope === 'subject' ? 'Runs' : `${graph.scope[0].toUpperCase()}${graph.scope.slice(1)} Runs`}</a>
         </div>
       )}
     </div>

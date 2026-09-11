@@ -8,6 +8,7 @@ import { useModuleStore } from '../../stores/module-store'
 import type { AnalysisGraphNodeDoc, AnalysisNodeInfo, ParamSchema } from '../../api/types'
 import { CATEGORY_COLORS, CATEGORY_LABELS, PORT_TYPE_COLORS, categoryOf } from './describe'
 import { YamlField } from './YamlField'
+import { MapSubjectsSection, MAP_SUBJECTS_PARAMS } from './MapSubjectsSection'
 
 /** Reserved param holding section keys a module reads but does not declare. */
 export const SECTION_PARAM = '_section'
@@ -84,10 +85,11 @@ export function AnalysisNodePanel({ node, info }: Props) {
     const out: ParamSchema = {}
     for (const [k, f] of Object.entries(info?.params_schema ?? {})) {
       if (k === SECTION_PARAM || (isPipelinePreparer && k === 'steps')) continue
+      if (node.type === 'control:map_subjects' && MAP_SUBJECTS_PARAMS.includes(k)) continue
       out[k] = f
     }
     return out
-  }, [info, isPipelinePreparer])
+  }, [info, isPipelinePreparer, node.type])
 
   const setParam = (key: string, value: unknown) => updateNodeParams(node.id, { ...params, [key]: value })
 
@@ -154,6 +156,8 @@ export function AnalysisNodePanel({ node, info }: Props) {
           })}
         </div>
       )}
+
+      {node.type === 'control:map_subjects' && <MapSubjectsSection key={node.id} node={node} />}
 
       <div>
         <div style={h}>Parameters</div>

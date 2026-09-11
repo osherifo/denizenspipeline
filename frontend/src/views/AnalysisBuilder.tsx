@@ -2,7 +2,7 @@
  *  run it, and watch its nodes as they run. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { nodeIdFor, useAnalysisGraphStore } from '../stores/analysis-graph-store'
+import { nodeIdFor, useAnalysisGraphStore, type GraphScope } from '../stores/analysis-graph-store'
 import { GraphCanvas, type GraphConnection } from '../components/graph/GraphCanvas'
 import { NodePalette, type PaletteItem } from '../components/graph/NodePalette'
 import { checkConnection, latticeFrom } from '../components/graph/connection'
@@ -37,6 +37,22 @@ const deleteBtn: CSSProperties = { background: 'transparent', border: 'none', co
 
 const PALETTE_GROUPS = CATEGORY_ORDER.map((c) => CATEGORY_GROUPS[c])
 
+/** Node types that belong in a graph of ``scope``. */
+export function allowedInScope(scope: GraphScope, type: string): boolean {
+  const category = categoryOf(type)
+  if (scope === 'group') {
+    return category === 'group_analyzer' || category === 'group_reporter'
+      || type === 'control:map_subjects' || type === 'control:subject_pass'
+  }
+  if (scope === 'study') {
+    return category === 'study_analyzer' || category === 'study_reporter'
+      || type === 'control:group' || type === 'control:study_groups'
+  }
+  return !/^(group_|study_|control$)/.test(category)
+}
+
+const SCOPES: GraphScope[] = ['subject', 'group', 'study']
+
 export function AnalysisBuilder() {
   const s = useAnalysisGraphStore()
   const dlg = useDialog()
@@ -60,9 +76,9 @@ export function AnalysisBuilder() {
     return checkConnection(edges, c, portOf, lattice) === null
   }, [nodes, edges, catalog, lattice])
 
-  // Group, study and fan-out node types belong in group and study graphs, not in this subject builder.
+  const scope = s.graph.scope
   const palette = useMemo<PaletteItem[]>(() => s.catalog
-    .filter((n) => !n.hidden && !/^(group_|study_|control$)/.test(categoryOf(n.type)))
+    .filter((n) => !n.hidden && allowedInScope(scope, n.type))
     .map((n) => {
       const category = categoryOf(n.type)
       return {
@@ -73,7 +89,7 @@ export function AnalysisBuilder() {
         description: n.description,
         detail: `${Object.keys(n.inputs).join(', ') || '—'} → ${Object.keys(n.outputs).join(', ') || '—'}`,
       }
-    }), [s.catalog])
+    }), [s.catalog, scope])
 
   async function saveAsTemplate() {
     const suggested = (s.graphName || s.graph.name || 'my_template').replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -110,7 +126,7 @@ export function AnalysisBuilder() {
           {s.templates.map((t) => (
             <div key={t.name} style={sideCard} title={t.description} onClick={() => void s.loadTemplate(t.name)}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={sideCardName}>{t.name}{t.tier === 'user' && <span style={badge}>user</span>}</div>
+                <div style={sideCardName}>{t.name}{t.scope && t.scope !== 'subject' && <span style={badge}>{t.scope}</span>}{t.tier === 'user' && <span style={badge}>user</span>}</div>
                 <div style={sideCardChain}>{t.error ? <span style={{ color: 'var(--accent-red)' }}>{t.error}</span> : `${t.n_nodes} nodes`}</div>
               </div>
               {t.tier === 'user' && (
@@ -134,7 +150,9 @@ export function AnalysisBuilder() {
                 onClick={async (e) => { e.stopPropagation(); if (await dlg.confirm(`Delete graph "${g.name}"?`)) await s.remove(g.name) }}>✕</button>
             </div>
           ))}
-          <button style={{ ...btn, marginTop: 6, width: '100%' }} onClick={() => s.newGraph()}>+ New empty graph</button>
+          {SCOPES.map((sc) => (
+            <button key={sc} style={{ ...btn, marginTop: 6, width: '100%' }} onClick={() => s.newGraph(sc)}>+ New {sc} graph</button>
+          ))}
           <button style={{ ...btn, marginTop: 6, width: '100%' }} onClick={() => void openStageConfig()}>Open a stage config…</button>
         </div>
         <div>
@@ -144,7 +162,16 @@ export function AnalysisBuilder() {
       </div>
 
       <div style={{ minWidth: 0 }}>
+        {s.stack.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, fontSize: 12 }}>
+            <button style={btn} onClick={() => s.closeBody()}>← Back</button>
+            {s.stack.map((frame, i) => <span key={i} style={small}>{frame.label} ›</span>)}
+            <b>{s.graphName ?? s.graph.name}</b>
+            <span style={small}>(subject graph; save it to keep changes)</span>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+          <span style={{ ...badge, marginLeft: 0 }} title="graph scope">{scope}</span>
           <input style={{ ...input, width: 200, fontWeight: 700 }} value={s.graph.name} onChange={(e) => s.setMeta({ name: e.target.value })} aria-label="graph name" />
           <input style={{ ...input, flex: 1 }} placeholder="description" value={s.graph.description ?? ''} onChange={(e) => s.setMeta({ description: e.target.value })} />
           <button style={btn} onClick={() => void s.validate()}>Validate</button>

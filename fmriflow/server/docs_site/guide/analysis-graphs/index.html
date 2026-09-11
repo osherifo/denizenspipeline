@@ -717,6 +717,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#group-and-study-graphs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group and study graphs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#current-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1483,6 +1494,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#group-and-study-graphs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group and study graphs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#current-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1762,11 +1784,64 @@ analyze stages.</p>
 Saved graphs live in the analysis configs directory next to stage configs, and the config list shows
 them with <code>format: graph</code>. Run views of a graph run are built from its <code>graph.json</code>. The endpoints are
 listed in the <a href="../../reference/analysis-graph/">analysis graph reference</a>.</p>
+<h2 id="group-and-study-graphs">Group and study graphs<a class="headerlink" href="#group-and-study-graphs" title="Permanent link">&para;</a></h2>
+<p>A group graph fans out over subjects, and a study graph over groups. Both run with the same commands as
+subject graphs:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>group_graph.yaml<span class="w"> </span>--input<span class="w"> </span><span class="s1">&#39;subjects=[sub01, sub02]&#39;</span><span class="w"> </span>--run-id<span class="w"> </span>first
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>fmriflow<span class="w"> </span>run<span class="w"> </span>group_graph.yaml<span class="w"> </span>--resume
+</code></pre></div>
+<p>Runs land in <code>&lt;output_dir&gt;/&lt;run_id&gt;/</code>, exactly like <code>run-group</code> and <code>run-study</code> (which also accept graph
+files). Group and study configs compile to the same kind of graph, see <a href="../group-analysis/#engines">Group Analysis</a>.</p>
+<p>A <strong>group graph</strong> starts with a <code>control:map_subjects</code> node and passes a <code>GroupRun</code> along group analyzers
+to group reporters:</p>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>subjects</code></td>
+<td>Subject ids.</td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td>The subject graph run for each subject: a graph file, a saved graph or a template name.</td>
+</tr>
+<tr>
+<td><code>inputs</code></td>
+<td>Values for the body's inputs for every subject. <code>{subject}</code> in a value becomes the subject id, e.g. <code>responses_path: /data/responses/{subject}.hdf</code>.</td>
+</tr>
+<tr>
+<td><code>subject_inputs</code></td>
+<td>Values for one subject, <code>{sub01: {test_runs: [run03]}}</code>; they win over <code>inputs</code>.</td>
+</tr>
+<tr>
+<td><code>subject_template</code>, <code>subject_overrides</code></td>
+<td>Instead of <code>body</code>: a stage config for every subject and per-subject deep merges, as in a group config.</td>
+</tr>
+<tr>
+<td><code>max_workers</code></td>
+<td>Subjects that run at the same time.</td>
+</tr>
+</tbody>
+</table>
+<p>The body's <code>subject</code> input is filled with the subject id, and its reporting output directory is set to
+<code>subjects/&lt;subject&gt;/</code> inside the group run. When a group analyzer binds values into subjects
+(<code>produces_subject_artifact</code>), connect its <code>bindings</code> output to a <code>control:subject_pass</code> node before the
+reporters: it re-runs each subject's analyze and report stages with the bound values (<code>mode: legacy</code>), or
+only modules marked <code>binding_consumer</code> (<code>mode: minimal</code>).</p>
+<p>A <strong>study graph</strong> has one <code>control:group</code> node per group (<code>name</code>, the study-scope label, and <code>config</code>, a
+group config or a group graph file), a <code>control:study_groups</code> node collecting them in connection order,
+then study analyzers and reporters passing a <code>StudyRun</code>.</p>
+<p>Two bundled templates start these graphs: <code>group_mean</code> runs a subject graph per subject and maps mean
+accuracy and a per-voxel count, and <code>study_group_delta</code> compares two groups.</p>
 <h2 id="current-limits">Current limits<a class="headerlink" href="#current-limits" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Only <code>scope: subject</code> graph files run directly. Group and study configs run on the graph engine by
-  compiling to group and study graphs (see <a href="../group-analysis/#engines">Group Analysis</a>); group and study
-  graph files cannot be run on their own yet.</li>
+<li>Graph files of every scope run whole; <code>--resume</code> on group and study graph files skips finished subjects,
+  but there is no partial run of a subject graph.</li>
 <li>A graph file always runs whole; there is no partial run or resume.</li>
 </ul>
 

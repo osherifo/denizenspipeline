@@ -1,0 +1,98 @@
+schema_version: 1
+name: study_group_delta
+description: Run two groups and map the voxelwise difference of their mean prediction
+  accuracy, with a summary page. Each group config (or group graph) must publish group.mean_scores,
+  as group_mean does.
+scope: study
+inputs:
+  study:
+    kind: str
+    description: study name
+  group_a:
+    kind: file
+    description: 'first group: a group config or group graph'
+  label_a:
+    kind: str
+    description: label of the first group
+    required: false
+    default: a
+  group_b:
+    kind: file
+    description: 'second group: a group config or group graph'
+  label_b:
+    kind: str
+    description: label of the second group
+    required: false
+    default: b
+  output_dir:
+    kind: dir
+    description: where study runs are written
+outputs: {}
+globals:
+  study: $inputs.study
+  output_dir: $inputs.output_dir
+nodes:
+- id: group_a
+  type: control:group
+  data:
+    params:
+      name: $inputs.label_a
+      config: $inputs.group_a
+  position:
+    x: 60
+    y: 60
+- id: group_b
+  type: control:group
+  data:
+    params:
+      name: $inputs.label_b
+      config: $inputs.group_b
+  position:
+    x: 60
+    y: 190
+- id: groups
+  type: control:study_groups
+  data:
+    params: {}
+  position:
+    x: 340
+    y: 60
+- id: delta
+  type: study_analyzer:group_delta
+  data:
+    params:
+      input_key: group.mean_scores
+      a: $inputs.label_a
+      b: $inputs.label_b
+      output_key: study.delta
+  position:
+    x: 620
+    y: 60
+- id: summary
+  type: study_reporter:study_summary_html
+  data:
+    params: {}
+  position:
+    x: 900
+    y: 60
+edges:
+- id: e1
+  source: group_a
+  target: groups
+  sourceHandle: group
+  targetHandle: groups
+- id: e2
+  source: group_b
+  target: groups
+  sourceHandle: group
+  targetHandle: groups
+- id: e3
+  source: groups
+  target: delta
+  sourceHandle: study
+  targetHandle: study
+- id: e4
+  source: delta
+  target: summary
+  sourceHandle: study
+  targetHandle: study

@@ -22,10 +22,18 @@ export const ANALYSIS_NODES: AnalysisNodeInfo[] = [
   nodeInfo('preparer:default', 'prepare', { responses: port('ResponseData', { required: true }), features: port('FeatureData', { required: true }) }, { prepared: port('PreparedData') }, { delays: { type: 'list[int]', default: [1, 2, 3, 4] } }),
   nodeInfo('model:bootstrap_ridge', 'model', { prepared: port('PreparedData', { required: true }) }, { result: port('ModelResult') }, { n_boots: { type: 'int', default: 50 } }),
   nodeInfo('reporter:metrics', 'report', { context: port('Context', { required: true, multiple: true }) }, { artifacts: port('Artifacts') }, {}, 'isolate'),
+  nodeInfo('control:map_subjects', 'subject_fanout', {}, { group: port('GroupRun') }, {
+    subjects: { type: 'list[string]', required: true }, body: { type: 'string' }, inputs: { type: 'dict' },
+    subject_inputs: { type: 'dict' }, subject_template: { type: 'dict' }, subject_overrides: { type: 'dict' },
+    max_workers: { type: 'int', default: 4 },
+  }),
+  nodeInfo('group_analyzer:voxelwise_mean', 'group_analyze', { group: port('GroupRun', { required: true }) }, { group: port('GroupRun') }),
+  nodeInfo('group_reporter:group_summary_html', 'group_report', { group: port('GroupRun', { required: true }) }, { artifacts: port('Artifacts') }),
 ]
 
 export const PORT_TYPES: AnalysisPortType[] = [
   'any', 'StimulusData', 'ResponseData', 'FeatureSet', 'FeatureData', 'PreparedData', 'ModelResult', 'Context', 'Artifacts',
+  'GroupRun', 'StudyRun',
 ].map((name) => ({ name, parents: [], description: '' }))
 
 export const ANALYZE_GRAPH: AnalysisGraphDoc = {
@@ -42,6 +50,20 @@ export const ANALYZE_GRAPH: AnalysisGraphDoc = {
   edges: [{ id: 'e1', source: 'prepare', target: 'bootstrap_ridge', sourceHandle: 'prepared', targetHandle: 'prepared' }],
 }
 
+export const GROUP_GRAPH: AnalysisGraphDoc = {
+  schema_version: 1,
+  name: 'group_mean',
+  description: 'test group template',
+  scope: 'group',
+  inputs: { subjects: { kind: 'list' }, output_dir: { kind: 'dir' } },
+  globals: { group: 'g', output_dir: '$inputs.output_dir' },
+  nodes: [
+    { id: 'subjects', type: 'control:map_subjects', data: { params: { subjects: ['S1', 'S2'], body: 'analyze', inputs: { output_dir: '/data/{subject}' } } }, position: { x: 0, y: 0 } },
+    { id: 'mean', type: 'group_analyzer:voxelwise_mean', data: { params: {} }, position: { x: 300, y: 0 } },
+  ],
+  edges: [{ id: 'e1', source: 'subjects', target: 'mean', sourceHandle: 'group', targetHandle: 'group' }],
+}
+
 /** Request bodies the handlers received, for assertions. */
 export const analysisRequests: { saved?: unknown; run?: unknown; validate?: unknown } = {}
 
@@ -49,12 +71,15 @@ export const analysisGraphsHandlers = [
   http.get('/api/analysis/nodes', () => HttpResponse.json({ nodes: ANALYSIS_NODES })),
   http.get('/api/analysis/port-types', () => HttpResponse.json({ types: PORT_TYPES })),
   http.get('/api/analysis/graphs/templates', () => HttpResponse.json({
-    templates: [{ name: 'analyze', tier: 'bundled', description: 'test template', n_nodes: 2, node_types: ['preparer:default', 'model:bootstrap_ridge'], inputs: ANALYZE_GRAPH.inputs, scope: 'subject', error: null }],
+    templates: [
+      { name: 'analyze', tier: 'bundled', description: 'test template', n_nodes: 2, node_types: ['preparer:default', 'model:bootstrap_ridge'], inputs: ANALYZE_GRAPH.inputs, scope: 'subject', error: null },
+      { name: 'group_mean', tier: 'bundled', description: 'test group template', n_nodes: 2, node_types: ['control:map_subjects', 'group_analyzer:voxelwise_mean'], inputs: GROUP_GRAPH.inputs, scope: 'group', error: null },
+    ],
   })),
   http.get('/api/analysis/graphs/templates/:name', ({ params }) => (
-    String(params.name) === 'analyze'
-      ? HttpResponse.json({ graph: ANALYZE_GRAPH })
-      : HttpResponse.json({ detail: 'unknown template' }, { status: 404 })
+    String(params.name) === 'analyze' ? HttpResponse.json({ graph: ANALYZE_GRAPH })
+      : String(params.name) === 'group_mean' ? HttpResponse.json({ graph: GROUP_GRAPH })
+        : HttpResponse.json({ detail: 'unknown template' }, { status: 404 })
   )),
   http.post('/api/analysis/graphs/templates', async ({ request }) => {
     const body = await request.json() as { name: string }

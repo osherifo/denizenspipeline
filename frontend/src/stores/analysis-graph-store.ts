@@ -40,18 +40,59 @@ import {
   uniqueId,
 } from './graph-edit-slice'
 
-export const EMPTY_GRAPH: AnalysisGraphDoc = {
-  schema_version: 1,
-  name: 'untitled',
-  description: '',
-  scope: 'subject',
-  inputs: {
-    subject: { kind: 'str', description: 'subject id' },
-    output_dir: { kind: 'dir', description: 'where reports are written' },
-  },
-  globals: { experiment: 'untitled', subject: '$inputs.subject', reporting: { output_dir: '$inputs.output_dir' } },
-  nodes: [],
-  edges: [],
+export type GraphScope = AnalysisGraphDoc['scope']
+
+/** A new graph of ``scope``: its usual inputs and globals, and the fan-out or collector node it needs. */
+export function emptyGraph(scope: GraphScope = 'subject'): AnalysisGraphDoc {
+  if (scope === 'group') {
+    return {
+      schema_version: 1, name: 'untitled_group', description: '', scope: 'group',
+      inputs: {
+        subjects: { kind: 'list', description: 'subject ids' },
+        output_dir: { kind: 'dir', description: 'where group runs are written' },
+      },
+      globals: { group: 'untitled_group', output_dir: '$inputs.output_dir', parallel: { max_workers: 1 } },
+      nodes: [{ id: 'subjects', type: 'control:map_subjects', data: { params: { subjects: '$inputs.subjects', max_workers: 1 } }, position: { x: 80, y: 80 } }],
+      edges: [],
+    }
+  }
+  if (scope === 'study') {
+    return {
+      schema_version: 1, name: 'untitled_study', description: '', scope: 'study',
+      inputs: { output_dir: { kind: 'dir', description: 'where study runs are written' } },
+      globals: { study: 'untitled_study', output_dir: '$inputs.output_dir' },
+      nodes: [{ id: 'groups', type: 'control:study_groups', data: { params: {} }, position: { x: 380, y: 80 } }],
+      edges: [],
+    }
+  }
+  return {
+    schema_version: 1, name: 'untitled', description: '', scope: 'subject',
+    inputs: {
+      subject: { kind: 'str', description: 'subject id' },
+      output_dir: { kind: 'dir', description: 'where reports are written' },
+    },
+    globals: { experiment: 'untitled', subject: '$inputs.subject', reporting: { output_dir: '$inputs.output_dir' } },
+    nodes: [],
+    edges: [],
+  }
+}
+
+export const EMPTY_GRAPH: AnalysisGraphDoc = emptyGraph('subject')
+
+/** A graph set aside while a subject graph body is open in the builder. */
+export interface OpenGraphFrame {
+  graph: AnalysisGraphDoc
+  graphName: string | null
+  dirty: boolean
+  selectedNodeId: string | null
+  inputValues: Record<string, string>
+  label: string
+}
+
+// Run-event stages that belong to a control node of the graph on screen.
+const CONTROL_STAGE_NODES: Record<string, string> = {
+  subject_fanout: 'control:map_subjects',
+  subject_second_pass: 'control:subject_pass',
 }
 
 /** A run-panel value as typed: lists and mappings parse as YAML; anything else stays text, so "01" stays "01". */
@@ -82,7 +123,10 @@ function inputValuesFor(graph: AnalysisGraphDoc, saved?: Record<string, unknown>
 }
 
 function opened(graph: AnalysisGraphDoc, saved?: Record<string, unknown>) {
-  return { graph, selectedNodeId: null, validation: null, error: null, inputValues: inputValuesFor(graph, saved) }
+  return {
+    graph, selectedNodeId: null, validation: null, error: null, inputValues: inputValuesFor(graph, saved),
+    stack: [] as OpenGraphFrame[],
+  }
 }
 
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
@@ -104,6 +148,10 @@ interface AnalysisGraphState {
   lastRunId: string | null
   runState: RunState
   runStatus: Record<string, NodeRunStatus>
+  /** Per-subject status of the last group run (from group_subject_* events). */
+  subjectStatus: Record<string, 'running' | 'ok' | 'failed'>
+  /** Graphs set aside while a subject graph body is open (innermost last). */
+  stack: OpenGraphFrame[]
   error: string | null
 
   loadCatalog: () => Promise<void>
@@ -111,7 +159,11 @@ interface AnalysisGraphState {
   loadGraphs: () => Promise<void>
   loadTemplate: (name: string) => Promise<void>
   loadGraph: (name: string) => Promise<void>
-  newGraph: () => void
+  newGraph: (scope?: GraphScope) => void
+  /** Open a fan-out node's subject graph (a saved graph or template name) on top of the current graph. */
+  openBody: (ref: string) => Promise<void>
+  /** Return to the graph the open subject graph was opened from. */
+  closeBody: () => void
   /** Compile a stage config (saved file name or inline config) and open the result; false on error. */
   openStageConfig: (source: { filename?: string; config?: Record<string, unknown> }) => Promise<boolean>
   setGraph: (graph: AnalysisGraphDoc) => void
@@ -153,6 +205,8 @@ export const useAnalysisGraphStore = create<AnalysisGraphState>((set, get) => ({
   lastRunId: null,
   runState: 'idle',
   runStatus: {},
+  subjectStatus: {},
+  stack: [],
   error: null,
 
   loadCatalog: async () => {
@@ -201,7 +255,41 @@ export const useAnalysisGraphStore = create<AnalysisGraphState>((set, get) => ({
     }
   },
 
-  newGraph: () => set({ ...opened(EMPTY_GRAPH), graphName: null, dirty: false }),
+  newGraph: (scope = 'subject') => set({ ...opened(emptyGraph(scope)), graphName: null, dirty: false }),
+
+  openBody: async (ref) => {
+    try {
+      let doc: AnalysisGraphDoc
+      let name: string | null = null
+      // Same order as the runner: a saved graph wins over a template of the same name.
+      if (get().graphs.some((g) => g.name === ref)) {
+        doc = (await fetchAnalysisGraph(ref)).graph
+        name = ref
+      } else if (get().templates.some((t) => t.name === ref)) {
+        doc = (await fetchAnalysisTemplate(ref)).graph
+      } else {
+        throw new Error(`no saved graph or template named ${ref}`)
+      }
+      const s = get()
+      const frame: OpenGraphFrame = {
+        graph: s.graph, graphName: s.graphName, dirty: s.dirty, selectedNodeId: s.selectedNodeId,
+        inputValues: s.inputValues, label: s.graphName ?? s.graph.name,
+      }
+      set({ ...opened(doc, name ? doc.run_defaults?.inputs : undefined), graphName: name, dirty: false, stack: [...s.stack, frame] })
+    } catch (e) {
+      set({ error: (e as Error).message })
+    }
+  },
+
+  closeBody: () => {
+    const stack = [...get().stack]
+    const top = stack.pop()
+    if (!top) return
+    set({
+      stack, graph: top.graph, graphName: top.graphName, dirty: top.dirty, selectedNodeId: top.selectedNodeId,
+      inputValues: top.inputValues, validation: null, error: null,
+    })
+  },
 
   openStageConfig: async (source) => {
     try {
@@ -339,7 +427,7 @@ export const useAnalysisGraphStore = create<AnalysisGraphState>((set, get) => ({
   launch: async () => {
     const { graph, graphName } = get()
     get().disconnect()
-    set({ launching: true, error: null, runStatus: {}, runState: 'idle' })
+    set({ launching: true, error: null, runStatus: {}, subjectStatus: {}, runState: 'idle' })
     try {
       const { run_id } = await runAnalysisGraph({ graph, graph_name: graphName ?? undefined, inputs: get().parsedInputs() })
       set({ launching: false, lastRunId: run_id, runState: 'running' })
@@ -360,9 +448,32 @@ export const useAnalysisGraphStore = create<AnalysisGraphState>((set, get) => ({
   },
 
   applyRunEvent: (event) => {
-    const id = event.node_id
-    const put = (st: NodeRunStatus) => { if (id) set({ runStatus: { ...get().runStatus, [id]: st } }) }
+    const { scope, nodes } = get().graph
+    const setNode = (nodeId: string | undefined, st: NodeRunStatus) => {
+      if (nodeId) set({ runStatus: { ...get().runStatus, [nodeId]: st } })
+    }
+    // Node events from inside a subject run (group scope) or a group run (study scope) name nodes
+    // of those inner graphs, not of the graph on screen.
+    const inner = (scope === 'group' && Boolean(event.subject))
+      || (scope === 'study' && Boolean(event.subject || event.group_label))
+    const id = inner ? undefined : event.node_id
+    const put = (st: NodeRunStatus) => setNode(id, st)
+    const controlNode = (stage?: string) => nodes.find((n) => n.type === CONTROL_STAGE_NODES[stage ?? ''])?.id
+    const groupNode = (label?: string) => nodes.find((n) => n.type === 'control:group' && n.data.params.name === label)?.id
     switch (event.event) {
+      case 'group_subject_start':
+        if (event.subject) set({ subjectStatus: { ...get().subjectStatus, [event.subject]: 'running' } })
+        break
+      case 'group_subject_done':
+        if (event.subject) set({ subjectStatus: { ...get().subjectStatus, [event.subject]: event.status === 'failed' ? 'failed' : 'ok' } })
+        break
+      case 'group_stage_start': if (!event.group_label) setNode(controlNode(event.stage), { status: 'running' }); break
+      case 'group_stage_done': if (!event.group_label) setNode(controlNode(event.stage), { status: 'ok', durationS: event.elapsed ?? null }); break
+      case 'group_stage_fail': if (!event.group_label) setNode(controlNode(event.stage), { status: 'failed', error: event.error }); break
+      case 'study_group_start': setNode(groupNode(event.group_label), { status: 'running' }); break
+      case 'study_group_done':
+        setNode(groupNode(event.group_label), { status: event.status === 'failed' ? 'failed' : 'ok', durationS: event.elapsed ?? null })
+        break
       case 'node_start': put({ status: 'running' }); break
       case 'node_done': put({ status: 'ok', durationS: event.elapsed ?? null }); break
       case 'node_fail': put({ status: 'failed', durationS: event.elapsed ?? null, error: event.error }); break

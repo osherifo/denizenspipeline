@@ -188,6 +188,11 @@ export interface RunEvent {
   node_id?: string
   kind?: string
   name?: string
+  /** Tags on events from inside group and study runs (group_subject_*, study_group_*, subject pipelines). */
+  subject?: string
+  group?: string
+  group_label?: string
+  status?: string
   elapsed?: number
   detail?: string
   error?: string

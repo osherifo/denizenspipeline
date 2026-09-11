@@ -39,11 +39,26 @@ class MapSubjects(_ControlNode):
     SCOPE = "group"
     PARAM_SCHEMA = {
         "subjects": {"type": "list[string]", "required": True, "description": "Subject ids"},
-        "subject_template": {"type": "dict", "description": "Stage config shared by every subject"},
-        "subject_overrides": {"type": "dict", "description": "Per-subject config, deep-merged over the template"},
+        "body": {"type": "string",
+                 "description": "Subject graph run for each subject: a graph file, a saved graph or a template name"},
+        "inputs": {"type": "dict",
+                   "description": "Values for the body's inputs for every subject; {subject} becomes the subject id"},
+        "subject_inputs": {"type": "dict", "description": "Per-subject input values: {subject: {input: value}}"},
+        "subject_template": {"type": "dict", "description": "Stage config shared by every subject (instead of a body)"},
+        "subject_overrides": {"type": "dict", "description": "Per-subject stage config, deep-merged over the template"},
         "max_workers": {"type": "int", "default": 4, "description": "Subjects that run at the same time"},
     }
     OUTPUTS = {"group": {"type": "GroupRun"}}
+
+    @staticmethod
+    def validate_params(params: dict) -> list[str]:
+        errors = []
+        subjects = params.get("subjects")
+        if not isinstance(subjects, list) or not subjects:
+            errors.append("'subjects' must be a non-empty list of subject ids")
+        if bool(params.get("body")) == bool(params.get("subject_template")):
+            errors.append("give either 'body' (a subject graph) or 'subject_template' (a stage config)")
+        return errors
 
 
 class SubjectPass(_ControlNode):

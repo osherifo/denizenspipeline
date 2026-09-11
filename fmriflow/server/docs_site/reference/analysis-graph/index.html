@@ -1097,6 +1097,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#control-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control nodes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#edges" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1317,6 +1328,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#control-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control nodes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#edges" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1401,7 +1423,7 @@
 <tr>
 <td><code>scope</code></td>
 <td>str</td>
-<td><code>subject</code>. <code>group</code> and <code>study</code> are reserved and do not run yet.</td>
+<td><code>subject</code>, <code>group</code> or <code>study</code>.</td>
 </tr>
 <tr>
 <td><code>inputs</code></td>
@@ -1542,6 +1564,51 @@ starts. A reference to an undeclared input is an error.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="control-nodes">Control nodes<a class="headerlink" href="#control-nodes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Node type</th>
+<th>Scope</th>
+<th>Inputs</th>
+<th>Outputs</th>
+<th>Params</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control:map_subjects</code></td>
+<td>group</td>
+<td>none</td>
+<td><code>group</code> (GroupRun)</td>
+<td><code>subjects</code>, <code>body</code> or <code>subject_template</code>, <code>inputs</code>, <code>subject_inputs</code>, <code>subject_overrides</code>, <code>max_workers</code></td>
+</tr>
+<tr>
+<td><code>control:subject_pass</code></td>
+<td>group</td>
+<td><code>group</code>, <code>bindings</code> (fan-in)</td>
+<td><code>group</code></td>
+<td><code>mode</code>: <code>legacy</code> or <code>minimal</code></td>
+</tr>
+<tr>
+<td><code>control:group</code></td>
+<td>study</td>
+<td>none</td>
+<td><code>group</code> (GroupRun)</td>
+<td><code>name</code>, <code>config</code></td>
+</tr>
+<tr>
+<td><code>control:study_groups</code></td>
+<td>study</td>
+<td><code>groups</code> (fan-in)</td>
+<td><code>study</code> (StudyRun)</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+<p>Group analyzers take and pass on <code>group</code>; those that bind values into subjects also output <code>bindings</code>.
+Group reporters take <code>group</code>. Study analyzers take and pass on <code>study</code>; study reporters take <code>study</code>.
+A control node in a graph of another scope is a validation error.</p>
 <h2 id="edges">Edges<a class="headerlink" href="#edges" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="nv">e1</span><span class="p p-Indicator">,</span><span class="nt"> source</span><span class="p">:</span><span class="w"> </span><span class="nv">prepare</span><span class="p p-Indicator">,</span><span class="nt"> sourceHandle</span><span class="p">:</span><span class="w"> </span><span class="nv">prepared</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">model</span><span class="p p-Indicator">,</span><span class="nt"> targetHandle</span><span class="p">:</span><span class="w"> </span><span class="nv">prepared</span><span class="p p-Indicator">}</span>
 </code></pre></div>

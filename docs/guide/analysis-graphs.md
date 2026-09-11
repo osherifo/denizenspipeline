@@ -182,9 +182,46 @@ Saved graphs live in the analysis configs directory next to stage configs, and t
 them with `format: graph`. Run views of a graph run are built from its `graph.json`. The endpoints are
 listed in the [analysis graph reference](../reference/analysis-graph.md).
 
+## Group and study graphs
+
+A group graph fans out over subjects, and a study graph over groups. Both run with the same commands as
+subject graphs:
+
+```bash
+fmriflow run group_graph.yaml --input 'subjects=[sub01, sub02]' --run-id first
+fmriflow run group_graph.yaml --resume
+```
+
+Runs land in `<output_dir>/<run_id>/`, exactly like `run-group` and `run-study` (which also accept graph
+files). Group and study configs compile to the same kind of graph, see [Group Analysis](group-analysis.md#engines).
+
+A **group graph** starts with a `control:map_subjects` node and passes a `GroupRun` along group analyzers
+to group reporters:
+
+| Param | Meaning |
+|-------|---------|
+| `subjects` | Subject ids. |
+| `body` | The subject graph run for each subject: a graph file, a saved graph or a template name. |
+| `inputs` | Values for the body's inputs for every subject. `{subject}` in a value becomes the subject id, e.g. `responses_path: /data/responses/{subject}.hdf`. |
+| `subject_inputs` | Values for one subject, `{sub01: {test_runs: [run03]}}`; they win over `inputs`. |
+| `subject_template`, `subject_overrides` | Instead of `body`: a stage config for every subject and per-subject deep merges, as in a group config. |
+| `max_workers` | Subjects that run at the same time. |
+
+The body's `subject` input is filled with the subject id, and its reporting output directory is set to
+`subjects/<subject>/` inside the group run. When a group analyzer binds values into subjects
+(`produces_subject_artifact`), connect its `bindings` output to a `control:subject_pass` node before the
+reporters: it re-runs each subject's analyze and report stages with the bound values (`mode: legacy`), or
+only modules marked `binding_consumer` (`mode: minimal`).
+
+A **study graph** has one `control:group` node per group (`name`, the study-scope label, and `config`, a
+group config or a group graph file), a `control:study_groups` node collecting them in connection order,
+then study analyzers and reporters passing a `StudyRun`.
+
+Two bundled templates start these graphs: `group_mean` runs a subject graph per subject and maps mean
+accuracy and a per-voxel count, and `study_group_delta` compares two groups.
+
 ## Current limits
 
-- Only `scope: subject` graph files run directly. Group and study configs run on the graph engine by
-  compiling to group and study graphs (see [Group Analysis](group-analysis.md#engines)); group and study
-  graph files cannot be run on their own yet.
+- Graph files of every scope run whole; `--resume` on group and study graph files skips finished subjects,
+  but there is no partial run of a subject graph.
 - A graph file always runs whole; there is no partial run or resume.

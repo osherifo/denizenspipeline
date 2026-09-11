@@ -22,6 +22,7 @@ the config unless one is passed:
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import logging
 import time
@@ -33,7 +34,7 @@ from fmriflow import ui as fui
 from fmriflow.analysis.adapters import NodeEnv
 from fmriflow.analysis.catalog import NodeCatalog
 from fmriflow.analysis.compile_legacy import compile_group_config, compile_study_config, compile_subject_config
-from fmriflow.analysis.executor import GraphExecutor, _FixedId, run_subject_stages
+from fmriflow.analysis.executor import GraphExecutor, _FixedId, resolve_graph_inputs, run_subject_stages
 from fmriflow.analysis.graph import AnalysisGraph
 from fmriflow.analysis.persistence import load_light_values, save_light_values
 from fmriflow.core.group_types import SubjectResult
@@ -45,9 +46,57 @@ from fmriflow.group_orchestrator import (
     _merge_second_pass_summary, _subject_already_succeeded, derive_subject_config, resolve_subject_list,
 )
 from fmriflow.orchestrator import _record, _relativize
-from fmriflow.study_orchestrator import StudyOrchestrator, collect_study_groups
+from fmriflow.study_orchestrator import StudyOrchestrator, collect_study_groups, find_group_config
 
 logger = logging.getLogger(__name__)
+
+# Key of a subject or group config entry that carries the graph it runs as.
+GRAPH_KEY = "_graph"
+
+
+def _fill_subject(value: Any, subject: str) -> Any:
+    if isinstance(value, str):
+        return value.replace("{subject}", subject)
+    if isinstance(value, list):
+        return [_fill_subject(v, subject) for v in value]
+    if isinstance(value, dict):
+        return {k: _fill_subject(v, subject) for k, v in value.items()}
+    return value
+
+
+def load_subject_body(body: Any, base_dir: Path | None = None) -> AnalysisGraph:
+    """The subject graph a fan-out runs per subject.
+
+    ``body`` is an inline graph, a graph file (absolute, or relative to the cwd
+    or ``base_dir``), the name of a saved analysis graph, or a template name.
+    """
+    if isinstance(body, dict):
+        graph = AnalysisGraph.from_dict(AnalysisGraph.unwrap(body))
+    elif isinstance(body, str) and body:
+        candidates = [Path(body)] + ([Path(base_dir) / body] if base_dir else [])
+        file = next((c for c in candidates if c.suffix in (".yaml", ".yml") and c.is_file()), None)
+        saved = None
+        if file is None:
+            try:
+                from fmriflow.core import paths
+                saved = Path(paths.config_dir("analysis")) / f"{body}.yaml"
+            except Exception:
+                saved = None
+        if file is not None:
+            graph = AnalysisGraph.load(file)
+        elif saved is not None and saved.is_file():
+            graph = AnalysisGraph.load(saved)
+        else:
+            from fmriflow.analysis.templates import load_template
+            try:
+                graph = load_template(body)
+            except KeyError:
+                raise ConfigError(f"subject graph {body!r} is not a graph file, a saved graph or a template") from None
+    else:
+        raise ConfigError("the subject fan-out needs a 'body' (subject graph) or a 'subject_template'")
+    if graph.scope != "subject":
+        raise ConfigError(f"the subject fan-out body must be a subject graph, not a {graph.scope} graph")
+    return graph
 
 
 class GroupGraphRunner(GroupOrchestrator):
@@ -57,6 +106,10 @@ class GroupGraphRunner(GroupOrchestrator):
                  graph: AnalysisGraph | None = None, catalog: NodeCatalog | None = None) -> None:
         self.catalog = catalog or NodeCatalog(registry).discover()
         self.graph = graph if graph is not None else compile_group_config(group_config, registry=registry)
+        # Subject -> the bound subject graph it ran as, for graph bodies (the second pass re-uses it).
+        self._subject_graphs: dict[str, dict] = {}
+        source = group_config.get("_source_path")
+        self.base_dir = Path(source).parent if source else None
         super().__init__(group_config, registry, run_id=run_id)
 
     # ── graph lookups ───────────────────────────────────────────
@@ -90,10 +143,35 @@ class GroupGraphRunner(GroupOrchestrator):
 
     def _build_subject_configs(self) -> list[dict]:
         cfg = self._subjects_config()
-        return [
-            derive_subject_config(cfg, subject, output_dir=str(self._subject_output_dir(subject)), validate=True)
-            for subject in resolve_subject_list(cfg)
-        ]
+        subjects = resolve_subject_list(cfg)
+        node = self._map_node()
+        if not node.params.get("body"):
+            return [
+                derive_subject_config(cfg, subject, output_dir=str(self._subject_output_dir(subject)), validate=True)
+                for subject in subjects
+            ]
+        body = load_subject_body(node.params["body"], self.base_dir)
+        shared = node.params.get("inputs") or {}
+        per_subject = node.params.get("subject_inputs") or {}
+        validator = GraphExecutor(self.catalog)
+        configs = []
+        for subject in subjects:
+            values = _fill_subject(copy.deepcopy(shared), subject)
+            values.update(copy.deepcopy(per_subject.get(subject) or {}))
+            if "subject" in body.inputs:
+                values.setdefault("subject", subject)
+            bound, _ = resolve_graph_inputs(body, values)
+            bound.globals["subject"] = subject
+            reporting = dict(bound.globals.get("reporting") or {})
+            reporting["output_dir"] = str(self._subject_output_dir(subject))
+            bound.globals["reporting"] = reporting
+            errors = validator.validate(bound)
+            if errors:
+                raise ConfigError([f"subject '{subject}': {e}" for e in errors])
+            doc = bound.to_dict()
+            self._subject_graphs[subject] = doc
+            configs.append({**copy.deepcopy(bound.globals), GRAPH_KEY: doc})
+        return configs
 
     def _run_subjects(self, subject_configs: list[dict], resume: bool) -> list[SubjectResult]:
         node = self._map_node()
@@ -131,7 +209,8 @@ class GroupGraphRunner(GroupOrchestrator):
         with fui.event_context(subject=subject, group=self.group_name), \
              capture_logs_to(run_dir / "pipeline.log", thread_local=True):
             logger.info("Subject %s (group=%s, run_id=%s) starting", subject, self.group_name, self.run_id)
-            graph = compile_subject_config(subject_config)
+            graph = (AnalysisGraph.from_dict(subject_config[GRAPH_KEY]) if GRAPH_KEY in subject_config
+                     else compile_subject_config(subject_config))
             executor = GraphExecutor(self.catalog)
             ctx = None
             failed = False
@@ -191,8 +270,7 @@ class GroupGraphRunner(GroupOrchestrator):
         node = next((n for n in self.graph.nodes if n.type == "control:subject_pass"), None)
         return str((node.params.get("mode") if node else None) or self.config.get("second_pass") or "legacy")
 
-    def _binding_consumers(self, subject_config: dict) -> set[str]:
-        graph = compile_subject_config(subject_config)
+    def _binding_consumers(self, graph: AnalysisGraph) -> set[str]:
         return {n.type for n in graph.nodes
                 if n.type.startswith(("analyzer:", "reporter:")) and self.catalog.has(n.type)
                 and getattr(self.catalog.module_class(n.type), "binding_consumer", False)}
@@ -217,8 +295,10 @@ class GroupGraphRunner(GroupOrchestrator):
                 ctx.put(f"{EXTERNAL_PREFIX}{key}", value)
             config = sr.run_summary.config_snapshot
             try:
-                only = self._binding_consumers(config) if minimal else None
-                run_subject_stages(config, self.catalog, ["analyze", "report"], ctx, only_types=only)
+                doc = self._subject_graphs.get(sr.subject)
+                graph = AnalysisGraph.from_dict(doc) if doc is not None else compile_subject_config(config)
+                only = self._binding_consumers(graph) if minimal else None
+                run_subject_stages(config, self.catalog, ["analyze", "report"], ctx, only_types=only, graph=graph)
             except Exception:
                 logger.error("Second pass failed for %s", sr.subject, exc_info=True)
             finally:
@@ -269,13 +349,69 @@ class StudyGraphRunner(StudyOrchestrator):
         return [str(n.params.get("name")) for n in self._group_nodes() if n.params.get("name")]
 
     def _collect_groups(self) -> list[tuple[str, dict]]:
+        """Group configs as the study orchestrator collects them, plus group graph files."""
         entries = [n.params["_entry"] if "_entry" in n.params
                    else {"name": n.params.get("name"), "config": n.params.get("config")}
                    for n in self._group_nodes()]
-        return collect_study_groups(entries, self.config_path)
+        graph_files = {i: self._group_graph_file(e) for i, e in enumerate(entries)}
+        if not any(graph_files.values()):
+            return collect_study_groups(entries, self.config_path)
+
+        out: list[tuple[str, dict]] = []
+        errors: list[str] = []
+        seen: set[str] = set()
+        for i, entry in enumerate(entries):
+            label = entry.get("name") if isinstance(entry, dict) else None
+            if isinstance(label, str) and label:
+                if label in seen:
+                    errors.append(f"groups[{i}]: duplicate label '{label}' (each study-scope group name must be unique)")
+                    continue
+                seen.add(label)
+            path = graph_files[i]
+            if path is None:
+                try:
+                    out.extend(collect_study_groups([entry], self.config_path))
+                except ConfigError as exc:
+                    errors.extend(str(e).replace("groups[0]", f"groups[{i}]") for e in exc.errors)
+                continue
+            try:
+                graph = AnalysisGraph.load(path)
+                if graph.scope != "group":
+                    raise ConfigError(f"{path} is a {graph.scope} graph, not a group graph")
+                bound, _ = resolve_graph_inputs(graph, (graph.run_defaults or {}).get("inputs") or {})
+            except ConfigError as exc:
+                errors.extend(f"groups[{i}] ({label}): {e}" for e in exc.errors)
+                continue
+            except Exception as exc:
+                errors.append(f"groups[{i}] ({label}): failed to load graph {path}: {exc}")
+                continue
+            cfg = copy.deepcopy(bound.globals)
+            cfg.setdefault("group", bound.name)
+            cfg["_source_path"] = str(Path(path).resolve())
+            cfg[GRAPH_KEY] = bound.to_dict()
+            out.append((label, cfg))
+        if errors:
+            raise ConfigError(errors)
+        return out
+
+    def _group_graph_file(self, entry: Any) -> Path | None:
+        """The entry's config path when it points at an analysis graph file."""
+        if not isinstance(entry, dict) or not isinstance(entry.get("config"), str) or not entry.get("config"):
+            return None
+        path = find_group_config(entry["config"], self.config_path)
+        if path is None:
+            return None
+        try:
+            import yaml
+            doc = yaml.safe_load(Path(path).read_text()) or {}
+        except Exception:
+            return None
+        return path if isinstance(doc, dict) and "nodes" in AnalysisGraph.unwrap(doc) else None
 
     def _make_group_runner(self, group_config: dict, run_id: str):
-        return GroupGraphRunner(group_config, self.registry, run_id=run_id, catalog=self.catalog)
+        doc = group_config.pop(GRAPH_KEY, None)
+        graph = AnalysisGraph.from_dict(doc) if doc is not None else None
+        return GroupGraphRunner(group_config, self.registry, run_id=run_id, graph=graph, catalog=self.catalog)
 
     def _resolve_study_analyzers(self) -> list[tuple[str, object]]:
         return [(n.id, self.catalog.adapter(n.type).instance(self.catalog.module_name(n.type), self._env(n)))
