@@ -395,6 +395,18 @@ class FeatureRowRanges:
         return {'mapping': png, 'json': str(sidecar)}
 
 
+def _hist(ax, values, **kwargs) -> None:
+    """``ax.hist`` that also works when all values are (nearly) equal."""
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return
+    lo, hi = float(values.min()), float(values.max())
+    if hi - lo < 1e-6 * max(1.0, abs(lo)):
+        kwargs["range"] = (lo - 0.5, hi + 0.5)
+    ax.hist(values, bins=60, **kwargs)
+
+
 @qa_reporter("zscore_check", stage="prepare")
 class ZScoreCheck:
     """Per-column mean / std distributions on X_train, X_test, Y_train, Y_test.
@@ -428,13 +440,11 @@ class ZScoreCheck:
                 col_std = arr.std(axis=0)
                 ax_m = fig.add_subplot(4, 2, 2 * i + 1)
                 ax_s = fig.add_subplot(4, 2, 2 * i + 2)
-                ax_m.hist(col_mean, bins=60, color='steelblue',
-                          edgecolor='white', alpha=0.85)
+                _hist(ax_m, col_mean, color='steelblue', edgecolor='white', alpha=0.85)
                 ax_m.axvline(0, color='#d35', linestyle='--', linewidth=1)
                 ax_m.set_title(f'{label}: column mean (n_cols={arr.shape[1]})',
                                fontsize=10)
-                ax_s.hist(col_std, bins=60, color='goldenrod',
-                          edgecolor='white', alpha=0.85)
+                _hist(ax_s, col_std, color='goldenrod', edgecolor='white', alpha=0.85)
                 ax_s.axvline(1, color='#d35', linestyle='--', linewidth=1)
                 ax_s.set_title(f'{label}: column std', fontsize=10)
             fig.tight_layout()
