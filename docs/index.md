@@ -24,7 +24,7 @@ fmriflow run experiment.yaml
 
 - **Config-driven** — one YAML file defines the entire experiment
 - **Module architecture** — feature extractors, preparers, models, and reporters are all swappable
-- **Web UI** — browser-based pipeline composer, DICOM-to-BIDS conversion, run manager
+- **Web UI** — browser-based analysis builder, DICOM-to-BIDS conversion, run manager
 - **DICOM to BIDS** — heudiconv integration with heuristic registry and batch conversion
 - **fMRI preprocessing** — fmriprep wrapper with manifest-based provenance tracking
 - **Surface flattening** — autoflatten integration with pycortex import
@@ -50,4 +50,4 @@ pip install -e ".[all]"      # everything
 - [CLI Reference](guide/cli.md) — all available commands
 - [Writing Modules](guide/modules.md) — extend the pipeline with custom extractors, models, and reporters
 - [Autoflatten](guide/autoflatten.md) — cortical surface flattening + pycortex import
-- [Web UI → Composer](guide/web-ui.md#composer) — Linear stage strip + ghost graph + Monaco YAML
+- [Web UI → Builder](guide/web-ui.md#builder) — Analysis graphs on a canvas: templates, typed nodes, group and study fan-out, live runs

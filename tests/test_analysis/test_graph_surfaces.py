@@ -190,5 +190,12 @@ def test_compile_route(client, tmp_path, raw_config_loader):
     assert compiled.status_code == 200, compiled.text
     assert "model:mock_model" in {n["id"] for n in compiled.json()["graph"]["nodes"]}
     assert client.post("/api/analysis/graphs/compile", json={}).status_code == 400
-    group = client.post("/api/analysis/graphs/compile", json={"config": {"group": "g", "subjects": ["a"]}})
-    assert group.status_code == 400
+    template = {k: v for k, v in _stage_config(tmp_path).items() if k != "subject"}
+    group = client.post("/api/analysis/graphs/compile", json={"config": {
+        "group": "g", "subjects": ["a", "b"], "subject_template": template,
+        "output_dir": str(tmp_path / "groups")}})
+    assert group.status_code == 200, group.text
+    assert group.json()["graph"]["scope"] == "group"
+    assert group.json()["graph"]["nodes"][0]["type"] == "control:map_subjects"
+    graph_doc = client.post("/api/analysis/graphs/compile", json={"config": group.json()["graph"]})
+    assert graph_doc.status_code == 400

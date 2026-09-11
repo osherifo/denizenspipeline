@@ -80,7 +80,7 @@ The main control center for running experiments.
 
 - Summary: experiment name, subject, model type, preprocessing settings
 - Expandable raw YAML viewer
-- Action buttons: **Run**, **Validate**, **Edit in Composer**
+- Action buttons: **Run**, **Validate**, **Edit YAML**, **Open in Builder** (opens a graph config, or compiles a subject stage config into a graph)
 - Validation errors shown inline
 
 **Live progress** (appears during a run):
@@ -148,8 +148,7 @@ The Builder edits a subject analysis as a graph of nodes. See [Analysis graphs](
 the file format.
 
 - **Templates and saved graphs** are listed on the left. Opening a template gives an unsaved copy.
-  **Open a stage config…** compiles a saved stage config into the equivalent graph, and the Composer's
-  **Open in builder** button does the same for the config being edited.
+  **Open a stage config…** compiles a saved stage config into the equivalent graph.
 - **The palette** lists every node type by category. Click one to add it, then drag from an output port to
   an input port. Port handles are coloured by type. A drag between incompatible types, or one that would
   make a cycle, is refused. Backspace deletes the selected nodes or edges.
@@ -168,91 +167,11 @@ the file format.
   values for every subject and per subject. **Open subject graph** opens the body for editing, and **Back**
   returns to the group graph. During a group run the panel shows each subject's status.
 
-### Composer
+### Composer (retired)
 
-Build encoding-model pipelines. A **scope tab bar** at the top
-switches between **Subject**, **Group**, and **Study** composers —
-each tab has its own form, its own YAML editor, and its own
-state, so switching between them never loses unsaved edits in
-another scope.
-
-#### Subject scope
-
-A vertical strip of seven collapsible **stage cards** (stimuli,
-responses, features, prepare, model, analyze, report). Each card
-holds the modules plugged into that stage plus their parameters.
-
-**Stage cards** (left column):
-
-- The card header shows the stage number, name, fill status (badge
-  colour), and a one-line summary. Click to expand/collapse.
-- **Stimuli, Responses, Model**: pick a single module from a
-  dropdown, then fill its `ParamForm`. Response loaders that need
-  a separate reader (e.g. `local`) reveal a second slot inline.
-- **Features, Analyze**: a stack of mini-cards. Add, remove,
-  reorder (↑ / ↓ buttons), and edit each entry independently.
-- **Preparation**: a checkbox toggles between the default single
-  preparer and a pipeline of preparation steps (same stack UX as
-  Features).
-- **Reporting**: checkbox group for output formats + an output
-  directory input.
-
-**Pipeline preview** (below the strip): a read-only ReactFlow
-graph of the seven stages, coloured by fill status (cyan = filled,
-grey = empty, red = validation error). Clicking a node scrolls
-the matching card into view.
-
-**Right column**: a Monaco YAML editor that mirrors the form. The
-form is the source of truth; raw edits in YAML are applied after
-800 ms of pause. Validate, Copy YAML, and Reset live in the top
-action bar.
-
-The composer reads and writes
-`$FMRIFLOW_HOME/configs/analysis/*.yaml`. See the
-[Working Directory](working-dir.md) guide for the surrounding
-layout.
-
-#### Group scope
-
-Author a cross-subject group config. Form sections:
-
-- **Top fields**: `group` name, `subjects` (comma-separated list),
-  `output_dir`.
-- **Subject template**: the same seven stage cards the Subject
-  composer renders, scoped to `subject_template.*`. Edits here flow
-  into the YAML editor's `subject_template:` block; every subject
-  in the group inherits this pipeline unless overridden.
-- **Subject overrides**: a list of per-subject sparse override
-  dicts. Pick a subject from the dropdown (only subjects defined
-  above are offered), click **+ Add override**, and edit the
-  partial dict in its own mini Monaco editor (~160 px tall).
-  Overrides are deep-merged on top of the template at run time —
-  set just the key you want to deviate (e.g.
-  `model: {params: {alpha: 0.5}}`).
-- **Group analyze** / **Group report**: stacks of
-  `group_analyzer` / `group_reporter` plugin picks, same UX as the
-  Subject composer's analyze stage.
-
-The right pane's Monaco YAML editor stays the source of truth for
-anything the form doesn't surface; form edits sync into it on a
-500 ms debounce, and raw YAML edits apply back after 800 ms.
-
-#### Study scope
-
-Author a cross-group study config:
-
-- **Top fields**: `study` name, `output_dir`.
-- **Groups**: a list of `(name, config)` pairs pointing at saved
-  group YAMLs. The config-path picker has a datalist sourced from
-  the dashboard's saved-config index so you pick by filename.
-- **Study analyze** / **Study report**: stacks of
-  `study_analyzer` / `study_reporter` plugin picks.
-- Right pane: Monaco YAML editor.
-
-`/api/config/validate` sniffs the YAML shape (`subject` vs
-`group:` + `subjects:` vs `study:` + `groups:`) and dispatches to
-the right schema validator, so the Validate button works from any
-scope tab without an extra round-trip.
+The form-based Composer for subject, group and study configs is replaced by the [Builder](#builder). Stage
+configs still run as before. To edit one, open it in the Builder with **Open a stage config…** (it becomes a
+graph you can save), or edit its YAML.
 
 ### Run Manager
 
@@ -312,7 +231,7 @@ Write, validate, and register custom modules directly in the browser.
 
 **Status panel**: validation results, save/delete buttons, success/error messages.
 
-**Workflow**: pick a template (or start blank) → write code → auto-validates → name and save → module is immediately available in the Composer and Module Browser.
+**Workflow**: pick a template (or start blank) → write code → auto-validates → name and save → module is immediately available in the Builder and Module Browser.
 
 Saved modules go to `$FMRIFLOW_HOME/addons/modules/` and are auto-loaded on server startup.
 

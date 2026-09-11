@@ -125,9 +125,9 @@ async def validate_graph(request: Request, body: GraphBody):
 
 @router.post("/analysis/graphs/compile")
 async def compile_config(request: Request, body: CompileBody):
-    """Compile a stage-section subject config into the equivalent graph."""
-    from fmriflow.analysis.compile_legacy import compile_subject_config
-    from fmriflow.config.loader import load_config
+    """Compile a stage-section config (subject, group or study) into the equivalent graph."""
+    from fmriflow.analysis.compile_legacy import compile_group_config, compile_study_config, compile_subject_config
+    from fmriflow.config.loader import load_config, load_group_config, load_study_config
 
     if body.filename:
         path = request.app.state.config_store._resolve_path(body.filename)
@@ -141,8 +141,9 @@ async def compile_config(request: Request, body: CompileBody):
         raise HTTPException(400, detail="give either 'filename' or 'config'")
     if isinstance(raw, dict) and ("nodes" in AnalysisGraph.unwrap(raw)):
         raise HTTPException(400, detail="this is already a graph")
-    if isinstance(raw, dict) and (isinstance(raw.get("study"), str) or isinstance(raw.get("group"), str)):
-        raise HTTPException(400, detail="only subject configs compile to graphs so far")
+    is_study = isinstance(raw, dict) and isinstance(raw.get("study"), str) and isinstance(raw.get("groups"), list)
+    is_group = (not is_study and isinstance(raw, dict) and isinstance(raw.get("group"), str)
+                and isinstance(raw.get("subjects"), list))
 
     tmp_path = None
     try:
@@ -150,8 +151,13 @@ async def compile_config(request: Request, body: CompileBody):
             with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as tmp:
                 yaml.safe_dump(raw, tmp, sort_keys=False)
                 tmp_path = tmp.name
-        config = load_config(path or tmp_path)
-        graph = compile_subject_config(config, name=name)
+        if is_study:
+            graph = compile_study_config(load_study_config(path or tmp_path), name=name)
+        elif is_group:
+            graph = compile_group_config(load_group_config(path or tmp_path), name=name,
+                                         registry=_registry(request))
+        else:
+            graph = compile_subject_config(load_config(path or tmp_path), name=name)
     except Exception as e:
         raise HTTPException(400, detail=_errors(e))
     finally:

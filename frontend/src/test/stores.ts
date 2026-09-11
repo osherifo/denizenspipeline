@@ -2,7 +2,6 @@ import { useModuleStore } from '../stores/module-store'
 import { useEditorStore } from '../stores/editor-store'
 import { useRunStore } from '../stores/run-store'
 import { useDashboardStore } from '../stores/dashboard-store'
-import { useConfigStore } from '../stores/config-store'
 import { usePreprocStore } from '../stores/preproc-store'
 import { useAutoflattenStore } from '../stores/autoflatten-store'
 import { useConvertStore } from '../stores/convert-store'
@@ -20,7 +19,6 @@ const allStores: StoreApi[] = [
   useEditorStore as unknown as StoreApi,
   useRunStore as unknown as StoreApi,
   useDashboardStore as unknown as StoreApi,
-  useConfigStore as unknown as StoreApi,
   usePreprocStore as unknown as StoreApi,
   useAutoflattenStore as unknown as StoreApi,
   useConvertStore as unknown as StoreApi,

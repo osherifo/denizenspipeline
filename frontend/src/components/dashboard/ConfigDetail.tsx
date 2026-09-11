@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Editor from '@monaco-editor/react'
-import type { ConfigDetail as ConfigDetailType } from '../../api/types'
+import type { AnalysisGraphDoc, ConfigDetail as ConfigDetailType } from '../../api/types'
+import { useAnalysisGraphStore } from '../../stores/analysis-graph-store'
 import { saveConfigFile, copyConfigFile } from '../../api/client'
 import { useDialog } from '../common/Dialog'
 import { AnalysisGraphModal } from '../workflow/AnalysisGraphModal'
@@ -149,7 +150,28 @@ export function ConfigDetail({
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
   const [graphOpen, setGraphOpen] = useState(false)
+  const [opening, setOpening] = useState(false)
   const dlg = useDialog()
+
+  // A graph config opens as it is; a stage config (subject, group or study) is compiled into its graph.
+  async function openInBuilder() {
+    const raw = (config.config ?? {}) as { nodes?: unknown; graph?: { nodes?: unknown } }
+    const doc = Array.isArray(raw.nodes) ? raw : raw.graph && Array.isArray(raw.graph.nodes) ? raw.graph : null
+    const store = useAnalysisGraphStore.getState()
+    if (doc) {
+      store.openGraph(doc as unknown as AnalysisGraphDoc, config.filename.replace(/\.ya?ml$/, ''))
+      window.location.hash = '#builder'
+      return
+    }
+    setOpening(true)
+    const ok = await store.openStageConfig({ filename: config.filename })
+    setOpening(false)
+    if (ok) {
+      window.location.hash = '#builder'
+    } else {
+      await dlg.alert(`Could not open ${config.filename} in the builder: ${useAnalysisGraphStore.getState().error ?? 'unknown error'}`)
+    }
+  }
 
   // Reset the draft whenever a different config is selected or reloaded.
   useEffect(() => {
@@ -411,6 +433,10 @@ export function ConfigDetail({
         </button>
         <button style={btnStyle('secondary')} onClick={() => setGraphOpen(true)}>
           View graph
+        </button>
+        <button style={btnStyle('secondary')} onClick={() => void openInBuilder()} disabled={opening || editing}
+          title="Edit this config as an analysis graph">
+          {opening ? 'Opening…' : 'Open in Builder'}
         </button>
         {showYaml && !editing && (
           <button style={btnStyle('default')} onClick={() => setEditing(true)}>

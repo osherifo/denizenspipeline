@@ -19,7 +19,7 @@ describe('<NavBar />', () => {
   it('auto-expands the group containing the current route', () => {
     renderWithProviders(<NavBar currentRoute="dashboard" />)
     expect(screen.getByText('Modules')).toBeInTheDocument()
-    expect(screen.getByText('Composer')).toBeInTheDocument()
+    expect(screen.getByText('Builder')).toBeInTheDocument()
   })
 
   it('clicking a group toggles its visibility', async () => {

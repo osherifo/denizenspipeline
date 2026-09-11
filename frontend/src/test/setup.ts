@@ -43,7 +43,7 @@ if (typeof window !== 'undefined') {
 
 // ReactFlow uses ResizeObserver + DOMMatrix + getBoundingClientRect
 // dimensions that JSDOM doesn't implement. Provide minimal shims so
-// any component embedding @xyflow/react (e.g. AnalysisComposer's
+// any component embedding @xyflow/react (e.g. AnalysisBuilder's
 // ghost graph) doesn't blow up the test runner.
 if (typeof globalThis.ResizeObserver === 'undefined') {
   class ResizeObserverStub {

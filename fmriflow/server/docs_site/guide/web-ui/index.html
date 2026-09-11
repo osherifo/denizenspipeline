@@ -1010,52 +1010,13 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#composer" class="md-nav__link">
+  <a href="#composer-retired" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Composer
+        Composer (retired)
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Composer">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#subject-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Subject scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#group-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Group scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#study-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Study scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -1669,52 +1630,13 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#composer" class="md-nav__link">
+  <a href="#composer-retired" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Composer
+        Composer (retired)
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Composer">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#subject-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Subject scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#group-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Group scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#study-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Study scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -1970,7 +1892,7 @@
 <ul>
 <li>Summary: experiment name, subject, model type, preprocessing settings</li>
 <li>Expandable raw YAML viewer</li>
-<li>Action buttons: <strong>Run</strong>, <strong>Validate</strong>, <strong>Edit in Composer</strong></li>
+<li>Action buttons: <strong>Run</strong>, <strong>Validate</strong>, <strong>Edit YAML</strong>, <strong>Open in Builder</strong> (opens a graph config, or compiles a subject stage config into a graph)</li>
 <li>Validation errors shown inline</li>
 </ul>
 <p><strong>Live progress</strong> (appears during a run):</p>
@@ -2035,8 +1957,7 @@ moment you click <strong>Back</strong>.</p>
 the file format.</p>
 <ul>
 <li><strong>Templates and saved graphs</strong> are listed on the left. Opening a template gives an unsaved copy.
-  <strong>Open a stage config…</strong> compiles a saved stage config into the equivalent graph, and the Composer's
-  <strong>Open in builder</strong> button does the same for the config being edited.</li>
+  <strong>Open a stage config…</strong> compiles a saved stage config into the equivalent graph.</li>
 <li><strong>The palette</strong> lists every node type by category. Click one to add it, then drag from an output port to
   an input port. Port handles are coloured by type. A drag between incompatible types, or one that would
   make a cycle, is refused. Backspace deletes the selected nodes or edges.</li>
@@ -2055,81 +1976,10 @@ the file format.</p>
   values for every subject and per subject. <strong>Open subject graph</strong> opens the body for editing, and <strong>Back</strong>
   returns to the group graph. During a group run the panel shows each subject's status.</li>
 </ul>
-<h3 id="composer">Composer<a class="headerlink" href="#composer" title="Permanent link">&para;</a></h3>
-<p>Build encoding-model pipelines. A <strong>scope tab bar</strong> at the top
-switches between <strong>Subject</strong>, <strong>Group</strong>, and <strong>Study</strong> composers —
-each tab has its own form, its own YAML editor, and its own
-state, so switching between them never loses unsaved edits in
-another scope.</p>
-<h4 id="subject-scope">Subject scope<a class="headerlink" href="#subject-scope" title="Permanent link">&para;</a></h4>
-<p>A vertical strip of seven collapsible <strong>stage cards</strong> (stimuli,
-responses, features, prepare, model, analyze, report). Each card
-holds the modules plugged into that stage plus their parameters.</p>
-<p><strong>Stage cards</strong> (left column):</p>
-<ul>
-<li>The card header shows the stage number, name, fill status (badge
-  colour), and a one-line summary. Click to expand/collapse.</li>
-<li><strong>Stimuli, Responses, Model</strong>: pick a single module from a
-  dropdown, then fill its <code>ParamForm</code>. Response loaders that need
-  a separate reader (e.g. <code>local</code>) reveal a second slot inline.</li>
-<li><strong>Features, Analyze</strong>: a stack of mini-cards. Add, remove,
-  reorder (↑ / ↓ buttons), and edit each entry independently.</li>
-<li><strong>Preparation</strong>: a checkbox toggles between the default single
-  preparer and a pipeline of preparation steps (same stack UX as
-  Features).</li>
-<li><strong>Reporting</strong>: checkbox group for output formats + an output
-  directory input.</li>
-</ul>
-<p><strong>Pipeline preview</strong> (below the strip): a read-only ReactFlow
-graph of the seven stages, coloured by fill status (cyan = filled,
-grey = empty, red = validation error). Clicking a node scrolls
-the matching card into view.</p>
-<p><strong>Right column</strong>: a Monaco YAML editor that mirrors the form. The
-form is the source of truth; raw edits in YAML are applied after
-800 ms of pause. Validate, Copy YAML, and Reset live in the top
-action bar.</p>
-<p>The composer reads and writes
-<code>$FMRIFLOW_HOME/configs/analysis/*.yaml</code>. See the
-<a href="../working-dir/">Working Directory</a> guide for the surrounding
-layout.</p>
-<h4 id="group-scope">Group scope<a class="headerlink" href="#group-scope" title="Permanent link">&para;</a></h4>
-<p>Author a cross-subject group config. Form sections:</p>
-<ul>
-<li><strong>Top fields</strong>: <code>group</code> name, <code>subjects</code> (comma-separated list),
-  <code>output_dir</code>.</li>
-<li><strong>Subject template</strong>: the same seven stage cards the Subject
-  composer renders, scoped to <code>subject_template.*</code>. Edits here flow
-  into the YAML editor's <code>subject_template:</code> block; every subject
-  in the group inherits this pipeline unless overridden.</li>
-<li><strong>Subject overrides</strong>: a list of per-subject sparse override
-  dicts. Pick a subject from the dropdown (only subjects defined
-  above are offered), click <strong>+ Add override</strong>, and edit the
-  partial dict in its own mini Monaco editor (~160 px tall).
-  Overrides are deep-merged on top of the template at run time —
-  set just the key you want to deviate (e.g.
-  <code>model: {params: {alpha: 0.5}}</code>).</li>
-<li><strong>Group analyze</strong> / <strong>Group report</strong>: stacks of
-  <code>group_analyzer</code> / <code>group_reporter</code> plugin picks, same UX as the
-  Subject composer's analyze stage.</li>
-</ul>
-<p>The right pane's Monaco YAML editor stays the source of truth for
-anything the form doesn't surface; form edits sync into it on a
-500 ms debounce, and raw YAML edits apply back after 800 ms.</p>
-<h4 id="study-scope">Study scope<a class="headerlink" href="#study-scope" title="Permanent link">&para;</a></h4>
-<p>Author a cross-group study config:</p>
-<ul>
-<li><strong>Top fields</strong>: <code>study</code> name, <code>output_dir</code>.</li>
-<li><strong>Groups</strong>: a list of <code>(name, config)</code> pairs pointing at saved
-  group YAMLs. The config-path picker has a datalist sourced from
-  the dashboard's saved-config index so you pick by filename.</li>
-<li><strong>Study analyze</strong> / <strong>Study report</strong>: stacks of
-  <code>study_analyzer</code> / <code>study_reporter</code> plugin picks.</li>
-<li>Right pane: Monaco YAML editor.</li>
-</ul>
-<p><code>/api/config/validate</code> sniffs the YAML shape (<code>subject</code> vs
-<code>group:</code> + <code>subjects:</code> vs <code>study:</code> + <code>groups:</code>) and dispatches to
-the right schema validator, so the Validate button works from any
-scope tab without an extra round-trip.</p>
+<h3 id="composer-retired">Composer (retired)<a class="headerlink" href="#composer-retired" title="Permanent link">&para;</a></h3>
+<p>The form-based Composer for subject, group and study configs is replaced by the <a href="#builder">Builder</a>. Stage
+configs still run as before. To edit one, open it in the Builder with <strong>Open a stage config…</strong> (it becomes a
+graph you can save), or edit its YAML.</p>
 <h3 id="run-manager">Run Manager<a class="headerlink" href="#run-manager" title="Permanent link">&para;</a></h3>
 <p>Browse historical pipeline executions. There are three sibling views
 in the sidebar — <strong>Subject Runs</strong>, <strong>Group Runs</strong>, <strong>Study Runs</strong> —
@@ -2177,7 +2027,7 @@ model just to tweak a plot.</p>
 <p><strong>Sidebar</strong>: list of user-created modules, template categories (feature extractor, preparation step, reporter, analyzer, stimulus loader, response loader), new module button.</p>
 <p><strong>Code editor</strong>: full Python editing with syntax highlighting. Live validation runs as you type (~1 second debounce), checking syntax, method signatures, and protocol compliance.</p>
 <p><strong>Status panel</strong>: validation results, save/delete buttons, success/error messages.</p>
-<p><strong>Workflow</strong>: pick a template (or start blank) → write code → auto-validates → name and save → module is immediately available in the Composer and Module Browser.</p>
+<p><strong>Workflow</strong>: pick a template (or start blank) → write code → auto-validates → name and save → module is immediately available in the Builder and Module Browser.</p>
 <p>Saved modules go to <code>$FMRIFLOW_HOME/addons/modules/</code> and are auto-loaded on server startup.</p>
 <hr />
 <h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>

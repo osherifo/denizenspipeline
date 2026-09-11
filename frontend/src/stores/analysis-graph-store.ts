@@ -160,6 +160,8 @@ interface AnalysisGraphState {
   loadTemplate: (name: string) => Promise<void>
   loadGraph: (name: string) => Promise<void>
   newGraph: (scope?: GraphScope) => void
+  /** Open a graph document (e.g. a graph config from the dashboard) under ``name``, with its saved run values. */
+  openGraph: (graph: AnalysisGraphDoc, name: string | null) => void
   /** Open a fan-out node's subject graph (a saved graph or template name) on top of the current graph. */
   openBody: (ref: string) => Promise<void>
   /** Return to the graph the open subject graph was opened from. */
@@ -256,6 +258,8 @@ export const useAnalysisGraphStore = create<AnalysisGraphState>((set, get) => ({
   },
 
   newGraph: (scope = 'subject') => set({ ...opened(emptyGraph(scope)), graphName: null, dirty: false }),
+
+  openGraph: (graph, name) => set({ ...opened(graph, graph.run_defaults?.inputs), graphName: name, dirty: false }),
 
   openBody: async (ref) => {
     try {

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { NavBar } from './components/layout/NavBar'
 import { ModuleBrowser } from './views/ModuleBrowser'
-import { AnalysisComposer } from './views/AnalysisComposer'
 import { AnalysisBuilder } from './views/AnalysisBuilder'
 import { RunManager } from './views/RunManager'
 import { ModuleEditor } from './views/ModuleEditor'
@@ -20,7 +19,7 @@ import { HubView } from './views/HubView'
 import { useModuleStore } from './stores/module-store'
 
 type Route =
-  | 'modules' | 'analysis' | 'builder' | 'runs' | 'editor' | 'dashboard'
+  | 'modules' | 'builder' | 'runs' | 'editor' | 'dashboard'
   | 'preproc' | 'convert' | 'autoflatten' | 'errors' | 'workflows'
   | 'qc-reviews' | 'settings' | 'group-runs' | 'study-runs' | 'hub'
 
@@ -30,9 +29,8 @@ export function getRoute(): Route {
   const hash = raw.split('/')[0]
   if (hash === 'modules') return 'modules'
   if (hash === 'builder') return 'builder'
-  // Legacy aliases — both `composer` and `graph` now point at the
-  // unified analysis composer.
-  if (hash === 'analysis' || hash === 'composer' || hash === 'graph') return 'analysis'
+  // The form composers were retired; their old links open the builder.
+  if (hash === 'analysis' || hash === 'composer' || hash === 'graph') return 'builder'
   if (hash === 'runs') return 'runs'
   if (hash === 'editor') return 'editor'
   if (hash === 'dashboard') return 'dashboard'
@@ -189,7 +187,6 @@ export function App() {
       <NavBar currentRoute={route} />
       <div style={contentStyle}>
         {route === 'modules' && <ModuleBrowser />}
-        {route === 'analysis' && <AnalysisComposer />}
         {route === 'builder' && <AnalysisBuilder />}
         {route === 'runs' && <RunManager />}
         {route === 'editor' && <ModuleEditor />}
