@@ -23,6 +23,7 @@ import numpy as np
 
 from fmriflow.core.types import ModelResult, ResponseData
 from fmriflow.modules._decorators import reporter
+from fmriflow.modules.reporters._quickflat import quickflat_png
 
 logger = logging.getLogger(__name__)
 
@@ -97,15 +98,7 @@ class AlgonautsFsaverageFlatmapReporter:
         )
         path = output_dir / opts.get('filename', 'prediction_accuracy_fsaverage_flatmap.png')
         kwargs = dict(with_curvature=opts.get('with_curvature', True), dpi=opts.get('dpi', 100))
-        try:
-            cortex.quickflat.make_png(str(path), vx, **kwargs)
-        except RuntimeError as e:
-            # pycortex's ROI/label overlays need inkscape; if it's absent, render
-            # the curvature + data layers without overlays rather than failing.
-            if 'inkscape' not in str(e).lower():
-                raise
-            logger.warning("inkscape not available — rendering flatmap without ROI overlays")
-            cortex.quickflat.make_png(str(path), vx, with_rois=False, with_labels=False, **kwargs)
+        quickflat_png(path, vx, **kwargs)
         return {self.name: str(path)}
 
     def validate_config(self, config: dict) -> list[str]:

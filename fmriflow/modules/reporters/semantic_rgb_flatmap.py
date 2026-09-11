@@ -26,6 +26,7 @@ import numpy as np
 from fmriflow.core.mask_utils import has_real_mask, unmask_scores
 from fmriflow.core.types import ModelResult, ResponseData
 from fmriflow.modules._decorators import reporter
+from fmriflow.modules.reporters._quickflat import quickflat_png
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ class SemanticRgbFlatmapReporter:
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / opts.get("filename", "semantic_rgb_flatmap.png")
         try:
-            cortex.quickflat.make_png(
+            quickflat_png(
                 str(path), volRGB,
                 with_curvature=opts.get("with_curvature", True),
                 dpi=opts.get("dpi", 100),

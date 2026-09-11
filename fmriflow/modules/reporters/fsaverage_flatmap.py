@@ -21,6 +21,7 @@ import numpy as np
 
 from fmriflow.core.types import ModelResult
 from fmriflow.modules._decorators import reporter
+from fmriflow.modules.reporters._quickflat import quickflat_png
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def _render_fsaverage_png(*, data: np.ndarray, output_dir: Path, filename: str,
 
     path = output_dir / filename
     try:
-        cortex.quickflat.make_png(
+        quickflat_png(
             str(path), vert,
             with_curvature=with_curvature,
             dpi=dpi,

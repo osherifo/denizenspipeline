@@ -10,6 +10,7 @@ import numpy as np
 from fmriflow.core.mask_utils import has_real_mask, unmask_scores
 from fmriflow.core.types import ModelResult, ResponseData
 from fmriflow.modules._decorators import reporter
+from fmriflow.modules.reporters._quickflat import quickflat_png
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class FlatmapReporter:
             raise
 
         path = output_dir / 'prediction_accuracy_flatmap.png'
-        cortex.quickflat.make_png(
+        quickflat_png(
             str(path), vol,
             with_curvature=with_curvature,
             dpi=dpi,
