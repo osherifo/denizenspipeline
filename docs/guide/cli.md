@@ -61,6 +61,8 @@ fmriflow run-group group.yaml --resume --run-id 20260911T101500Z
 ```
 
 Each run writes to `<output_dir>/<run_id>/`, with a `latest` link to the newest run.
+`--engine legacy` runs a group or study on the stage orchestrators instead of the graph engine; see
+[Group Analysis](group-analysis.md#engines).
 Subject modules from your add-on directory load for these commands too.
 
 ## Modules

@@ -33,6 +33,9 @@ class ProjectToSubspaceAnalyzer:
     (e.g. RGB-from-PC1-2-3 for a semantic-PC flatmap).
     """
 
+    # Reads a value a group analyzer binds into subjects, so a minimal second pass re-runs it.
+    binding_consumer = True
+
     name = "project_to_subspace"
     PARAM_SCHEMA = {
         "binding": {

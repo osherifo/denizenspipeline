@@ -1764,7 +1764,9 @@ them with <code>format: graph</code>. Run views of a graph run are built from it
 listed in the <a href="../../reference/analysis-graph/">analysis graph reference</a>.</p>
 <h2 id="current-limits">Current limits<a class="headerlink" href="#current-limits" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Only <code>scope: subject</code> graphs run. Group and study analysis still use <a href="../group-analysis/">group and study configs</a>.</li>
+<li>Only <code>scope: subject</code> graph files run directly. Group and study configs run on the graph engine by
+  compiling to group and study graphs (see <a href="../group-analysis/#engines">Group Analysis</a>); group and study
+  graph files cannot be run on their own yet.</li>
 <li>A graph file always runs whole; there is no partial run or resume.</li>
 </ul>
 

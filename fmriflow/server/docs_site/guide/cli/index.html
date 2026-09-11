@@ -1475,6 +1475,8 @@ the executed graph. <code>--engine legacy</code> or <code>FMRIFLOW_ENGINE=legacy
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>fmriflow<span class="w"> </span>run-group<span class="w"> </span>group.yaml<span class="w"> </span>--resume<span class="w"> </span>--run-id<span class="w"> </span>20260911T101500Z
 </code></pre></div>
 <p>Each run writes to <code>&lt;output_dir&gt;/&lt;run_id&gt;/</code>, with a <code>latest</code> link to the newest run.
+<code>--engine legacy</code> runs a group or study on the stage orchestrators instead of the graph engine; see
+<a href="../group-analysis/#engines">Group Analysis</a>.
 Subject modules from your add-on directory load for these commands too.</p>
 <h2 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># List all modules (by category)</span>

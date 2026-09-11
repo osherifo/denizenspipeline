@@ -95,6 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     # ── run-group ──
     rg_parser = subparsers.add_parser(
         'run-group', help='Run a group-scope (cross-subject) pipeline')
+    rg_parser.add_argument(
+        '--engine', choices=['legacy', 'graph'], default=None,
+        help='Execution engine (default: $FMRIFLOW_ENGINE, else graph)',
+    )
     rg_parser.add_argument('config', help='Path to group YAML config')
     rg_parser.add_argument(
         '--resume', action='store_true',
@@ -113,6 +117,10 @@ def main(argv: list[str] | None = None) -> int:
     # ── run-study ──
     rs_parser = subparsers.add_parser(
         'run-study', help='Run a study-scope (cross-group) pipeline')
+    rs_parser.add_argument(
+        '--engine', choices=['legacy', 'graph'], default=None,
+        help='Execution engine (default: $FMRIFLOW_ENGINE, else graph)',
+    )
     rs_parser.add_argument('config', help='Path to study YAML config')
     rs_parser.add_argument(
         '--resume', action='store_true',
@@ -555,6 +563,7 @@ def _cmd_run_group(args) -> int:
     """Run a group-scope (cross-subject) pipeline."""
     from fmriflow.config.loader import load_group_config
     from fmriflow.group_orchestrator import GroupOrchestrator
+    from fmriflow.pipeline import resolve_engine
     from fmriflow.registry import ModuleRegistry
 
     try:
@@ -565,7 +574,16 @@ def _cmd_run_group(args) -> int:
 
     registry = _build_registry()
     run_id = _resume_run_id(args, GroupOrchestrator.resolve_resume_run_id, group_config)
-    orch = GroupOrchestrator(group_config, registry, run_id=run_id)
+    try:
+        engine = resolve_engine(getattr(args, 'engine', None))
+    except Exception as e:
+        ui.error_panel(str(e))
+        return 1
+    if engine == 'graph':
+        from fmriflow.analysis.scope_runners import GroupGraphRunner as runner_cls
+    else:
+        runner_cls = GroupOrchestrator
+    orch = runner_cls(group_config, registry, run_id=run_id)
 
     if args.dry_run:
         ui.console.print(
@@ -603,6 +621,7 @@ def _cmd_run_study(args) -> int:
     """Run a study-scope (cross-group) pipeline."""
     from fmriflow.config.loader import load_study_config
     from fmriflow.study_orchestrator import StudyOrchestrator
+    from fmriflow.pipeline import resolve_engine
     from fmriflow.registry import ModuleRegistry
 
     try:
@@ -613,8 +632,16 @@ def _cmd_run_study(args) -> int:
 
     registry = _build_registry()
     run_id = _resume_run_id(args, StudyOrchestrator.resolve_resume_run_id, study_config)
-    orch = StudyOrchestrator(study_config, registry, run_id=run_id,
-                             config_path=args.config)
+    try:
+        engine = resolve_engine(getattr(args, 'engine', None))
+    except Exception as e:
+        ui.error_panel(str(e))
+        return 1
+    if engine == 'graph':
+        from fmriflow.analysis.scope_runners import StudyGraphRunner as runner_cls
+    else:
+        runner_cls = StudyOrchestrator
+    orch = runner_cls(study_config, registry, run_id=run_id, config_path=args.config)
 
     if args.dry_run:
         labels = [str(e.get('name')) for e in study_config.get('groups', [])]

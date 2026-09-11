@@ -68,6 +68,11 @@ class AnalysisGraph(GraphSpec):
         errors: list[str] = []
         if self.scope not in SCOPES:
             errors.append(f"unknown scope {self.scope!r}; expected one of {', '.join(SCOPES)}")
+        from fmriflow.analysis.control import CONTROL_SCOPES
+        for n in self.nodes:
+            wanted = CONTROL_SCOPES.get(n.type)
+            if wanted and wanted != self.scope:
+                errors.append(f"node {n.id}: {n.type} belongs in a {wanted} graph, not a {self.scope} graph")
         if registry is None:
             return errors
         for n in self.nodes:

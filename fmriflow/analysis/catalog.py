@@ -86,6 +86,11 @@ class NodeCatalog:
             name = util.NODE_TYPE.split(":", 1)[1]
             native = NativeAdapter(category="utility", prefix="utility", stage=util.STAGE).bind(util)
             self._entries[util.NODE_TYPE] = _Entry(native, name, util, "utility")
+        from fmriflow.analysis.control import CONTROL_NODES
+        for ctl in CONTROL_NODES:
+            name = ctl.NODE_TYPE.split(":", 1)[1]
+            native = NativeAdapter(category="control", prefix="control", stage=ctl.STAGE).bind(ctl)
+            self._entries[ctl.NODE_TYPE] = _Entry(native, name, ctl, "control")
         return self
 
     def _add(self, type_id: str, adapter: Adapter, name: str, cls: type, category: str,

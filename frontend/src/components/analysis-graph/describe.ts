@@ -11,7 +11,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   stimulus_loader: '#f59e0b', response_loader: '#f97316', feature_extractor: '#10b981', feature_source: '#14b8a6',
   utility: '#9ca3af', preparer: '#3b82f6', model: '#8b5cf6', analyzer: '#ec4899', reporter: '#06b6d4',
   qa_reporter: '#64748b', group_analyzer: '#e11d48', group_reporter: '#0891b2', study_analyzer: '#be123c',
-  study_reporter: '#0e7490',
+  study_reporter: '#0e7490', control: '#eab308',
 }
 
 /** Short tag on the node card. */
@@ -19,6 +19,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   stimulus_loader: 'stimuli', response_loader: 'responses', feature_extractor: 'extract', feature_source: 'features',
   utility: 'utility', preparer: 'prepare', model: 'model', analyzer: 'analyze', reporter: 'report', qa_reporter: 'qa',
   group_analyzer: 'group', group_reporter: 'group report', study_analyzer: 'study', study_reporter: 'study report',
+  control: 'control',
 }
 
 /** Group heading in the palette. */
@@ -26,7 +27,7 @@ export const CATEGORY_GROUPS: Record<string, string> = {
   stimulus_loader: 'stimulus loaders', response_loader: 'response loaders', feature_extractor: 'feature extractors',
   feature_source: 'feature sources', utility: 'utilities', preparer: 'preparers', model: 'models', analyzer: 'analyzers',
   reporter: 'reporters', qa_reporter: 'QA reporters', group_analyzer: 'group analyzers', group_reporter: 'group reporters',
-  study_analyzer: 'study analyzers', study_reporter: 'study reporters',
+  study_analyzer: 'study analyzers', study_reporter: 'study reporters', control: 'fan-out',
 }
 
 export const PORT_TYPE_COLORS: Record<string, string> = {

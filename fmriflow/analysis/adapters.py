@@ -344,7 +344,7 @@ class QaReporterAdapter(Adapter):
         return {"artifacts": dict(artifacts)}
 
 
-# ── group and study scope (ports now; execution arrives with fan-out) ──
+# ── group and study scope ──
 
 
 class _ScopeAdapter(Adapter):
@@ -356,9 +356,6 @@ class _ScopeAdapter(Adapter):
         cfg[self.SECTION] = [{**section, "name": name, "params": p}]
         return cfg
 
-    def invoke(self, name, inputs, params, env, stage=None):
-        raise NotRunnableYet(
-            f"{self.prefix} nodes run inside group/study graphs, which this engine does not execute yet")
 
 
 class GroupAnalyzerAdapter(_ScopeAdapter):
@@ -376,6 +373,15 @@ class GroupAnalyzerAdapter(_ScopeAdapter):
                                 "description": "Values bound into each subject for a follow-up subject pass"}
         return ins, outs
 
+    def invoke(self, name, inputs, params, env, stage=None):
+        group = inputs["group"]
+        inst = self.instance(name, env)
+        inst.analyze(group, self.config_for(name, params, env))
+        out: dict[str, Any] = {"group": group}
+        if getattr(inst, "produces_subject_artifact", False):
+            out["bindings"] = ContextValue(inst.subject_bindings(group) or {})
+        return out
+
 
 class GroupReporterAdapter(_ScopeAdapter):
     category = "group_reporters"
@@ -385,17 +391,23 @@ class GroupReporterAdapter(_ScopeAdapter):
     INPUTS = {"group": {"type": "GroupRun", "required": True}}
     OUTPUTS = {"artifacts": {"type": "Artifacts"}}
 
+    def invoke(self, name, inputs, params, env, stage=None):
+        inst = self.instance(name, env)
+        return {"artifacts": dict(inst.report(inputs["group"], self.config_for(name, params, env)) or {})}
+
 
 class StudyAnalyzerAdapter(_ScopeAdapter):
     category = "study_analyzers"
     prefix = "study_analyzer"
     stage = "study_analyze"
     SECTION = "study_analyze"
-    INPUTS = {
-        "groups": {"type": "GroupRun", "multiple": True, "required": True},
-        "study": {"type": "StudyRun", "required": False},
-    }
+    INPUTS = {"study": {"type": "StudyRun", "required": True}}
     OUTPUTS = {"study": {"type": "StudyRun"}}
+
+    def invoke(self, name, inputs, params, env, stage=None):
+        study = inputs["study"]
+        self.instance(name, env).analyze(study, self.config_for(name, params, env))
+        return {"study": study}
 
 
 class StudyReporterAdapter(_ScopeAdapter):
@@ -405,6 +417,10 @@ class StudyReporterAdapter(_ScopeAdapter):
     SECTION = "study_report"
     INPUTS = {"study": {"type": "StudyRun", "required": True}}
     OUTPUTS = {"artifacts": {"type": "Artifacts"}}
+
+    def invoke(self, name, inputs, params, env, stage=None):
+        inst = self.instance(name, env)
+        return {"artifacts": dict(inst.report(inputs["study"], self.config_for(name, params, env)) or {})}
 
 
 # ── modules that declare their own ports ─────────────────────────────

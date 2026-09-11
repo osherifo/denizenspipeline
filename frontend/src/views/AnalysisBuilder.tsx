@@ -60,9 +60,9 @@ export function AnalysisBuilder() {
     return checkConnection(edges, c, portOf, lattice) === null
   }, [nodes, edges, catalog, lattice])
 
-  // Group and study node types need fan-out nodes, which subject graphs do not have yet.
+  // Group, study and fan-out node types belong in group and study graphs, not in this subject builder.
   const palette = useMemo<PaletteItem[]>(() => s.catalog
-    .filter((n) => !n.hidden && !/^(group|study)_/.test(categoryOf(n.type)))
+    .filter((n) => !n.hidden && !/^(group_|study_|control$)/.test(categoryOf(n.type)))
     .map((n) => {
       const category = categoryOf(n.type)
       return {

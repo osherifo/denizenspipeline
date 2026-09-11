@@ -97,6 +97,22 @@ def derive_subject_config(group_config: dict, subject: str,
     return merged
 
 
+def resolve_subject_list(group_config: dict) -> list[str]:
+    """The subject ids a group config runs; ``ConfigError`` when absent or malformed."""
+    if 'subjects' in group_config:
+        subs = group_config['subjects']
+        if not isinstance(subs, list):
+            raise ConfigError("'subjects' must be a list")
+        return list(subs)
+    if 'subjects_from' in group_config:
+        # Discovery rule — not implemented in Phase 1.
+        raise ConfigError(
+            "'subjects_from' discovery rule not implemented yet; "
+            "use an explicit 'subjects' list for now"
+        )
+    raise ConfigError("Group config missing 'subjects' list")
+
+
 class GroupOrchestrator:
     """Coordinate a group-scope run across many subjects.
 
@@ -291,18 +307,7 @@ class GroupOrchestrator:
         ]
 
     def _resolve_subject_list(self) -> list[str]:
-        if 'subjects' in self.config:
-            subs = self.config['subjects']
-            if not isinstance(subs, list):
-                raise ConfigError("'subjects' must be a list")
-            return list(subs)
-        if 'subjects_from' in self.config:
-            # Discovery rule — not implemented in Phase 1.
-            raise ConfigError(
-                "'subjects_from' discovery rule not implemented yet; "
-                "use an explicit 'subjects' list for now"
-            )
-        raise ConfigError("Group config missing 'subjects' list")
+        return resolve_subject_list(self.config)
 
     # ── subject fan-out ─────────────────────────────────────────
 

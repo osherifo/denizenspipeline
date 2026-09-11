@@ -184,5 +184,7 @@ listed in the [analysis graph reference](../reference/analysis-graph.md).
 
 ## Current limits
 
-- Only `scope: subject` graphs run. Group and study analysis still use [group and study configs](group-analysis.md).
+- Only `scope: subject` graph files run directly. Group and study configs run on the graph engine by
+  compiling to group and study graphs (see [Group Analysis](group-analysis.md#engines)); group and study
+  graph files cannot be run on their own yet.
 - A graph file always runs whole; there is no partial run or resume.

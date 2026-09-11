@@ -38,7 +38,7 @@ from fmriflow.analysis.adapters import NodeEnv
 from fmriflow.analysis.catalog import NodeCatalog
 from fmriflow.analysis.compile_legacy import compile_subject_config
 from fmriflow.analysis.graph import AnalysisGraph
-from fmriflow.analysis.values import merge_contexts
+from fmriflow.analysis.values import ContextValue, merge_contexts
 from fmriflow.context import PipelineContext
 from fmriflow.core.run_summary import NodeIdGen, NodeRecord, RunSummary, StageRecord
 from fmriflow.core.stages import GROUP_MODULE_STAGES, STUDY_MODULE_STAGES, SUBJECT_STAGES
@@ -406,6 +406,10 @@ class GraphExecutor:
 
         env = self._env(graph, node.id, **env_extra)
         isolate = adapter.error_policy == "isolate"
+        if category == "reporters":
+            # The report stage needs a model result before any reporter runs; without one the
+            # stage fails as a whole (as in the stage orchestrator), not reporter by reporter.
+            merge_contexts(inputs.get("context")).to_context(graph.globals).get("result")
         if category == "analyzers":
             stage.analyzers_run += 1
 
@@ -497,3 +501,40 @@ def run_subject_config(config: dict, registry: Any, *, write_graph: bool = False
     """Compile a resolved subject config and run it on the graph engine."""
     executor = executor or GraphExecutor(NodeCatalog(registry).discover())
     return executor.run(compile_subject_config(config), write_graph=write_graph)
+
+
+def run_subject_stages(config: dict, catalog: NodeCatalog, stages: list[str], context: PipelineContext, *,
+                       only_types: set[str] | None = None,
+                       executor: GraphExecutor | None = None) -> PipelineContext:
+    """Run some stages of a subject config on the graph engine, continuing ``context``.
+
+    Used by a group's subject second pass. The compiled graph is cut down to the
+    nodes of ``stages`` (and, with ``only_types``, to those node types), the
+    context collector is seeded with ``context``, and what the run produces
+    (context keys, artifacts, the run summary) is written back onto ``context``.
+    """
+    graph = compile_subject_config(config)
+    keep = {n.id for n in graph.nodes
+            if catalog.stage(n.type) in stages
+            and (only_types is None or n.type in only_types or n.type == "utility:collect_context")}
+    graph.nodes = [n for n in graph.nodes if n.id in keep]
+    graph.edges = [e for e in graph.edges if e.source in keep and e.target in keep]
+    graph.stages = [s for s in graph.stages if s in stages]
+    seed = ContextValue.from_context(context)
+    for node in graph.nodes:
+        if node.type == "utility:collect_context":
+            node.literal_inputs = {**node.literal_inputs, "seed": seed}
+    executor = executor or GraphExecutor(catalog)
+    try:
+        executor.run(graph)
+    finally:
+        partial = executor.last_context
+        if partial is not None:
+            for key, value in partial._store.items():
+                if not context.has(key) or context._store[key] is not value:
+                    context.put(key, value)
+            context._artifacts.update(partial._artifacts)
+            if getattr(partial, "run_summary", None) is not None:
+                context.run_summary = partial.run_summary
+    return context
+

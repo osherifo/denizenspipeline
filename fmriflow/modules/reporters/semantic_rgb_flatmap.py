@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 class SemanticRgbFlatmapReporter:
     """Render PC1/2/3 of an ``analysis.semantic_pc_projection`` as RGB flatmap."""
 
+    # Draws the projection made from a group binding, so a minimal second pass re-runs it.
+    binding_consumer = True
+
     name = "semantic_rgb_flatmap"
     PARAM_SCHEMA = {
         "input_key": {

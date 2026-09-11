@@ -192,11 +192,49 @@ def test_qa_reporter_writes_under_the_qa_directory(cat, tmp_path, mock_model_res
     assert out["artifacts"]["plot"] == str(tmp_path / "qa" / "model" / "zz_qa" / "plot.txt")
 
 
-def test_group_nodes_are_not_runnable_yet(tmp_path):
-    cat = NodeCatalog().discover()
-    env = NodeEnv(node_id="g", globals={}, registry=cat.registry, output_dir=str(tmp_path))
-    with pytest.raises(NotRunnableYet):
-        cat.invoke("group_analyzer:voxelwise_mean", {"group": None}, {}, env)
+class _AdapterGroupModule:
+    name = "zz_adapter_group"
+    produces_subject_artifact = True
+
+    def analyze(self, group, config):
+        group.put("seen", config["group_analyze"])
+
+    def subject_bindings(self, group):
+        return {"k": 1}
+
+
+class _AdapterStudyModule:
+    name = "zz_adapter_study"
+
+    def analyze(self, study, config):
+        study.put("n_groups", len(study.groups))
+
+
+def test_group_and_study_nodes_run_with_their_own_params(tmp_path):
+    from fmriflow.core.group_types import GroupResult
+    from fmriflow.core.study_types import StudyResult
+
+    deco._group_analyzers["zz_adapter_group"] = _AdapterGroupModule
+    deco._study_analyzers["zz_adapter_study"] = _AdapterStudyModule
+    try:
+        cat = NodeCatalog().discover()
+        env = NodeEnv(node_id="g", globals={"group_analyze": [{"name": "someone_else"}]},
+                      registry=cat.registry, output_dir=str(tmp_path))
+        group = GroupResult(group_name="g")
+        out = cat.invoke("group_analyzer:zz_adapter_group", {"group": group}, {"alpha": 2}, env)
+        assert out["group"] is group
+        assert group.get("seen") == [{"name": "zz_adapter_group", "params": {"alpha": 2}}]
+        assert dict(out["bindings"]) == {"k": 1}
+
+        assert list(cat.ports("study_analyzer:zz_adapter_study")[0]) == ["study"]
+        study = StudyResult(study_name="s", groups=[group])
+        assert cat.invoke("study_analyzer:zz_adapter_study", {"study": study}, {}, env)["study"].get("n_groups") == 1
+
+        with pytest.raises(NotRunnableYet):
+            cat.invoke("control:map_subjects", {}, {}, env)
+    finally:
+        deco._group_analyzers.pop("zz_adapter_group", None)
+        deco._study_analyzers.pop("zz_adapter_study", None)
 
 
 class _NativeScale:

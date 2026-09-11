@@ -336,120 +336,14 @@ class StudyOrchestrator:
     # ── study_collect ───────────────────────────────────────────
 
     def _collect_groups(self) -> list[tuple[str, dict]]:
-        """Resolve each ``groups:`` entry into ``(label, group_config)``.
-
-        Validates:
-          - ``groups:`` is a non-empty list of dicts.
-          - Every entry has a ``name:`` (study-scope label).
-          - Labels are unique within the study.
-          - Every entry has a ``config:`` path (inline group bodies
-            are deferred to v2).
-          - The referenced group YAML loads and has a top-level
-            ``group:`` field.
-        """
-        entries = self.config.get('groups')
-        if not isinstance(entries, list) or not entries:
-            raise ConfigError("Study config requires a non-empty 'groups' list")
-
-        seen: set[str] = set()
-        out: list[tuple[str, dict]] = []
-        errors: list[str] = []
-        for i, entry in enumerate(entries):
-            if not isinstance(entry, dict):
-                errors.append(f"groups[{i}]: entry must be a dict")
-                continue
-            label = entry.get('name')
-            if not isinstance(label, str) or not label:
-                errors.append(f"groups[{i}]: missing or empty 'name'")
-                continue
-            if label in seen:
-                errors.append(
-                    f"groups[{i}]: duplicate label '{label}' "
-                    "(each study-scope group name must be unique)"
-                )
-                continue
-            seen.add(label)
-
-            cfg_path = entry.get('config')
-            if not isinstance(cfg_path, str) or not cfg_path:
-                errors.append(
-                    f"groups[{i}] ({label}): missing 'config:' "
-                    "(inline group bodies are not supported in v1)"
-                )
-                continue
-            p = self._find_group_config(cfg_path)
-            if p is None:
-                tried = ", ".join(str(c) for c in self._group_config_candidates(cfg_path))
-                errors.append(
-                    f"groups[{i}] ({label}): config file not found "
-                    f"at {cfg_path} (searched: {tried})"
-                )
-                continue
-            try:
-                with open(p) as f:
-                    group_cfg = yaml.safe_load(f) or {}
-                # Stash where this group YAML actually lives so
-                # downstream code (e.g. group_orchestrator.derive_subject_config)
-                # could resolve nested paths if it wants to.
-                group_cfg.setdefault('_source_path', str(p.resolve()))
-            except Exception as exc:
-                errors.append(
-                    f"groups[{i}] ({label}): failed to load YAML: {exc}"
-                )
-                continue
-            if not isinstance(group_cfg.get('group'), str):
-                errors.append(
-                    f"groups[{i}] ({label}): referenced YAML lacks top-level "
-                    "'group:' — is it actually a group config?"
-                )
-                continue
-            out.append((label, group_cfg))
-
-        if errors:
-            raise ConfigError(errors)
-        return out
+        """Resolve each ``groups:`` entry into ``(label, group_config)``; see :func:`collect_study_groups`."""
+        return collect_study_groups(self.config.get('groups'), self.config_path)
 
     def _group_config_candidates(self, cfg_path: str) -> list[Path]:
-        """Where to look for ``groups[i].config`` paths.
-
-        An absolute path is taken at face value. A relative path is tried,
-        in order, against:
-          1. the cwd (literal interpretation),
-          2. the study YAML's own directory (the natural place for a
-             study to refer to its siblings),
-          3. the analysis config root and its ``group/`` subdir
-             (where ConfigStore writes duplicates and where users
-             typically keep their canonical group YAMLs),
-          4. the legacy ``./experiments/`` + ``./experiments/group/``
-             tree that the scan-fallback still indexes.
-        """
-        from fmriflow.core import paths
-
-        p = Path(cfg_path)
-        if p.is_absolute():
-            return [p]
-        candidates: list[Path] = [p]
-        if self.config_path is not None:
-            candidates.append(self.config_path.parent / cfg_path)
-        try:
-            analysis_root = Path(paths.config_dir('analysis'))
-            candidates.append(analysis_root / 'group' / cfg_path)
-            candidates.append(analysis_root / cfg_path)
-            candidates.append(analysis_root / 'study' / cfg_path)
-        except Exception:
-            # ``paths.config_dir`` may raise in test environments without
-            # FMRIFLOW_HOME — fall back to the legacy tree only.
-            pass
-        candidates.append(Path('./experiments/group') / cfg_path)
-        candidates.append(Path('./experiments') / cfg_path)
-        return candidates
+        return group_config_candidates(cfg_path, self.config_path)
 
     def _find_group_config(self, cfg_path: str) -> Path | None:
-        """First existing file from :meth:`_group_config_candidates`."""
-        for cand in self._group_config_candidates(cfg_path):
-            if cand.is_file():
-                return cand
-        return None
+        return find_group_config(cfg_path, self.config_path)
 
     # ── groups_fanout ───────────────────────────────────────────
 
@@ -485,7 +379,7 @@ class StudyOrchestrator:
             try:
                 with fui.event_context(study=self.study_name, group_label=label):
                     sub_run_id = f"{self.run_id}__{label}"
-                    orch = GroupOrchestrator(scfg, self.registry, run_id=sub_run_id)
+                    orch = self._make_group_runner(scfg, sub_run_id)
                     gr = orch.run(resume=resume)
             except Exception:
                 logger.error("Group '%s' failed inside study",
@@ -514,6 +408,10 @@ class StudyOrchestrator:
                 results[idx] = fut.result()
 
         return [r for r in results if r is not None]
+
+    def _make_group_runner(self, group_config: dict, run_id: str):
+        """The runner for one group of the study (looked up at call time so tests can swap it)."""
+        return GroupOrchestrator(group_config, self.registry, run_id=run_id)
 
     # ── study_analyze ───────────────────────────────────────────
 
@@ -683,3 +581,121 @@ class StudyOrchestrator:
                 'error': str(e),
             })
             raise
+
+
+# ─── group collection ──────────────────────────────────────────
+
+def collect_study_groups(entries, config_path: Path | None = None) -> list[tuple[str, dict]]:
+    """Resolve a study's ``groups:`` entries into ``(label, group_config)``.
+
+    Validates:
+      - ``groups:`` is a non-empty list of dicts.
+      - Every entry has a ``name:`` (study-scope label).
+      - Labels are unique within the study.
+      - Every entry has a ``config:`` path (inline group bodies
+        are deferred to v2).
+      - The referenced group YAML loads and has a top-level
+        ``group:`` field.
+    """
+    if not isinstance(entries, list) or not entries:
+        raise ConfigError("Study config requires a non-empty 'groups' list")
+
+    seen: set[str] = set()
+    out: list[tuple[str, dict]] = []
+    errors: list[str] = []
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            errors.append(f"groups[{i}]: entry must be a dict")
+            continue
+        label = entry.get('name')
+        if not isinstance(label, str) or not label:
+            errors.append(f"groups[{i}]: missing or empty 'name'")
+            continue
+        if label in seen:
+            errors.append(
+                f"groups[{i}]: duplicate label '{label}' "
+                "(each study-scope group name must be unique)"
+            )
+            continue
+        seen.add(label)
+
+        cfg_path = entry.get('config')
+        if not isinstance(cfg_path, str) or not cfg_path:
+            errors.append(
+                f"groups[{i}] ({label}): missing 'config:' "
+                "(inline group bodies are not supported in v1)"
+            )
+            continue
+        p = find_group_config(cfg_path, config_path)
+        if p is None:
+            tried = ", ".join(str(c) for c in group_config_candidates(cfg_path, config_path))
+            errors.append(
+                f"groups[{i}] ({label}): config file not found "
+                f"at {cfg_path} (searched: {tried})"
+            )
+            continue
+        try:
+            with open(p) as f:
+                group_cfg = yaml.safe_load(f) or {}
+            # Stash where this group YAML actually lives so
+            # downstream code (e.g. group_orchestrator.derive_subject_config)
+            # could resolve nested paths if it wants to.
+            group_cfg.setdefault('_source_path', str(p.resolve()))
+        except Exception as exc:
+            errors.append(
+                f"groups[{i}] ({label}): failed to load YAML: {exc}"
+            )
+            continue
+        if not isinstance(group_cfg.get('group'), str):
+            errors.append(
+                f"groups[{i}] ({label}): referenced YAML lacks top-level "
+                "'group:' — is it actually a group config?"
+            )
+            continue
+        out.append((label, group_cfg))
+
+    if errors:
+        raise ConfigError(errors)
+    return out
+
+
+def group_config_candidates(cfg_path: str, config_path: Path | None = None) -> list[Path]:
+    """Where to look for a ``groups[i].config`` path.
+
+    An absolute path is taken at face value. A relative path is tried,
+    in order, against:
+      1. the cwd (literal interpretation),
+      2. the study YAML's own directory (the natural place for a
+         study to refer to its siblings),
+      3. the analysis config root and its ``group/`` subdir
+         (where ConfigStore writes duplicates and where users
+         typically keep their canonical group YAMLs),
+      4. the legacy ``./experiments/`` + ``./experiments/group/``
+         tree that the scan-fallback still indexes.
+    """
+    p = Path(cfg_path)
+    if p.is_absolute():
+        return [p]
+    candidates: list[Path] = [p]
+    if config_path is not None:
+        candidates.append(Path(config_path).parent / cfg_path)
+    try:
+        analysis_root = Path(paths.config_dir('analysis'))
+        candidates.append(analysis_root / 'group' / cfg_path)
+        candidates.append(analysis_root / cfg_path)
+        candidates.append(analysis_root / 'study' / cfg_path)
+    except Exception:
+        # ``paths.config_dir`` may raise in test environments without
+        # FMRIFLOW_HOME — fall back to the legacy tree only.
+        pass
+    candidates.append(Path('./experiments/group') / cfg_path)
+    candidates.append(Path('./experiments') / cfg_path)
+    return candidates
+
+
+def find_group_config(cfg_path: str, config_path: Path | None = None) -> Path | None:
+    """First existing file from :func:`group_config_candidates`."""
+    for cand in group_config_candidates(cfg_path, config_path):
+        if cand.is_file():
+            return cand
+    return None

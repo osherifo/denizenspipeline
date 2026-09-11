@@ -169,6 +169,37 @@ group config is rejected, because it was never applied. Analyzers under `subject
 in the second pass, and the second pass's analyze and report records are saved to each subject's
 `run_summary.json`.
 
+### Engines
+
+`run-group` and `run-study` use the graph engine unless `--engine legacy` or `FMRIFLOW_ENGINE=legacy`
+selects the stage orchestrators. Both write the same run directories, summaries, logs and events. On the
+graph engine the group config is compiled into a group graph: a subject fan-out node, the group analyzers
+in order, a second-pass node when an analyzer binds values into subjects, and the group reporters. Each
+subject runs as its own analysis graph and writes `graph.json` next to its `run_summary.json`. Each group
+or study module gets the params of its own entry, so listing the same module twice with different params
+works.
+
+Two group config keys only apply on the graph engine:
+
+| Key | Values | Meaning |
+|---|---|---|
+| `second_pass` | `legacy` (default), `minimal` | `legacy` re-runs every analyzer and reporter of each subject in the second pass. `minimal` re-runs only modules marked `binding_consumer`, such as `project_to_subspace` and `semantic_rgb_flatmap`. |
+| `resume_values` | `light` | Each finished subject saves its model result and `analysis.*` keys under `subjects/<S>/.values/`. A subject skipped by `--resume` brings them back, so group analyzers that read results can still use it. Group analyzers that need raw responses or features cannot, and resumed subjects are not re-run in the second pass. |
+
+```yaml
+second_pass: minimal
+resume_values: light
+```
+
+A module that reads a value bound by a group analyzer declares itself for the minimal second pass with a
+class attribute:
+
+```python
+@analyzer("my_projection")
+class MyProjection:
+    binding_consumer = True
+```
+
 ## What ships today
 
 | Capability | Status |
